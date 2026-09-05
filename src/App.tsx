@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useStore, createSession } from './store/store';
 import { Sidebar } from './components/Sidebar';
 import { ChatView, ChatInput, MessageMenu } from './components/ChatView';
@@ -9,6 +9,7 @@ import { StatsView } from './components/StatsView';
 import { Dashboard } from './components/Dashboard';
 import { ConfirmationDialog } from './components/ConfirmationDialog';
 import { Toasts } from './components/Toasts';
+import { Icon } from './components/shared';
 import './theme/chat.css';
 import './theme/views.css';
 
@@ -94,9 +95,17 @@ function SessionHeader({
   onNew: () => void;
 }) {
   const npcs = useStore((s) => s.npcs);
+  const settings = useStore((s) => s.settings);
+  const modelsList = useStore((s) => s.modelsList);
+  const selectModel = useStore((s) => s.selectModel);
+  const [showPicker, setShowPicker] = useState(false);
+
   const modeLabel = session.mode === 'STANDARD' ? '标准对话' : session.mode === 'NPC' ? '角色对话' : '群聊';
   const npcRef = session.associatedId ? npcs.find((n) => n.id === session.associatedId) : null;
   const groupNpcs = participants.filter((p) => p.kind === 'NPC').map((p) => npcs.find((n) => n.id === p.npcId)).filter(Boolean);
+
+  const selectedModel = settings?.defaultModel?.trim() || '';
+  const modelLabel = selectedModel || '未选择模型';
 
   return (
     <div className="chat-header">
@@ -115,12 +124,98 @@ function SessionHeader({
             </span>
           )}
         </div>
+        {/* 模型选择器（对齐 Android：顶部副标题区可点击 chip → 单选列表） */}
+        <button
+          className="model-chip"
+          onClick={() => setShowPicker(true)}
+          title="选择模型"
+        >
+          <span className="model-chip-label">{modelLabel}</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </button>
       </div>
       <div className="foot-actions">
         <button className="btn btn-ghost btn-sm" onClick={onNew} title="新建会话">
           ＋ 新会话
         </button>
       </div>
+
+      {showPicker && (
+        <ModelPickerDialog
+          models={modelsList}
+          selected={selectedModel}
+          onSelect={async (m) => {
+            await selectModel(m);
+            setShowPicker(false);
+          }}
+          onDismiss={() => setShowPicker(false)}
+        />
+      )}
     </div>
+  );
+}
+
+/** 模型选择对话框：RadioButton 列表（对齐 Android ModelPickerDialog） */
+function ModelPickerDialog({
+  models,
+  selected,
+  onSelect,
+  onDismiss,
+}: {
+  models: string[];
+  selected: string;
+  onSelect: (model: string) => void;
+  onDismiss: () => void;
+}) {
+  const settings = useStore((s) => s.settings);
+  const hasModels = models.length > 0;
+  const manualModel = settings?.defaultModel?.trim() || '';
+
+  return (
+    <>
+      <div className="overlay" onClick={onDismiss} />
+      <div className="modal-root" onClick={(e) => e.stopPropagation()}>
+        <div className="modal card" style={{ width: 'min(420px, calc(100vw - 32px))' }}>
+          <div className="modal-head">
+            <span style={{ fontWeight: 800, fontSize: 15 }}>选择模型</span>
+            <button className="icon-btn" onClick={onDismiss}><Icon name="x" /></button>
+          </div>
+          <div className="modal-body" style={{ padding: '8px 10px' }}>
+            {hasModels ? (
+              <div style={{ display: 'flex', flexDirection: 'column', maxHeight: 360, overflowY: 'auto' }}>
+                {models.map((m) => (
+                  <label key={m} className="model-option" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 9, cursor: 'pointer' }}>
+                    <input
+                      type="radio"
+                      name="model-pick"
+                      checked={m === selected}
+                      onChange={() => onSelect(m)}
+                      style={{ accentColor: 'var(--primary)' }}
+                    />
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, wordBreak: 'break-all' }}>{m}</span>
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <div style={{ padding: 14, fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.7 }}>
+                暂无可用模型列表。请先在「设置 → 模型服务 Provider」中添加并测试连接一个 Provider，
+                或手动输入模型名。
+              </div>
+            )}
+            {!hasModels && manualModel && (
+              <div style={{ padding: '0 6px 6px' }}>
+                <div className="s-desc" style={{ marginBottom: 6 }}>当前手动模型：</div>
+                <div className="model-option" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 9, cursor: 'pointer' }}>
+                  <input type="radio" name="model-pick" checked onChange={() => onSelect(manualModel)} style={{ accentColor: 'var(--primary)' }} />
+                  <span className="mono">{manualModel}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </>
   );
 }

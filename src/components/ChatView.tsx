@@ -165,6 +165,7 @@ function MessageBubble({
 function UserBubble({ msg, session }: { msg: ChatMessage; session: ChatSession }) {
   return (
     <div className="msg-row user-row fade-up" onContextMenu={(e) => { e.preventDefault(); openMsgMenu(e, msg, session); }}>
+      <div className="avatar user-avatar">我</div>
       <div className="msg-body">
         <div className="msg-head right">
           <span className="msg-time">{fmtTime(msg.timestamp)}</span>
@@ -183,7 +184,6 @@ function UserBubble({ msg, session }: { msg: ChatMessage; session: ChatSession }
           {msg.content && <Markdown text={msg.content} />}
         </div>
       </div>
-      <div className="avatar user-avatar">我</div>
     </div>
   );
 }

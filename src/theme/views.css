@@ -295,6 +295,70 @@
   background: var(--surface-2);
 }
 
+.provider-card.disabled {
+  opacity: 0.55;
+}
+.provider-card.disabled .p-name {
+  color: var(--text-faint);
+}
+
+/* ---------- 开关 Switch ---------- */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 38px;
+  height: 22px;
+  flex-shrink: 0;
+}
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.switch-slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  transition: background 0.2s, border-color 0.2s;
+}
+.switch-slider::before {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  left: 2px;
+  top: 2px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  transition: transform 0.2s, background 0.2s;
+}
+.switch input:checked + .switch-slider {
+  background: linear-gradient(135deg, var(--grad-from), var(--grad-to));
+  border-color: transparent;
+}
+.switch input:checked + .switch-slider::before {
+  transform: translateX(16px);
+  background: #fff;
+}
+
+/* ---------- 参数表 ---------- */
+.param-table td {
+  border-bottom: 1px solid var(--border-soft);
+  padding: 9px 4px;
+}
+.param-table .range-row {
+  display: grid;
+  grid-template-columns: 1fr 52px;
+  gap: 10px;
+  align-items: center;
+}
+.param-table .range-val {
+  min-width: 0;
+}
+
 .import-drop {
   border: 2px dashed var(--border);
   border-radius: 14px;
@@ -385,6 +449,103 @@
 .msg-menu-item:hover {
   background: var(--primary-soft);
   color: var(--text);
+}
+
+/* ---------- 创建对话：角色槽位 ---------- */
+.npc-slot {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 58px;
+  padding: 8px 6px 6px;
+  border: 1.5px dashed var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+.npc-slot-name {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--text-dim);
+  max-width: 70px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.npc-slot-x {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  border: none;
+  background: var(--danger);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+}
+.npc-slot-select {
+  width: 72px;
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  font-size: 11.5px;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.npc-slot-add {
+  width: 58px;
+  min-height: 66px;
+  border: 1.5px dashed var(--border);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-faint);
+  font-size: 19px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.npc-slot-add:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-soft);
+}
+
+/* ---------- 模型选择器 ---------- */
+.model-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 4px;
+  padding: 2px 7px;
+  border: none;
+  border-radius: 5px;
+  background: none;
+  color: var(--primary);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  transition: background 0.15s;
+}
+.model-chip:hover {
+  background: var(--primary-soft);
+}
+.model-chip-label {
+  max-width: 150px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.model-option:hover {
+  background: var(--surface-2);
 }
 
 /* ---------- 分组标签 ---------- */

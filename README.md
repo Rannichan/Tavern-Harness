@@ -51,11 +51,19 @@ npm run build    # 构建
 npm run preview  # 预览
 ```
 
-然后在「设置」中：
+然后在「设置 → 模型服务 Provider」中：
 
-1. 填写 Base URL（如 `https://api.siliconflow.cn/v1`）与 API Key
-2. 填入默认模型（如 `deepseek-ai/DeepSeek-V3`），或添加 Provider 并测试连通性
+1. 添加 Provider：名称、Base URL、API Key，启用后点击「测试连接」拉取模型列表
+2. 在聊天页顶部点击模型名选择模型
 3. 回到对话，开聊！
+
+### 本地 / 局域网服务（CORS）
+
+浏览器出于安全会拦截跨域请求。若你的 OpenAI 兼容服务（如局域网内 `http://192.168.x.x:8788/`）**未开放 CORS 头**，`测试连接` 会失败。开发模式下可用内置代理：
+
+- 把 Provider 的 Base URL 填为 `http://localhost:5173/api/<服务地址>/`
+- 例如 `http://localhost:5173/api/192.168.50.175:8788/`
+- 由 Vite 开发服务器在**服务端**转发到 `http://192.168.50.175:8788/`，浏览器同源不再受限（`npm run build` 后的静态部署不包含此代理）
 
 ## 🛠 技术栈
 

@@ -84,6 +84,11 @@ interface AppState {
   refreshProviders: () => Promise<void>;
   loadMessages: (sessionId: number) => Promise<void>;
 
+  /** 聚合所有启用 Provider 的模型列表（与 App 的 aggregateEnabledProviderModels 一致） */
+  modelsList: string[];
+  refreshModelsList: () => Promise<void>;
+  selectModel: (model: string) => Promise<void>;
+
   addToast: (message: string, kind?: 'info' | 'error') => void;
   removeToast: (id: number) => void;
 }
@@ -103,6 +108,7 @@ export const useStore = create<AppState>((set, get) => ({
 
   activeSessionId: null,
   activeView: 'chat',
+  modelsList: [],
 
   streaming: { sessionId: null, abort: null },
   pendingConfirmation: null,
@@ -114,11 +120,11 @@ export const useStore = create<AppState>((set, get) => ({
     if (initLock) return initLock;
     initLock = (async () => {
       const settings = (await db.settings.get(1))!;
-      const providers = await db.providers.toArray();
       const npcs = await db.npcs.toArray();
       const sessions = await db.sessions.orderBy('updatedAt').reverse().toArray();
       const worldBooks = await db.worldBooks.toArray();
-      set({ initialized: true, settings, providers, npcs, sessions, worldBooks });
+      set({ initialized: true, settings, npcs, sessions, worldBooks });
+      await get().refreshProviders();
       applyThemeManual(settings.themeMode, settings.themeColor);
       await scheduleRestoredTasks();
       // 默认创建一个标准会话，方便开箱即用
@@ -165,7 +171,43 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   refreshProviders: async () => {
-    set({ providers: await db.providers.toArray() });
+    const providers = await db.providers.toArray();
+    set({ providers });
+    // 同步聚合模型列表
+    const models = aggregateEnabledProviderModels(providers);
+    set({ modelsList: models });
+    // 若当前默认模型不在列表、但列表非空，自动取第一个
+    const current = get().settings;
+    if (current) {
+      const enabledProviders = providers.filter((p) => p.isEnabled && p.baseUrl.trim());
+      const next: Partial<AppSettings> = {};
+      // 唯一启用 Provider 时自动设为默认
+      if (enabledProviders.length === 1 && current.defaultProviderId !== enabledProviders[0].id) {
+        next.defaultProviderId = enabledProviders[0].id ?? null;
+      }
+      const selected = current.defaultModel.trim();
+      if ((!selected || !models.includes(selected)) && models.length > 0) {
+        next.defaultModel = models[0];
+      }
+      if (Object.keys(next).length > 0) {
+        const updated = { ...current, ...next };
+        await db.settings.put(updated);
+        set({ settings: updated });
+      }
+    }
+  },
+
+  refreshModelsList: async () => {
+    const providers = await db.providers.toArray();
+    set({ modelsList: aggregateEnabledProviderModels(providers) });
+  },
+
+  selectModel: async (model) => {
+    const current = get().settings;
+    if (!current) return;
+    const next = { ...current, defaultModel: model };
+    await db.settings.put(next);
+    set({ settings: next });
   },
 
   loadMessages: async (sessionId) => {
@@ -301,10 +343,30 @@ export const useStore = create<AppState>((set, get) => ({
 
 const confirmationDeferreds = new Map<ToolConfirmationRequest, { resolve: (v: boolean) => void }>();
 
+/** 聚合启用 Provider 的模型列表（对应 App 的 aggregateEnabledProviderModels） */
+function aggregateEnabledProviderModels(providers: ApiProvider[]): string[] {
+  return providers
+    .filter((p) => p.isEnabled && p.baseUrl.trim())
+    .flatMap((p) =>
+      (p.cachedModelsCsv || '')
+        .split(',')
+        .map((m) => m.trim())
+        .filter(Boolean)
+    )
+    .filter((v, i, arr) => arr.indexOf(v) === i)
+    .sort();
+}
+
 /** 创建会话（公开给 UI 用） */
 export async function createSession(
   mode: 'STANDARD' | 'NPC' | 'GROUP',
-  opts?: { associatedId?: number; npcIds?: number[]; title?: string }
+  opts?: {
+    associatedId?: number;
+    npcIds?: number[];
+    title?: string;
+    worldBookId?: number | null;
+    userPersonaNpcId?: number | null;
+  }
 ): Promise<number> {
   let title = opts?.title;
   if (!title) {
@@ -315,8 +377,8 @@ export async function createSession(
     title,
     mode,
     associatedId: mode === 'NPC' ? (opts?.associatedId ?? null) : null,
-    worldBookId: null,
-    userPersonaNpcId: null,
+    worldBookId: opts?.worldBookId ?? null,
+    userPersonaNpcId: opts?.userPersonaNpcId ?? null,
     turnOrderMode: 'PRESET',
     turnQueueJson: '[]',
     loopIndex: 0,
@@ -478,6 +540,39 @@ function lastUserText(sessionId: number): string {
 }
 
 /**
+ * 解析当前生效的 API 端点：
+ * 1. 若 settings.defaultProviderId 指向已启用 Provider → 用其 baseUrl/apiKey
+ * 2. 否则回退 settings 中的 baseUrl/apiKey
+ */
+async function resolveActiveEndpoint(): Promise<{
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+} | null> {
+  const settings = useStore.getState().settings;
+  if (!settings) return null;
+  const providers = await db.providers.toArray();
+  const defaultProvider =
+    settings.defaultProviderId != null
+      ? providers.find((p) => p.id === settings.defaultProviderId && p.isEnabled)
+      : null;
+
+  // 未指定默认 Provider 时：若存在唯一启用的 Provider，自动使用
+  const activeProvider =
+    defaultProvider ??
+    (providers.filter((p) => p.isEnabled && p.baseUrl.trim()).length === 1
+      ? providers.find((p) => p.isEnabled && p.baseUrl.trim()) ?? null
+      : null);
+
+  const baseUrl = activeProvider?.baseUrl || settings.baseUrl;
+  const apiKey = activeProvider?.apiKey || settings.apiKey;
+  const model = settings.defaultModel?.trim() || '';
+
+  if (!baseUrl || !model) return null;
+  return { baseUrl, apiKey, model };
+}
+
+/**
  * 执行一次 assistant 流式回合（含 ReAct 工具调用链，最多 4 层）
  */
 async function streamAssistantTurn(
@@ -489,10 +584,13 @@ async function streamAssistantTurn(
 ): Promise<void> {
   const settings = useStore.getState().settings;
   if (!settings) return;
-  if (!settings.defaultModel || !settings.baseUrl) {
-    useStore.getState().addToast('请在「模型服务」中配置 Base URL 与默认模型', 'error');
+
+  const endpoint = await resolveActiveEndpoint();
+  if (!endpoint) {
+    useStore.getState().addToast('请在「模型服务 Provider」中添加并启用一个端点，并选择模型', 'error');
     return;
   }
+  const { baseUrl, apiKey, model } = endpoint;
 
   const sessionId = session.id!;
   useStore.setState({ streaming: { sessionId, abort: new AbortController() } });
@@ -537,7 +635,7 @@ async function streamAssistantTurn(
     const tools = await getEnabledToolsForSession(sessionId, activeParticipantId ?? null);
 
     const request = buildChatRequest({
-      model: settings.defaultModel,
+      model,
       messages: nmessages,
       tools: tools.length > 0 ? tools : undefined,
       temperature: settings.temperature,
@@ -550,7 +648,7 @@ async function streamAssistantTurn(
       reasoningEffort: settings.reasoningEffort,
       isThinkingModeEnabled: settings.isThinkingModeEnabled,
       streaming: settings.isStreaming,
-      baseUrl: settings.baseUrl,
+      baseUrl,
     });
 
     // 草稿消息（流式更新）
@@ -570,7 +668,7 @@ async function streamAssistantTurn(
       completionTokens: 0,
       totalTokens: 0,
       tokensPerSec: null,
-      modelUsed: settings.defaultModel,
+      modelUsed: model,
       attachments: [],
       attachmentInfos: [],
       rawRequestBody: null,
@@ -586,7 +684,7 @@ async function streamAssistantTurn(
     const toolCalls: Array<{ id: string; name: string; argumentsJson: string; contentOffset: number }> = [];
     let errorMsg = '';
 
-    await streamChatCompletions(settings.baseUrl, settings.apiKey, request, (chunk) => {
+    await streamChatCompletions(baseUrl, apiKey, request, (chunk) => {
       switch (chunk.type) {
         case 'raw':
           rawLines.push(chunk.line);
