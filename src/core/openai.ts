@@ -4,8 +4,20 @@ import type {
   NetworkMessage,
 } from '../types/models';
 import { fallbackToolCallId } from './turnLoop';
+import { isNetworkLikeError, toProxyUrl } from './proxy';
 
 export const OPENAI_TIMEOUTS = { connect: 15_000, read: 60_000, write: 15_000 };
+
+/**
+ * 计算请求 URL 候选：先直连，若失败且开发服务器可用（存在 /api/ 代理），
+ * 自动回退到同源代理地址。
+ */
+function* urlCandidates(baseUrl: string): Generator<string> {
+  const base = baseUrl.replace(/\/+$/, '');
+  yield base + '/chat/completions';
+  const proxy = toProxyUrl(baseUrl);
+  if (proxy) yield proxy.replace(/\/+$/, '') + '/chat/completions';
+}
 
 // ============================================================
 // SSE 流式解析器 — 支持 thinking / tool_calls / usage
@@ -18,6 +30,22 @@ export async function streamChatCompletions(
   onChunk: (chunk: ChatStreamChunk) => void,
   signal?: AbortSignal
 ): Promise<void> {
+  // 依次尝试：直连 → 同源代理（CORS 被拦截时自动回退）
+  for (const url of urlCandidates(baseUrl)) {
+    const ok = await attemptStream(url, apiKey, request, onChunk, signal);
+    if (ok) return;
+    // 直连失败且是网络层错误（CORS 等）→ 继续尝试下一个候选（代理）
+    // 若是业务错误（HTTP 4xx/5xx、解析失败）则不重试
+  }
+}
+
+async function attemptStream(
+  url: string,
+  apiKey: string,
+  request: ChatCompletionRequest,
+  onChunk: (chunk: ChatStreamChunk) => void,
+  signal?: AbortSignal
+): Promise<boolean> {
   const controller = new AbortController();
   const onAbort = () => controller.abort();
   if (signal) {
@@ -27,7 +55,6 @@ export async function streamChatCompletions(
   const timer = setTimeout(() => controller.abort(), OPENAI_TIMEOUTS.read);
 
   try {
-    const url = baseUrl.replace(/\/+$/, '') + '/chat/completions';
     const resp = await fetch(url, {
       method: 'POST',
       headers: {
@@ -47,12 +74,12 @@ export async function streamChatCompletions(
         /* ignore */
       }
       onChunk({ type: 'error', message: `HTTP ${resp.status}: ${detail || resp.statusText}` });
-      return;
+      return true; // 业务性错误，不再重试代理
     }
 
     if (!resp.body) {
       onChunk({ type: 'error', message: 'Response body is empty (streaming not supported?)' });
-      return;
+      return true;
     }
 
     const reader = resp.body.getReader();
@@ -93,14 +120,22 @@ export async function streamChatCompletions(
       });
     }
     onChunk({ type: 'done' });
+    return true;
   } catch (e) {
     if (signal?.aborted) {
       onChunk({ type: 'done' });
-    } else if ((e as Error).name === 'AbortError' || (e as Error).name === 'TimeoutError') {
-      onChunk({ type: 'error', message: '请求超时' });
-    } else {
-      onChunk({ type: 'error', message: (e as Error).message || String(e) });
+      return true;
     }
+    if ((e as Error).name === 'AbortError' || (e as Error).name === 'TimeoutError') {
+      onChunk({ type: 'error', message: '请求超时' });
+      return true;
+    }
+    // 网络层错误：若还有代理候选则返回 false 让外层重试；否则报错
+    if (isNetworkLikeError(e)) {
+      return false;
+    }
+    onChunk({ type: 'error', message: (e as Error).message || String(e) });
+    return true;
   } finally {
     clearTimeout(timer);
     if (signal) signal.removeEventListener('abort', onAbort);

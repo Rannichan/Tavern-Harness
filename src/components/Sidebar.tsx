@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useStore } from '../store/store';
-import { Avatar, Icon, SessionVisual } from './shared';
+import { Avatar, Icon, SessionVisual, Modal } from './shared';
 import type { ChatSession } from '../types/models';
 
 export function Sidebar() {
@@ -174,96 +174,91 @@ function NewSessionMenu({ onClose }: { onClose: () => void }) {
   const canCreate = selectedNpcIds.length > 0;
 
   return (
-    <>
-      <div className="overlay" onClick={onClose} />
-      <div className="modal-root" onClick={(e) => e.stopPropagation()}>
-        <div className="modal card fade-up" style={{ maxWidth: 460 }}>
-          <div className="modal-head">
-            <span style={{ fontWeight: 800, fontSize: 15 }}>创建对话</span>
-            <button className="icon-btn" onClick={onClose}><Icon name="x" /></button>
+    <Modal onClose={onClose} width={460}>
+      <div className="modal-head">
+        <span style={{ fontWeight: 800, fontSize: 15 }}>创建对话</span>
+        <button className="icon-btn" onClick={onClose}><Icon name="x" /></button>
+      </div>
+      <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {/* 标题 */}
+        <div className="field">
+          <label>对话名称</label>
+          <input
+            className="input"
+            value={title}
+            onChange={(e) => setTitle(e.target.value.slice(0, 60))}
+            placeholder={selectedNpcIds.length > 0 ? selectedNpcIds.map((id) => npcs.find((n) => n.id === id)?.name).join('、') : '未命名'}
+          />
+        </div>
+
+        {/* 角色槽位 */}
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-dim)', letterSpacing: 0.3 }}>参与角色</label>
+            <span className="tag">{modeLabel}</span>
           </div>
-          <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {/* 标题 */}
-            <div className="field">
-              <label>对话名称</label>
-              <input
-                className="input"
-                value={title}
-                onChange={(e) => setTitle(e.target.value.slice(0, 60))}
-                placeholder={selectedNpcIds.length > 0 ? selectedNpcIds.map((id) => npcs.find((n) => n.id === id)?.name).join('、') : '未命名'}
-              />
+          {npcs.length === 0 ? (
+            <div style={{ fontSize: 12.5, color: 'var(--warn)', background: 'var(--warn-soft)', padding: '8px 12px', borderRadius: 9 }}>
+              ⚠️ 请先在「角色工坊」创建角色卡！
             </div>
-
-            {/* 角色槽位 */}
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-dim)', letterSpacing: 0.3 }}>参与角色</label>
-                <span className="tag">{modeLabel}</span>
-              </div>
-              {npcs.length === 0 ? (
-                <div style={{ fontSize: 12.5, color: 'var(--warn)', background: 'var(--warn-soft)', padding: '8px 12px', borderRadius: 9 }}>
-                  ⚠️ 请先在「角色工坊」创建角色卡！
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                  {slots.map((id, i) => {
-                    const npc = id != null ? npcs.find((n) => n.id === id) : null;
-                    return (
-                      <div key={i} className="npc-slot">
-                        {npc ? (
-                          <>
-                            <Avatar name={npc.name} colorOrdinal={npc.avatarColorOrdinal} imageUrl={npc.avatarDataUrl} size="sm" />
-                            <span className="npc-slot-name">{npc.name}</span>
-                            <button className="npc-slot-x" onClick={() => removeSlot(i)}><Icon name="x" size={11} /></button>
-                          </>
-                        ) : (
-                          <select className="npc-slot-select" value="" onChange={(e) => setSlot(i, e.target.value ? Number(e.target.value) : null)}>
-                            <option value="">＋ 选择角色</option>
-                            {npcs.filter((n) => !slots.some((s, j) => j !== i && s === n.id)).map((n) => (
-                              <option key={n.id} value={n.id!}>{n.name}</option>
-                            ))}
-                          </select>
-                        )}
-                      </div>
-                    );
-                  })}
-                  {slots.length < 5 && <button className="npc-slot-add" onClick={addSlot} title="添加角色（最多 5 位）">＋</button>}
-                </div>
-              )}
-              <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 5 }}>
-                选择 1 位角色 = NPC 对话 · 选择 2~5 位 = 群聊回合制
-              </div>
+          ) : (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {slots.map((id, i) => {
+                const npc = id != null ? npcs.find((n) => n.id === id) : null;
+                return (
+                  <div key={i} className="npc-slot">
+                    {npc ? (
+                      <>
+                        <Avatar name={npc.name} colorOrdinal={npc.avatarColorOrdinal} imageUrl={npc.avatarDataUrl} size="sm" />
+                        <span className="npc-slot-name">{npc.name}</span>
+                        <button className="npc-slot-x" onClick={() => removeSlot(i)}><Icon name="x" size={11} /></button>
+                      </>
+                    ) : (
+                      <select className="npc-slot-select" value="" onChange={(e) => setSlot(i, e.target.value ? Number(e.target.value) : null)}>
+                        <option value="">＋ 选择角色</option>
+                        {npcs.filter((n) => !slots.some((s, j) => j !== i && s === n.id)).map((n) => (
+                          <option key={n.id} value={n.id!}>{n.name}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                );
+              })}
+              {slots.length < 5 && <button className="npc-slot-add" onClick={addSlot} title="添加角色（最多 5 位）">＋</button>}
             </div>
-
-            {/* 用户人设 */}
-            <div className="field">
-              <label>用户人设（可选）</label>
-              <select className="select" value={userPersonaNpcId ?? ''} onChange={(e) => setUserPersonaNpcId(e.target.value ? Number(e.target.value) : null)}>
-                <option value="">不使用用户人设</option>
-                {npcs.filter((n) => n.id != null && !selectedNpcIds.includes(n.id!)).map((n) => (
-                  <option key={n.id} value={n.id!}>{n.name}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* 世界书 */}
-            <div className="field">
-              <label>世界书（可选）</label>
-              <select className="select" value={worldBookId ?? ''} onChange={(e) => setWorldBookId(e.target.value ? Number(e.target.value) : null)}>
-                <option value="">不使用世界书</option>
-                {worldBooks.map((b) => (
-                  <option key={b.id} value={b.id!}>{b.name}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div className="modal-foot">
-            <button className="btn" onClick={onClose}>取消</button>
-            <button className="btn btn-primary" disabled={!canCreate} onClick={create}>确定</button>
+          )}
+          <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 5 }}>
+            选择 1 位角色 = NPC 对话 · 选择 2~5 位 = 群聊回合制
           </div>
         </div>
+
+        {/* 用户人设 */}
+        <div className="field">
+          <label>用户人设（可选）</label>
+          <select className="select" value={userPersonaNpcId ?? ''} onChange={(e) => setUserPersonaNpcId(e.target.value ? Number(e.target.value) : null)}>
+            <option value="">不使用用户人设</option>
+            {npcs.filter((n) => n.id != null && !selectedNpcIds.includes(n.id!)).map((n) => (
+              <option key={n.id} value={n.id!}>{n.name}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* 世界书 */}
+        <div className="field">
+          <label>世界书（可选）</label>
+          <select className="select" value={worldBookId ?? ''} onChange={(e) => setWorldBookId(e.target.value ? Number(e.target.value) : null)}>
+            <option value="">不使用世界书</option>
+            {worldBooks.map((b) => (
+              <option key={b.id} value={b.id!}>{b.name}</option>
+            ))}
+          </select>
+        </div>
       </div>
-    </>
+      <div className="modal-foot">
+        <button className="btn" onClick={onClose}>取消</button>
+        <button className="btn btn-primary" disabled={!canCreate} onClick={create}>确定</button>
+      </div>
+    </Modal>
   );
 }
 

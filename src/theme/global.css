@@ -542,6 +542,66 @@ select {
   text-overflow: ellipsis;
 }
 
+/* ---------- 聊天头部右侧动作按钮 ---------- */
+.chat-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.chat-actions .icon-tooltip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-dim);
+  transition: background 0.15s ease, color 0.15s ease;
+  cursor: pointer;
+}
+.chat-actions .icon-tooltip:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.chat-actions .icon-tooltip.has-value {
+  color: var(--primary);
+}
+.chat-actions .icon-tooltip.danger:hover {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+/* 切换列表（用户人设/世界书）选项 */
+.sel-opt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: none;
+  border-radius: 9px;
+  color: var(--text);
+  font-size: 13.5px;
+  cursor: pointer;
+  text-align: left;
+}
+.sel-opt:hover {
+  background: var(--surface-2);
+}
+.sel-opt.active {
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-weight: 700;
+}
+.sel-opt-check {
+  color: var(--primary);
+  font-weight: 800;
+}
+
 /* ---------- 卡片/仪表盘 ---------- */
 .dash-scroll {
   flex: 1;

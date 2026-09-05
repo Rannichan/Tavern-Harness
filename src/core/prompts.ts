@@ -143,7 +143,36 @@ function parseToolCalls(json: string): NonNullable<NetworkMessage['tool_calls']>
   if (!json) return [];
   try {
     const arr = JSON.parse(json);
-    return Array.isArray(arr) ? arr : [];
+    if (!Array.isArray(arr)) return [];
+    const result: NonNullable<NetworkMessage['tool_calls']> = [];
+    for (const tc of arr) {
+      if (!tc || typeof tc !== 'object') continue;
+      // 已是标准网络格式（id/type/function）
+      if (tc.id && tc.type === 'function' && tc.function && typeof tc.function === 'object') {
+        const fn = tc.function as { name?: unknown; arguments?: unknown };
+        result.push({
+          id: String(tc.id),
+          type: 'function',
+          function: {
+            name: String(fn.name ?? ''),
+            arguments: typeof fn.arguments === 'string' ? fn.arguments : JSON.stringify(fn.arguments ?? {}),
+          },
+        });
+        continue;
+      }
+      // 内部 ToolCallRecord 格式（id/name/argumentsJson/contentOffset）
+      if (tc.id && tc.name) {
+        result.push({
+          id: String(tc.id),
+          type: 'function',
+          function: {
+            name: String(tc.name),
+            arguments: typeof tc.argumentsJson === 'string' ? tc.argumentsJson : JSON.stringify(tc.argumentsJson ?? {}),
+          },
+        });
+      }
+    }
+    return result;
   } catch {
     return [];
   }

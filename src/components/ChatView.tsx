@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../store/store';
 import type { ChatMessage, ChatParticipant, ChatSession, ToolCallRecord } from '../types/models';
-import { Avatar, Icon, Markdown, Collapse } from './shared';
+import { Avatar, Icon, Markdown, Collapse, Modal, AttachCard } from './shared';
 import { formatMetrics } from '../core/stats';
 
 function fmtTime(ts: number): string {
@@ -9,6 +9,24 @@ function fmtTime(ts: number): string {
   const hh = String(d.getHours()).padStart(2, '0');
   const mm = String(d.getMinutes()).padStart(2, '0');
   return `${hh}:${mm}`;
+}
+
+/** 从 dataUrl / URL 猜测一个可显示的文件名 */
+function attachmentName(a: string): string {
+  if (a.startsWith('data:')) {
+    const m = /^data:([^;]+);/.exec(a);
+    const mime = m ? m[1] : '';
+    const ext = mime.split('/')[1] || 'bin';
+    return `附件.${ext}`;
+  }
+  try {
+    const u = new URL(a);
+    const name = u.pathname.split('/').pop();
+    if (name) return decodeURIComponent(name);
+  } catch {
+    /* ignore */
+  }
+  return '附件';
 }
 
 // ============================================================
@@ -104,6 +122,20 @@ function MessageBubble({
     }
   }, [msg.toolCallsJson]);
 
+  // ---- 内联编辑状态（右键菜单 → 编辑消息，直接在气泡内编辑，不弹窗） ----
+  const [isEditing, setIsEditing] = useState(false);
+  useEffect(() => {
+    const fn = () => {
+      const isTarget = editingMsgState?.msgId === msg.id;
+      setIsEditing(isTarget);
+    };
+    editingMsgListeners.push(fn);
+    return () => {
+      editingMsgListeners = editingMsgListeners.filter((f) => f !== fn);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [msg.id]);
+
   const isUser = msg.role === 'user' || (msg.role === 'assistant' && msg.speakerParticipantId == null && session.mode === 'STANDARD' && false);
   const speaker = msg.speakerParticipantId != null
     ? participants.find((p) => p.participantId === msg.speakerParticipantId)
@@ -113,8 +145,24 @@ function MessageBubble({
   const npcAvatar = speaker?.npcId ? useStore((s) => s.npcs.find((n) => n.id === speaker.npcId)?.avatarDataUrl ?? null) : null;
 
   if (isUser) {
-    return <UserBubble msg={msg} session={session} />;
+    return <UserBubble msg={msg} session={session} editing={isEditing} />;
   }
+
+  if (isEditing) {
+    return (
+      <div className="msg-row fade-up">
+        <Avatar name={speakerName} colorOrdinal={npcHue} imageUrl={npcAvatar} />
+        <div className="msg-body">
+          <div className="msg-head">
+            <span className="msg-name">{speakerName}</span>
+            <span className="msg-time">{fmtTime(msg.timestamp)}</span>
+          </div>
+          <BubbleEditor msg={msg} session={session} onDone={stopEditingMsg} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`msg-row fade-up ${streaming ? 'streaming' : ''}`} onContextMenu={(e) => { e.preventDefault(); openMsgMenu(e, msg, session); }}>
       <Avatar name={speakerName} colorOrdinal={npcHue} imageUrl={npcAvatar} />
@@ -145,9 +193,7 @@ function MessageBubble({
           {msg.attachments.length > 0 && (
             <div className="attachments">
               {msg.attachments.map((a, i) => (
-                a.startsWith('data:image')
-                  ? <img key={i} src={a} alt="attach" className="attach-img" />
-                  : <video key={i} src={a} controls className="attach-img" />
+                <AttachCard key={i} name={msg.attachmentInfos?.[i]?.displayName || attachmentName(a)} />
               ))}
             </div>
           )}
@@ -162,27 +208,81 @@ function MessageBubble({
   );
 }
 
-function UserBubble({ msg, session }: { msg: ChatMessage; session: ChatSession }) {
+/** 气泡内联编辑器（替换弹窗编辑） */
+function BubbleEditor({
+  msg,
+  session,
+  onDone,
+}: {
+  msg: ChatMessage;
+  session: ChatSession;
+  onDone: () => void;
+}) {
+  const [text, setText] = useState(msg.content);
+  const editMessage = useStore((s) => s.editMessage);
+  const streaming = useStore((s) => s.streaming.sessionId === session.id);
+
+  const doSave = async () => {
+    if (!text.trim() || streaming) return;
+    await editMessage(msg.id!, text, session.id!);
+    onDone();
+  };
+
+  return (
+    <div className="bubble-editor">
+      <textarea
+        className="textarea mono"
+        rows={Math.max(3, Math.min(12, text.split('\n').length))}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        autoFocus
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+            e.preventDefault();
+            doSave();
+          }
+          if (e.key === 'Escape') {
+            e.preventDefault();
+            onDone();
+          }
+        }}
+      />
+      <div className="bubble-editor-actions">
+        <span className="bubble-editor-hint">⌘/Ctrl+Enter 保存 · Esc 取消</span>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button className="btn btn-sm" onClick={onDone}>取消</button>
+          <button className="btn btn-sm btn-primary" disabled={!text.trim() || streaming} onClick={doSave}>
+            保存并重新生成
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function UserBubble({ msg, session, editing }: { msg: ChatMessage; session: ChatSession; editing?: boolean }) {
   return (
     <div className="msg-row user-row fade-up" onContextMenu={(e) => { e.preventDefault(); openMsgMenu(e, msg, session); }}>
-      <div className="avatar user-avatar">我</div>
+      <div className="avatar sm user-avatar">我</div>
       <div className="msg-body">
         <div className="msg-head right">
           <span className="msg-time">{fmtTime(msg.timestamp)}</span>
           <span className="msg-name">你</span>
         </div>
-        <div className="bubble bubble-user">
-          {msg.attachments.length > 0 && (
-            <div className="attachments">
-              {msg.attachments.map((a, i) => (
-                a.startsWith('data:image')
-                  ? <img key={i} src={a} alt="attach" className="attach-img" />
-                  : <video key={i} src={a} controls className="attach-img" />
-              ))}
-            </div>
-          )}
-          {msg.content && <Markdown text={msg.content} />}
-        </div>
+        {editing ? (
+          <BubbleEditor msg={msg} session={session} onDone={stopEditingMsg} />
+        ) : (
+          <div className="bubble bubble-user">
+            {msg.attachments.length > 0 && (
+              <div className="attachments">
+                {msg.attachments.map((a, i) => (
+                  <AttachCard key={i} name={msg.attachmentInfos?.[i]?.displayName || attachmentName(a)} />
+                ))}
+              </div>
+            )}
+            {msg.content && <Markdown text={msg.content} />}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -216,14 +316,16 @@ function ToolCallCard({ tc, executing }: { tc: ToolCallRecord; executing: boolea
 
 export function ChatInput({ sessionId }: { sessionId: number }) {
   const [text, setText] = useState('');
-  const [attachments, setAttachments] = useState<string[]>([]);
+  const [attachments, setAttachments] = useState<{ dataUrl: string; name: string }[]>([]);
   const [showCmd, setShowCmd] = useState(false);
   const [typing, setTyping] = useState(false);
+  const [showModels, setShowModels] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const sendMessage = useStore((s) => s.sendMessage);
   const streaming = useStore((s) => s.streaming.sessionId === sessionId);
   const stopStreaming = useStore((s) => s.stopStreaming);
   const session = useStore((s) => s.sessions.find((x) => x.id === sessionId));
+  const defaultModel = useStore((s) => s.settings?.defaultModel?.trim() || '');
 
   const canSend = text.trim().length > 0 || attachments.length > 0;
 
@@ -231,7 +333,11 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
     if (!canSend || typing) return;
     if (streaming) return;
     setTyping(true);
-    sendMessage(text.trim(), attachments).finally(() => {
+    sendMessage(
+      text.trim(),
+      attachments.map((a) => a.dataUrl),
+      attachments.map((a) => a.name)
+    ).finally(() => {
       setTyping(false);
       setText('');
       setAttachments([]);
@@ -239,13 +345,14 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
     });
   };
 
-  // 拖放附件
+  // 拖放 / 粘贴附件
   useEffect(() => {
     const onPaste = (e: ClipboardEvent) => {
       const files = e.clipboardData?.files;
       if (files && files.length > 0 && files[0].type.startsWith('image')) {
         e.preventDefault();
-        readFileAsDataUrl(files[0]).then((url) => setAttachments((a) => [...a, url]));
+        const f = files[0];
+        readFileAsDataUrl(f).then((url) => setAttachments((a) => [...a, { dataUrl: url, name: f.name || `粘贴图片.${f.type.split('/')[1] || 'png'}` }]));
       }
     };
     window.addEventListener('paste', onPaste);
@@ -259,10 +366,11 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
       {attachments.length > 0 && (
         <div className="attach-preview">
           {attachments.map((a, i) => (
-            <div key={i} className="attach-chip">
-              <img src={a} alt="" />
-              <button className="attach-rm" onClick={() => setAttachments(attachments.filter((_, j) => j !== i))}><Icon name="x" size={11} /></button>
-            </div>
+            <AttachCard
+              key={i}
+              name={a.name}
+              onRemove={() => setAttachments(attachments.filter((_, j) => j !== i))}
+            />
           ))}
         </div>
       )}
@@ -277,8 +385,26 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
         </div>
       )}
       <div className="composer-box">
-        <button className="icon-btn" title="添加图片（粘贴或点击）" onClick={() => fileRef.current?.click()}>
-          <Icon name="image" />
+        {/* 模型选择器：输入框左侧，弹出列表（非弹窗） */}
+        <div className="composer-model">
+          <button
+            className={`composer-model-btn ${showModels ? 'open' : ''}`}
+            title="选择模型"
+            onClick={() => setShowModels(!showModels)}
+          >
+            <Icon name="dice" size={15} />
+            <span className="composer-model-label">{defaultModel || '选模型'}</span>
+          </button>
+          {showModels && (
+            <ModelPickerPanel onClose={() => setShowModels(false)} />
+          )}
+        </div>
+        <button
+          className="icon-btn composer-attach"
+          title="添加图片/视频（粘贴或点击）"
+          onClick={() => fileRef.current?.click()}
+        >
+          <Icon name="image" size={18} />
         </button>
         <input
           ref={fileRef}
@@ -289,7 +415,7 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
           onChange={(e) => {
             const files = e.target.files;
             if (files) {
-              Array.from(files).forEach((f) => readFileAsDataUrl(f).then((url) => setAttachments((a) => [...a, url])));
+              Array.from(files).forEach((f) => readFileAsDataUrl(f).then((url) => setAttachments((a) => [...a, { dataUrl: url, name: f.name }])));
             }
             e.target.value = '';
           }}
@@ -333,6 +459,63 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
   );
 }
 
+/** 模型选择下拉列表（弹出在输入框左侧上方） */
+function ModelPickerPanel({ onClose }: { onClose: () => void }) {
+  const settings = useStore((s) => s.settings);
+  const models = useStore((s) => s.modelsList);
+  const selectModel = useStore((s) => s.selectModel);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onDocClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onEsc);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('keydown', onEsc);
+    };
+  }, [onClose]);
+
+  const selected = settings?.defaultModel?.trim() || '';
+
+  const pick = async (m: string) => {
+    await selectModel(m);
+    onClose();
+  };
+
+  return (
+    <div className="model-popover card" ref={ref} onClick={(e) => e.stopPropagation()}>
+      <div className="model-popover-head">
+        <span>选择模型</span>
+        <button className="icon-btn" onClick={onClose} title="关闭"><Icon name="x" size={12} /></button>
+      </div>
+      {models.length === 0 ? (
+        <div className="model-popover-empty">
+          暂无可用模型列表。请先在「设置 → 模型服务 Provider」添加并测试连接。
+        </div>
+      ) : (
+        <div className="model-popover-list">
+          {models.map((m) => (
+            <button
+              key={m}
+              className={`model-option ${m === selected ? 'active' : ''}`}
+              onClick={() => pick(m)}
+            >
+              <span className="model-option-dot">{m === selected ? '●' : '○'}</span>
+              <span className="model-option-name">{m}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -362,12 +545,23 @@ function closeMsgMenu() {
   notifyMsgMenu();
 }
 
+// ---- 内联编辑全局状态（编辑目标由 MessageBubble 监听） ----
+let editingMsgState: { msgId: number } | null = null;
+let editingMsgListeners: Array<() => void> = [];
+function startEditingMsg(msgId: number) {
+  editingMsgState = { msgId };
+  editingMsgListeners.forEach((fn) => fn());
+  closeMsgMenu();
+}
+function stopEditingMsg() {
+  editingMsgState = null;
+  editingMsgListeners.forEach((fn) => fn());
+}
+
 export function MessageMenu() {
   const [, force] = useState(0);
   const regenerateLast = useStore((s) => s.regenerateLast);
   const addToast = useStore((s) => s.addToast);
-  const [editing, setEditing] = useState(false);
-  const [editTarget, setEditTarget] = useState<{ msg: ChatMessage; session: ChatSession } | null>(null);
 
   useEffect(() => {
     const fn = () => force((n) => n + 1);
@@ -376,20 +570,6 @@ export function MessageMenu() {
       msgMenuListeners = msgMenuListeners.filter((f) => f !== fn);
     };
   }, []);
-
-  // 编辑 modal（独立于右键菜单状态）
-  if (editing && editTarget) {
-    return (
-      <EditMessageModal
-        msg={editTarget.msg}
-        session={editTarget.session}
-        onClose={() => {
-          setEditing(false);
-          setEditTarget(null);
-        }}
-      />
-    );
-  }
 
   if (!msgMenuState) return null;
   const { x, y, msg, session } = msgMenuState;
@@ -400,9 +580,7 @@ export function MessageMenu() {
       label: '编辑消息',
       icon: 'settings',
       onClick: () => {
-        setEditTarget({ msg, session });
-        closeMsgMenu();
-        setEditing(true);
+        startEditingMsg(msg.id!);
       },
     });
   }
@@ -473,40 +651,6 @@ function prettyJson(s: string): string {
   } catch {
     return s;
   }
-}
-
-function EditMessageModal({ msg, session, onClose }: { msg: ChatMessage; session: ChatSession; onClose: () => void }) {
-  const [text, setText] = useState(msg.content);
-  const editMessage = useStore((s) => s.editMessage);
-
-  return (
-    <>
-      <div className="overlay" onClick={onClose} />
-      <div className="modal-root" onClick={(e) => e.stopPropagation()}>
-        <div className="modal card">
-          <div className="modal-head">
-            <span style={{ fontWeight: 800, fontSize: 14 }}>编辑消息</span>
-            <button className="icon-btn" onClick={onClose}><Icon name="x" /></button>
-          </div>
-          <div className="modal-body">
-            <textarea className="textarea mono" rows={8} value={text} onChange={(e) => setText(e.target.value)} autoFocus />
-          </div>
-          <div className="modal-foot">
-            <button className="btn" onClick={onClose}>取消</button>
-            <button
-              className="btn btn-primary"
-              onClick={async () => {
-                await editMessage(msg.id!, text, session.id!);
-                onClose();
-              }}
-            >
-              保存并重新生成
-            </button>
-          </div>
-        </div>
-      </div>
-    </>
-  );
 }
 
 export default ChatView;

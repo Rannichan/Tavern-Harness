@@ -4,6 +4,7 @@ import { db } from '../db/database';
 import { PALETTES, type ThemeColor, type ThemeMode } from '../theme/theme';
 import type { ApiProvider, ReasoningEffort } from '../types/models';
 import { Icon } from './shared';
+import { isProxyUrl, isNetworkLikeError, toProxyUrl } from '../core/proxy';
 
 // ============================================================
 // 设置视图（模型服务 / 超参数 / 主题 / 数据）
@@ -175,35 +176,65 @@ export function SettingsView() {
 
 // ---------------- Providers ----------------
 
-/** 依次尝试几个常见 models 端点，返回第一个成功的模型列表 */
-async function fetchModelsSmart(baseUrl: string, apiKey: string): Promise<string[]> {
+interface ModelsResult {
+  models: string[];
+  viaProxy: boolean;
+}
+
+/** 依次尝试常见 models 端点，返回第一个成功的模型列表。
+ *  若直连请求被 CORS 拦截，自动回退到开发服务器同源代理（若可用）。 */
+async function fetchModelsSmart(baseUrl: string, apiKey: string): Promise<ModelsResult> {
   const base = baseUrl.replace(/\/+$/, '');
-  const candidates = [
-    `${base}/models`,
-    `${base}/v1/models`,
-  ];
+  const candidates = [`${base}/models`, `${base}/v1/models`];
+
+  // 收集“网络层失败”的次数：若直连失败且存在可用的代理 URL → 自动重试代理
+  const proxyUrl = toProxyUrl(baseUrl);
+
   let lastErr: Error | null = null;
-  for (const url of candidates) {
+  let viaProxy = false;
+
+  const tryFetch = async (url: string): Promise<string[]> => {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 7000);
     try {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 5000);
       const resp = await fetch(url, {
         headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
         signal: ctrl.signal,
       });
-      clearTimeout(timer);
       if (!resp.ok) {
-        lastErr = new Error(`HTTP ${resp.status}`);
-        continue;
+        throw new Error(`HTTP ${resp.status}`);
       }
       const json = (await resp.json()) as { data?: Array<{ id: string }> };
       const models = (json.data ?? []).map((m: { id: string }) => m.id).sort();
-      if (models.length > 0) return models;
-      lastErr = new Error('空模型列表');
+      if (models.length === 0) throw new Error('空模型列表');
+      return models;
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
+  // 第 1 轮：直连
+  for (const url of candidates) {
+    try {
+      return { models: await tryFetch(url), viaProxy: false };
     } catch (e) {
       lastErr = e as Error;
     }
   }
+
+  // 第 2 轮：CORS/网络失败 → 代理回退
+  if (proxyUrl && isNetworkLikeError(lastErr)) {
+    const proxiedCandidates = [`${proxyUrl}/models`, `${proxyUrl}/v1/models`];
+    for (const url of proxiedCandidates) {
+      try {
+        const models = await tryFetch(url);
+        return { models, viaProxy: !!proxyUrl };
+      } catch (e) {
+        lastErr = e as Error;
+      }
+    }
+  }
+
   throw lastErr ?? new Error('未知错误');
 }
 
@@ -221,14 +252,20 @@ function ProviderManager({ providers, onChanged }: { providers: ApiProvider[]; o
   const testProvider = async (p: ApiProvider) => {
     setTestingId(p.id!);
     try {
-      const models = await fetchModelsSmart(p.baseUrl, p.apiKey);
+      const { models, viaProxy } = await fetchModelsSmart(p.baseUrl, p.apiKey);
       await db.providers.update(p.id!, { cachedModelsCsv: models.join(',') });
       onChanged();
-      addToast(`✅ 连通正常，拉取到 ${models.length} 个模型`);
+      // 自动把直连 Base URL 修正为代理 URL（若可用且当前不是代理形式）
+      if (viaProxy && !isProxyUrl(p.baseUrl)) {
+        const proxy = toProxyUrl(p.baseUrl);
+        if (proxy) await db.providers.update(p.id!, { baseUrl: proxy });
+        onChanged();
+      }
+      addToast(`✅ 连通正常，拉取到 ${models.length} 个模型${viaProxy ? '（经本地代理转发）' : ''}`);
     } catch (e) {
       const msg = (e as Error).message;
       // CORS 错误是浏览器端最常见原因，给出可操作的提示
-      const isCors = /Failed to fetch|NetworkError|Load failed|TypeError/.test(msg);
+      const isCors = isNetworkLikeError(e);
       addToast(
         `❌ 连接失败: ${msg}${isCors ? '。疑似 CORS 跨域被拦截——若 API 服务未开放 CORS 头，可在开发模式下把 Base URL 改为 http://localhost:5173/api/<服务地址>/ 使用内置代理' : ''}`,
         'error'

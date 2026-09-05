@@ -71,7 +71,7 @@ interface AppState {
   setActiveSession: (id: number | null) => void;
   setActiveView: (v: ActiveView) => void;
 
-  sendMessage: (text: string, attachments?: string[]) => Promise<void>;
+  sendMessage: (text: string, attachments?: string[], attachmentNames?: string[]) => Promise<void>;
   regenerateLast: () => Promise<void>;
   editMessage: (messageId: number, newContent: string, sessionId: number) => Promise<void>;
   stopStreaming: () => void;
@@ -127,15 +127,12 @@ export const useStore = create<AppState>((set, get) => ({
       await get().refreshProviders();
       applyThemeManual(settings.themeMode, settings.themeColor);
       await scheduleRestoredTasks();
-      // 默认创建一个标准会话，方便开箱即用
-      if (sessions.length === 0) {
-        const id = await createSession('STANDARD');
-        set({ activeSessionId: id });
-        await get().loadMessages(id);
-        await get().refreshSessions();
-      } else {
+      // 不自动创建会话：由用户通过左下角「新建」或仪表盘入口创建
+      if (sessions.length > 0) {
         set({ activeSessionId: sessions[0].id! });
         await get().loadMessages(sessions[0].id!);
+      } else {
+        set({ activeSessionId: null, activeView: 'chat' });
       }
     })();
     return initLock;
@@ -219,7 +216,7 @@ export const useStore = create<AppState>((set, get) => ({
     }));
   },
 
-  sendMessage: async (text, attachments = []) => {
+  sendMessage: async (text, attachments = [], attachmentNames = []) => {
     const sessionId = get().activeSessionId;
     if (sessionId == null) return;
     const session = await db.sessions.get(sessionId);
@@ -238,6 +235,11 @@ export const useStore = create<AppState>((set, get) => ({
     }
 
     // 保存用户消息
+    const attachInfos = attachments.map((a, i) => ({
+      mimeType: a.startsWith('data:image') ? 'image/png' : 'video/mp4',
+      displayName: attachmentNames[i]?.trim() || '附件',
+      sizeBytes: a.length,
+    }));
     const userMsg: ChatMessage = {
       sessionId,
       role: 'user',
@@ -255,11 +257,7 @@ export const useStore = create<AppState>((set, get) => ({
       tokensPerSec: null,
       modelUsed: null,
       attachments,
-      attachmentInfos: attachments.map((a) => ({
-        mimeType: a.startsWith('data:image') ? 'image/png' : 'video/mp4',
-        displayName: '附件',
-        sizeBytes: a.length,
-      })),
+      attachmentInfos: attachInfos,
       rawRequestBody: null,
       rawResponseBody: null,
     };

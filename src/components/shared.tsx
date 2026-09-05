@@ -1,5 +1,33 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { renderMarkdown, highlightMentions } from '../core/markdown';
+
+// ============================================================
+// 通用弹窗容器（Portal 到 body，避开祖先 backdrop-filter 产生的
+// 包含块，保证全页面居中、遮罩覆盖全屏、点击可用）
+// ============================================================
+
+export function Modal({
+  onClose,
+  width,
+  children,
+}: {
+  onClose: () => void;
+  width?: string | number;
+  children: React.ReactNode;
+}) {
+  return createPortal(
+    <>
+      <div className="overlay" onClick={onClose} />
+      <div className="modal-root" onClick={(e) => e.stopPropagation()}>
+        <div className="modal card fade-up" style={width != null ? { width } : undefined}>
+          {children}
+        </div>
+      </div>
+    </>,
+    document.body
+  );
+}
 
 // ============================================================
 // Markdown 渲染组件（支持数学公式 + 代码高亮）
@@ -46,6 +74,24 @@ export function Avatar({
     );
   }
   return <div className={`${cls} avatar-hue-${hue}`}>{name.slice(0, 1)}</div>;
+}
+
+// ============================================================
+// 附件卡片：仅展示文件名（去掉图片/视频缩略图）
+// ============================================================
+
+export function AttachCard({ name, onRemove }: { name: string; onRemove?: () => void }) {
+  return (
+    <div className="attach-card">
+      <span className="attach-card-icon">📎</span>
+      <span className="attach-card-name" title={name}>{name}</span>
+      {onRemove && (
+        <button className="attach-rm" onClick={onRemove} title="移除附件">
+          <Icon name="x" size={11} />
+        </button>
+      )}
+    </div>
+  );
 }
 
 // ============================================================
@@ -149,6 +195,8 @@ const ICONS: Record<string, React.ReactNode> = {
   cancel: <path d="M18 6 6 18M6 6l12 12" />,
   x: <path d="M18 6 6 18M6 6l12 12" />,
   paperclip: <path d="M21.44 11.05 12.25 20.24a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.82-2.83l8.49-8.48" />,
+  share: <><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" /><path d="m16 6-4-4-4 4M12 2v13" /></>,
+  'user-persona': <><circle cx="12" cy="8" r="4" /><path d="M4 20c1.5-3.2 4.4-5 8-5s6.5 1.8 8 5" /></>,
 };
 
 export function Icon({ name, size = 15 }: { name: string; size?: number }) {
