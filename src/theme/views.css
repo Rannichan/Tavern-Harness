@@ -1,0 +1,407 @@
+/* ============================================================
+   弹窗 / 覆盖层 / 视图页 / 卡片列表
+   ============================================================ */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(4px);
+  z-index: 900;
+  animation: fadeIn 0.18s ease;
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+}
+.modal-root {
+  position: fixed;
+  inset: 0;
+  z-index: 901;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.modal {
+  pointer-events: auto;
+  width: min(480px, calc(100vw - 32px));
+  max-height: calc(100dvh - 60px);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+}
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.modal-body {
+  padding: 16px 18px;
+  overflow-y: auto;
+}
+.modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--border);
+}
+
+.modal.confirm {
+  width: min(420px, calc(100vw - 32px));
+}
+.confirm-args {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 11.5px;
+  max-height: 180px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* ---------- 视图页通用 ---------- */
+.view-page {
+  flex: 1;
+  overflow-y: auto;
+  padding: 22px 28px;
+}
+.view-col {
+  max-width: 900px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.view-title {
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: 0.3px;
+  margin: 0;
+}
+.view-sub {
+  color: var(--text-dim);
+  font-size: 13px;
+  margin: 2px 0 0;
+}
+
+/* ---------- 卡片网格（角色） ---------- */
+.char-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 14px;
+}
+.char-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: all 0.18s ease;
+  position: relative;
+}
+.char-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+  border-color: color-mix(in srgb, var(--primary) 35%, transparent);
+}
+.char-card .cname {
+  font-weight: 800;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.char-card .cgreet {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  line-height: 1.5;
+  flex: 1;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.char-card .cskil {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.char-card .cactions {
+  display: flex;
+  gap: 6px;
+}
+.skill-tag {
+  font-size: 10.5px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: var(--surface-3);
+  color: var(--text-dim);
+  font-weight: 600;
+}
+.skill-tag.locked {
+  opacity: 0.5;
+}
+
+/* ---------- 列表（世界书 / 技能 / 文件） ---------- */
+.list-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface);
+  transition: border-color 0.15s;
+}
+.list-item:hover {
+  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+}
+.list-item .l-main {
+  flex: 1;
+  min-width: 0;
+}
+.list-item .l-title {
+  font-weight: 700;
+  font-size: 13.5px;
+}
+.list-item .l-sub {
+  font-size: 11.5px;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+}
+
+.file-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+}
+.file-row .f-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  background: var(--surface-2);
+  font-size: 16px;
+}
+.file-row .f-name {
+  font-weight: 600;
+  font-size: 13px;
+}
+.file-row .f-meta {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+/* ---------- 设置分组 ---------- */
+.set-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+.set-section {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.set-section h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.set-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.set-row .s-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+.set-row .s-desc {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+.range-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.range-row input[type='range'] {
+  flex: 1;
+  accent-color: var(--primary);
+}
+.range-val {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-dim);
+  min-width: 48px;
+  text-align: right;
+}
+
+.provider-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.provider-card .p-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.provider-card .p-name {
+  font-weight: 800;
+  font-size: 14px;
+}
+.provider-card .p-url {
+  font-size: 11px;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  word-break: break-all;
+}
+.p-status {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.p-status.on {
+  color: var(--success);
+  background: var(--success-soft);
+}
+.p-status.off {
+  color: var(--text-faint);
+  background: var(--surface-2);
+}
+
+.import-drop {
+  border: 2px dashed var(--border);
+  border-radius: 14px;
+  padding: 26px;
+  text-align: center;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.18s;
+}
+.import-drop:hover,
+.import-drop.drag {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+/* ---------- 群聊设置 ---------- */
+.participant-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.participant-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+/* ---------- 主题色样 ---------- */
+.theme-swatch {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 2px solid transparent;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: all 0.15s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+.theme-swatch:hover {
+  transform: scale(1.08);
+}
+.theme-swatch.active {
+  border-color: var(--text);
+  box-shadow: 0 0 0 3px var(--primary-soft), 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* ---------- 消息右键菜单 ---------- */
+.overlay-msg {
+  position: fixed;
+  inset: 0;
+  z-index: 950;
+}
+.msg-menu {
+  position: fixed;
+  z-index: 951;
+  min-width: 172px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  border-radius: 12px;
+}
+.msg-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 12px;
+  border: none;
+  background: none;
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+.msg-menu-item:hover {
+  background: var(--primary-soft);
+  color: var(--text);
+}
+
+/* ---------- 分组标签 ---------- */
+.group-label {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text-dim);
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  margin: 12px 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.group-label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-soft);
+}

@@ -1,0 +1,28 @@
+{
+  "name": "tavern-harness",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Tavern Harness — 酒馆模式下的本地 AI Agent 助手（MyAgent-Android 的 Web 复刻）",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "dexie": "^4.0.8",
+    "katex": "^0.16.11",
+    "marked": "^12.0.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "zustand": "^4.5.5"
+  },
+  "devDependencies": {
+    "@types/katex": "^0.16.7",
+    "@types/react": "^18.3.5",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.3"
+  }
+}

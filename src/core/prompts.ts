@@ -1,0 +1,152 @@
+import type {
+  ChatParticipant,
+  ChatSession,
+  NetworkMessage,
+  NpcCharacter,
+  WorldBook,
+} from '../types/models';
+import { sanitizeHistoryContentForModel } from './openai';
+
+// ============================================================
+// 提示词组装 — 与 MainViewModel.buildNpcSystemPrompt 等一致
+// ============================================================
+
+export function buildNpcSystemPrompt(
+  npcPrompt: string,
+  worldBookContent?: string | null,
+  userPersonaPrompt?: string | null
+): string {
+  return (
+    npcPrompt +
+    (worldBookContent ? `\n\n=== WORLD BOOK (世界书) ===\n${worldBookContent}` : '') +
+    (userPersonaPrompt ? `\n\n=== USER INFO (用户扮演的角色) ===\n${userPersonaPrompt}` : '')
+  );
+}
+
+export function buildGroupSystemPrompt(
+  activeSpeakerName: string,
+  activeNpcPrompt: string,
+  worldBookContent?: string | null,
+  userPersonaPrompt?: string | null
+): string {
+  return (
+    `You are participating in a multi-character conversation. Reply only as ${activeSpeakerName}.\n` +
+    `Never write dialogue for another participant.\n\n=== ${activeSpeakerName} ===\n` +
+    activeNpcPrompt +
+    (worldBookContent ? `\n\n=== WORLD BOOK (世界书) ===\n${worldBookContent}` : '') +
+    (userPersonaPrompt ? `\n\n=== USER INFO (用户扮演的角色) ===\n${userPersonaPrompt}` : '')
+  );
+}
+
+export const STANDARD_SYSTEM_PROMPT = 'You are a helpful assistant.';
+
+// ============================================================
+// 历史消息 → 网络消息（GROUP 角色折叠 / 附件 / 思考清理）
+// ============================================================
+
+export interface BuildNetworkMessageInput extends ChatParticipant {}
+
+export function buildNetworkMessagesForSession(p: {
+  messages: Array<{
+    role: string;
+    content: string;
+    speakerParticipantId: number | null;
+    speakerName: string | null;
+    thinkingContent: string | null;
+    toolCallsJson: string;
+    toolCallId: string | null;
+    attachments: string[];
+  }>;
+  session: ChatSession | null;
+  participants: ChatParticipant[];
+  activeSpeakerParticipantId: number | null;
+}): NetworkMessage[] {
+  const { messages, session, participants, activeSpeakerParticipantId } = p;
+  const result: NetworkMessage[] = [];
+  const participantMap = new Map(participants.map((pp) => [pp.participantId, pp]));
+
+  for (const m of messages) {
+    // 工具消息原样传递
+    if (m.role === 'tool') {
+      result.push({
+        role: 'tool',
+        content: m.content,
+        tool_call_id: m.toolCallId ?? undefined,
+      });
+      continue;
+    }
+    if (m.role === 'system') {
+      result.push({ role: 'system', content: m.content });
+      continue;
+    }
+
+    const toolCalls = parseToolCalls(m.toolCallsJson);
+    // 带工具调用的 assistant 消息始终为 assistant（不折叠）
+    if (m.role === 'assistant' && toolCalls.length > 0) {
+      result.push({
+        role: 'assistant',
+        content: sanitizeHistoryContentForModel(m.content),
+        tool_calls: toolCalls,
+      });
+      continue;
+    }
+
+    const isGroup = session?.mode === 'GROUP';
+    const speakerIsActive =
+      m.speakerParticipantId != null && m.speakerParticipantId === activeSpeakerParticipantId;
+
+    if (isGroup) {
+      const isPlayer = m.role === 'user' && m.speakerParticipantId == null;
+      if (m.role === 'assistant' && speakerIsActive) {
+        result.push({
+          role: 'assistant',
+          content: sanitizeHistoryContentForModel(m.content),
+        });
+        continue;
+      }
+      // 折叠成 user 消息，前缀 [标签]
+      const speaker = m.speakerParticipantId != null ? participantMap.get(m.speakerParticipantId) : undefined;
+      const label = isPlayer || m.speakerParticipantId == null ? '用户' : (speaker?.displayName ?? m.speakerName ?? '用户');
+      const text = buildContentWithAttachments(m.content, m.attachments);
+      result.push({ role: 'user', content: `[${label}] ${text}` });
+      continue;
+    }
+
+    // 非群聊
+    result.push({
+      role: m.role as NetworkMessage['role'],
+      content: buildContentWithAttachments(sanitizeHistoryContentForModel(m.content), m.attachments),
+    });
+  }
+
+  return result;
+}
+
+/** 附件转 data URL content parts（base64 图片/视频） */
+function buildContentWithAttachments(content: string, attachments: string[]): string | NetworkMessage['content'] {
+  if (!attachments || attachments.length === 0) {
+    return content || null;
+  }
+  const parts: NonNullable<NetworkMessage['content']> = [];
+  if (content) parts.push({ type: 'text', text: content });
+  for (const url of attachments) {
+    const isImage = /^data:image\//.test(url);
+    parts.push({
+      type: isImage ? 'image_url' : 'video_url',
+      [isImage ? 'image_url' : 'video_url']: { url },
+    });
+  }
+  return parts as NetworkMessage['content'];
+}
+
+function parseToolCalls(json: string): NonNullable<NetworkMessage['tool_calls']> {
+  if (!json) return [];
+  try {
+    const arr = JSON.parse(json);
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+
+export { parseToolCalls };
