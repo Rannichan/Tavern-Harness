@@ -3,6 +3,7 @@ import { useStore } from '../store/store';
 import type { ChatMessage, ChatParticipant, ChatSession, ToolCallRecord } from '../types/models';
 import { Avatar, Icon, Markdown, Collapse, Modal, AttachCard } from './shared';
 import { formatMetrics } from '../core/stats';
+import { saveTextFile } from '../core/fileDownload';
 
 function fmtTime(ts: number): string {
   const d = new Date(ts);
@@ -71,7 +72,6 @@ export function ChatView({
         {messages.map((m) => (
           <MessageBubble key={m.id} msg={m} session={session} participants={participants} streaming={streaming && m.id === lastMsgId(messages)} />
         ))}
-        {streaming && <div className="typing-dots"><span /><span /><span /></div>}
       </div>
     </div>
   );
@@ -189,16 +189,26 @@ function MessageBubble({
             ))}
           </div>
         )}
-        <div className={`bubble ${isUser ? 'bubble-user' : ''}`}>
-          {msg.attachments.length > 0 && (
-            <div className="attachments">
-              {msg.attachments.map((a, i) => (
-                <AttachCard key={i} name={msg.attachmentInfos?.[i]?.displayName || attachmentName(a)} />
-              ))}
+        {(msg.content || msg.attachments.length > 0) && (
+          <div className={`bubble ${isUser ? 'bubble-user' : ''}`}>
+            {msg.attachments.length > 0 && (
+              <div className="attachments">
+                {msg.attachments.map((a, i) => (
+                  <AttachCard key={i} name={msg.attachmentInfos?.[i]?.displayName || attachmentName(a)} />
+                ))}
+              </div>
+            )}
+            <div className="bubble-content-row">
+              <div className="bubble-text">
+                {msg.content ? <Markdown text={msg.content} mentionNames={participants.map((p) => p.displayName)} /> : streaming && <span className="stream-cursor" />}
+              </div>
+              {/* 编辑按钮：位于正文气泡内最右侧，铅笔图标 */}
+              <button className="msg-edit-btn" title="编辑消息" onClick={() => startEditingMsg(msg.id!)}>
+                <Icon name="pencil" size={13} />
+              </button>
             </div>
-          )}
-          {msg.content ? <Markdown text={msg.content} mentionNames={participants.map((p) => p.displayName)} /> : streaming && <span className="stream-cursor" />}
-        </div>
+          </div>
+        )}
         {(msg.latencyMs != null || msg.promptTokens > 0 || msg.completionTokens > 0) && !streaming && (
           <div className="msg-metrics">{formatMetrics(msg)}</div>
         )}
@@ -208,7 +218,7 @@ function MessageBubble({
   );
 }
 
-/** 气泡内联编辑器（替换弹窗编辑） */
+/** 气泡内联编辑器（替换弹窗编辑，支持管理附件） */
 function BubbleEditor({
   msg,
   session,
@@ -219,12 +229,22 @@ function BubbleEditor({
   onDone: () => void;
 }) {
   const [text, setText] = useState(msg.content);
+  const [attachments, setAttachments] = useState<{ dataUrl: string; name: string }[]>(
+    msg.attachments.map((a, i) => ({ dataUrl: a, name: msg.attachmentInfos?.[i]?.displayName || attachmentName(a) }))
+  );
+  const fileRef = useRef<HTMLInputElement>(null);
   const editMessage = useStore((s) => s.editMessage);
   const streaming = useStore((s) => s.streaming.sessionId === session.id);
 
   const doSave = async () => {
     if (!text.trim() || streaming) return;
-    await editMessage(msg.id!, text, session.id!);
+    await editMessage(
+      msg.id!,
+      text,
+      session.id!,
+      attachments.map((a) => a.dataUrl),
+      attachments.map((a) => a.name)
+    );
     onDone();
   };
 
@@ -247,9 +267,40 @@ function BubbleEditor({
           }
         }}
       />
+      {/* 附件管理 */}
+      {attachments.length > 0 && (
+        <div className="attachments" style={{ marginBottom: 0 }}>
+          {attachments.map((a, i) => (
+            <AttachCard
+              key={i}
+              name={a.name}
+              onRemove={() => setAttachments(attachments.filter((_, j) => j !== i))}
+            />
+          ))}
+        </div>
+      )}
       <div className="bubble-editor-actions">
-        <span className="bubble-editor-hint">⌘/Ctrl+Enter 保存 · Esc 取消</span>
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*,video/*"
+            multiple
+            hidden
+            onChange={(e) => {
+              const files = e.target.files;
+              if (files) {
+                Array.from(files).forEach((f) => readFileAsDataUrl(f).then((url) => setAttachments((prev) => [...prev, { dataUrl: url, name: f.name }])));
+              }
+              e.target.value = '';
+            }}
+          />
+          <button className="btn btn-sm" onClick={() => fileRef.current?.click()}>
+            <Icon name="image" size={12} /> 添加附件
+          </button>
+        </div>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <span className="bubble-editor-hint">⌘/Ctrl+Enter 保存 · Esc 取消</span>
           <button className="btn btn-sm" onClick={onDone}>取消</button>
           <button className="btn btn-sm btn-primary" disabled={!text.trim() || streaming} onClick={doSave}>
             保存并重新生成
@@ -280,7 +331,14 @@ function UserBubble({ msg, session, editing }: { msg: ChatMessage; session: Chat
                 ))}
               </div>
             )}
-            {msg.content && <Markdown text={msg.content} />}
+            <div className="bubble-content-row">
+              <div className="bubble-text">
+                {msg.content && <Markdown text={msg.content} />}
+              </div>
+              <button className="msg-edit-btn" title="编辑消息" onClick={() => startEditingMsg(msg.id!)}>
+                <Icon name="pencil" size={13} />
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -439,7 +497,7 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
               : '输入消息… 支持 Markdown / 数学公式，/new 开始新话题'
           }
           rows={1}
-          style={{ height: 'auto', minHeight: 44 }}
+          style={{ height: 'auto', minHeight: 38 }}
         />
         {streaming ? (
           <button className="btn btn-primary btn-round" onClick={stopStreaming} title="停止生成">
@@ -562,6 +620,7 @@ export function MessageMenu() {
   const [, force] = useState(0);
   const regenerateLast = useStore((s) => s.regenerateLast);
   const addToast = useStore((s) => s.addToast);
+  const [rawLog, setRawLog] = useState<ChatMessage | null>(null);
 
   useEffect(() => {
     const fn = () => force((n) => n + 1);
@@ -570,6 +629,22 @@ export function MessageMenu() {
       msgMenuListeners = msgMenuListeners.filter((f) => f !== fn);
     };
   }, []);
+
+  // 原始日志弹窗（独立状态，优先于右键菜单）
+  if (rawLog) {
+    return (
+      <RawLogModal
+        msg={rawLog}
+        onClose={() => setRawLog(null)}
+        onExport={async () => {
+          const raw = buildRawLog(rawLog);
+          await saveTextFile(raw, 'text/plain', `raw-log-${rawLog.id}.txt`);
+          addToast('已导出原始日志（自动脱敏）');
+          setRawLog(null);
+        }}
+      />
+    );
+  }
 
   if (!msgMenuState) return null;
   const { x, y, msg, session } = msgMenuState;
@@ -599,15 +674,8 @@ export function MessageMenu() {
       label: '查看原始日志',
       icon: 'file',
       onClick: () => {
-        const raw = buildRawLog(msg);
-        const blob = new Blob([raw], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `raw-log-${msg.id}.txt`;
-        a.click();
-        URL.revokeObjectURL(url);
-        addToast('已导出原始日志（自动脱敏）');
+        setRawLog(msg);
+        closeMsgMenu();
       },
     });
   }
@@ -632,6 +700,152 @@ export function MessageMenu() {
       </div>
     </>
   );
+}
+
+/** 原始日志弹窗：将流式 SSE 分片拼装为完整回复 JSON，便于阅读 */
+function RawLogModal({ msg, onClose, onExport }: { msg: ChatMessage; onClose: () => void; onExport: () => void }) {
+  const req = msg.rawRequestBody ? prettyJson(msg.rawRequestBody) : '';
+  const merged = assembleFullResponseJson(msg.rawResponseBody);
+
+  const [tab, setTab] = useState<'request' | 'merged'>('request');
+
+  return (
+    <Modal onClose={onClose} width="min(760px, calc(100vw - 40px))">
+      <div className="modal-head">
+        <span style={{ fontWeight: 800, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Icon name="file" size={15} /> 原始日志 · 消息 #{msg.id}
+        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div className="raw-tabs">
+            <button className={`raw-tab ${tab === 'request' ? 'active' : ''}`} onClick={() => setTab('request')}>请求体</button>
+            <button className={`raw-tab ${tab === 'merged' ? 'active' : ''}`} onClick={() => setTab('merged')}>完整响应</button>
+          </div>
+          <button className="btn btn-sm" onClick={onExport} title="下载为 txt 文件">
+            <Icon name="download" size={12} /> 导出
+          </button>
+          <button className="icon-btn" onClick={onClose}><Icon name="x" /></button>
+        </div>
+      </div>
+      <div className="modal-body" style={{ padding: 0 }}>
+        {tab === 'request' && (
+          <pre className="raw-pre mono">{req || '（无请求体）'}</pre>
+        )}
+        {tab === 'merged' && (
+          merged ? (
+            <div className="raw-merged">
+              <div className="raw-merged-head">
+                <span>完整回复 JSON</span>
+                <span className="mono" style={{ fontSize: 11, color: 'var(--text-faint)' }}>从流式 SSE 分片拼装</span>
+              </div>
+              <pre className="raw-pre mono">{JSON.stringify(merged, null, 2)}</pre>
+            </div>
+          ) : (
+            <div className="raw-empty">该消息没有可拼装的流式内容</div>
+          )
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+/** 从流式 SSE 原始行拼装出完整回复 JSON（合并所有分片）
+ *  注意：rawResponseBody 存的是去掉 "data: " 前缀后的裸 JSON 行，
+ *  因此这里同时兼容裸 JSON 行与带 data: 前缀的完整行。 */
+interface ChoiceAccum {
+  role?: string;
+  content: string;
+  finish_reason?: string | null;
+  toolCalls: Map<number, { id: string; type: string; name: string; args: string }>;
+}
+
+function assembleFullResponseJson(rawBody: string | null): Record<string, unknown> | null {
+  if (!rawBody) return null;
+  const lines = rawBody.split('\n');
+
+  // 用于收集分片信息
+  let merged: Record<string, unknown> = {};
+  const choicesAccum = new Map<number, ChoiceAccum>();
+  let usage: Record<string, unknown> | null = null;
+
+  const applyChunk = (chunk: Record<string, unknown>) => {
+    const id = chunk.id;
+    const object = chunk.object;
+    const created = chunk.created;
+    const model = chunk.model;
+    if (typeof id === 'string') merged.id = id;
+    if (typeof object === 'string') merged.object = object;
+    if (typeof created === 'number') merged.created = created;
+    if (typeof model === 'string') merged.model = model;
+
+    const choices = chunk.choices as Array<{ index?: number; delta?: Record<string, unknown>; finish_reason?: string | null }> | undefined;
+    if (choices) {
+      for (const c of choices) {
+        const idx = c.index ?? 0;
+        let acc = choicesAccum.get(idx);
+        if (!acc) {
+          acc = { content: '', toolCalls: new Map() };
+          choicesAccum.set(idx, acc);
+        }
+        const delta = c.delta ?? {};
+        if (typeof delta.role === 'string' && !acc.role) acc.role = delta.role;
+        if (typeof delta.content === 'string') acc.content += delta.content;
+        if (typeof c.finish_reason === 'string') acc.finish_reason = c.finish_reason;
+        // 工具调用增量按 index 组装（name / arguments 递增拼接）
+        const tcDeltas = delta.tool_calls as Array<{ index?: number; id?: string; type?: string; function?: { name?: string; arguments?: string } }> | undefined;
+        if (tcDeltas) {
+          for (const tc of tcDeltas) {
+            const tci = tc.index ?? 0;
+            const cur = acc.toolCalls.get(tci) ?? { id: '', type: 'function', name: '', args: '' };
+            if (tc.id) cur.id = tc.id;
+            if (tc.type) cur.type = tc.type;
+            if (tc.function?.name) cur.name += tc.function.name;
+            if (tc.function?.arguments) cur.args += tc.function.arguments;
+            acc.toolCalls.set(tci, cur);
+          }
+        }
+      }
+    }
+
+    if (chunk.usage) usage = chunk.usage as Record<string, unknown>;
+  };
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const data = trimmed.startsWith('data:') ? trimmed.slice(5).trim() : trimmed;
+    if (!data || data === '[DONE]') continue;
+    try {
+      applyChunk(JSON.parse(data));
+    } catch {
+      /* 忽略非 JSON 行 */
+    }
+  }
+
+  if (Object.keys(merged).length === 0) return null;
+
+  // 组装 choices：message 结构 + finish_reason
+  const mergedChoices = Array.from(choicesAccum.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([idx, acc]) => {
+      const message: Record<string, unknown> = {};
+      if (acc.role) message.role = acc.role;
+      if (acc.content) message.content = acc.content;
+      if (acc.toolCalls.size > 0) {
+        message.tool_calls = Array.from(acc.toolCalls.entries())
+          .sort((a, b) => a[0] - b[0])
+          .map(([, tc]) => ({
+            id: tc.id,
+            type: tc.type,
+            function: { name: tc.name, arguments: tc.args },
+          }));
+      }
+      const choice: Record<string, unknown> = { index: idx, message };
+      if (acc.finish_reason != null) choice.finish_reason = acc.finish_reason;
+      return choice;
+    });
+  merged.choices = mergedChoices;
+  if (usage) merged.usage = usage;
+
+  return merged;
 }
 
 function buildRawLog(msg: ChatMessage): string {

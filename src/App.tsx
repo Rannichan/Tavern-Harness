@@ -4,7 +4,6 @@ import { Sidebar } from './components/Sidebar';
 import { ChatView, ChatInput, MessageMenu } from './components/ChatView';
 import { CharactersView } from './components/CharactersView';
 import { SettingsView } from './components/SettingsView';
-import { FilesView } from './components/FilesView';
 import { StatsView } from './components/StatsView';
 import { Dashboard } from './components/Dashboard';
 import { ConfirmationDialog } from './components/ConfirmationDialog';
@@ -66,7 +65,6 @@ export default function App() {
           {activeView === 'chat' && !activeSession && <Dashboard />}
           {activeView === 'characters' && <CharactersView />}
           {activeView === 'settings' && <SettingsView />}
-          {activeView === 'files' && <FilesView />}
           {activeView === 'stats' && <StatsView />}
         </main>
       </div>
@@ -113,7 +111,8 @@ function SessionHeader({
   const share = async () => {
     const { exportSessionJson } = await import('./core/stats');
     try {
-      await exportSessionJson(session.id!);
+      const safe = session.title.replace(/[\\/:*?"<>|\s]+/g, '_').slice(0, 40) || 'session';
+      await exportSessionJson(session.id!, `${safe}-${Date.now()}.json`);
       addToast('会话已导出（分享文件）');
     } catch (e) {
       addToast(`导出失败: ${(e as Error).message}`, 'error');

@@ -36,16 +36,13 @@ body {
   line-height: 1.6;
 }
 
-/* 酒馆氛围背景：暖光渐变 + 噪点纹理 */
+/* 酒馆氛围背景：低饱和度纯色 + 噪点纹理 */
 .tav-bg {
   position: fixed;
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background:
-    radial-gradient(1100px 640px at 82% -12%, var(--glow), transparent 62%),
-    radial-gradient(900px 560px at -10% 108%, var(--glow), transparent 55%),
-    var(--bg);
+  background: var(--bg);
 }
 .tav-bg::after {
   content: '';
@@ -91,18 +88,40 @@ select {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: 296px 1fr;
+  grid-template-columns: var(--sidebar-w, 356px) 1fr;
   height: 100dvh;
 }
 
 /* ---------- 侧边栏 ---------- */
 .sidebar {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-width: 0;
   border-right: 1px solid var(--border);
   background: color-mix(in srgb, var(--surface) 55%, transparent);
   backdrop-filter: blur(18px);
+}
+/* 拖拽手柄 */
+.sidebar-resizer {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 30;
+  transition: background 0.15s;
+}
+.sidebar-resizer:hover {
+  background: color-mix(in srgb, var(--primary) 30%, transparent);
+}
+body.resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+body.resizing .sidebar-resizer {
+  background: color-mix(in srgb, var(--primary) 45%, transparent);
 }
 .sidebar-head {
   padding: 14px 14px 10px;
@@ -117,7 +136,7 @@ select {
   width: 38px;
   height: 38px;
   border-radius: 12px;
-  background: linear-gradient(135deg, var(--grad-from), var(--grad-to));
+  background: var(--grad-from);
   display: grid;
   place-items: center;
   color: #fff;
@@ -166,7 +185,7 @@ select {
   color: var(--text);
 }
 .nav-chip.active {
-  background: linear-gradient(135deg, var(--grad-from), var(--grad-to));
+  background: var(--grad-from);
   border-color: transparent;
   color: #fff;
   box-shadow: 0 3px 12px var(--glow);
@@ -219,7 +238,7 @@ select {
   border: 1px solid var(--border-soft);
 }
 .session-item.active .svc {
-  background: linear-gradient(135deg, var(--grad-from), var(--grad-to));
+  background: var(--grad-from);
   border-color: transparent;
 }
 .session-item .smeta {
@@ -271,6 +290,70 @@ select {
   margin-left: auto;
 }
 
+/* ---------- 会话列表头部（标题 + 新建按钮） ---------- */
+.session-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 8px 8px;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface);
+}
+/* 新建按钮：粗体文字 + 加号，不高亮 */
+.session-new-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border: none;
+  background: none;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 800;
+  padding: 4px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.session-new-btn:hover {
+  background: var(--surface-2);
+  color: var(--primary);
+}
+
+/* ---------- 侧边栏底部搜索框 ---------- */
+.sidebar-search {
+  position: relative;
+  padding: 10px 12px 12px;
+  border-top: 1px solid var(--border-soft);
+}
+.search-input {
+  width: 100%;
+  padding: 7px 30px 7px 12px;
+  border-radius: 10px;
+  font-size: 12.5px;
+}
+.search-clear {
+  position: absolute;
+  right: 18px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--text-dim);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.search-clear:hover {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
 /* ---------- 通用按钮 ---------- */
 .btn {
   display: inline-flex;
@@ -301,14 +384,14 @@ select {
   transform: none;
 }
 .btn-primary {
-  background: linear-gradient(135deg, var(--grad-from), var(--grad-to));
+  background: var(--grad-from);
   border-color: transparent;
   color: #fff;
   box-shadow: 0 4px 14px var(--glow);
 }
 .btn-primary:hover {
   filter: brightness(1.08);
-  background: linear-gradient(135deg, var(--grad-from), var(--grad-to));
+  background: var(--grad-from);
 }
 .btn-danger {
   color: var(--danger);
@@ -464,10 +547,7 @@ select {
   position: fixed;
   inset: 0;
   z-index: -1;
-  background:
-    radial-gradient(700px 420px at 12% 18%, var(--glow), transparent 60%),
-    radial-gradient(640px 400px at 88% 82%, var(--glow), transparent 58%);
-  opacity: 0.45;
+  background: color-mix(in srgb, var(--glow) 14%, transparent);
   pointer-events: none;
 }
 
@@ -501,7 +581,7 @@ select {
   font-size: 17px;
   color: #fff;
   flex-shrink: 0;
-  background: linear-gradient(135deg, var(--grad-from), var(--grad-to));
+  background: var(--grad-from);
   box-shadow: 0 3px 12px var(--glow);
   overflow: hidden;
 }
@@ -621,14 +701,14 @@ select {
   border-radius: var(--radius-lg);
   overflow: hidden;
   border: 1px solid var(--border);
-  background: linear-gradient(120deg, color-mix(in srgb, var(--grad-from) 18%, var(--surface)), var(--surface) 55%);
+  background: color-mix(in srgb, var(--grad-from) 12%, var(--surface));
   box-shadow: var(--shadow-lg);
 }
 .dash-hero::before {
   content: '';
   position: absolute;
   inset: -40% -20%;
-  background: radial-gradient(420px 200px at 70% 0%, var(--glow), transparent 70%);
+  background: color-mix(in srgb, var(--glow) 20%, transparent);
   pointer-events: none;
 }
 .dash-hero h1 {
@@ -661,7 +741,7 @@ select {
 .stat-card .v {
   font-size: 26px;
   font-weight: 900;
-  background: linear-gradient(135deg, var(--grad-from), var(--grad-to));
+  background: var(--grad-from);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -685,13 +765,13 @@ select {
   gap: 8px;
 }
 
-/* ---------- 彩色首字母 ---------- */
-.avatar-hue-0 { background: linear-gradient(135deg, #ff8fb1, #ff5d8f); }
-.avatar-hue-1 { background: linear-gradient(135deg, #ffb46b, #ff8a4d); }
-.avatar-hue-2 { background: linear-gradient(135deg, #8fd6a4, #34c98f); }
-.avatar-hue-3 { background: linear-gradient(135deg, #7fb4ff, #5e9bff); }
-.avatar-hue-4 { background: linear-gradient(135deg, #c79bff, #a06bff); }
-.avatar-hue-5 { background: linear-gradient(135deg, #7fdbe8, #46b0d8); }
+/* ---------- 彩色首字母（低饱和度纯色） ---------- */
+.avatar-hue-0 { background: #d98aa6; }
+.avatar-hue-1 { background: #d9a673; }
+.avatar-hue-2 { background: #6fbe96; }
+.avatar-hue-3 { background: #7f9ad9; }
+.avatar-hue-4 { background: #a894d9; }
+.avatar-hue-5 { background: #79b0bc; }
 
 /* ---------- 空状态 ---------- */
 .empty-state {
@@ -771,26 +851,6 @@ select {
 }
 .fade-up {
   animation: fadeUp 0.25s ease both;
-}
-
-.typing-dots {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 13px 18px;
-}
-.typing-dots span {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--text-dim);
-  animation: pulse 1.1s infinite ease-in-out;
-}
-.typing-dots span:nth-child(2) {
-  animation-delay: 0.18s;
-}
-.typing-dots span:nth-child(3) {
-  animation-delay: 0.36s;
 }
 
 .spinner {

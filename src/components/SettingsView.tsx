@@ -7,7 +7,7 @@ import { Icon } from './shared';
 import { isProxyUrl, isNetworkLikeError, toProxyUrl } from '../core/proxy';
 
 // ============================================================
-// 设置视图（模型服务 / 超参数 / 主题 / 数据）
+// 设置视图（模型服务 / 超参数 / 主题）
 // ============================================================
 
 export function SettingsView() {
@@ -15,7 +15,6 @@ export function SettingsView() {
   const setSettings = useStore((s) => s.setSettings);
   const providers = useStore((s) => s.providers);
   const refreshProviders = useStore((s) => s.refreshProviders);
-  const addToast = useStore((s) => s.addToast);
 
   if (!settings) return null;
 
@@ -39,11 +38,14 @@ export function SettingsView() {
       <div className="view-col">
         <div>
           <h2 className="view-title">设置</h2>
-          <p className="view-sub">模型 API 配置、超参数、主题与数据管理</p>
+          <p className="view-sub">模型 API 配置、超参数与主题</p>
         </div>
 
+        {/* 模型服务 Provider（置顶） */}
+        <ProviderManager providers={providers} onChanged={refreshProviders} />
+
         {/* 生成参数 */}
-        <div className="set-section" style={{ maxWidth: 620 }}>
+        <div className="set-section">
           <h3>🎛 生成参数</h3>
           <table className="table param-table">
             <tbody>
@@ -76,6 +78,27 @@ export function SettingsView() {
                 <td>{slider('maxTokens', 0, 16384, 256)}</td>
               </tr>
               <tr>
+                <td>
+                  <div className="s-label">Frequency Penalty</div>
+                  <div className="s-desc">重复惩罚</div>
+                </td>
+                <td>{slider('frequencyPenalty', -2, 2, 0.05, (v) => v.toFixed(2))}</td>
+              </tr>
+              <tr>
+                <td>
+                  <div className="s-label">Presence Penalty</div>
+                  <div className="s-desc">话题新颖度</div>
+                </td>
+                <td>{slider('presencePenalty', -2, 2, 0.05, (v) => v.toFixed(2))}</td>
+              </tr>
+              <tr>
+                <td style={{ borderBottom: 'none' }}>
+                  <div className="s-label">Repetition Penalty</div>
+                  <div className="s-desc">重复惩罚</div>
+                </td>
+                <td style={{ borderBottom: 'none' }}>{slider('repetitionPenalty', 0.5, 2, 0.05, (v) => v.toFixed(2))}</td>
+              </tr>
+              <tr>
                 <td style={{ borderBottom: 'none' }}>
                   <div className="s-label">Reasoning Effort</div>
                   <div className="s-desc">思考强度</div>
@@ -92,25 +115,7 @@ export function SettingsView() {
               </tr>
             </tbody>
           </table>
-          <hr className="sep" />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div className="range-row">
-              <span className="s-label" style={{ width: 130 }}>Frequency Penalty</span>
-              {slider('frequencyPenalty', -2, 2, 0.05, (v) => v.toFixed(2))}
-            </div>
-            <div className="range-row">
-              <span className="s-label" style={{ width: 130 }}>Presence Penalty</span>
-              {slider('presencePenalty', -2, 2, 0.05, (v) => v.toFixed(2))}
-            </div>
-            <div className="range-row">
-              <span className="s-label" style={{ width: 130 }}>Repetition Penalty</span>
-              {slider('repetitionPenalty', 0.5, 2, 0.05, (v) => v.toFixed(2))}
-            </div>
-          </div>
         </div>
-
-        {/* 模型服务 Provider */}
-        <ProviderManager providers={providers} onChanged={refreshProviders} />
 
         <div className="set-grid">
           {/* 主题 */}
@@ -148,27 +153,7 @@ export function SettingsView() {
               提示：可分别体验「紫罗兰 / 苍蓝 / 翡翠森林 / 赛博琥珀」四种氛围
             </p>
           </div>
-
-          {/* 行为 */}
-          <div className="set-section">
-            <h3>⚙️ 行为</h3>
-            <label className="check">
-              <input type="checkbox" checked={settings.isStreaming} onChange={(e) => setSettings({ isStreaming: e.target.checked })} />
-              流式输出
-            </label>
-            <label className="check">
-              <input type="checkbox" checked={settings.isThinkingModeEnabled} onChange={(e) => setSettings({ isThinkingModeEnabled: e.target.checked })} />
-              思考模式（reasoning）
-            </label>
-            <label className="check">
-              <input type="checkbox" checked={settings.isToolCallsEnabled} onChange={(e) => setSettings({ isToolCallsEnabled: e.target.checked })} />
-              工具调用（tools）
-            </label>
-          </div>
         </div>
-
-        {/* 数据管理 */}
-        <DangerZone />
       </div>
     </div>
   );
@@ -390,55 +375,3 @@ function ProviderForm({ initial, onSave }: { initial: ApiProvider; onSave: (p: A
   );
 }
 
-// ---------------- 数据管理 ----------------
-
-function DangerZone() {
-  const addToast = useStore((s) => s.addToast);
-  const refreshSessions = useStore((s) => s.refreshSessions);
-
-  const clearAll = async () => {
-    if (!confirm('确定清空所有数据？包括会话、角色、世界书、技能、统计。此操作不可恢复！')) return;
-    await db.sessions.clear();
-    await db.messages.clear();
-    await db.participants.clear();
-    await db.npcs.clear();
-    await db.worldBooks.clear();
-    await db.tools.clear();
-    await db.tasks.clear();
-    await db.careerStats.clear();
-    await db.careerNpcStats.clear();
-    // 重建种子
-    await db.settings.put((await db.settings.get(1))!);
-    await import('../db/database').then((m) => m.initDatabase());
-    await refreshSessions();
-    location.reload();
-  };
-
-  return (
-    <div className="set-section" style={{ borderColor: 'color-mix(in srgb, var(--danger) 30%, transparent)' }}>
-      <h3>🗄 数据管理</h3>
-      <div className="set-row">
-        <div>
-          <div className="s-label">导出当前会话</div>
-          <div className="s-desc">将会话（含网络消息）导出为 JSON 文件</div>
-        </div>
-        <button className="btn btn-sm" onClick={exportCurrentSession}>导出</button>
-      </div>
-      <div className="set-row">
-        <div>
-          <div className="s-label" style={{ color: 'var(--danger)' }}>清空全部数据</div>
-          <div className="s-desc">不可恢复，重建种子角色「酒馆老板」</div>
-        </div>
-        <button className="btn btn-sm btn-danger" onClick={clearAll}>清空</button>
-      </div>
-    </div>
-  );
-}
-
-async function exportCurrentSession() {
-  const sid = useStore.getState().activeSessionId;
-  if (sid == null) return;
-  const { exportSessionJson } = await import('../core/stats');
-  await exportSessionJson(sid);
-  useStore.getState().addToast('会话已导出');
-}

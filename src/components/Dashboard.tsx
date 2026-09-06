@@ -1,5 +1,7 @@
-import { useStore, createSession } from '../store/store';
+import { useState } from 'react';
+import { useStore } from '../store/store';
 import { Icon } from './shared';
+import { NewSessionMenu } from './NewSessionMenu';
 
 // ============================================================
 // 仪表盘（无活动会话时的起始页）
@@ -9,20 +11,17 @@ export function Dashboard() {
   const npcs = useStore((s) => s.npcs);
   const sessions = useStore((s) => s.sessions);
   const addToast = useStore((s) => s.addToast);
-
-  const startStandard = async () => {
-    const id = await createSession('STANDARD');
-    await useStore.getState().refreshSessions();
-    useStore.getState().setActiveSession(id);
-  };
+  const [showNew, setShowNew] = useState(false);
 
   const startNpc = async (id: number) => {
+    const { createSession } = await import('../store/store');
     const sid = await createSession('NPC', { associatedId: id });
     await useStore.getState().refreshSessions();
     useStore.getState().setActiveSession(sid);
   };
 
   const startGroup = async () => {
+    const { createSession } = await import('../store/store');
     const npcIds = npcs.map((n) => n.id!).slice(0, 3);
     if (npcIds.length < 2) {
       addToast('需要至少 2 位角色才能创建群聊', 'error');
@@ -43,8 +42,8 @@ export function Dashboard() {
             支持任意 OpenAI 兼容 API、角色卡（NPC）、世界书、生成式技能、群聊回合制，全部数据存储在你的浏览器中。
           </p>
           <div className="actions">
-            <button className="btn btn-primary" onClick={startStandard}>
-              <Icon name="plus" size={14} /> 开始标准对话
+            <button className="btn btn-primary" onClick={() => setShowNew(true)}>
+              <Icon name="plus" size={14} /> 新建对话
             </button>
             <button
               className="btn"
@@ -88,6 +87,8 @@ export function Dashboard() {
           </div>
         </div>
       </div>
+
+      {showNew && <NewSessionMenu onClose={() => setShowNew(false)} />}
     </div>
   );
 }

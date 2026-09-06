@@ -40,8 +40,8 @@ export function StatsView() {
       <div className="view-col">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
-            <h2 className="view-title">生涯统计</h2>
-            <p className="view-sub">append-only，删除消息不影响统计；仅累加真实用户回合</p>
+            <h2 className="view-title">成就</h2>
+            <p className="view-sub">生涯统计：append-only，删除消息不影响统计；仅累加真实用户回合</p>
           </div>
           <button
             className="btn btn-sm btn-danger"

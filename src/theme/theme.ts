@@ -13,7 +13,7 @@ export interface ThemePalette {
   glow: string;
 }
 
-/** 与 MyAgent-Android 一致的 4 套主题色 */
+/** 与 MyAgent-Android 一致的 4 套主题色（低饱和度纯色，不使用渐变） */
 export const PALETTES: Record<ThemeColor, ThemePalette> = {
   violet: {
     id: 'violet',
@@ -21,8 +21,8 @@ export const PALETTES: Record<ThemeColor, ThemePalette> = {
     primary: '#D0BCFF',
     primaryDim: '#7E6BC4',
     accentSoft: 'rgba(208,188,255,0.14)',
-    gradientFrom: '#8b7bff',
-    gradientTo: '#c77dff',
+    gradientFrom: '#9b8fd8',
+    gradientTo: '#9b8fd8',
     glow: 'rgba(160,132,255,0.35)',
   },
   blue: {
@@ -31,8 +31,8 @@ export const PALETTES: Record<ThemeColor, ThemePalette> = {
     primary: '#9FC1FF',
     primaryDim: '#5B7FD4',
     accentSoft: 'rgba(159,193,255,0.14)',
-    gradientFrom: '#5e9bff',
-    gradientTo: '#7f6cff',
+    gradientFrom: '#7f9ad9',
+    gradientTo: '#7f9ad9',
     glow: 'rgba(110,150,255,0.35)',
   },
   green: {
@@ -41,8 +41,8 @@ export const PALETTES: Record<ThemeColor, ThemePalette> = {
     primary: '#9FE8BD',
     primaryDim: '#3F9E6F',
     accentSoft: 'rgba(159,232,189,0.13)',
-    gradientFrom: '#34c98f',
-    gradientTo: '#8fd6a4',
+    gradientFrom: '#6fbe96',
+    gradientTo: '#6fbe96',
     glow: 'rgba(90,210,150,0.32)',
   },
   amber: {
@@ -51,8 +51,8 @@ export const PALETTES: Record<ThemeColor, ThemePalette> = {
     primary: '#FFCB8B',
     primaryDim: '#C88A3F',
     accentSoft: 'rgba(255,203,139,0.14)',
-    gradientFrom: '#ff9d4d',
-    gradientTo: '#ffcb6b',
+    gradientFrom: '#d9a673',
+    gradientTo: '#d9a673',
     glow: 'rgba(255,170,90,0.35)',
   },
 };

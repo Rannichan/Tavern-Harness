@@ -273,5 +273,5 @@ function getExecutionDescription(): string {
   ].join(' ');
 }
 
-/** 内置技能默认启用集合（酒馆老板） */
-export const DEFAULT_ENABLED_TOOLS = ['web_search', 'roll_dice'];
+/** 默认内置技能名列表（酒馆老板默认启用全部内置技能） */
+export const ALL_BUILTIN_TOOL_NAMES = [...BUILTIN_TOOL_NAMES];

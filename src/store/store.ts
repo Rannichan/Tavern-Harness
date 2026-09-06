@@ -35,7 +35,7 @@ import { estimateTokensFromChars, accumulateStats, sessionPreviewText } from '..
 // Store（对应 MainViewModel）
 // ============================================================
 
-export type ActiveView = 'chat' | 'characters' | 'settings' | 'files' | 'stats';
+export type ActiveView = 'chat' | 'characters' | 'settings' | 'stats';
 
 interface StreamingState {
   sessionId: number | null;
@@ -73,7 +73,7 @@ interface AppState {
 
   sendMessage: (text: string, attachments?: string[], attachmentNames?: string[]) => Promise<void>;
   regenerateLast: () => Promise<void>;
-  editMessage: (messageId: number, newContent: string, sessionId: number) => Promise<void>;
+  editMessage: (messageId: number, newContent: string, sessionId: number, newAttachments?: string[], newAttachmentNames?: string[]) => Promise<void>;
   stopStreaming: () => void;
   deleteSession: (id: number) => Promise<void>;
   resolveConfirmation: (approved: boolean) => void;
@@ -289,7 +289,7 @@ export const useStore = create<AppState>((set, get) => ({
     await get().refreshSessions();
   },
 
-  editMessage: async (messageId, newContent, sessionId) => {
+  editMessage: async (messageId, newContent, sessionId, newAttachments?: string[], newAttachmentNames?: string[]) => {
     if (get().streaming.sessionId != null) return;
     const message = await db.messages.get(messageId);
     if (!message) return;
@@ -299,7 +299,13 @@ export const useStore = create<AppState>((set, get) => ({
       (m) => m.timestamp > message.timestamp || (m.timestamp === message.timestamp && m.id !== messageId)
     );
     await db.messages.bulkDelete(toDelete.map((m) => m.id!));
-    await db.messages.update(messageId, { content: newContent, attachments: [], attachmentInfos: [] });
+    const attachments = newAttachments ?? message.attachments;
+    const attachmentInfos = (newAttachments != null ? newAttachments : message.attachments).map((a, i) => ({
+      mimeType: a.startsWith('data:image') ? 'image/png' : 'video/mp4',
+      displayName: (newAttachmentNames?.[i]?.trim()) || message.attachmentInfos?.[i]?.displayName || '附件',
+      sizeBytes: a.length,
+    }));
+    await db.messages.update(messageId, { content: newContent, attachments, attachmentInfos });
     await get().loadMessages(sessionId);
     await runConversationLoop((await db.sessions.get(sessionId))!);
     await get().refreshSessions();
@@ -644,8 +650,9 @@ async function streamAssistantTurn(
       presencePenalty: settings.presencePenalty,
       repetitionPenalty: settings.repetitionPenalty,
       reasoningEffort: settings.reasoningEffort,
-      isThinkingModeEnabled: settings.isThinkingModeEnabled,
-      streaming: settings.isStreaming,
+      // 流式输出与工具调用默认开启（无 UI 开关）；思考强度由 Reasoning Effort 控制
+      isThinkingModeEnabled: true,
+      streaming: true,
       baseUrl,
     });
 
@@ -783,8 +790,8 @@ async function streamAssistantTurn(
       useStore.getState().addToast(`生成失败: ${errorMsg}`, 'error');
     }
 
-    // ---- 工具调用处理 ----
-    if (finalToolCalls.length > 0 && settings.isToolCallsEnabled) {
+    // ---- 工具调用处理（默认开启） ----
+    if (finalToolCalls.length > 0) {
       for (const tc of finalToolCalls) {
         const needsConfirm = ['update_skill', 'delete_skill', 'update_character', 'delete_character', 'update_world_book', 'delete_world_book'].includes(tc.name);
         let result: string;

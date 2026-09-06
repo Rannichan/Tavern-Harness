@@ -12,7 +12,7 @@ import type {
   ScheduledTask,
   WorldBook,
 } from '../types/models';
-import { BUILTIN_TOOLS } from '../core/toolDefinitions';
+import { BUILTIN_TOOLS, ALL_BUILTIN_TOOL_NAMES } from '../core/toolDefinitions';
 
 export class TavernDB extends Dexie {
   settings!: Table<AppSettings, number>;
@@ -79,14 +79,14 @@ export const DEFAULT_STATS: CareerStatsTotal = {
   totalRounds: 0,
 };
 
-/** 内置酒馆老板 */
+/** 内置酒馆老板：默认启用所有内置技能 */
 export const DEFAULT_NPC: NpcCharacter = {
   name: '酒馆老板',
   prompt: '神秘的酒馆老板，可以响应客人的任何需求',
   greeting: '你来啦！快坐下~',
   avatarColorOrdinal: 3,
   avatarDataUrl: null,
-  enabledToolNames: ['web_search', 'roll_dice'],
+  enabledToolNames: [...ALL_BUILTIN_TOOL_NAMES],
   isBuiltIn: true,
   createdAt: Date.now(),
 };
@@ -106,7 +106,7 @@ export async function initDatabase(): Promise<void> {
     await db.npcs.add(DEFAULT_NPC);
   }
   // 确保默认 NPC 是内置且受保护的
-  const boss = await db.npcs.where('isBuiltIn').equals(1).first();
+  const boss = await db.npcs.filter((n) => n.isBuiltIn).first();
   if (boss && !boss.isBuiltIn) {
     await db.npcs.update(boss.id!, { isBuiltIn: true });
   }
@@ -114,6 +114,8 @@ export async function initDatabase(): Promise<void> {
   await seedBuiltinTools();
   // 旧数据兼容：enabledToolNames 可能是 CSV 字符串
   await migrateLegacyFields();
+  // 内置角色「酒馆老板」默认启用所有内置技能（老数据升级）
+  await ensureBossDefaultSkills();
 }
 
 /** 内置技能（只读保护）第一次使用时写库 */
@@ -130,6 +132,23 @@ export async function seedBuiltinTools(): Promise<void> {
       createdAt: now,
       displayOrder: await db.tools.count(),
     });
+  }
+}
+
+/** 内置角色「酒馆老板」默认启用全部内置技能（老数据只启用了 web_search / roll_dice） */
+async function ensureBossDefaultSkills(): Promise<void> {
+  const boss = await db.npcs.filter((n) => n.isBuiltIn).first();
+  if (!boss) return;
+  const enabled = new Set(Array.isArray(boss.enabledToolNames) ? boss.enabledToolNames : []);
+  let changed = false;
+  for (const name of ALL_BUILTIN_TOOL_NAMES) {
+    if (!enabled.has(name)) {
+      enabled.add(name);
+      changed = true;
+    }
+  }
+  if (changed) {
+    await db.npcs.update(boss.id!, { enabledToolNames: [...enabled] });
   }
 }
 

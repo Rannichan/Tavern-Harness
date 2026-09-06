@@ -4,6 +4,10 @@ import { db } from '../db/database';
 import type { NpcCharacter, WorldBook, McpTool } from '../types/models';
 import { Avatar, Icon, Markdown } from './shared';
 import { importSillyTavernCard } from '../core/sillyTavernImporter';
+import { ALL_BUILTIN_TOOL_NAMES } from '../core/toolDefinitions';
+
+// 内置角色「酒馆老板」默认启用所有技能
+const ALL_DEFAULT_SKILLS = [...ALL_BUILTIN_TOOL_NAMES];
 
 // ============================================================
 // 角色工坊（NPC 管理 / 世界书 / 技能表 / PNG 导入）
@@ -119,18 +123,7 @@ export function CharactersView() {
 // ---------------- 角色网格 ----------------
 
 function CharacterGrid({ npcs, onEdit }: { npcs: NpcCharacter[]; onEdit: (n: NpcCharacter, isNew: boolean) => void }) {
-  const [tools, setTools] = useState<McpTool[]>([]);
   const addToast = useStore((s) => s.addToast);
-
-  useEffect(() => {
-    let cancelled = false;
-    db.tools.toArray().then((t) => {
-      if (!cancelled) setTools(t);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const deleteNpc = async (n: NpcCharacter) => {
     if (n.isBuiltIn) {
@@ -142,16 +135,6 @@ function CharacterGrid({ npcs, onEdit }: { npcs: NpcCharacter[]; onEdit: (n: Npc
     useStore.getState().refreshNpcs();
     addToast(`已删除角色「${n.name}」`);
   };
-
-  const toggleSkill = async (n: NpcCharacter, skill: string) => {
-    const enabled = new Set(n.enabledToolNames);
-    if (enabled.has(skill)) enabled.delete(skill);
-    else enabled.add(skill);
-    await db.npcs.update(n.id!, { enabledToolNames: [...enabled] });
-    useStore.getState().refreshNpcs();
-  };
-
-  const validSkills = new Set(tools.map((t) => t.name));
 
   return (
     <div>
@@ -200,17 +183,6 @@ function CharacterGrid({ npcs, onEdit }: { npcs: NpcCharacter[]; onEdit: (n: Npc
                 <Icon name="trash" size={12} />
               </button>
             </div>
-            <details style={{ fontSize: 11.5 }}>
-              <summary style={{ cursor: 'pointer', color: 'var(--text-faint)' }}>启用技能（{n.enabledToolNames.filter((s) => validSkills.has(s)).length}/{tools.length}）</summary>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
-                {tools.map((t) => (
-                  <label key={t.name} className={`skill-tag ${n.enabledToolNames.includes(t.name) ? '' : 'locked'}`} style={{ cursor: 'pointer', display: 'inline-flex', gap: 4, alignItems: 'center' }}>
-                    <input type="checkbox" checked={n.enabledToolNames.includes(t.name)} onChange={() => toggleSkill(n, t.name)} style={{ accentColor: 'var(--primary)' }} />
-                    {t.name}
-                  </label>
-                ))}
-              </div>
-            </details>
           </div>
         ))}
       </div>
@@ -225,14 +197,32 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
   const [prompt, setPrompt] = useState(npc.prompt);
   const [greeting, setGreeting] = useState(npc.greeting);
   const [avatarDataUrl, setAvatarDataUrl] = useState<string | null>(npc.avatarDataUrl ?? null);
+  // 技能启用状态（内置角色「酒馆老板」默认启用所有内置技能，同时保留已有自定义技能）
+  const [enabledToolNames, setEnabledToolNames] = useState<string[]>(() => {
+    if (!npc.isBuiltIn) return npc.enabledToolNames;
+    const set = new Set(npc.enabledToolNames);
+    for (const s of ALL_DEFAULT_SKILLS) set.add(s);
+    return [...set];
+  });
+  const [tools, setTools] = useState<McpTool[]>([]);
   const addToast = useStore((s) => s.addToast);
+
+  useEffect(() => {
+    let cancelled = false;
+    db.tools.toArray().then((t) => {
+      if (!cancelled) setTools(t);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const save = async () => {
     if (!name.trim()) {
       addToast('名称不能为空', 'error');
       return;
     }
-    const data: Partial<NpcCharacter> = { name: name.trim(), prompt, greeting, avatarDataUrl };
+    const data: Partial<NpcCharacter> = { name: name.trim(), prompt, greeting, avatarDataUrl, enabledToolNames };
     if (isNew) {
       await db.npcs.add({
         ...npc,
@@ -240,6 +230,7 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
         prompt,
         greeting,
         avatarDataUrl,
+        enabledToolNames,
       });
       addToast(`已创建角色「${name}」`);
     } else {
@@ -247,6 +238,12 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
       addToast(`已更新角色「${name}」`);
     }
     onSaved();
+  };
+
+  const toggleSkill = (skill: string) => {
+    setEnabledToolNames((prev) =>
+      prev.includes(skill) ? prev.filter((s) => s !== skill) : [...prev, skill]
+    );
   };
 
   return (
@@ -286,6 +283,22 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
             <div className="field">
               <label>开场白 Greeting</label>
               <textarea className="textarea" rows={2} value={greeting} onChange={(e) => setGreeting(e.target.value)} placeholder="你来啦！快坐下~" />
+            </div>
+            {/* 启用技能：从卡片移入编辑页 */}
+            <div className="field">
+              <label>启用技能（{enabledToolNames.filter((s) => tools.some((t) => t.name === s)).length}/{tools.length}）</label>
+              {tools.length === 0 ? (
+                <div style={{ fontSize: 12, color: 'var(--text-faint)' }}>暂无技能</div>
+              ) : (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {tools.map((t) => (
+                    <label key={t.name} className={`skill-tag ${enabledToolNames.includes(t.name) ? '' : 'locked'}`} style={{ cursor: 'pointer', display: 'inline-flex', gap: 4, alignItems: 'center' }}>
+                      <input type="checkbox" checked={enabledToolNames.includes(t.name)} onChange={() => toggleSkill(t.name)} style={{ accentColor: 'var(--primary)' }} />
+                      {t.name}
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
           <div className="modal-foot">

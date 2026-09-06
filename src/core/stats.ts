@@ -1,5 +1,6 @@
 import { db } from '../db/database';
 import type { ChatMessage } from '../types/models';
+import { saveJsonFile } from './fileDownload';
 
 // ============================================================
 // 生涯统计（append-only）与工具函数
@@ -70,8 +71,8 @@ export function sessionPreviewText(content: string, maxLength = 60): string {
   return stripped.length > maxLength ? stripped.slice(0, maxLength) + '…' : stripped;
 }
 
-/** 另存会话为 JSON 文件（与 App exportSessionRequestJsonFile 一致） */
-export async function exportSessionJson(sessionId: number): Promise<void> {
+/** 另存会话为 JSON 文件（弹出保存对话框，支持选择位置与文件名） */
+export async function exportSessionJson(sessionId: number, suggestedName?: string): Promise<void> {
   const session = await db.sessions.get(sessionId);
   if (!session) throw new Error('会话不存在');
   const messages = await db.messages.where('sessionId').equals(sessionId).sortBy('timestamp');
@@ -86,13 +87,7 @@ export async function exportSessionJson(sessionId: number): Promise<void> {
     exportedAt: Date.now(),
     messages: mapped,
   };
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `session-${sessionId}-${Date.now()}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
+  await saveJsonFile(payload, suggestedName ?? `session-${sessionId}-${Date.now()}.json`);
 }
 
 // ============================================================
