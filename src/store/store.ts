@@ -422,19 +422,14 @@ export const useStore = create<AppState>((set, get) => ({
     set({ pendingConfirmation: null });
   },
 
-  /** 切换群聊发言顺序模式（PRESET 固定座位 / RANDOM 每循环洗牌）并重置当前队列 */
+  /** 切换群聊发言顺序模式（PRESET 固定座位 / RANDOM 每循环洗牌）。
+   * 只更新模式本身：不重置当前队列、不动循环历史、不改 loopIndex，
+   * 因此不影响当前循环与队列面板的历史展示；新顺序在进入下一轮循环
+   * （队列为空重建）时生效，并由 persistQueue 追加到循环历史末尾。 */
   setTurnOrderMode: async (sessionId, mode) => {
     const session = await db.sessions.get(sessionId);
     if (!session) return;
-    const participants = await db.participants.where('sessionId').equals(sessionId).toArray();
-    const queue = initializeTurnQueue(participants, mode);
-    await db.sessions.update(sessionId, {
-      turnOrderMode: mode,
-      // 切换顺序时重置队列并从新顺序开始；历史也重置为新循环
-      turnQueueJson: queueJson(queue),
-      turnQueueHistoryJson: queueHistoryJson([queue]),
-      loopIndex: 0,
-    });
+    await db.sessions.update(sessionId, { turnOrderMode: mode });
     await get().refreshSessions();
     await get().refreshLiveQueue(sessionId);
   },

@@ -1,4 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  DndContext,
+  PointerSensor,
+  KeyboardSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { useStore } from '../store/store';
 import type { ChatMessage, ChatParticipant, ChatSession, ToolCallRecord } from '../types/models';
 import { Avatar, Icon, Markdown, Collapse, Modal, AttachCard } from './shared';
@@ -256,7 +273,6 @@ function MessageBubble({
         {(msg.latencyMs != null || msg.promptTokens > 0 || msg.completionTokens > 0) && !streaming && (
           <div className="msg-metrics">{formatMetrics(msg)}</div>
         )}
-        {streaming && <div className="msg-metrics"><span className="stream-cursor" />生成中…</div>}
       </div>
     </div>
   );
@@ -650,7 +666,7 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
             placeholder={
               session?.mode === 'GROUP'
                 ? `输入消息… 支持 @角色名 指定发言，/new 新话题，/pass 跳过`
-                : '输入消息… 支持 Markdown / 数学公式，/new 开始新话题'
+                : '输入消息… /new 开始新话题'
             }
             rows={1}
             style={{ height: 'auto', minHeight: 38 }}
@@ -1160,7 +1176,64 @@ export function TurnQueuePanel({
 
 // ============================================================
 // 群聊排队排序弹窗（固定顺序模式下的手工调整 / 随机切换）
+// 使用 @dnd-kit/sortable 实现带平滑过渡动画的拖拽排序
 // ============================================================
+
+function SortItemBody({
+  participant,
+  index,
+  npc,
+}: {
+  participant: ChatParticipant;
+  index: number;
+  npc?: { avatarColorOrdinal: number; avatarDataUrl?: string | null };
+}) {
+  return (
+    <>
+      <span className="sort-grip">⠿</span>
+      <Avatar
+        name={speakerLabel(participant)}
+        colorOrdinal={npc?.avatarColorOrdinal ?? 0}
+        imageUrl={npc?.avatarDataUrl ?? null}
+        size="xs"
+      />
+      <span className="sort-name">{speakerLabel(participant)}</span>
+      {participant.kind === 'PLAYER' && <span className="sort-tag">你</span>}
+      <span className="sort-idx">{index + 1}</span>
+    </>
+  );
+}
+
+function SortableItem({
+  participant,
+  index,
+  npc,
+}: {
+  participant: ChatParticipant;
+  index: number;
+  npc?: { avatarColorOrdinal: number; avatarDataUrl?: string | null };
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: participant.participantId,
+  });
+  const style: React.CSSProperties = {
+    transform: CSS.Translate.toString(transform),
+    transition,
+    zIndex: isDragging ? 10 : undefined,
+    opacity: isDragging ? 0.85 : undefined,
+  };
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`sort-item ${isDragging ? 'dragging' : ''}`}
+      {...attributes}
+      {...listeners}
+    >
+      <SortItemBody participant={participant} index={index} npc={npc} />
+    </div>
+  );
+}
 
 export function SortOrderModal({
   session,
@@ -1176,41 +1249,40 @@ export function SortOrderModal({
   const addToast = useStore((s) => s.addToast);
   const npcs = useStore((s) => s.npcs);
   const [mode, setMode] = useState<'PRESET' | 'RANDOM'>(session.turnOrderMode);
+  // 排序列表始终以「参与者的预设座位顺序」为基准预览（随机模式下不可拖拽）
   const [order, setOrder] = useState<ChatParticipant[]>(() =>
     [...participants].sort((a, b) => a.seatOrder - b.seatOrder)
   );
-  const dragRef = useRef<{ id: number } | null>(null);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
 
   const applyMode = async (m: 'PRESET' | 'RANDOM') => {
     setMode(m);
     if (m === 'PRESET') {
       await setTurnOrderMode(session.id!, 'PRESET');
-      addToast('已切换为固定顺序（按座位排列）');
+      addToast('已切换为固定顺序（下一轮循环开始生效）');
     } else {
       await setTurnOrderMode(session.id!, 'RANDOM');
-      addToast('已切换为随机顺序（每轮开始洗牌）');
+      addToast('已切换为随机顺序（下一轮循环开始生效）');
     }
   };
 
-  const onDragStart = (idx: number) => {
-    dragRef.current = { id: order[idx].participantId };
-  };
-  const onDrop = (targetIdx: number) => {
-    const drag = dragRef.current;
-    dragRef.current = null;
-    if (!drag || drag.id === order[targetIdx].participantId) return;
+  const onDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
     setOrder((prev) => {
-      const from = prev.findIndex((p) => p.participantId === drag.id);
-      if (from < 0) return prev;
-      const next = [...prev];
-      const [moved] = next.splice(from, 1);
-      next.splice(targetIdx, 0, moved);
-      return next;
+      const from = prev.findIndex((p) => p.participantId === active.id);
+      const to = prev.findIndex((p) => p.participantId === over.id);
+      if (from < 0 || to < 0) return prev;
+      return arrayMove(prev, from, to);
     });
   };
+
   const onSave = async () => {
     await reorderParticipants(session.id!, order.map((p) => p.participantId));
-    addToast('已保存固定座位顺序');
+    addToast('已保存固定座位顺序（下一轮循环开始生效）');
     onClose();
   };
 
@@ -1239,31 +1311,40 @@ export function SortOrderModal({
           </button>
         </div>
         <div className="sort-hint">
-          {mode === 'PRESET' ? '拖动调整发言顺序：队首优先发言' : '队列会在每个循环开始时洗牌（当前展示预设预览）'}
+          {mode === 'PRESET' ? '拖动调整发言顺序，下一轮循环开始生效（队首优先发言）' : '每个循环开始时随机洗牌，下一轮循环开始生效（下方为预设顺序预览）'}
         </div>
-        <div className="sort-list">
-          {order.map((p, i) => {
-            const npc = p.npcId ? npcs.find((n) => n.id === p.npcId) : undefined;
-            const hue = npc?.avatarColorOrdinal ?? 0;
-            const avatarUrl = npc?.avatarDataUrl ?? null;
-            return (
-              <div
-                key={p.participantId}
-                className="sort-item"
-                draggable={mode === 'PRESET'}
-                onDragStart={() => onDragStart(i)}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={() => onDrop(i)}
-              >
-                <span className="sort-grip">⠿</span>
-                <Avatar name={speakerLabel(p)} colorOrdinal={hue} imageUrl={avatarUrl} size="xs" />
-                <span className="sort-name">{speakerLabel(p)}</span>
-                {p.kind === 'PLAYER' && <span className="sort-tag">你</span>}
-                <span className="sort-idx">{i + 1}</span>
+        {mode === 'PRESET' ? (
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={onDragEnd}
+          >
+            <SortableContext
+              items={order.map((p) => p.participantId)}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="sort-list">
+                {order.map((p, i) => {
+                  const npc = p.npcId ? npcs.find((n) => n.id === p.npcId) : undefined;
+                  return (
+                    <SortableItem key={p.participantId} participant={p} index={i} npc={npc} />
+                  );
+                })}
               </div>
-            );
-          })}
-        </div>
+            </SortableContext>
+          </DndContext>
+        ) : (
+          <div className="sort-list sort-list-locked">
+            {order.map((p, i) => {
+              const npc = p.npcId ? npcs.find((n) => n.id === p.npcId) : undefined;
+              return (
+                <div key={p.participantId} className="sort-item">
+                  <SortItemBody participant={p} index={i} npc={npc} />
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
       <div className="modal-foot">
         <button className="btn" onClick={onClose}>取消</button>

@@ -1037,6 +1037,10 @@
   flex-direction: column;
   gap: 4px;
 }
+/* 随机模式：列表锁定为预设预览，禁止拖拽 */
+.sort-list-locked .sort-item {
+  opacity: 0.75;
+}
 .sort-item {
   display: flex;
   align-items: center;
@@ -1049,8 +1053,20 @@
   color: var(--text);
   cursor: grab;
   user-select: none;
+  touch-action: none; /* dnd-kit：允许触摸设备拖拽 */
+  /* 平滑过渡：拖拽时 transform 由 dnd-kit 驱动，这里只给结束回弹加过渡 */
+  transition: box-shadow 0.15s ease, opacity 0.15s ease;
+}
+.sort-item:hover {
+  border-color: color-mix(in srgb, var(--primary) 25%, transparent);
 }
 .sort-item:active {
+  cursor: grabbing;
+}
+/* 正在拖拽的卡片：抬升 + 阴影 */
+.sort-item.dragging {
+  box-shadow: var(--shadow-lg);
+  border-color: color-mix(in srgb, var(--primary) 45%, transparent);
   cursor: grabbing;
 }
 .sort-grip {

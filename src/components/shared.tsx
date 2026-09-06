@@ -105,14 +105,17 @@ export interface SessionMember {
 }
 
 function GroupCollage({ members, size }: { members: SessionMember[]; size: 'sm' | 'lg' }) {
-  const count = Math.min(members.length, 4);
+  // 始终渲染 2×2 四宫格；成员不足 4 位时空余格子留空
   return (
-    <div className={`gcollage gcollage-m${count} ${size === 'lg' ? 'gcollage-lg' : ''}`}>
-      {members.slice(0, count).map((m, i) => (
-        <div key={i} className="gslot">
-          <Avatar name={m.name} colorOrdinal={m.colorOrdinal} imageUrl={m.imageUrl} size="xs" />
-        </div>
-      ))}
+    <div className={`gcollage gcollage-m4 ${size === 'lg' ? 'gcollage-lg' : ''}`}>
+      {[0, 1, 2, 3].map((i) => {
+        const m = members[i];
+        return (
+          <div key={i} className="gslot">
+            {m ? <Avatar name={m.name} colorOrdinal={m.colorOrdinal} imageUrl={m.imageUrl} size="xs" /> : null}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -151,10 +154,9 @@ export function SessionVisual({
     );
   }
   // GROUP
-  const list = members?.length ? members : [];
   return (
     <div className={`svc svc-group ${size === 'lg' ? 'svc-group-lg' : ''}`}>
-      {list.length > 0 ? <GroupCollage members={list} size={size} /> : <span>👥</span>}
+      <GroupCollage members={members ?? []} size={size} />
     </div>
   );
 }
