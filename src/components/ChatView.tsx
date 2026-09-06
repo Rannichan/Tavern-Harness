@@ -299,11 +299,24 @@ function BubbleEditor({
   );
   const fileRef = useRef<HTMLInputElement>(null);
   const editMessage = useStore((s) => s.editMessage);
+  const saveMessageOnly = useStore((s) => s.saveMessageOnly);
   const streaming = useStore((s) => s.streaming.sessionId === session.id);
 
   const doSave = async () => {
     if (!text.trim() || streaming) return;
     await editMessage(
+      msg.id!,
+      text,
+      session.id!,
+      attachments.map((a) => a.dataUrl),
+      attachments.map((a) => a.name)
+    );
+    onDone();
+  };
+
+  const doSaveOnly = async () => {
+    if (!text.trim() || streaming) return;
+    await saveMessageOnly(
       msg.id!,
       text,
       session.id!,
@@ -367,6 +380,9 @@ function BubbleEditor({
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           <span className="bubble-editor-hint">{t('chat.saveHint')}</span>
           <button className="btn btn-sm" onClick={onDone}>{t('common.cancel')}</button>
+          <button className="btn btn-sm" disabled={!text.trim() || streaming} onClick={doSaveOnly}>
+            {t('chat.saveOnly')}
+          </button>
           <button className="btn btn-sm btn-primary" disabled={!text.trim() || streaming} onClick={doSave}>
             {t('chat.saveRegenerate')}
           </button>

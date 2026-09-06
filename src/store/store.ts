@@ -101,6 +101,7 @@ interface AppState {
   sendMessage: (text: string, attachments?: string[], attachmentNames?: string[]) => Promise<void>;
   regenerateLast: () => Promise<void>;
   editMessage: (messageId: number, newContent: string, sessionId: number, newAttachments?: string[], newAttachmentNames?: string[]) => Promise<void>;
+  saveMessageOnly: (messageId: number, newContent: string, sessionId: number, newAttachments?: string[], newAttachmentNames?: string[]) => Promise<void>;
   stopStreaming: () => void;
   deleteSession: (id: number) => Promise<void>;
   resolveConfirmation: (approved: boolean) => void;
@@ -399,6 +400,22 @@ export const useStore = create<AppState>((set, get) => ({
     await db.messages.update(messageId, { content: newContent, attachments, attachmentInfos });
     await get().loadMessages(sessionId);
     await runConversationLoop((await db.sessions.get(sessionId))!);
+    await get().refreshSessions();
+  },
+
+  saveMessageOnly: async (messageId, newContent, sessionId, newAttachments?: string[], newAttachmentNames?: string[]) => {
+    if (get().streaming.sessionId != null) return;
+    const message = await db.messages.get(messageId);
+    if (!message) return;
+    const attachments = newAttachments ?? message.attachments;
+    const attachmentInfos = (newAttachments != null ? newAttachments : message.attachments).map((a, i) => ({
+      mimeType: a.startsWith('data:image') ? 'image/png' : 'video/mp4',
+      displayName: (newAttachmentNames?.[i]?.trim()) || message.attachmentInfos?.[i]?.displayName || translate('common.attachment'),
+      sizeBytes: a.length,
+    }));
+    // 仅修改本条消息内容，不删除任何后续消息、不触发重新生成
+    await db.messages.update(messageId, { content: newContent, attachments, attachmentInfos });
+    await get().loadMessages(sessionId);
     await get().refreshSessions();
   },
 
