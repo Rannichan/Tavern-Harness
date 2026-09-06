@@ -9,6 +9,7 @@ import { BUILTIN_TOOLS, BUILTIN_TOOL_NAMES } from '../toolDefinitions';
 import { rollDice, webSearch } from './builtinTools';
 import { executeGeneratedSkill, SHELL_ALLOWED } from './generatedSkillExecutor';
 import { uuid } from '../turnLoop';
+import { translate } from '../i18n';
 
 // ============================================================
 // 工具路由与确认门控 — 对应 ToolExecutionCoordinator.kt
@@ -101,23 +102,23 @@ async function runNativeTool(
     case 'create_skill':
       return await handleCreateSkill(args);
     case 'update_skill':
-      return await gate(ctx, 'update_skill', `更新技能「${args.name}」？`, () => handleUpdateSkill(args));
+      return await gate(ctx, 'update_skill', translate('tool.gateUpdateSkill', { name: String(args.name ?? '') }), () => handleUpdateSkill(args));
     case 'delete_skill':
-      return await gate(ctx, 'delete_skill', `删除技能「${args.name}」？此操作不可恢复。`, () => handleDeleteSkill(args));
+      return await gate(ctx, 'delete_skill', translate('tool.gateDeleteSkill', { name: String(args.name ?? '') }), () => handleDeleteSkill(args));
 
     case 'create_character':
       return await handleCreateCharacter(args);
     case 'update_character':
-      return await gate(ctx, 'update_character', `更新角色「${args.name}」？`, () => handleUpdateCharacter(args));
+      return await gate(ctx, 'update_character', translate('tool.gateUpdateChar', { name: String(args.name ?? '') }), () => handleUpdateCharacter(args));
     case 'delete_character':
-      return await gate(ctx, 'delete_character', `删除角色「${args.name}」？此操作不可恢复。`, () => handleDeleteCharacter(args));
+      return await gate(ctx, 'delete_character', translate('tool.gateDeleteChar', { name: String(args.name ?? '') }), () => handleDeleteCharacter(args));
 
     case 'create_world_book':
       return await handleCreateWorldBook(args);
     case 'update_world_book':
-      return await gate(ctx, 'update_world_book', `更新世界书「${args.name}」？`, () => handleUpdateWorldBook(args));
+      return await gate(ctx, 'update_world_book', translate('tool.gateUpdateWb', { name: String(args.name ?? '') }), () => handleUpdateWorldBook(args));
     case 'delete_world_book':
-      return await gate(ctx, 'delete_world_book', `删除世界书「${args.name}」？`, () => handleDeleteWorldBook(args));
+      return await gate(ctx, 'delete_world_book', translate('tool.gateDeleteWb', { name: String(args.name ?? '') }), () => handleDeleteWorldBook(args));
 
     default:
       return `ERROR: 未知工具 ${toolName}`;
@@ -138,10 +139,10 @@ async function gate(
       message: title,
       argsJson: '{}',
     });
-    if (!confirmed) return `CANCELLED: 用户取消了 ${toolName}`;
+    if (!confirmed) return translate('toast.canceled', { name: toolName });
     return await action();
   } catch {
-    return `CANCELLED: 用户取消了 ${toolName}`;
+    return translate('toast.canceled', { name: toolName });
   }
 }
 

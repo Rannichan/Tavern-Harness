@@ -1,5 +1,6 @@
 import type { ChatParticipant, ChatSession, TurnOrderMode } from '../types/models';
 import { NEW_TOPIC_MARKER } from './toolDefinitions';
+import { translate } from './i18n';
 
 // ============================================================
 // 魔数命令（与 App 一致：/new 与 /pass）
@@ -11,9 +12,14 @@ export interface MagicCommand {
 }
 
 export const MAGIC_COMMANDS: MagicCommand[] = [
-  { text: '/new', description: '开始新话题（截断上下文）' },
-  { text: '/pass', description: '跳过本轮发言（群聊中）' },
+  { text: '/new', description: '' },
+  { text: '/pass', description: '' },
 ];
+
+/** 获取命令描述（每次读取当前语言） */
+export function commandDescription(text: string): string {
+  return text === '/new' ? translate('chat.cmdNew') : translate('chat.cmdPass');
+}
 
 /** 精确匹配 /new 或 /pass（有附件时不生效） */
 export function parseMagicCommand(text: string, hasAttachments: boolean): { text: string } | null {
@@ -25,7 +31,10 @@ export function parseMagicCommand(text: string, hasAttachments: boolean): { text
 
 export function suggestMagicCommands(input: string): MagicCommand[] {
   if (!input.startsWith('/') || input.includes('\n')) return [];
-  return MAGIC_COMMANDS.filter((c) => c.text.startsWith(input));
+  return MAGIC_COMMANDS.filter((c) => c.text.startsWith(input)).map((c) => ({
+    text: c.text,
+    description: commandDescription(c.text),
+  }));
 }
 
 // ============================================================
@@ -199,7 +208,7 @@ export function effectiveDisplayQueue(
 
 /** 流式输出中的发言者标签：玩家 → 用户，NPC → 显示名 */
 export function speakerLabel(p: ChatParticipant): string {
-  return p.kind === 'PLAYER' ? '用户' : p.displayName;
+  return p.kind === 'PLAYER' ? translate('common.user') : p.displayName;
 }
 
 // ============================================================

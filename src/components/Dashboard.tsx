@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useStore } from '../store/store';
 import { Icon } from './shared';
 import { NewSessionMenu } from './NewSessionMenu';
+import { useT } from '../core/i18n';
 
 // ============================================================
 // 仪表盘（无活动会话时的起始页）
@@ -11,6 +12,7 @@ export function Dashboard() {
   const npcs = useStore((s) => s.npcs);
   const sessions = useStore((s) => s.sessions);
   const addToast = useStore((s) => s.addToast);
+  const t = useT();
   const [showNew, setShowNew] = useState(false);
 
   const startNpc = async (id: number) => {
@@ -24,7 +26,7 @@ export function Dashboard() {
     const { createSession } = await import('../store/store');
     const npcIds = npcs.map((n) => n.id!).slice(0, 3);
     if (npcIds.length < 2) {
-      addToast('需要至少 2 位角色才能创建群聊', 'error');
+      addToast(t('toast.needTwoNpcs'), 'error');
       return;
     }
     const sid = await createSession('GROUP', { npcIds });
@@ -36,14 +38,13 @@ export function Dashboard() {
     <div className="dash-scroll">
       <div className="dash">
         <div className="dash-hero fade-up">
-          <h1>欢迎回到酒馆 🫖</h1>
+          <h1>{t('dash.welcome')}</h1>
           <p>
-            Tavern Harness — 本地优先的 AI 助手与角色扮演工作台。
-            支持任意 OpenAI 兼容 API、角色卡（NPC）、世界书、生成式技能、群聊回合制，全部数据存储在你的浏览器中。
+            {t('dash.hero')}
           </p>
           <div className="actions">
             <button className="btn btn-primary" onClick={() => setShowNew(true)}>
-              <Icon name="plus" size={14} /> 新建对话
+              <Icon name="plus" size={14} /> {t('dash.newChat')}
             </button>
             <button
               className="btn"
@@ -51,23 +52,23 @@ export function Dashboard() {
                 useStore.getState().setActiveView('characters');
               }}
             >
-              <Icon name="users" size={14} /> 前往角色工坊
+              <Icon name="users" size={14} /> {t('dash.goCharacters')}
             </button>
           </div>
         </div>
 
         <div>
-          <span className="section-title">与角色继续对话</span>
+          <span className="section-title">{t('dash.continue')}</span>
           {sessions.filter((s) => s.mode !== 'STANDARD').length === 0 && (
             <div className="card empty-state">
               <div className="big">🍺</div>
-              <span>还没有角色对话，从下面的角色卡片开始</span>
+              <span>{t('dash.noCharConv')}</span>
             </div>
           )}
         </div>
 
         <div>
-          <span className="section-title">酒馆常客</span>
+          <span className="section-title">{t('dash.regulars')}</span>
           <div className="char-grid">
             {npcs.map((n) => (
               <div key={n.id} className="char-card">
@@ -76,11 +77,11 @@ export function Dashboard() {
                     {n.name.slice(0, 1)}
                   </span>
                   {n.name}
-                  {n.isBuiltIn && <span className="tag">内置</span>}
+                  {n.isBuiltIn && <span className="tag">{t('common.builtin')}</span>}
                 </div>
                 <div className="cgreet">{n.greeting}</div>
                 <div className="cactions">
-                  <button className="btn btn-sm btn-primary" onClick={() => startNpc(n.id!)}>开始对话</button>
+                  <button className="btn btn-sm btn-primary" onClick={() => startNpc(n.id!)}>{t('dash.startChat')}</button>
                 </div>
               </div>
             ))}

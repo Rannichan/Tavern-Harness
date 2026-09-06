@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { renderMarkdown, highlightMentions } from '../core/markdown';
+import { useT } from '../core/i18n';
 
 // ============================================================
 // 通用弹窗容器（Portal 到 body，避开祖先 backdrop-filter 产生的
@@ -81,12 +82,13 @@ export function Avatar({
 // ============================================================
 
 export function AttachCard({ name, onRemove }: { name: string; onRemove?: () => void }) {
+  const t = useT();
   return (
     <div className="attach-card">
       <span className="attach-card-icon">📎</span>
       <span className="attach-card-name" title={name}>{name}</span>
       {onRemove && (
-        <button className="attach-rm" onClick={onRemove} title="移除附件">
+        <button className="attach-rm" onClick={onRemove} title={t('common.removeAttachment')}>
           <Icon name="x" size={11} />
         </button>
       )}
@@ -182,6 +184,7 @@ export function Collapse({
   defaultOpen?: boolean;
   live?: boolean;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(defaultOpen);
   const contentRef = useRef<HTMLDivElement>(null);
   const [overflow, setOverflow] = useState(false);
@@ -205,7 +208,7 @@ export function Collapse({
       {open && (
         <div className="collp-body">
           <div ref={contentRef} className="collp-content">{children}</div>
-          {overflow && !preview && <div className="collp-more">（点击展开完整内容）</div>}
+          {overflow && !preview && <div className="collp-more">{t('chat.collpMore')}</div>}
         </div>
       )}
       {!open && preview && <div className="collp-preview">{preview.slice(0, 120)}{preview.length > 120 ? '…' : ''}</div>}

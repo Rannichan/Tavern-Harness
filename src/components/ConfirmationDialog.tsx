@@ -1,5 +1,6 @@
 import { useStore } from '../store/store';
 import { Icon } from './shared';
+import { useT } from '../core/i18n';
 
 // ============================================================
 // 工具确认门控弹窗（更新/删除类操作）
@@ -8,6 +9,7 @@ import { Icon } from './shared';
 export function ConfirmationDialog() {
   const pending = useStore((s) => s.pendingConfirmation);
   const resolve = useStore((s) => s.resolveConfirmation);
+  const t = useT();
 
   if (!pending) return null;
 
@@ -30,9 +32,9 @@ export function ConfirmationDialog() {
           </div>
           <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <div style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.6 }}>
-              模型请求执行一个<span style={{ color: 'var(--warn)', fontWeight: 700 }}>修改操作</span>，请确认是否允许。
+              {t('confirm.modify')}
             </div>
-            <div style={{ fontSize: 13, fontWeight: 700 }}>工具：<span className="mono" style={{ color: 'var(--primary)' }}>{pending.toolName}</span></div>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>{t('confirm.tool')}<span className="mono" style={{ color: 'var(--primary)' }}>{pending.toolName}</span></div>
             <pre className="confirm-args mono">{argsText}</pre>
           </div>
           <div className="modal-foot">
@@ -40,10 +42,10 @@ export function ConfirmationDialog() {
               className="btn"
               onClick={() => resolve(false)}
             >
-              拒绝
+              {t('confirm.reject')}
             </button>
             <button className="btn btn-primary" onClick={() => resolve(true)}>
-              允许
+              {t('confirm.allow')}
             </button>
           </div>
         </div>

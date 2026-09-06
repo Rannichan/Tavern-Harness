@@ -5,6 +5,7 @@ import type {
 } from '../types/models';
 import { fallbackToolCallId } from './turnLoop';
 import { isNetworkLikeError, toProxyUrl } from './proxy';
+import { translate } from './i18n';
 
 export const OPENAI_TIMEOUTS = { connect: 15_000, read: 60_000, write: 15_000 };
 
@@ -127,7 +128,7 @@ async function attemptStream(
       return true;
     }
     if ((e as Error).name === 'AbortError' || (e as Error).name === 'TimeoutError') {
-      onChunk({ type: 'error', message: '请求超时' });
+      onChunk({ type: 'error', message: translate('tool.timeout') });
       return true;
     }
     // 网络层错误：若还有代理候选则返回 false 让外层重试；否则报错

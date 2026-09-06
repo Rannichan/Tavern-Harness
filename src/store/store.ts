@@ -35,6 +35,7 @@ import { NEW_TOPIC_MARKER, MAX_TOOL_CALL_DEPTH } from '../core/toolDefinitions';
 import { getEnabledToolsForSession, executeToolCall } from '../core/tools/toolExecutor';
 import { scheduleRestoredTasks } from '../core/tools/toolExecutor';
 import { applyTheme as applyThemeManual } from '../theme/theme';
+import { setLanguage, translate } from '../core/i18n';
 import { estimateTokensFromChars, accumulateStats, sessionPreviewText } from '../core/stats';
 import { ACHIEVEMENTS, registerUnlockDispatcher, type AchievementDef } from '../core/achievements';
 
@@ -162,6 +163,7 @@ export const useStore = create<AppState>((set, get) => ({
     if (initLock) return initLock;
     initLock = (async () => {
       const settings = (await db.settings.get(1))!;
+      setLanguage(settings.language ?? null);
       const npcs = await db.npcs.toArray();
       const sessions = await db.sessions.orderBy('updatedAt').reverse().toArray();
       const worldBooks = await db.worldBooks.toArray();
@@ -189,6 +191,9 @@ export const useStore = create<AppState>((set, get) => ({
     const next = { ...current, ...partial };
     await db.settings.put(next);
     set({ settings: next });
+    if (partial.language !== undefined) {
+      setLanguage(next.language ?? null);
+    }
     applyThemeManual(next.themeMode, next.themeColor);
   },
 
@@ -287,7 +292,7 @@ export const useStore = create<AppState>((set, get) => ({
     const session = await db.sessions.get(sessionId);
     if (!session) return;
     if (get().streaming.sessionId != null) {
-      get().addToast('正在生成中，请稍候', 'error');
+      get().addToast(translate('toast.busy'), 'error');
       return;
     }
 
@@ -302,7 +307,7 @@ export const useStore = create<AppState>((set, get) => ({
     // 保存用户消息（若在群聊中轮到玩家，同时将其移出队列）
     const attachInfos = attachments.map((a, i) => ({
       mimeType: a.startsWith('data:image') ? 'image/png' : 'video/mp4',
-      displayName: attachmentNames[i]?.trim() || '附件',
+      displayName: attachmentNames[i]?.trim() || translate('common.attachment'),
       sizeBytes: a.length,
     }));
     const userMsg: ChatMessage = {
@@ -388,7 +393,7 @@ export const useStore = create<AppState>((set, get) => ({
     const attachments = newAttachments ?? message.attachments;
     const attachmentInfos = (newAttachments != null ? newAttachments : message.attachments).map((a, i) => ({
       mimeType: a.startsWith('data:image') ? 'image/png' : 'video/mp4',
-      displayName: (newAttachmentNames?.[i]?.trim()) || message.attachmentInfos?.[i]?.displayName || '附件',
+      displayName: (newAttachmentNames?.[i]?.trim()) || message.attachmentInfos?.[i]?.displayName || translate('common.attachment'),
       sizeBytes: a.length,
     }));
     await db.messages.update(messageId, { content: newContent, attachments, attachmentInfos });
@@ -562,7 +567,7 @@ export async function createSession(
 ): Promise<number> {
   let title = opts?.title;
   if (!title) {
-    title = mode === 'STANDARD' ? '新对话' : mode === 'NPC' ? '新角色对话' : '新群聊';
+    title = mode === 'STANDARD' ? translate('nav.newStandardTitle') : mode === 'NPC' ? translate('nav.newNpcTitle') : translate('nav.newGroupTitle');
   }
   const now = Date.now();
   const id = await db.sessions.add({
@@ -690,7 +695,7 @@ async function handleMagicCommand(session: ChatSession, cmd: string): Promise<vo
       rawResponseBody: null,
     };
     await db.messages.add(marker);
-    await db.sessions.update(session.id!, { updatedAt: Date.now(), lastMessage: '开始新话题' });
+    await db.sessions.update(session.id!, { updatedAt: Date.now(), lastMessage: NEW_TOPIC_MARKER });
     await useStore.getState().loadMessages(session.id!);
   } else if (cmd === '/pass') {
     // 魔法指令 /pass：将玩家移出队列，不修改任何对话历史
@@ -709,7 +714,7 @@ async function handleMagicCommand(session: ChatSession, cmd: string): Promise<vo
         await continueGroupConversation(session.id!);
       }
     } else {
-      useStore.getState().addToast('/pass 仅在群聊中有效', 'error');
+      useStore.getState().addToast(translate('toast.passOnlyGroup'), 'error');
     }
   }
 }
@@ -851,7 +856,7 @@ async function streamAssistantTurn(
 
   const endpoint = await resolveActiveEndpoint();
   if (!endpoint) {
-    useStore.getState().addToast('请在「模型服务 Provider」中添加并启用一个端点，并选择模型', 'error');
+    useStore.getState().addToast(translate('toast.noEndpoint'), 'error');
     return;
   }
   const { baseUrl, apiKey, model } = endpoint;
@@ -902,13 +907,13 @@ async function streamAssistantTurn(
         const p = participants.find((pp) => String(pp.participantId) === id);
         return p
           ? p.kind === 'PLAYER'
-            ? playerP?.displayName ?? '用户'
+            ? playerP?.displayName ?? translate('common.user')
             : p.displayName
           : id;
       });
       systemPrompt = buildGroupSystemPrompt(name, npc?.prompt ?? '', worldBook?.content, userPersona?.prompt, {
         allSpeakerNames,
-        playerName: playerP?.displayName ?? '用户',
+        playerName: playerP?.displayName ?? translate('common.user'),
         currentTurnQueueOrder: queueOrder,
       });
     }
@@ -1019,7 +1024,7 @@ async function streamAssistantTurn(
       await db.messages.delete(draftId);
       await useStore.getState().loadMessages(sessionId);
       useStore.setState({ streaming: { sessionId: null, abort: null } });
-      useStore.getState().addToast(`生成失败: ${errorMsg}`, 'error');
+      useStore.getState().addToast(translate('toast.genFailed', { msg: errorMsg }), 'error');
       return;
     }
 
@@ -1067,7 +1072,7 @@ async function streamAssistantTurn(
     });
 
     if (errorMsg) {
-      useStore.getState().addToast(`生成失败: ${errorMsg}`, 'error');
+      useStore.getState().addToast(translate('toast.genFailed', { msg: errorMsg }), 'error');
     }
 
     // ---- 工具调用处理（默认开启） ----
@@ -1078,7 +1083,7 @@ async function streamAssistantTurn(
         if (needsConfirm) {
           const approved = await requestToolConfirmation(sessionId, tc);
           if (!approved) {
-            result = `CANCELLED: 用户取消了 ${tc.name}`;
+            result = translate('toast.canceled', { name: tc.name });
           } else {
             result = await executeToolCall(tc.name, tc.argumentsJson, { sessionId, requestConfirmation: async () => true });
           }

@@ -23,6 +23,7 @@ import { formatMetrics } from '../core/stats';
 import { saveTextFile } from '../core/fileDownload';
 import { effectiveDisplayQueue, initializeTurnQueue, speakerLabel } from '../core/turnLoop';
 import { onChatScroll, registerChatEl, onQueueScroll, registerQueueEl, scrollChatTo, scrollQueueToLoop } from '../core/linkedScroll';
+import { useT, translate } from '../core/i18n';
 
 function fmtTime(ts: number): string {
   const d = new Date(ts);
@@ -33,11 +34,12 @@ function fmtTime(ts: number): string {
 
 /** 从 dataUrl / URL 猜测一个可显示的文件名 */
 function attachmentName(a: string): string {
+  const attach = translate('common.attachment');
   if (a.startsWith('data:')) {
     const m = /^data:([^;]+);/.exec(a);
     const mime = m ? m[1] : '';
     const ext = mime.split('/')[1] || 'bin';
-    return `附件.${ext}`;
+    return `${attach}.${ext}`;
   }
   try {
     const u = new URL(a);
@@ -46,7 +48,7 @@ function attachmentName(a: string): string {
   } catch {
     /* ignore */
   }
-  return '附件';
+  return attach;
 }
 
 // ============================================================
@@ -66,6 +68,7 @@ export function ChatView({
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const updateStreaming = useStore((s) => s.streaming.sessionId === session.id);
+  const t = useT();
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -98,9 +101,9 @@ export function ChatView({
           <div className="empty-state fade-up">
             <div className="big">🫖</div>
             <div>
-              {session.mode === 'STANDARD' && <><b>开始一段新的对话</b><br />输入消息开始聊天</>}
-              {session.mode === 'NPC' && <><b>与 {npc?.name ?? '角色'} 对话</b><br />{npc?.greeting}</>}
-              {session.mode === 'GROUP' && <><b>群聊</b><br />多位角色轮番发言</>}
+              {session.mode === 'STANDARD' && <><b>{t('chat.emptyStandardTitle')}</b><br />{t('chat.emptyStandardSub')}</>}
+              {session.mode === 'NPC' && <><b>{t('chat.emptyNpcTitle', { name: npc?.name ?? t('chat.speakerChar') })}</b><br />{npc?.greeting}</>}
+              {session.mode === 'GROUP' && <><b>{t('chat.emptyGroupTitle')}</b><br />{t('chat.emptyGroupSub')}</>}
             </div>
           </div>
         )}
@@ -140,6 +143,7 @@ function MessageBubble({
   /** 群聊循环号（0 起）；非群聊为 null */
   loopIndex: number | null;
 }) {
+  const t = useT();
   // System 消息（/new 标记）
   if (msg.role === 'system') {
     return (
@@ -188,7 +192,7 @@ function MessageBubble({
   const speaker = msg.speakerParticipantId != null
     ? participants.find((p) => p.participantId === msg.speakerParticipantId)
     : undefined;
-  const speakerName = msg.speakerName ?? (isUser ? '用户' : session.mode === 'NPC' ? '角色' : '助手');
+  const speakerName = msg.speakerName ?? (isUser ? t('common.user') : session.mode === 'NPC' ? t('chat.speakerChar') : t('chat.speakerAssistant'));
   const npcHue = speaker?.npcId ? useStore((s) => s.npcs.find((n) => n.id === speaker.npcId)?.avatarColorOrdinal ?? 0) : 0;
   const npcAvatar = speaker?.npcId ? useStore((s) => s.npcs.find((n) => n.id === speaker.npcId)?.avatarDataUrl ?? null) : null;
 
@@ -234,12 +238,12 @@ function MessageBubble({
           <span className="msg-time">{fmtTime(msg.timestamp)}</span>
         </div>
         {msg.thinkingContent && streaming && (
-          <Collapse title="思考" icon="🧠" accent="think" preview={msg.thinkingContent} live>
+          <Collapse title={t('chat.thinking')} icon="🧠" accent="think" preview={msg.thinkingContent} live>
             <Markdown text={msg.thinkingContent} mathEnabled={false} />
           </Collapse>
         )}
         {msg.thinkingContent && !streaming && (
-          <Collapse title="思考" icon="🧠" accent="think" defaultOpen={false} preview={msg.thinkingContent}>
+          <Collapse title={t('chat.thinking')} icon="🧠" accent="think" defaultOpen={false} preview={msg.thinkingContent}>
             <Markdown text={msg.thinkingContent} mathEnabled={false} />
           </Collapse>
         )}
@@ -264,7 +268,7 @@ function MessageBubble({
                 {msg.content ? <Markdown text={msg.content} mentionNames={mentionNames} /> : streaming && <span className="stream-cursor" />}
               </div>
               {/* 编辑按钮：位于正文气泡内最右侧，铅笔图标 */}
-              <button className="msg-edit-btn" title="编辑消息" onClick={() => startEditingMsg(msg.id!)}>
+              <button className="msg-edit-btn" title={t('chat.editMsg')} onClick={() => startEditingMsg(msg.id!)}>
                 <Icon name="pencil" size={13} />
               </button>
             </div>
@@ -288,6 +292,7 @@ function BubbleEditor({
   session: ChatSession;
   onDone: () => void;
 }) {
+  const t = useT();
   const [text, setText] = useState(msg.content);
   const [attachments, setAttachments] = useState<{ dataUrl: string; name: string }[]>(
     msg.attachments.map((a, i) => ({ dataUrl: a, name: msg.attachmentInfos?.[i]?.displayName || attachmentName(a) }))
@@ -356,14 +361,14 @@ function BubbleEditor({
             }}
           />
           <button className="btn btn-sm" onClick={() => fileRef.current?.click()}>
-            <Icon name="image" size={12} /> 添加附件
+            <Icon name="image" size={12} /> {t('chat.addAttachment')}
           </button>
         </div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          <span className="bubble-editor-hint">⌘/Ctrl+Enter 保存 · Esc 取消</span>
-          <button className="btn btn-sm" onClick={onDone}>取消</button>
+          <span className="bubble-editor-hint">{t('chat.saveHint')}</span>
+          <button className="btn btn-sm" onClick={onDone}>{t('common.cancel')}</button>
           <button className="btn btn-sm btn-primary" disabled={!text.trim() || streaming} onClick={doSave}>
-            保存并重新生成
+            {t('chat.saveRegenerate')}
           </button>
         </div>
       </div>
@@ -372,6 +377,7 @@ function BubbleEditor({
 }
 
 function UserBubble({ msg, session, editing, loopIndex }: { msg: ChatMessage; session: ChatSession; editing?: boolean; loopIndex?: number | null }) {
+  const t = useT();
   const participants = useStore((s) => (session.id != null ? (s.participants[session.id] ?? []) : []));
   // 群聊中「用户消息」的 @角色名 也作为特殊指令高亮（点名）
   const mentionNames =
@@ -380,11 +386,11 @@ function UserBubble({ msg, session, editing, loopIndex }: { msg: ChatMessage; se
       : [];
   return (
     <div className="msg-row user-row fade-up" data-loop={loopIndex ?? undefined} data-speaker="player" onContextMenu={(e) => { e.preventDefault(); openMsgMenu(e, msg, session); }}>
-      <div className="avatar sm user-avatar">我</div>
+      <div className="avatar sm user-avatar">{t('common.me')}</div>
       <div className="msg-body">
         <div className="msg-head right">
           <span className="msg-time">{fmtTime(msg.timestamp)}</span>
-          <span className="msg-name">你</span>
+          <span className="msg-name">{t('common.you')}</span>
         </div>
         {editing ? (
           <BubbleEditor msg={msg} session={session} onDone={stopEditingMsg} />
@@ -401,7 +407,7 @@ function UserBubble({ msg, session, editing, loopIndex }: { msg: ChatMessage; se
               <div className="bubble-text">
                 {msg.content && <Markdown text={msg.content} mentionNames={mentionNames} />}
               </div>
-              <button className="msg-edit-btn" title="编辑消息" onClick={() => startEditingMsg(msg.id!)}>
+              <button className="msg-edit-btn" title={t('chat.editMsg')} onClick={() => startEditingMsg(msg.id!)}>
                 <Icon name="pencil" size={13} />
               </button>
             </div>
@@ -413,6 +419,7 @@ function UserBubble({ msg, session, editing, loopIndex }: { msg: ChatMessage; se
 }
 
 function ToolCallCard({ tc, executing }: { tc: ToolCallRecord; executing: boolean }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   let args: unknown;
   try {
@@ -424,7 +431,7 @@ function ToolCallCard({ tc, executing }: { tc: ToolCallRecord; executing: boolea
     <div className={`tool-card ${executing ? 'executing' : ''}`}>
       <button className="tool-card-head" onClick={() => setOpen(!open)}>
         <span className="tool-card-icon">{executing ? <span className="spinner" style={{ width: 12, height: 12 }} /> : '🔧'}</span>
-        <span className="tool-card-name">调用工具: {tc.name}</span>
+        <span className="tool-card-name">{t('chat.toolCall', { name: tc.name })}</span>
         <span className="collp-arrow" style={{ transform: open ? 'rotate(180deg)' : undefined }}>▾</span>
       </button>
       {open && (
@@ -439,6 +446,7 @@ function ToolCallCard({ tc, executing }: { tc: ToolCallRecord; executing: boolea
 // ============================================================
 
 export function ChatInput({ sessionId }: { sessionId: number }) {
+  const t = useT();
   const [text, setText] = useState('');
   const [attachments, setAttachments] = useState<{ dataUrl: string; name: string }[]>([]);
   const [showCmd, setShowCmd] = useState(false);
@@ -541,7 +549,7 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
       if (files && files.length > 0 && files[0].type.startsWith('image')) {
         e.preventDefault();
         const f = files[0];
-        readFileAsDataUrl(f).then((url) => setAttachments((a) => [...a, { dataUrl: url, name: f.name || `粘贴图片.${f.type.split('/')[1] || 'png'}` }]));
+        readFileAsDataUrl(f).then((url) => setAttachments((a) => [...a, { dataUrl: url, name: f.name || translate('chat.pasteImage', { ext: f.type.split('/')[1] || 'png' }) }]));
       }
     };
     window.addEventListener('paste', onPaste);
@@ -578,7 +586,7 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
           {commands.map((c) => (
             <button key={c} className="cmd-item" onClick={() => { setText(c); setShowCmd(false); }}>
               <span className="cmd-text">{c}</span>
-              <span className="cmd-desc">{c === '/new' ? '开始新话题（截断上下文）' : '跳过本轮发言（群聊中，不修改对话历史）'}</span>
+              <span className="cmd-desc">{c === '/new' ? t('chat.cmdNew') : t('chat.cmdPass')}</span>
             </button>
           ))}
         </div>
@@ -588,10 +596,10 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
         <div className="composer-model">
           <button
             className={`composer-model-btn ${showModels ? 'open' : ''}`}
-            title="选择模型"
+            title={t('chat.selectModel')}
             onClick={() => setShowModels(!showModels)}
           >
-            <span className="composer-model-label">{defaultModel || '选模型'}</span>
+            <span className="composer-model-label">{defaultModel || t('chat.chooseModel')}</span>
           </button>
           {showModels && (
             <ModelPickerPanel onClose={() => setShowModels(false)} />
@@ -599,7 +607,7 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
         </div>
         <button
           className="icon-btn composer-attach"
-          title="添加图片/视频（粘贴或点击）"
+          title={t('chat.attachTip')}
           onClick={() => fileRef.current?.click()}
         >
           <Icon name="image" size={18} />
@@ -665,15 +673,15 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
             onKeyUp={(e) => detectMention(text, e.currentTarget.selectionStart ?? text.length)}
             placeholder={
               session?.mode === 'GROUP'
-                ? `输入消息… 支持 @角色名 指定发言，/new 新话题，/pass 跳过`
-                : '输入消息… /new 开始新话题'
+                ? t('chat.phGroup')
+                : t('chat.phSingle')
             }
             rows={1}
             style={{ height: 'auto', minHeight: 38 }}
           />
           {showMention && mentionCandidates.length > 0 && (
             <div className="mention-pop" ref={mentionRef}>
-              <div className="mention-pop-head">@ 点名角色</div>
+              <div className="mention-pop-head">{t('chat.mentionHead')}</div>
               {mentionCandidates.map((n, i) => (
                 <button
                   key={n}
@@ -689,18 +697,18 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
           )}
         </div>
         {streaming ? (
-          <button className="btn btn-primary btn-round" onClick={stopStreaming} title="停止生成">
+          <button className="btn btn-primary btn-round" onClick={stopStreaming} title={t('chat.stopTip')}>
             <Icon name="stop" size={15} />
           </button>
         ) : (
-          <button className="btn btn-primary btn-round" disabled={!canSend} onClick={doSend} title="发送">
+          <button className="btn btn-primary btn-round" disabled={!canSend} onClick={doSend} title={t('chat.sendTip')}>
             <Icon name="send" size={15} />
           </button>
         )}
       </div>
       <div className="composer-hint">
-        <span>Enter 发送 · Shift+Enter 换行</span>
-        <span className="composer-hint-right">魔法命令: /new · /pass{session?.mode === 'GROUP' ? ' · @角色名 点名' : ''}</span>
+        <span>{t('chat.hintSend')}</span>
+        <span className="composer-hint-right">{t('chat.hintMagic')}{session?.mode === 'GROUP' ? t('chat.hintMention') : ''}</span>
       </div>
     </div>
   );
@@ -708,6 +716,7 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
 
 /** 模型选择下拉列表（弹出在输入框左侧上方） */
 function ModelPickerPanel({ onClose }: { onClose: () => void }) {
+  const t = useT();
   const settings = useStore((s) => s.settings);
   const models = useStore((s) => s.modelsList);
   const selectModel = useStore((s) => s.selectModel);
@@ -738,12 +747,12 @@ function ModelPickerPanel({ onClose }: { onClose: () => void }) {
   return (
     <div className="model-popover card" ref={ref} onClick={(e) => e.stopPropagation()}>
       <div className="model-popover-head">
-        <span>选择模型</span>
-        <button className="icon-btn" onClick={onClose} title="关闭"><Icon name="x" size={12} /></button>
+        <span>{t('chat.selectModel')}</span>
+        <button className="icon-btn" onClick={onClose} title={t('common.close')}><Icon name="x" size={12} /></button>
       </div>
       {models.length === 0 ? (
         <div className="model-popover-empty">
-          暂无可用模型列表。请先在「设置 → 模型服务 Provider」添加并测试连接。
+          {t('chat.modelEmpty')}
         </div>
       ) : (
         <div className="model-popover-list">
@@ -807,6 +816,7 @@ function stopEditingMsg() {
 
 export function MessageMenu() {
   const [, force] = useState(0);
+  const t = useT();
   const regenerateLast = useStore((s) => s.regenerateLast);
   const addToast = useStore((s) => s.addToast);
   const [rawLog, setRawLog] = useState<ChatMessage | null>(null);
@@ -829,9 +839,9 @@ export function MessageMenu() {
           const raw = buildRawLog(rawLog);
           const result = await saveTextFile(raw, 'text/plain', `raw-log-${rawLog.id}.txt`);
           if (result === 'canceled') {
-            addToast('已取消导出');
+            addToast(t('toast.exportCanceled'));
           } else {
-            addToast('已导出原始日志（自动脱敏）');
+            addToast(t('toast.rawExported'));
             setRawLog(null);
           }
         }}
@@ -845,7 +855,7 @@ export function MessageMenu() {
   const actions: Array<{ label: string; icon: string; onClick: () => void; danger?: boolean }> = [];
   if (msg.role === 'user' || msg.role === 'assistant') {
     actions.push({
-      label: '编辑消息',
+      label: t('chat.editMsg'),
       icon: 'settings',
       onClick: () => {
         startEditingMsg(msg.id!);
@@ -854,7 +864,7 @@ export function MessageMenu() {
   }
   if (msg.role === 'assistant') {
     actions.push({
-      label: '重新生成回复',
+      label: t('chat.regenerate'),
       icon: 'refresh',
       onClick: async () => {
         closeMsgMenu();
@@ -864,7 +874,7 @@ export function MessageMenu() {
   }
   if (msg.rawRequestBody || msg.rawResponseBody) {
     actions.push({
-      label: '查看原始日志',
+      label: t('chat.viewRaw'),
       icon: 'file',
       onClick: () => {
         setRawLog(msg);
@@ -889,7 +899,7 @@ export function MessageMenu() {
             <Icon name={a.icon} size={13} /> {a.label}
           </button>
         ))}
-        {actions.length === 0 && <div style={{ padding: 10, fontSize: 12, color: 'var(--text-faint)' }}>该消息无可用操作</div>}
+        {actions.length === 0 && <div style={{ padding: 10, fontSize: 12, color: 'var(--text-faint)' }}>{t('chat.noActions')}</div>}
       </div>
     </>
   );
@@ -897,6 +907,7 @@ export function MessageMenu() {
 
 /** 原始日志弹窗：将流式 SSE 分片拼装为完整回复 JSON，便于阅读 */
 function RawLogModal({ msg, onClose, onExport }: { msg: ChatMessage; onClose: () => void; onExport: () => void }) {
+  const t = useT();
   const req = msg.rawRequestBody ? prettyJson(msg.rawRequestBody) : '';
   const merged = assembleFullResponseJson(msg.rawResponseBody);
 
@@ -906,34 +917,34 @@ function RawLogModal({ msg, onClose, onExport }: { msg: ChatMessage; onClose: ()
     <Modal onClose={onClose} width="min(760px, calc(100vw - 40px))">
       <div className="modal-head">
         <span style={{ fontWeight: 800, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Icon name="file" size={15} /> 原始日志 · 消息 #{msg.id}
+          <Icon name="file" size={15} /> {t('chat.rawLogTitle', { id: msg.id ?? '' })}
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div className="raw-tabs">
-            <button className={`raw-tab ${tab === 'request' ? 'active' : ''}`} onClick={() => setTab('request')}>请求体</button>
-            <button className={`raw-tab ${tab === 'merged' ? 'active' : ''}`} onClick={() => setTab('merged')}>完整响应</button>
+            <button className={`raw-tab ${tab === 'request' ? 'active' : ''}`} onClick={() => setTab('request')}>{t('chat.requestBody')}</button>
+            <button className={`raw-tab ${tab === 'merged' ? 'active' : ''}`} onClick={() => setTab('merged')}>{t('chat.fullResponse')}</button>
           </div>
-          <button className="btn btn-sm" onClick={onExport} title="下载为 txt 文件">
-            <Icon name="download" size={12} /> 导出
+          <button className="btn btn-sm" onClick={onExport} title={t('chat.exportTip')}>
+            <Icon name="download" size={12} /> {t('common.export')}
           </button>
           <button className="icon-btn" onClick={onClose}><Icon name="x" /></button>
         </div>
       </div>
       <div className="modal-body" style={{ padding: 0 }}>
         {tab === 'request' && (
-          <pre className="raw-pre mono">{req || '（无请求体）'}</pre>
+          <pre className="raw-pre mono">{req || t('chat.noRequestBody')}</pre>
         )}
         {tab === 'merged' && (
           merged ? (
             <div className="raw-merged">
               <div className="raw-merged-head">
-                <span>完整回复 JSON</span>
-                <span className="mono" style={{ fontSize: 11, color: 'var(--text-faint)' }}>从流式 SSE 分片拼装</span>
+                <span>{t('chat.fullResponseJson')}</span>
+                <span className="mono" style={{ fontSize: 11, color: 'var(--text-faint)' }}>{t('chat.fromSse')}</span>
               </div>
               <pre className="raw-pre mono">{JSON.stringify(merged, null, 2)}</pre>
             </div>
           ) : (
-            <div className="raw-empty">该消息没有可拼装的流式内容</div>
+            <div className="raw-empty">{t('chat.noRawContent')}</div>
           )
         )}
       </div>
@@ -1071,7 +1082,10 @@ export function TurnQueuePanel({
   session: ChatSession;
   participants: ChatParticipant[];
 }) {
-  if (session.mode !== 'GROUP') return null;
+  // ⚠️ 保持 hooks 无条件执行：本组件在 App 中始终挂载，切换会话（群聊 ⇄ 单人）
+  // 时若 hooks 数量变化会触发 “Rendered fewer hooks than expected” 导致整页白屏。
+  // 因此把模式判断放在所有 hooks 之后，仅用返回 JSX 与否控制渲染。
+  const t = useT();
   const byId = useMemo(() => new Map(participants.map((p) => [p.participantId, p])), [participants]);
   const npcs = useStore((s) => s.npcs);
   const streamingSessionId = useStore((s) => s.streaming.sessionId);
@@ -1098,16 +1112,24 @@ export function TurnQueuePanel({
   // ---- 联动滚动：注册队列滚动容器，双向驱动由 linkedScroll 协调 ----
   const bodyRef = useRef<HTMLDivElement>(null);
   // 注册容器（registerQueueEl 内部重置抑制标志），body 只做注册，不含自驱动滚动
+  const isGroup = session.mode === 'GROUP';
   useEffect(() => {
+    // 仅群聊时注册队列滚动容器，避免非群聊下误注册/联动
+    if (!isGroup) return;
     registerQueueEl(bodyRef.current);
     return () => registerQueueEl(null); // 卸载时解除引用
-  }, []);
+  }, [isGroup]);
   // 新循环加入（轮数变化）→ 队列自动滚到当前循环（底部对齐，整组可见）
   const loopsLen = loops.length;
   useEffect(() => {
+    // 非群聊下不触发联动滚动
+    if (!isGroup) return;
     if (loopsLen > 0) scrollQueueToLoop(loopLabel);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loopsLen]);
+  }, [loopsLen, isGroup]);
+
+  // 非群聊：不渲染发言队列（hooks 已无条件执行，只在这里返回空）
+  if (!isGroup) return null;
 
   const handleQueueItemClick = (loopNum: number, speakerKey: string | null) => {
     scrollChatTo(loopNum - 1, speakerKey);
@@ -1122,8 +1144,8 @@ export function TurnQueuePanel({
         data-loop={loopNum - 1}
       >
         <div className="turn-queue-loop-head">
-          <span>第 {loopNum} 轮</span>
-          {isCurrent && <span className="turn-queue-loop-cur">当前</span>}
+          <span>{t('chat.loop', { n: loopNum })}</span>
+          {isCurrent && <span className="turn-queue-loop-cur">{t('chat.current')}</span>}
         </div>
         <ul className="turn-queue-list">
           {loopQueue.map((id, i) => {
@@ -1142,14 +1164,14 @@ export function TurnQueuePanel({
                 key={`${loopNum}-${id}`}
                 className={`turn-queue-item ${isSpeaking ? 'active playing' : ''} ${isWaitingPlayer ? 'waiting-user' : ''}`}
                 onClick={() => handleQueueItemClick(loopNum, isPlayer ? 'player' : id)}
-                title={isPlayer ? '点击定位到你的发言' : `点击定位到 ${speakerLabel(p)} 的发言`}
+                title={isPlayer ? t('chat.queueLocateSelf') : t('chat.queueLocateNpc', { name: speakerLabel(p) })}
               >
-                {isSpeaking && <span className="turn-queue-badge">▶ 发言中</span>}
-                {!isSpeaking && isWaitingPlayer && <span className="turn-queue-badge waiting">等待你</span>}
+                {isSpeaking && <span className="turn-queue-badge">{t('chat.speaking')}</span>}
+                {!isSpeaking && isWaitingPlayer && <span className="turn-queue-badge waiting">{t('chat.waitingYou')}</span>}
                 {!isSpeaking && !isWaitingPlayer && <span className="turn-queue-idx">{i + 1}</span>}
                 <Avatar name={speakerLabel(p)} colorOrdinal={hue} imageUrl={avatarUrl} size="xs" />
                 <span className="turn-queue-name">{speakerLabel(p)}</span>
-                {isPlayer && <span className="turn-queue-seat">你</span>}
+                {isPlayer && <span className="turn-queue-seat">{t('common.you')}</span>}
               </li>
             );
           })}
@@ -1161,14 +1183,14 @@ export function TurnQueuePanel({
   return (
     <div className="turn-queue">
       <div className="turn-queue-head">
-        <span>发言队列</span>
-        <span className="turn-queue-loop">共 {loops.length} 轮</span>
+        <span>{t('chat.queueTitle')}</span>
+        <span className="turn-queue-loop">{t('chat.queueLoops', { n: loops.length })}</span>
       </div>
       <div className="turn-queue-body" ref={bodyRef} onScroll={onQueueScroll}>
         {loops.map((loopQueue, idx) => renderLoop(loopQueue, idx + 1))}
       </div>
       <div className="turn-queue-foot">
-        <span>{(live?.turnOrderMode ?? session.turnOrderMode) === 'RANDOM' ? '随机顺序（每轮洗牌）' : '固定座位顺序'}</span>
+        <span>{(live?.turnOrderMode ?? session.turnOrderMode) === 'RANDOM' ? t('chat.queueRandom') : t('chat.queueFixed')}</span>
       </div>
     </div>
   );
@@ -1188,6 +1210,7 @@ function SortItemBody({
   index: number;
   npc?: { avatarColorOrdinal: number; avatarDataUrl?: string | null };
 }) {
+  const t = useT();
   return (
     <>
       <span className="sort-grip">⠿</span>
@@ -1198,7 +1221,7 @@ function SortItemBody({
         size="xs"
       />
       <span className="sort-name">{speakerLabel(participant)}</span>
-      {participant.kind === 'PLAYER' && <span className="sort-tag">你</span>}
+      {participant.kind === 'PLAYER' && <span className="sort-tag">{t('common.you')}</span>}
       <span className="sort-idx">{index + 1}</span>
     </>
   );
@@ -1244,6 +1267,7 @@ export function SortOrderModal({
   participants: ChatParticipant[];
   onClose: () => void;
 }) {
+  const t = useT();
   const setTurnOrderMode = useStore((s) => s.setTurnOrderMode);
   const reorderParticipants = useStore((s) => s.reorderParticipants);
   const addToast = useStore((s) => s.addToast);
@@ -1262,10 +1286,10 @@ export function SortOrderModal({
     setMode(m);
     if (m === 'PRESET') {
       await setTurnOrderMode(session.id!, 'PRESET');
-      addToast('已切换为固定顺序（下一轮循环开始生效）');
+      addToast(t('toast.fixedOrder'));
     } else {
       await setTurnOrderMode(session.id!, 'RANDOM');
-      addToast('已切换为随机顺序（下一轮循环开始生效）');
+      addToast(t('toast.randomOrder'));
     }
   };
 
@@ -1282,14 +1306,14 @@ export function SortOrderModal({
 
   const onSave = async () => {
     await reorderParticipants(session.id!, order.map((p) => p.participantId));
-    addToast('已保存固定座位顺序（下一轮循环开始生效）');
+    addToast(t('toast.orderSaved'));
     onClose();
   };
 
   return (
     <Modal onClose={onClose} width="min(440px, calc(100vw - 32px))">
       <div className="modal-head">
-        <span style={{ fontWeight: 800, fontSize: 15 }}>发言顺序设置</span>
+        <span style={{ fontWeight: 800, fontSize: 15 }}>{t('chat.sortTitle')}</span>
         <button className="icon-btn" onClick={onClose}><Icon name="x" /></button>
       </div>
       <div className="modal-body">
@@ -1298,20 +1322,20 @@ export function SortOrderModal({
           <button
             className={`seg-btn ${mode === 'PRESET' ? 'active' : ''}`}
             onClick={() => applyMode('PRESET')}
-            title="每个循环开始时，队列按固定座位顺序排列（可拖动调整）"
+            title={t('chat.sortFixedTip')}
           >
-            固定顺序
+            {t('chat.sortFixed')}
           </button>
           <button
             className={`seg-btn ${mode === 'RANDOM' ? 'active' : ''}`}
             onClick={() => applyMode('RANDOM')}
-            title="每个循环开始时，队列随机洗牌"
+            title={t('chat.sortRandomTip')}
           >
-            随机顺序
+            {t('chat.sortRandom')}
           </button>
         </div>
         <div className="sort-hint">
-          {mode === 'PRESET' ? '拖动调整发言顺序，下一轮循环开始生效（队首优先发言）' : '每个循环开始时随机洗牌，下一轮循环开始生效（下方为预设顺序预览）'}
+          {mode === 'PRESET' ? t('chat.sortHintFixed') : t('chat.sortHintRandom')}
         </div>
         {mode === 'PRESET' ? (
           <DndContext
@@ -1347,8 +1371,8 @@ export function SortOrderModal({
         )}
       </div>
       <div className="modal-foot">
-        <button className="btn" onClick={onClose}>取消</button>
-        <button className="btn btn-primary" disabled={mode !== 'PRESET'} onClick={onSave}>保存顺序</button>
+        <button className="btn" onClick={onClose}>{t('common.cancel')}</button>
+        <button className="btn btn-primary" disabled={mode !== 'PRESET'} onClick={onSave}>{t('chat.saveOrder')}</button>
       </div>
     </Modal>
   );

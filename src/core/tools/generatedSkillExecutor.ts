@@ -6,6 +6,7 @@ import {
   removeWorkspaceFile,
   sanitizeRelativePath,
 } from './generatedWorkspace';
+import { translate } from '../i18n';
 
 // ============================================================
 // 生成式技能执行引擎（JavaScript 沙箱为 Web Worker + CSP）
@@ -47,7 +48,7 @@ export async function executeGeneratedSkill(
 }
 
 function truncate(s: string): string {
-  return s.length > MAX_OUTPUT_CHARS ? s.slice(0, MAX_OUTPUT_CHARS) + '\n…(已截断)' : s;
+  return s.length > MAX_OUTPUT_CHARS ? s.slice(0, MAX_OUTPUT_CHARS) + translate('tool.truncated') : s;
 }
 
 // ---------- http_get ----------

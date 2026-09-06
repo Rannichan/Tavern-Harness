@@ -6,6 +6,7 @@ import type {
   WorldBook,
 } from '../types/models';
 import { sanitizeHistoryContentForModel } from './openai';
+import { translate } from './i18n';
 
 // ============================================================
 // 提示词组装 — 与 MainViewModel.buildNpcSystemPrompt 等一致
@@ -18,8 +19,8 @@ export function buildNpcSystemPrompt(
 ): string {
   return (
     npcPrompt +
-    (worldBookContent ? `\n\n=== WORLD BOOK (世界书) ===\n${worldBookContent}` : '') +
-    (userPersonaPrompt ? `\n\n=== USER INFO (用户扮演的角色) ===\n${userPersonaPrompt}` : '')
+    (worldBookContent ? `\n\n=== ${translate('prompt.worldBook')} ===\n${worldBookContent}` : '') +
+    (userPersonaPrompt ? `\n\n=== ${translate('prompt.userInfo')} ===\n${userPersonaPrompt}` : '')
   );
 }
 
@@ -47,13 +48,13 @@ export function buildGroupSystemPrompt(
     (others.length > 0
       ? `The other participants are: ${others.join(', ')}.\nThe user (a participant named "${playerName}") may speak at any moment — when they do, respond naturally as ${activeSpeakerName}.\n`
       : '') +
-    `Messages prefixed with [角色名] are utterances by that participant; messages prefixed with [${playerName}] are the user's.\n` +
-    `When you need to direct the next speaker, you may use @角色名 in your reply to call on another participant.\n` +
+    `Messages prefixed with [${translate('prompt.roleTag')}] are utterances by that participant; messages prefixed with [${playerName}] are the user's.\n` +
+    `When you need to direct the next speaker, you may use @${translate('prompt.roleTag')} in your reply to call on another participant.\n` +
     orderHint +
     `\n\n=== ${activeSpeakerName} ===\n` +
     activeNpcPrompt +
-    (worldBookContent ? `\n\n=== WORLD BOOK (世界书) ===\n${worldBookContent}` : '') +
-    (userPersonaPrompt ? `\n\n=== USER INFO (用户扮演的角色) ===\n${userPersonaPrompt}` : '')
+    (worldBookContent ? `\n\n=== ${translate('prompt.worldBook')} ===\n${worldBookContent}` : '') +
+    (userPersonaPrompt ? `\n\n=== ${translate('prompt.userInfo')} ===\n${userPersonaPrompt}` : '')
   );
 }
 

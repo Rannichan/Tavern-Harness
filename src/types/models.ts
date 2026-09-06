@@ -9,6 +9,8 @@ export type Role = 'system' | 'user' | 'assistant' | 'tool';
 export type ThemeColorId = 'violet' | 'blue' | 'green' | 'amber';
 export type ThemeModeId = 'system' | 'light' | 'dark';
 export type ReasoningEffort = 'auto' | 'off' | 'low' | 'medium' | 'xhigh';
+/** 界面语言：null = 跟随浏览器语言 */
+export type AppLanguage = 'zh-CN' | 'zh-TW' | 'en' | null;
 
 export interface AppSettings {
   id: number;
@@ -18,6 +20,8 @@ export interface AppSettings {
   defaultProviderId: number | null;
   themeMode: ThemeModeId;
   themeColor: ThemeColorId;
+  /** 界面语言；null = 跟随浏览器语言 */
+  language: AppLanguage;
   temperature: number;
   topP: number;
   maxTokens: number;

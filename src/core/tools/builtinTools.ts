@@ -1,4 +1,5 @@
 import type { DiceResult, SearchResultItem } from '../../types/models';
+import { translate } from '../i18n';
 
 // ============================================================
 // roll_dice — 与 App 的 DiceRoller 一致
@@ -9,15 +10,15 @@ const DICE_RE = /^(\d*)d(\d+)([+-]\d+)?$/;
 export function rollDice(expression: string): string {
   const expr = expression.trim() || '1d20';
   const m = expr.match(DICE_RE);
-  if (!m) return `ERROR: 无效的骰子表达式 "${expression}"，示例: d20, 2d6, 3d10+2`;
+  if (!m) return translate('tool.diceExprInvalid', { expr: expression });
 
   const count = m[1] ? parseInt(m[1], 10) : 1;
   const sides = parseInt(m[2], 10);
   const modifier = m[3] ? parseInt(m[3], 10) : 0;
 
-  if (count < 1 || count > 100) return 'ERROR: 骰子数量需在 1-100 之间';
-  if (sides < 2 || sides > 10000) return 'ERROR: 骰子面数需在 2-10000 之间';
-  if (Math.abs(modifier) > 1000000) return 'ERROR: 修正值过大';
+  if (count < 1 || count > 100) return translate('tool.diceCountRange');
+  if (sides < 2 || sides > 10000) return translate('tool.diceSidesRange');
+  if (Math.abs(modifier) > 1000000) return translate('tool.diceModTooBig');
 
   const rolls: number[] = [];
   for (let i = 0; i < count; i++) {
@@ -28,13 +29,13 @@ export function rollDice(expression: string): string {
 
   let critical = '';
   if (count === 1 && sides === 20) {
-    if (rolls[0] === 20) critical = ' 大成功！';
-    else if (rolls[0] === 1) critical = ' 大失败！';
+    if (rolls[0] === 20) critical = translate('tool.diceCrit20');
+    else if (rolls[0] === 1) critical = translate('tool.diceCrit1');
   }
 
   const parts = [rolls.join(', ')];
   if (modifier !== 0) parts.push(`${modifier > 0 ? '+' : ''}${modifier}`);
-  return `掷骰 ${expr}: [${parts.join('] ')}] = ${total}${critical}`;
+  return translate('tool.diceRoll', { expr, rolls: parts.join('] '), total, crit: critical });
 }
 
 // ============================================================

@@ -11,6 +11,7 @@ import { Toasts } from './components/Toasts';
 import { AchievementModal } from './components/AchievementModal';
 import { Icon, SessionVisual, Modal } from './components/shared';
 import type { NpcCharacter } from './types/models';
+import { useT } from './core/i18n';
 import './theme/chat.css';
 import './theme/views.css';
 
@@ -22,6 +23,7 @@ export default function App() {
   const sessions = useStore((s) => s.sessions);
   const messages = useStore((s) => s.messages);
   const participants = useStore((s) => s.participants);
+  const t = useT();
 
   useEffect(() => {
     init();
@@ -39,7 +41,7 @@ export default function App() {
         <div style={{ height: '100dvh', display: 'grid', placeItems: 'center', position: 'relative', zIndex: 1 }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
             <div className="brand-logo" style={{ width: 56, height: 56, fontSize: 26 }}>🫖</div>
-            <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>正在支起酒馆…</div>
+            <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>{t('nav.loading')}</div>
           </div>
         </div>
       </>
@@ -95,11 +97,12 @@ function SessionHeader({
   const refreshSessions = useStore((s) => s.refreshSessions);
   const addToast = useStore((s) => s.addToast);
   const deleteSession = useStore((s) => s.deleteSession);
+  const t = useT();
   const [picker, setPicker] = useState<'persona' | 'worldbook' | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [showSort, setShowSort] = useState(false);
 
-  const modeLabel = session.mode === 'STANDARD' ? '标准对话' : session.mode === 'NPC' ? '角色对话' : '群聊';
+  const modeLabel = session.mode === 'STANDARD' ? t('header.modeStandard') : session.mode === 'NPC' ? t('header.modeNpc') : t('header.modeGroup');
   const npcRef = session.associatedId ? npcs.find((n) => n.id === session.associatedId) : null;
   const groupNpcs = participants.filter((p) => p.kind === 'NPC').map((p) => npcs.find((n) => n.id === p.npcId)).filter(Boolean);
   const groupMemberAvatars = (groupNpcs as NpcCharacter[]).slice(0, 4).map((n) => ({
@@ -111,14 +114,14 @@ function SessionHeader({
   const changePersona = async (npcId: number | null) => {
     await updateSessionMeta(session.id!, { userPersonaNpcId: npcId });
     await refreshSessions();
-    addToast(npcId == null ? '已清除用户人设' : `已更换用户人设`);
+    addToast(npcId == null ? t('toast.personaCleared') : t('toast.personaChanged'));
     setPicker(null);
   };
 
   const changeWorldBook = async (worldBookId: number | null) => {
     await updateSessionMeta(session.id!, { worldBookId });
     await refreshSessions();
-    addToast(worldBookId == null ? '已移除世界书' : `已更换世界书`);
+    addToast(worldBookId == null ? t('toast.wbRemoved') : t('toast.wbChanged'));
     setPicker(null);
   };
 
@@ -128,12 +131,12 @@ function SessionHeader({
       const safe = session.title.replace(/[\\/:*?"<>|\s]+/g, '_').slice(0, 40) || 'session';
       const result = await exportSessionJson(session.id!, `${safe}-${Date.now()}.json`);
       if (result === 'canceled') {
-        addToast('已取消导出');
+        addToast(t('toast.exportCanceled'));
       } else {
-        addToast('会话已导出（分享文件）');
+        addToast(t('toast.exported'));
       }
     } catch (e) {
-      addToast(`导出失败: ${(e as Error).message}`, 'error');
+      addToast(t('toast.exportFailed', { msg: (e as Error).message }), 'error');
     }
   };
 
@@ -158,7 +161,7 @@ function SessionHeader({
         {session.mode === 'GROUP' && (
           <button
             className="btn-ghost icon-tooltip has-value"
-            title={session.turnOrderMode === 'RANDOM' ? '发言顺序：随机（每轮洗牌）' : '发言顺序：固定（可拖动调整）'}
+            title={session.turnOrderMode === 'RANDOM' ? t('header.sortRandomTip') : t('header.sortFixedTip')}
             onClick={() => setShowSort(true)}
           >
             <Icon name="sort" size={17} />
@@ -166,22 +169,22 @@ function SessionHeader({
         )}
         <button
           className={`btn-ghost icon-tooltip ${personaName ? 'has-value' : ''}`}
-          title={personaName ? `用户人设：${personaName}` : '更换用户人设'}
+          title={personaName ? t('header.personaTipVal', { name: personaName }) : t('header.personaTip')}
           onClick={() => setPicker('persona')}
         >
           <Icon name="user-persona" size={17} />
         </button>
         <button
           className={`btn-ghost icon-tooltip ${worldBookName ? 'has-value' : ''}`}
-          title={worldBookName ? `世界书：${worldBookName}` : '更换世界书'}
+          title={worldBookName ? t('header.worldbookTipVal', { name: worldBookName }) : t('header.worldbookTip')}
           onClick={() => setPicker('worldbook')}
         >
           <Icon name="book" size={17} />
         </button>
-        <button className="btn-ghost icon-tooltip" title="分享对话（导出 JSON）" onClick={share}>
+        <button className="btn-ghost icon-tooltip" title={t('header.shareTip')} onClick={share}>
           <Icon name="share" size={17} />
         </button>
-        <button className="btn-ghost icon-tooltip danger" title="删除对话" onClick={() => setConfirmDelete(true)}>
+        <button className="btn-ghost icon-tooltip danger" title={t('header.deleteTip')} onClick={() => setConfirmDelete(true)}>
           <Icon name="trash" size={17} />
         </button>
       </div>
@@ -189,12 +192,12 @@ function SessionHeader({
       {picker === 'persona' && (
         <Modal onClose={() => setPicker(null)} width="min(420px, calc(100vw - 32px))">
           <div className="modal-head">
-            <span style={{ fontWeight: 800, fontSize: 15 }}>更换用户人设</span>
+            <span style={{ fontWeight: 800, fontSize: 15 }}>{t('header.changePersona')}</span>
             <button className="icon-btn" onClick={() => setPicker(null)}><Icon name="x" /></button>
           </div>
           <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 420, overflowY: 'auto' }}>
             <button className={`sel-opt ${session.userPersonaNpcId == null ? 'active' : ''}`} onClick={() => changePersona(null)}>
-              <span>不使用用户人设</span>
+              <span>{t('header.noPersona')}</span>
               {session.userPersonaNpcId == null && <span className="sel-opt-check">✓</span>}
             </button>
             {npcs.filter((n) => n.id != null && n.id !== session.associatedId).map((n) => (
@@ -210,12 +213,12 @@ function SessionHeader({
       {picker === 'worldbook' && (
         <Modal onClose={() => setPicker(null)} width="min(420px, calc(100vw - 32px))">
           <div className="modal-head">
-            <span style={{ fontWeight: 800, fontSize: 15 }}>更换世界书</span>
+            <span style={{ fontWeight: 800, fontSize: 15 }}>{t('header.changeWorldbook')}</span>
             <button className="icon-btn" onClick={() => setPicker(null)}><Icon name="x" /></button>
           </div>
           <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 420, overflowY: 'auto' }}>
             <button className={`sel-opt ${session.worldBookId == null ? 'active' : ''}`} onClick={() => changeWorldBook(null)}>
-              <span>不使用世界书</span>
+              <span>{t('header.noWorldbook')}</span>
               {session.worldBookId == null && <span className="sel-opt-check">✓</span>}
             </button>
             {worldBooks.map((b) => (
@@ -231,23 +234,23 @@ function SessionHeader({
       {confirmDelete && (
         <Modal onClose={() => setConfirmDelete(false)} width="min(400px, calc(100vw - 32px))">
           <div className="modal-head">
-            <span style={{ fontWeight: 800, fontSize: 15 }}>删除对话</span>
+            <span style={{ fontWeight: 800, fontSize: 15 }}>{t('header.deleteTitle')}</span>
             <button className="icon-btn" onClick={() => setConfirmDelete(false)}><Icon name="x" /></button>
           </div>
           <div className="modal-body">
-            确定删除对话「{session.title}」？该操作不可恢复。
+            {t('header.deleteConfirm', { title: session.title })}
           </div>
           <div className="modal-foot">
-            <button className="btn" onClick={() => setConfirmDelete(false)}>取消</button>
+            <button className="btn" onClick={() => setConfirmDelete(false)}>{t('common.cancel')}</button>
             <button
               className="btn btn-danger"
               onClick={async () => {
                 await deleteSession(session.id!);
                 setConfirmDelete(false);
-                addToast('会话已删除');
+                addToast(t('toast.sessionDeleted'));
               }}
             >
-              <Icon name="trash" size={13} /> 删除
+              <Icon name="trash" size={13} /> {t('common.delete')}
             </button>
           </div>
         </Modal>

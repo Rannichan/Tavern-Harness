@@ -3,6 +3,7 @@ import { useStore } from '../store/store';
 import { getCareerStats, resetCareerStats } from '../core/stats';
 import { Icon } from './shared';
 import type { AchievementState } from '../store/store';
+import { useT, currentLocale } from '../core/i18n';
 
 // ============================================================
 // 生涯统计 + 成就陈列
@@ -18,6 +19,7 @@ interface StatsData {
 
 export function StatsView() {
   const addToast = useStore((s) => s.addToast);
+  const t = useT();
   const [data, setData] = useState<StatsData | null>(null);
 
   const refresh = async () => {
@@ -38,19 +40,19 @@ export function StatsView() {
       <div className="view-col">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
           <div>
-            <h2 className="view-title">🏆 成就</h2>
-            <p className="view-sub">成就奖杯会陈列在这里；生涯统计为 append-only，删除消息不影响统计</p>
+            <h2 className="view-title">{t('stats.title')}</h2>
+            <p className="view-sub">{t('stats.sub')}</p>
           </div>
           <button
             className="btn btn-sm btn-danger"
             onClick={async () => {
-              if (!confirm('确定重置生涯统计？（不会清除已解锁的成就奖杯）')) return;
+              if (!confirm(t('stats.resetConfirm'))) return;
               await resetCareerStats();
               await refresh();
-              addToast('统计已重置');
+              addToast(t('toast.statsReset'));
             }}
           >
-            <Icon name="refresh" size={12} /> 重置统计
+            <Icon name="refresh" size={12} /> {t('stats.resetBtn')}
           </button>
         </div>
 
@@ -67,40 +69,41 @@ export function StatsView() {
 /** 成就陈列柜：已解锁的奖杯点亮，未解锁的只展示锁定状态 */
 function AchievementShelf() {
   const achievements = useStore((s) => s.achievements);
-
+  const t = useT();
   const unlockedCount = achievements.filter((a) => a.unlockedAt != null).length;
 
   return (
     <div className="set-section">
-      <h3>🎖️ 奖杯陈列柜</h3>
+      <h3>{t('stats.shelfTitle')}</h3>
       <div className="ach-shelf">
         {achievements.map((a) => (
           <AchievementCard key={a.def.id} data={a} />
         ))}
       </div>
       <div className="ach-shelf-summary">
-        已解锁 <b>{unlockedCount}</b> / {achievements.length} 枚奖杯
+        {t('stats.unlocked')} <b>{unlockedCount}</b> / {achievements.length} {t('stats.trophies')}
       </div>
     </div>
   );
 }
 
 function AchievementCard({ data }: { data: AchievementState }) {
+  const t = useT();
   const unlocked = data.unlockedAt != null;
 
   return (
-    <div className={`ach-card ${unlocked ? 'unlocked' : ''}`} title={unlocked ? '已解锁' : '未解锁'}>
+    <div className={`ach-card ${unlocked ? 'unlocked' : ''}`} title={unlocked ? t('stats.unlockedStatus') : t('stats.locked')}>
       <div className="ach-card-head">
         <span className="ach-card-icon">{unlocked ? data.def.icon : '🔒'}</span>
-        <span className="ach-card-status">{unlocked ? '✓ 已解锁' : '未解锁'}</span>
+        <span className="ach-card-status">{unlocked ? t('stats.unlockedStatus') : t('stats.locked')}</span>
       </div>
-      <div className="ach-card-name">{unlocked ? data.def.name : '？？？'}</div>
+      <div className="ach-card-name">{unlocked ? t(`ach.${data.def.id}.name`) : t('stats.hidden')}</div>
       {unlocked && (
-        <div className="ach-card-desc">{data.def.description}</div>
+        <div className="ach-card-desc">{t(`ach.${data.def.id}.desc`)}</div>
       )}
       {unlocked && data.unlockedAt && (
         <div className="ach-card-time">
-          {new Date(data.unlockedAt).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })} 解锁
+          {new Date(data.unlockedAt).toLocaleDateString(currentLocale(), { year: 'numeric', month: '2-digit', day: '2-digit' })} {t('stats.unlockedAt')}
         </div>
       )}
     </div>
@@ -108,6 +111,7 @@ function AchievementCard({ data }: { data: AchievementState }) {
 }
 
 function StatCards({ data }: { data: StatsData }) {
+  const t = useT();
   const totalTokens = data.inputTokens + data.outputTokens;
 
   return (
@@ -115,32 +119,32 @@ function StatCards({ data }: { data: StatsData }) {
       <div className="stat-grid">
         <div className="stat-card">
           <div className="v">{totalTokens.toLocaleString()}</div>
-          <div className="k">总 Tokens（输入 + 输出）</div>
+          <div className="k">{t('stats.totalTokens')}</div>
         </div>
         <div className="stat-card">
           <div className="v">{data.inputTokens.toLocaleString()}</div>
-          <div className="k">输入 Tokens</div>
+          <div className="k">{t('stats.inputTokens')}</div>
         </div>
         <div className="stat-card">
           <div className="v">{data.outputTokens.toLocaleString()}</div>
-          <div className="k">输出 Tokens</div>
+          <div className="k">{t('stats.outputTokens')}</div>
         </div>
         <div className="stat-card">
           <div className="v">{data.totalRounds}</div>
-          <div className="k">对话轮数</div>
+          <div className="k">{t('stats.rounds')}</div>
         </div>
         <div className="stat-card">
           <div className="v">{data.sessionCount}</div>
-          <div className="k">累计会话</div>
+          <div className="k">{t('stats.sessions')}</div>
         </div>
         <div className="stat-card">
           <div className="v">{data.totalRounds && data.sessionCount ? (data.totalRounds / data.sessionCount).toFixed(1) : '0'}</div>
-          <div className="k">平均轮数 / 会话</div>
+          <div className="k">{t('stats.avgRounds')}</div>
         </div>
       </div>
 
       <div className="set-section">
-        <h3>🏆 最活跃角色</h3>
+        <h3>{t('stats.mostActive')}</h3>
         {data.npcStats.length > 0 ? (
           <>
             {(() => {
@@ -150,23 +154,23 @@ function StatCards({ data }: { data: StatsData }) {
                   <div style={{ fontSize: 26 }}>🎭</div>
                   <div>
                     <div style={{ fontWeight: 800 }}>{mostActive.npcName}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-faint)' }}>{mostActive.rounds} 轮对话</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-faint)' }}>{t('stats.roundsCount', { n: mostActive.rounds })}</div>
                   </div>
                 </div>
               );
             })()}
           </>
         ) : (
-          <div style={{ color: 'var(--text-faint)', fontSize: 13 }}>暂无数据，去和角色聊聊天吧</div>
+          <div style={{ color: 'var(--text-faint)', fontSize: 13 }}>{t('stats.noData')}</div>
         )}
       </div>
 
       {data.npcStats.length > 0 && (
         <div className="set-section">
-          <h3>🎭 角色轮数排行</h3>
+          <h3>{t('stats.ranking')}</h3>
           <table className="table">
             <thead>
-              <tr><th>角色</th><th>轮数</th></tr>
+              <tr><th>{t('stats.colChar')}</th><th>{t('stats.colRounds')}</th></tr>
             </thead>
             <tbody>
               {[...data.npcStats].sort((a, b) => b.rounds - a.rounds).map((n) => (

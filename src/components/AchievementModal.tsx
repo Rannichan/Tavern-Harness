@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { AchievementDef } from '../core/achievements';
+import { useT, currentLocale } from '../core/i18n';
 
 // ============================================================
 // 成就解锁庆祝弹窗（奖杯 + 撒花）
@@ -79,6 +80,7 @@ function AchievementCelebration() {
 }
 
 function CelebrationOverlay({ item }: { item: QueueItem }) {
+  const t = useT();
   const confetti = useMemo(() => makeConfetti(90), [item.id]);
   const [leaving, setLeaving] = useState(false);
   const closeTimer = useRef<number | null>(null);
@@ -104,7 +106,7 @@ function CelebrationOverlay({ item }: { item: QueueItem }) {
     };
   }, [item.id]);
 
-  const fmt = (n: number) => n.toLocaleString('zh-CN');
+  const fmt = (n: number) => n.toLocaleString(currentLocale());
 
   return createPortal(
     <>
@@ -133,15 +135,15 @@ function CelebrationOverlay({ item }: { item: QueueItem }) {
           <div className="ach-trophy-glow" />
         </div>
         <div className={`ach-caption ${leaving ? 'leave' : ''}`}>
-          <div className="ach-caption-title">🎉 成就解锁！</div>
-          <div className="ach-caption-name">{item.ach.name}</div>
+          <div className="ach-caption-title">{t('achModal.title')}</div>
+          <div className="ach-caption-name">{t(`ach.${item.ach.id}.name`)}</div>
           <div className="ach-caption-desc">
-            {item.ach.description}
+            {t(`ach.${item.ach.id}.desc`)}
             <br />
-            <span className="ach-caption-total">生涯已累计 {fmt(item.total)} Tokens</span>
+            <span className="ach-caption-total">{t('achModal.total', { n: fmt(item.total) })}</span>
           </div>
           <button className="btn btn-sm" onClick={() => dismiss(true)}>
-            收下奖杯
+            {t('achModal.accept')}
           </button>
         </div>
       </div>

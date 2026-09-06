@@ -5,6 +5,7 @@ import { Icon, Modal, SessionVisual } from './shared';
 import type { SessionMember } from './shared';
 import type { ChatSession, NpcCharacter } from '../types/models';
 import { NewSessionMenu } from './NewSessionMenu';
+import { useT } from '../core/i18n';
 
 const SIDEBAR_MIN = 240;
 const SIDEBAR_MAX = 520;
@@ -18,6 +19,7 @@ export function Sidebar() {
   const setActiveView = useStore((s) => s.setActiveView);
   const deleteSession = useStore((s) => s.deleteSession);
   const addToast = useStore((s) => s.addToast);
+  const t = useT();
 
   const [showNew, setShowNew] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<ChatSession | null>(null);
@@ -65,7 +67,7 @@ export function Sidebar() {
     if (!confirmDelete) return;
     const sid = confirmDelete.id!;
     await deleteSession(sid);
-    addToast('会话已删除');
+    addToast(t('toast.sessionDeleted'));
     setConfirmDelete(null);
   };
 
@@ -154,21 +156,21 @@ export function Sidebar() {
           <div className="brand-logo">🫖</div>
           <div>
             <div className="brand-name">Tavern Harness</div>
-            <div className="brand-sub">酒馆 · 本地 AI 助手</div>
+            <div className="brand-sub">{t('nav.brandSub')}</div>
           </div>
         </div>
         <div className="side-nav">
           <button className={`nav-chip ${activeView === 'chat' ? 'active' : ''}`} onClick={() => setActiveView('chat')}>
-            <Icon name="send" size={13} /> 对话
+            <Icon name="send" size={13} /> {t('nav.chat')}
           </button>
           <button className={`nav-chip ${activeView === 'characters' ? 'active' : ''}`} onClick={() => setActiveView('characters')}>
-            <Icon name="users" size={13} /> 角色工坊
+            <Icon name="users" size={13} /> {t('nav.characters')}
           </button>
           <button className={`nav-chip ${activeView === 'stats' ? 'active' : ''}`} onClick={() => setActiveView('stats')}>
-            <Icon name="trophy" size={13} /> 成就
+            <Icon name="trophy" size={13} /> {t('nav.achievements')}
           </button>
           <button className={`nav-chip ${activeView === 'settings' ? 'active' : ''}`} onClick={() => setActiveView('settings')}>
-            <Icon name="settings" size={13} /> 设置
+            <Icon name="settings" size={13} /> {t('nav.settings')}
           </button>
         </div>
       </div>
@@ -176,9 +178,9 @@ export function Sidebar() {
       <div className="session-list">
         {/* 会话列表头部：标题 + 新建对话按钮 */}
         <div className="session-list-head">
-          <span className="section-title" style={{ margin: 0 }}>会话</span>
-          <button className="session-new-btn" onClick={() => setShowNew(true)} title="新建对话">
-            <Icon name="plus" size={13} /> 新建
+          <span className="section-title" style={{ margin: 0 }}>{t('nav.sessions')}</span>
+          <button className="session-new-btn" onClick={() => setShowNew(true)} title={t('nav.newChatTitle')}>
+            <Icon name="plus" size={13} /> {t('nav.newChat')}
           </button>
         </div>
         {visibleSessions.map((s) => {
@@ -196,7 +198,7 @@ export function Sidebar() {
               )}
               <div className="smeta">
                 <div className="stitle">{s.title}</div>
-                <div className="sprev">{s.lastMessage || '开始新对话…'}</div>
+                <div className="sprev">{s.lastMessage || t('nav.newConversation')}</div>
               </div>
               <span
                 className="sdel"
@@ -215,13 +217,13 @@ export function Sidebar() {
         {!searching && sessions.length === 0 && (
           <div className="empty-state" style={{ padding: 30 }}>
             <div className="big">🍺</div>
-            <span>还没有会话，先开一局？</span>
+            <span>{t('nav.empty')}</span>
           </div>
         )}
         {searching && visibleSessions.length === 0 && (
           <div className="empty-state" style={{ padding: 30 }}>
             <div className="big">🔍</div>
-            <span>没有匹配的会话</span>
+            <span>{t('nav.noMatch')}</span>
           </div>
         )}
       </div>
@@ -231,12 +233,12 @@ export function Sidebar() {
         <input
           className="input search-input"
           type="text"
-          placeholder="搜索会话（标题或内容）…"
+          placeholder={t('nav.searchPh')}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
         {query && (
-          <button className="search-clear" onClick={() => setQuery('')} title="清空">
+          <button className="search-clear" onClick={() => setQuery('')} title={t('common.clear')}>
             <Icon name="x" size={13} />
           </button>
         )}
@@ -249,19 +251,19 @@ export function Sidebar() {
         <Modal onClose={() => setConfirmDelete(null)} width="min(400px, calc(100vw - 32px))">
           <div className="modal-head">
             <span style={{ fontWeight: 800, fontSize: 15, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Icon name="trash" size={15} /> 删除会话
+              <Icon name="trash" size={15} /> {t('nav.deleteSession')}
             </span>
             <button className="icon-btn" onClick={() => setConfirmDelete(null)}><Icon name="x" /></button>
           </div>
           <div className="modal-body">
             <div style={{ fontSize: 13.5, lineHeight: 1.7 }}>
-              确定删除会话「<b>{confirmDelete.title}</b>」？该操作不可恢复，会同时删除其中的全部消息。
+              {t('nav.deleteSessionConfirm', { title: confirmDelete.title })}
             </div>
           </div>
           <div className="modal-foot">
-            <button className="btn" onClick={() => setConfirmDelete(null)}>取消</button>
+            <button className="btn" onClick={() => setConfirmDelete(null)}>{t('common.cancel')}</button>
             <button className="btn btn-danger" onClick={handleDelete}>
-              <Icon name="trash" size={13} /> 删除
+              <Icon name="trash" size={13} /> {t('common.delete')}
             </button>
           </div>
         </Modal>
@@ -270,7 +272,7 @@ export function Sidebar() {
       {/* 拖拽手柄：调整侧边栏宽度 */}
       <div
         className="sidebar-resizer"
-        title="拖动调整宽度"
+        title={t('nav.resize')}
         onMouseDown={(e) => {
           dragRef.current = { startX: e.clientX, startW: sidebarW };
           document.body.classList.add('resizing');

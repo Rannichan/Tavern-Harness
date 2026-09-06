@@ -59,6 +59,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   defaultProviderId: null,
   themeMode: 'system',
   themeColor: 'violet',
+  language: null,
   temperature: 1.0,
   topP: 0.95,
   maxTokens: 0,
