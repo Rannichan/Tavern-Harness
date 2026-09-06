@@ -241,6 +241,107 @@ body.resizing .sidebar-resizer {
   background: var(--grad-from);
   border-color: transparent;
 }
+/* 群聊外框保持中性底色，选中（激活）时不变色 */
+.session-item.active .svc.svc-group {
+  background: var(--surface-3);
+  border-color: var(--border-soft);
+}
+/* 单人头像：外框与群聊拼贴外框尺寸一致，选中时同样保持中性底色 */
+.session-item .svc.svc-single {
+  position: relative;
+  overflow: hidden;
+  padding: 2px;
+  background: var(--surface-3);
+  border-color: var(--border-soft);
+}
+.session-item.active .svc.svc-single {
+  background: var(--surface-3);
+  border-color: var(--border-soft);
+}
+.session-item .svc.svc-single .avatar {
+  width: 100%;
+  height: 100%;
+  border-radius: 7px;
+  box-shadow: none;
+}
+/* 会话头部单人头像（与群聊头部外框 40px 一致） */
+.svc-group-lg.svc-single {
+  width: 40px;
+  height: 40px;
+  padding: 3px;
+  border-radius: 12px;
+}
+.svc-group-lg.svc-single .avatar {
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+/* ---------- 群聊头像拼贴（方框内嵌套至多 4 个头像） ---------- */
+.gcollage {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  gap: 1px;
+}
+.gcollage .gslot {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  container-type: size;
+  padding: 1px;
+}
+.gcollage .gslot .avatar {
+  width: 100%;
+  height: 100%;
+  border-radius: 4px;
+  box-shadow: none;
+}
+/* 文字头像：字号随格子尺寸缩放（cqw/cqh），撑满格子居中，保证字形完整不被裁切 */
+.gcollage .gslot .avatar:not(:has(img)) {
+  line-height: 1;
+  font-size: min(72cqw, 72cqh);
+}
+/* 1 位角色：撑满整格 */
+.gcollage-m1 {
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+}
+/* 2 位角色：左右各半 */
+.gcollage-m2 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr;
+}
+/* 3 位角色：上 1 格 + 下 2 格 */
+.gcollage-m3 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+.gcollage-m3 .gslot:nth-child(1) {
+  grid-column: 1 / -1;
+}
+/* 4 位角色：2×2 */
+.gcollage-m4 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+/* 侧边栏会话项的 .svc 是 grid + place-items:center，
+   让拼贴绝对定位于方框内以稳定撑满 34px */
+.session-item .svc.svc-group {
+  position: relative;
+  overflow: hidden;
+}
+.session-item .svc.svc-group .gcollage {
+  position: absolute;
+  inset: 2px;
+  width: auto;
+  height: auto;
+  padding: 0;
+  gap: 1px;
+}
 .session-item .smeta {
   flex: 1;
   min-width: 0;
@@ -602,6 +703,31 @@ body.resizing .sidebar-resizer {
   font-size: 12px;
   border-radius: 8px;
   box-shadow: none;
+}
+
+/* 会话头部大号群聊拼贴（外框与侧边栏统一：圆角矩形 + 中性底色 + 边框） */
+.svc-group-lg {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  font-size: 17px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  background: var(--surface-3);
+  border: 1px solid var(--border-soft);
+  overflow: hidden;
+  box-shadow: 0 3px 12px var(--glow);
+}
+.svc-group .gcollage {
+  padding: 1px;
+  gap: 1px;
+}
+
+/* 聊天头部：内边距加宽，让内部头像避开外框圆角（12px）的圆弧遮挡 */
+.chat-header .svc-group-lg .gcollage {
+  padding: 3px;
+  gap: 2px;
 }
 .chat-header .tinfo {
   flex: 1;

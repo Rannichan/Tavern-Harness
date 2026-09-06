@@ -8,7 +8,8 @@ import { StatsView } from './components/StatsView';
 import { Dashboard } from './components/Dashboard';
 import { ConfirmationDialog } from './components/ConfirmationDialog';
 import { Toasts } from './components/Toasts';
-import { Icon, Modal } from './components/shared';
+import { Icon, SessionVisual, Modal } from './components/shared';
+import type { NpcCharacter } from './types/models';
 import './theme/chat.css';
 import './theme/views.css';
 
@@ -93,6 +94,11 @@ function SessionHeader({
   const modeLabel = session.mode === 'STANDARD' ? '标准对话' : session.mode === 'NPC' ? '角色对话' : '群聊';
   const npcRef = session.associatedId ? npcs.find((n) => n.id === session.associatedId) : null;
   const groupNpcs = participants.filter((p) => p.kind === 'NPC').map((p) => npcs.find((n) => n.id === p.npcId)).filter(Boolean);
+  const groupMemberAvatars = (groupNpcs as NpcCharacter[]).slice(0, 4).map((n) => ({
+    name: n.name,
+    colorOrdinal: n.avatarColorOrdinal,
+    imageUrl: n.avatarDataUrl,
+  }));
 
   const changePersona = async (npcId: number | null) => {
     await updateSessionMeta(session.id!, { userPersonaNpcId: npcId });
@@ -128,11 +134,7 @@ function SessionHeader({
 
   return (
     <div className="chat-header">
-      <div className="avatar">
-        {session.mode === 'STANDARD' && '✦'}
-        {session.mode === 'NPC' && (npcRef?.name?.slice(0, 1) ?? '?')}
-        {session.mode === 'GROUP' && '👥'}
-      </div>
+      <SessionVisual mode={session.mode} npcName={npcRef?.name ?? undefined} hue={npcRef?.avatarColorOrdinal ?? 0} imageUrl={npcRef?.avatarDataUrl} members={session.mode === 'GROUP' ? groupMemberAvatars : undefined} size="lg" />
       <div className="tinfo">
         <div className="ttitle">{session.title}</div>
         <div className="tsub">

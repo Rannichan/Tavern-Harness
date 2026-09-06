@@ -454,7 +454,6 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
             title="选择模型"
             onClick={() => setShowModels(!showModels)}
           >
-            <Icon name="dice" size={15} />
             <span className="composer-model-label">{defaultModel || '选模型'}</span>
           </button>
           {showModels && (

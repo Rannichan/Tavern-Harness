@@ -3,7 +3,8 @@ import { useStore } from '../store/store';
 import { db } from '../db/database';
 import type { NpcCharacter, WorldBook, McpTool } from '../types/models';
 import { Avatar, Icon, Markdown } from './shared';
-import { importSillyTavernCard } from '../core/sillyTavernImporter';
+import { DeleteConfirmDialog } from './DeleteConfirmDialog';
+import { parseSillyTavernCardFile, type ParsedSillyTavernCard } from '../core/sillyTavernImporter';
 import { ALL_BUILTIN_TOOL_NAMES } from '../core/toolDefinitions';
 
 // 内置角色「酒馆老板」默认启用所有技能
@@ -11,16 +12,22 @@ const ALL_DEFAULT_SKILLS = [...ALL_BUILTIN_TOOL_NAMES];
 
 // ============================================================
 // 角色工坊（NPC 管理 / 世界书 / 技能表 / PNG 导入）
+// 说明：PNG 导入只解析不落库，打开「新建角色 / 新建世界书」表单预填，
+//       由用户手动点保存
 // ============================================================
 
 export function CharactersView() {
   const npcs = useStore((s) => s.npcs);
   const worldBooks = useStore((s) => s.worldBooks);
   const addToast = useStore((s) => s.addToast);
-  const [tab, setTab] = useState<'characters' | 'worldbooks' | 'skills' | 'import'>('characters');
+  const [tab, setTab] = useState<'characters' | 'worldbooks' | 'skills'>('characters');
   const [editing, setEditing] = useState<NpcCharacter | null>(null);
   const [isNew, setIsNew] = useState(false);
+  // PNG 解析出的草稿：角色 + 内嵌世界书
+  const [importDraft, setImportDraft] = useState<ParsedSillyTavernCard | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const openFilePicker = () => fileRef.current?.click();
 
   const refresh = useStore((s) => s.refreshNpcs);
   const refreshWb = useStore((s) => s.refreshWorldBooks);
@@ -36,11 +43,19 @@ export function CharactersView() {
 
   const handleImport = async (file: File) => {
     try {
-      const result = await importSillyTavernCard(file);
-      await refresh();
-      addToast(
-        `已导入角色卡「${result.characterName}」${result.worldBookName ? `＋ 世界书「${result.worldBookName}」` : ''} (${result.version})`
-      );
+      const draft = await parseSillyTavernCardFile(file);
+      setImportDraft(draft);
+      if (tab === 'characters' || tab === 'skills') {
+        // 角色卡 tab：预填新建角色表单，由用户确认后保存
+        setEditing({ ...draft.character, id: undefined });
+        setIsNew(true);
+        addToast(`已解析角色卡「${draft.character.name}」(${draft.version})，请确认后保存`);
+      } else {
+        // 世界书 tab：草稿交给 WorldBookList，由 useEffect 打开预填表单（含提示）
+        if (!draft.worldBook) {
+          addToast(`该角色卡「${draft.character.name}」未包含内嵌世界书`, 'error');
+        }
+      }
     } catch (e) {
       addToast(`导入失败: ${(e as Error).message}`, 'error');
     }
@@ -63,9 +78,6 @@ export function CharactersView() {
           <button className={`nav-chip ${tab === 'skills' ? 'active' : ''}`} onClick={() => setTab('skills')}>
             🛠 技能表
           </button>
-          <button className={`nav-chip ${tab === 'import' ? 'active' : ''}`} onClick={() => setTab('import')}>
-            📥 PNG 导入
-          </button>
         </div>
 
         {tab === 'characters' && (
@@ -74,52 +86,44 @@ export function CharactersView() {
             onEdit={(n, isNew) => {
               setEditing(n);
               setIsNew(isNew);
+              setImportDraft(null);
             }}
+            onImportPng={openFilePicker}
           />
         )}
         {tab === 'worldbooks' && (
-          <WorldBookList books={worldBooks} onChanged={refreshWb} />
+          <WorldBookList
+            books={worldBooks}
+            onChanged={refreshWb}
+            onImportPng={openFilePicker}
+            importDraft={tab === 'worldbooks' ? importDraft : null}
+            onImportDraftConsumed={() => setImportDraft(null)}
+          />
         )}
         {tab === 'skills' && <SkillList onChanged={() => {}} />}
-        {tab === 'import' && (
-          <div>
-            <div
-              className="import-drop"
-              onClick={() => fileRef.current?.click()}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => {
-                e.preventDefault();
-                const f = e.dataTransfer.files?.[0];
-                if (f) handleImport(f);
-              }}
-            >
-              <div style={{ fontSize: 30 }}>🃏</div>
-              <div style={{ fontWeight: 700, marginTop: 6 }}>拖入或点击选择 SillyTavern PNG 角色卡</div>
-              <div style={{ fontSize: 12, marginTop: 4 }}>
-                支持 chara V2（chara）与 V3（ccv3），自动解析人设、开场白与内嵌世界书
-              </div>
-            </div>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/png"
-              hidden
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) handleImport(f);
-                e.target.value = '';
-              }}
-            />
-          </div>
-        )}
       </div>
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/png"
+        hidden
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) handleImport(f);
+          e.target.value = '';
+        }}
+      />
 
       {editing && (
         <CharacterEditorModal
           npc={editing}
           isNew={isNew}
-          onClose={() => setEditing(null)}
+          onClose={() => {
+            setEditing(null);
+            setImportDraft(null);
+          }}
           onSaved={() => {
+            setImportDraft(null);
             refresh();
             setEditing(null);
           }}
@@ -131,15 +135,11 @@ export function CharactersView() {
 
 // ---------------- 角色网格 ----------------
 
-function CharacterGrid({ npcs, onEdit }: { npcs: NpcCharacter[]; onEdit: (n: NpcCharacter, isNew: boolean) => void }) {
+function CharacterGrid({ npcs, onEdit, onImportPng }: { npcs: NpcCharacter[]; onEdit: (n: NpcCharacter, isNew: boolean) => void; onImportPng: () => void }) {
   const addToast = useStore((s) => s.addToast);
+  const [pendingDelete, setPendingDelete] = useState<NpcCharacter | null>(null);
 
   const deleteNpc = async (n: NpcCharacter) => {
-    if (n.isBuiltIn) {
-      addToast('内置角色受保护，不可删除', 'error');
-      return;
-    }
-    if (!confirm(`确定删除角色「${n.name}」？`)) return;
     await db.npcs.delete(n.id!);
     useStore.getState().refreshNpcs();
     addToast(`已删除角色「${n.name}」`);
@@ -149,26 +149,31 @@ function CharacterGrid({ npcs, onEdit }: { npcs: NpcCharacter[]; onEdit: (n: Npc
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <span className="group-label" style={{ margin: 0 }}>角色卡（{npcs.length}）</span>
-        <button
-          className="btn btn-primary btn-sm"
-          onClick={() =>
-            onEdit(
-              {
-                name: '',
-                prompt: '',
-                greeting: '',
-                avatarColorOrdinal: Math.floor(Math.random() * 6),
-                avatarDataUrl: null,
-                enabledToolNames: [],
-                isBuiltIn: false,
-                createdAt: Date.now(),
-              },
-              true
-            )
-          }
-        >
-          <Icon name="plus" size={13} /> 新建角色
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn-sm" onClick={onImportPng} title="导入 SillyTavern PNG 角色卡（chara V2 / ccv3）">
+            📥 PNG 导入
+          </button>
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={() =>
+              onEdit(
+                {
+                  name: '',
+                  prompt: '',
+                  greeting: '',
+                  avatarColorOrdinal: Math.floor(Math.random() * 6),
+                  avatarDataUrl: null,
+                  enabledToolNames: [],
+                  isBuiltIn: false,
+                  createdAt: Date.now(),
+                },
+                true
+              )
+            }
+          >
+            <Icon name="plus" size={13} /> 新建角色
+          </button>
+        </div>
       </div>
       <div className="char-grid">
         {npcs.map((n) => (
@@ -179,22 +184,29 @@ function CharacterGrid({ npcs, onEdit }: { npcs: NpcCharacter[]; onEdit: (n: Npc
               {n.isBuiltIn && <span className="tag">内置</span>}
             </div>
             <div className="cgreet">{n.greeting || '（无开场白）'}</div>
-            {n.enabledToolNames.length > 0 && (
-              <div className="cskil">
-                {n.enabledToolNames.map((s) => (
-                  <span key={s} className="skill-tag">{s}</span>
-                ))}
-              </div>
-            )}
+            {/* 技能区固定渲染（哪怕无技能），保证所有卡片高度一致 */}
+            <div className="cskil">
+              {n.enabledToolNames.map((s) => (
+                <span key={s} className="skill-tag">{s}</span>
+              ))}
+            </div>
             <div className="cactions">
               <button className="btn btn-sm" onClick={() => onEdit(n, false)}><Icon name="settings" size={12} /> 编辑</button>
-              <button className="btn btn-sm btn-danger" onClick={() => deleteNpc(n)} disabled={n.isBuiltIn} title={n.isBuiltIn ? '内置角色受保护' : '删除'}>
+              <button className="btn btn-sm btn-danger" onClick={() => setPendingDelete(n)} disabled={n.isBuiltIn} title={n.isBuiltIn ? '内置角色受保护' : '删除'}>
                 <Icon name="trash" size={12} />
               </button>
             </div>
           </div>
         ))}
       </div>
+      {pendingDelete && (
+        <DeleteConfirmDialog
+          title="删除角色"
+          itemName={pendingDelete.name}
+          onCancel={() => setPendingDelete(null)}
+          onConfirm={() => deleteNpc(pendingDelete)}
+        />
+      )}
     </div>
   );
 }
@@ -317,9 +329,32 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
 
 // ---------------- 世界书 ----------------
 
-function WorldBookList({ books, onChanged }: { books: WorldBook[]; onChanged: () => void }) {
+function WorldBookList({ books, onChanged, onImportPng, importDraft, onImportDraftConsumed }: {
+  books: WorldBook[];
+  onChanged: () => void;
+  onImportPng: () => void;
+  /** PNG 解析出的角色卡草稿（含内嵌世界书） */
+  importDraft: ParsedSillyTavernCard | null;
+  /** 草稿已被消费（保存/取消）后通知父组件清空 */
+  onImportDraftConsumed: () => void;
+}) {
   const addToast = useStore((s) => s.addToast);
-  const [editing, setEditing] = useState<WorldBook | { name: ''; content: ''; imageUri: null; createdAt: number } | null>(null);
+  const [editing, setEditing] = useState<WorldBook | { name: string; content: string; imageUri: null; createdAt: number } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<WorldBook | null>(null);
+
+  // PNG 导入产生草稿后：预填「新建世界书」表单（不落库，由用户手动保存）
+  useEffect(() => {
+    if (!importDraft) return;
+    if (importDraft.worldBook) {
+      setEditing({ ...importDraft.worldBook, imageUri: null, createdAt: Date.now() });
+      addToast(`已解析角色卡内的世界书「${importDraft.worldBook.name}」，请确认后保存`);
+    }
+  }, [importDraft]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const closeEditor = () => {
+    setEditing(null);
+    onImportDraftConsumed();
+  };
 
   const saveWb = async (name: string, content: string) => {
     if (!name.trim() || !content.trim()) {
@@ -335,10 +370,10 @@ function WorldBookList({ books, onChanged }: { books: WorldBook[]; onChanged: ()
     }
     setEditing(null);
     onChanged();
+    onImportDraftConsumed();
   };
 
   const deleteWb = async (b: WorldBook) => {
-    if (!confirm(`确定删除世界书「${b.name}」？`)) return;
     await db.worldBooks.delete(b.id!);
     addToast('已删除世界书');
     onChanged();
@@ -348,34 +383,51 @@ function WorldBookList({ books, onChanged }: { books: WorldBook[]; onChanged: ()
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
         <span className="group-label" style={{ margin: 0 }}>世界书（{books.length}）</span>
-        <button className="btn btn-primary btn-sm" onClick={() => setEditing({ name: '', content: '', imageUri: null, createdAt: Date.now() })}>
-          <Icon name="plus" size={13} /> 新建世界书
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn-sm" onClick={onImportPng} title="导入 SillyTavern PNG 角色卡（chara V2 / ccv3），自动解析内嵌世界书">
+            📥 PNG 导入
+          </button>
+          <button className="btn btn-primary btn-sm" onClick={() => setEditing({ name: '', content: '', imageUri: null, createdAt: Date.now() })}>
+            <Icon name="plus" size={13} /> 新建世界书
+          </button>
+        </div>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div className="char-grid">
         {books.length === 0 && <div className="empty-state"><div className="big">📖</div>暂无世界书，为角色建立世界观吧</div>}
         {books.map((b) => (
-          <div key={b.id} className="list-item">
-            <div style={{ fontSize: 20 }}>📖</div>
-            <div className="l-main">
-              <div className="l-title">{b.name}</div>
-              <div className="l-sub">{b.content.slice(0, 60)}…</div>
+          <div key={b.id} className="char-card wb-card fade-up">
+            <div className="cname">
+              <span style={{ fontSize: 16 }}>📖</span>
+              {b.name}
             </div>
-            <button className="btn btn-sm" onClick={() => setEditing(b)}>浏览/编辑</button>
-            <button className="btn btn-sm btn-danger" onClick={() => deleteWb(b)}><Icon name="trash" size={12} /></button>
+            <div className="wcontent">{b.content}</div>
+            <div className="cmeta">{b.content.length} 字</div>
+            <div className="cactions">
+              <button className="btn btn-sm" onClick={() => setEditing(b)}><Icon name="settings" size={12} /> 浏览/编辑</button>
+              <button className="btn btn-sm btn-danger" onClick={() => setPendingDelete(b)}><Icon name="trash" size={12} /></button>
+            </div>
           </div>
         ))}
       </div>
 
+      {pendingDelete && (
+        <DeleteConfirmDialog
+          title="删除世界书"
+          itemName={pendingDelete.name}
+          onCancel={() => setPendingDelete(null)}
+          onConfirm={() => deleteWb(pendingDelete)}
+        />
+      )}
+
       {editing && (
-        <div className="overlay" onClick={() => setEditing(null)}>
+        <div className="overlay" onClick={closeEditor}>
           <div className="modal-root" onClick={(e) => e.stopPropagation()}>
             <div className="modal card modal-editor">
               <div className="modal-head">
                 <span style={{ fontWeight: 800, fontSize: 15 }}>{'id' in editing && editing.id != null ? `编辑世界书` : '新建世界书'}</span>
-                <button className="icon-btn" onClick={() => setEditing(null)}><Icon name="x" /></button>
+                <button className="icon-btn" onClick={closeEditor}><Icon name="x" /></button>
               </div>
-              <WorldBookForm initial={editing} onSave={saveWb} onCancel={() => setEditing(null)} />
+              <WorldBookForm initial={editing} onSave={saveWb} onCancel={closeEditor} />
             </div>
           </div>
         </div>
@@ -421,16 +473,12 @@ function SkillList({ onChanged }: { onChanged: () => void }) {
   const tools = useStore((s) => s.tools);
   const addToast = useStore((s) => s.addToast);
   const refresh = useStore((s) => s.refreshTools);
+  const [pendingDelete, setPendingDelete] = useState<McpTool | null>(null);
   useEffect(() => {
     refresh();
   }, [refresh]);
 
   const deleteTool = async (t: McpTool) => {
-    if (t.isBuiltIn) {
-      addToast('内置技能受保护，不可删除', 'error');
-      return;
-    }
-    if (!confirm(`确定删除技能「${t.name}」？`)) return;
     await db.tools.delete(t.id!);
     await refresh();
     onChanged();
@@ -463,7 +511,7 @@ function SkillList({ onChanged }: { onChanged: () => void }) {
                 <div className="l-sub">{desc}</div>
                 {impl !== 'native' && <div style={{ fontSize: 10.5, marginTop: 2, color: 'var(--warn)' }}>实现类型: {impl}</div>}
               </div>
-              <button className="btn btn-sm btn-danger" onClick={() => deleteTool(t)} disabled={t.isBuiltIn}>
+              <button className="btn btn-sm btn-danger" onClick={() => setPendingDelete(t)} disabled={t.isBuiltIn}>
                 <Icon name="trash" size={12} />
               </button>
             </div>
@@ -471,6 +519,14 @@ function SkillList({ onChanged }: { onChanged: () => void }) {
         })}
         {tools.length === 0 && <div className="empty-state"><div className="big">🛠</div>暂无技能</div>}
       </div>
+      {pendingDelete && (
+        <DeleteConfirmDialog
+          title="删除技能"
+          itemName={pendingDelete.name}
+          onCancel={() => setPendingDelete(null)}
+          onConfirm={() => deleteTool(pendingDelete)}
+        />
+      )}
     </div>
   );
 }

@@ -95,10 +95,47 @@ export function AttachCard({ name, onRemove }: { name: string; onRemove?: () => 
 }
 
 // ============================================================
-// 会话头像（模式图标）
+// 群聊头像拼贴（方框内嵌套至多 4 位参与角色头像）
 // ============================================================
 
-export function SessionVisual({ mode, npcName, hue }: { mode: string; npcName?: string; hue?: number }) {
+export interface SessionMember {
+  name: string;
+  colorOrdinal: number;
+  imageUrl?: string | null;
+}
+
+function GroupCollage({ members, size }: { members: SessionMember[]; size: 'sm' | 'lg' }) {
+  const count = Math.min(members.length, 4);
+  return (
+    <div className={`gcollage gcollage-m${count} ${size === 'lg' ? 'gcollage-lg' : ''}`}>
+      {members.slice(0, count).map((m, i) => (
+        <div key={i} className="gslot">
+          <Avatar name={m.name} colorOrdinal={m.colorOrdinal} imageUrl={m.imageUrl} size="xs" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ============================================================
+// 会话头像（模式图标 / 群聊拼贴）
+// ============================================================
+
+export function SessionVisual({
+  mode,
+  npcName,
+  hue,
+  imageUrl,
+  members,
+  size = 'sm',
+}: {
+  mode: string;
+  npcName?: string;
+  hue?: number;
+  imageUrl?: string | null;
+  members?: SessionMember[];
+  size?: 'sm' | 'lg';
+}) {
   if (mode === 'STANDARD') {
     return (
       <div className="svc">
@@ -107,12 +144,17 @@ export function SessionVisual({ mode, npcName, hue }: { mode: string; npcName?: 
     );
   }
   if (mode === 'NPC') {
-    return <Avatar name={npcName ?? 'NPC'} colorOrdinal={hue ?? 0} size="xs" />;
+    return (
+      <div className={`svc svc-single ${size === 'lg' ? 'svc-group-lg' : ''}`}>
+        <Avatar name={npcName ?? 'NPC'} colorOrdinal={hue ?? 0} imageUrl={imageUrl} />
+      </div>
+    );
   }
   // GROUP
+  const list = members?.length ? members : [];
   return (
-    <div className="svc">
-      <span>👥</span>
+    <div className={`svc svc-group ${size === 'lg' ? 'svc-group-lg' : ''}`}>
+      {list.length > 0 ? <GroupCollage members={list} size={size} /> : <span>👥</span>}
     </div>
   );
 }

@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../store/store';
 import { db } from '../db/database';
-import { Avatar, Icon, SessionVisual, Modal } from './shared';
-import type { ChatSession } from '../types/models';
+import { Icon, Modal, SessionVisual } from './shared';
+import type { SessionMember } from './shared';
+import type { ChatSession, NpcCharacter } from '../types/models';
 import { NewSessionMenu } from './NewSessionMenu';
 
 const SIDEBAR_MIN = 240;
@@ -23,6 +24,8 @@ export function Sidebar() {
   const [query, setQuery] = useState('');
   // 搜索命中的会话 id 集合（null = 未在搜索中）
   const [searchHits, setSearchHits] = useState<Set<number> | null>(null);
+  // 群聊会话 → 参与者中的 NPC 角色
+  const [groupMembers, setGroupMembers] = useState<Record<number, NpcCharacter[]>>({});
 
   // 可拖拽侧边栏宽度
   const [sidebarW, setSidebarW] = useState<number>(() => {
@@ -113,6 +116,37 @@ export function Sidebar() {
 
   const searching = searchHits != null;
 
+  // 加载各群聊会话的参与角色（用于群头像拼贴，每个会话一次即可）
+  useEffect(() => {
+    const groupSessions = sessions.filter((s) => s.mode === 'GROUP');
+    if (groupSessions.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      const loaded: Record<number, NpcCharacter[]> = {};
+      await Promise.all(
+        groupSessions.map(async (s) => {
+          const parts = await db.participants.where('sessionId').equals(s.id!).toArray();
+          const npcs1 = parts
+            .filter((p) => p.kind === 'NPC' && p.npcId != null)
+            .map((p) => npcs.find((n) => n.id === p.npcId))
+            .filter((n): n is NpcCharacter => Boolean(n));
+          loaded[s.id!] = npcs1;
+        })
+      );
+      if (!cancelled) setGroupMembers(loaded);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [sessions, npcs]);
+
+  const sessionMembers = (s: ChatSession): SessionMember[] | undefined =>
+    (groupMembers[s.id!] ?? []).slice(0, 4).map((n) => ({
+      name: n.name,
+      colorOrdinal: n.avatarColorOrdinal,
+      imageUrl: n.avatarDataUrl,
+    }));
+
   return (
     <aside className="sidebar">
       <div className="sidebar-head">
@@ -156,9 +190,9 @@ export function Sidebar() {
               onClick={() => setActiveSession(s.id!)}
             >
               {s.mode === 'NPC' ? (
-                <Avatar name={npc?.name ?? 'NPC'} colorOrdinal={npc?.avatarColorOrdinal ?? 0} imageUrl={npc?.avatarDataUrl} size="xs" />
+                <SessionVisual mode="NPC" npcName={npc?.name ?? 'NPC'} hue={npc?.avatarColorOrdinal ?? 0} imageUrl={npc?.avatarDataUrl} />
               ) : (
-                <SessionVisual mode={s.mode} />
+                <SessionVisual mode={s.mode} members={s.mode === 'GROUP' ? sessionMembers(s) : undefined} />
               )}
               <div className="smeta">
                 <div className="stitle">{s.title}</div>

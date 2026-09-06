@@ -4,6 +4,7 @@ import { db } from '../db/database';
 import { PALETTES, type ThemeColor, type ThemeMode } from '../theme/theme';
 import type { ApiProvider, ReasoningEffort } from '../types/models';
 import { Icon } from './shared';
+import { DeleteConfirmDialog } from './DeleteConfirmDialog';
 import { isProxyUrl, isNetworkLikeError, toProxyUrl } from '../core/proxy';
 
 // ============================================================
@@ -227,6 +228,7 @@ function ProviderManager({ providers, onChanged }: { providers: ApiProvider[]; o
   const addToast = useStore((s) => s.addToast);
   const [editing, setEditing] = useState<ApiProvider | null>(null);
   const [testingId, setTestingId] = useState<number | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<ApiProvider | null>(null);
 
   const toggleEnabled = async (p: ApiProvider) => {
     await db.providers.update(p.id!, { isEnabled: !p.isEnabled });
@@ -261,7 +263,6 @@ function ProviderManager({ providers, onChanged }: { providers: ApiProvider[]; o
   };
 
   const deleteProvider = async (p: ApiProvider) => {
-    if (!confirm(`删除 Provider「${p.name}」？`)) return;
     await db.providers.delete(p.id!);
     onChanged();
     addToast('已删除 Provider');
@@ -288,7 +289,7 @@ function ProviderManager({ providers, onChanged }: { providers: ApiProvider[]; o
                   {testingId === p.id ? '测试中' : '测试连接'}
                 </button>
                 <button className="btn btn-sm" onClick={() => setEditing(p)}>编辑</button>
-                <button className="btn btn-sm btn-danger" onClick={() => deleteProvider(p)}><Icon name="trash" size={12} /></button>
+                <button className="btn btn-sm btn-danger" onClick={() => setPendingDelete(p)}><Icon name="trash" size={12} /></button>
               </div>
             </div>
             <div className="p-url">{p.baseUrl}</div>
@@ -331,6 +332,15 @@ function ProviderManager({ providers, onChanged }: { providers: ApiProvider[]; o
             </div>
           </div>
         </div>
+      )}
+
+      {pendingDelete && (
+        <DeleteConfirmDialog
+          title="删除 Provider"
+          itemName={pendingDelete.name}
+          onCancel={() => setPendingDelete(null)}
+          onConfirm={() => deleteProvider(pendingDelete)}
+        />
       )}
     </div>
   );

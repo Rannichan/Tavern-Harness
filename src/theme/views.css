@@ -134,11 +134,10 @@
   margin: 2px 0 0;
 }
 
-/* ---------- 卡片网格（角色） ---------- */
+/* ---------- 卡片多列瀑布流（角色） ---------- */
 .char-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-  gap: 14px;
+  columns: 190px; /* 每列最小宽度，自适应列数；190px 使 4 列只需 802px 宽，桌面下更稳定 */
+  column-gap: 14px;
 }
 .char-card {
   border: 1px solid var(--border);
@@ -150,6 +149,8 @@
   gap: 10px;
   transition: all 0.18s ease;
   position: relative;
+  break-inside: avoid; /* 卡片不被拆分到两列 */
+  margin-bottom: 14px; /* 列内纵向间距（column-gap 只管横向） */
 }
 .char-card:hover {
   transform: translateY(-2px);
@@ -167,9 +168,8 @@
   font-size: 12.5px;
   color: var(--text-dim);
   line-height: 1.5;
-  flex: 1;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 10; /* 人设最多展示 10 行 */
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -177,10 +177,38 @@
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
+  align-content: flex-start;
+  /* 技能最多展示 5 行（行高约21px，5行+4个4px间隙≈121px），超出可滚动 */
+  max-height: 121px;
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 .char-card .cactions {
   display: flex;
   gap: 6px;
+}
+/* 世界书卡片（复用 char-card 外壳，内容区预览更多行） */
+.wb-card .cname {
+  font-weight: 800;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.wb-card .wcontent {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 10; /* 世界书内容最多展示 10 行 */
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: pre-line;
+}
+.wb-card .cmeta {
+  font-size: 11px;
+  color: var(--text-dim);
+  opacity: 0.7;
 }
 .skill-tag {
   font-size: 10.5px;
