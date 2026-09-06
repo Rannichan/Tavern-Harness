@@ -153,9 +153,6 @@ export function Collapse({
   return (
     <div className={cls}>
       <button className="collp-head" onClick={() => setOpen(!open)}>
-        <span className="collp-chev" style={{ transform: open ? 'rotate(90deg)' : undefined }}>
-          ▶
-        </span>
         {icon && <span className="collp-icon">{icon}</span>}
         <span className="collp-title">{title}</span>
         {live && <span className="collp-live"><span className="spinner" style={{ width: 12, height: 12 }} /></span>}

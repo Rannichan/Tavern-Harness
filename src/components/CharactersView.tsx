@@ -24,6 +24,15 @@ export function CharactersView() {
 
   const refresh = useStore((s) => s.refreshNpcs);
   const refreshWb = useStore((s) => s.refreshWorldBooks);
+  const refreshTools = useStore((s) => s.refreshTools);
+
+  // 每次进入角色工坊都刷新一次，确保聊天中通过技能创建/修改的数据即时可见
+  useEffect(() => {
+    refresh();
+    refreshWb();
+    refreshTools();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleImport = async (file: File) => {
     try {
@@ -206,16 +215,11 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
   });
   const [tools, setTools] = useState<McpTool[]>([]);
   const addToast = useStore((s) => s.addToast);
+  const storeTools = useStore((s) => s.tools);
 
   useEffect(() => {
-    let cancelled = false;
-    db.tools.toArray().then((t) => {
-      if (!cancelled) setTools(t);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    setTools(storeTools);
+  }, [storeTools]);
 
   const save = async () => {
     if (!name.trim()) {
@@ -249,12 +253,12 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
   return (
     <div className="overlay" onClick={onClose}>
       <div className="modal-root" onClick={(e) => e.stopPropagation()}>
-        <div className="modal card">
+        <div className="modal card modal-editor">
           <div className="modal-head">
             <span style={{ fontWeight: 800, fontSize: 15 }}>{isNew ? '新建角色' : `编辑角色 · ${npc.name}`}</span>
             <button className="icon-btn" onClick={onClose}><Icon name="x" /></button>
           </div>
-          <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div className="modal-body">
             <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
               <Avatar name={name || '角色'} colorOrdinal={npc.avatarColorOrdinal} imageUrl={avatarDataUrl} size="sm" />
               <div style={{ display: 'flex', gap: 8 }}>
@@ -276,21 +280,21 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
               <label>名称</label>
               <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="角色名" />
             </div>
-            <div className="field">
+            <div className="field prompt-field">
               <label>人设 Prompt（注入 system prompt）</label>
-              <textarea className="textarea" rows={6} value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="例如：神秘的酒馆老板，可以响应客人的任何需求" />
+              <textarea className="textarea grow-textarea" value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="例如：神秘的酒馆老板，可以响应客人的任何需求" />
             </div>
-            <div className="field">
+            <div className="field" style={{ flexShrink: 0 }}>
               <label>开场白 Greeting</label>
-              <textarea className="textarea" rows={2} value={greeting} onChange={(e) => setGreeting(e.target.value)} placeholder="你来啦！快坐下~" />
+              <textarea className="textarea grow-textarea greeting-grow" value={greeting} onChange={(e) => setGreeting(e.target.value)} placeholder="你来啦！快坐下~" />
             </div>
             {/* 启用技能：从卡片移入编辑页 */}
-            <div className="field">
+            <div className="field" style={{ flexShrink: 0 }}>
               <label>启用技能（{enabledToolNames.filter((s) => tools.some((t) => t.name === s)).length}/{tools.length}）</label>
               {tools.length === 0 ? (
                 <div style={{ fontSize: 12, color: 'var(--text-faint)' }}>暂无技能</div>
               ) : (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                <div className="skill-list-scroll">
                   {tools.map((t) => (
                     <label key={t.name} className={`skill-tag ${enabledToolNames.includes(t.name) ? '' : 'locked'}`} style={{ cursor: 'pointer', display: 'inline-flex', gap: 4, alignItems: 'center' }}>
                       <input type="checkbox" checked={enabledToolNames.includes(t.name)} onChange={() => toggleSkill(t.name)} style={{ accentColor: 'var(--primary)' }} />
@@ -366,7 +370,7 @@ function WorldBookList({ books, onChanged }: { books: WorldBook[]; onChanged: ()
       {editing && (
         <div className="overlay" onClick={() => setEditing(null)}>
           <div className="modal-root" onClick={(e) => e.stopPropagation()}>
-            <div className="modal card">
+            <div className="modal card modal-editor">
               <div className="modal-head">
                 <span style={{ fontWeight: 800, fontSize: 15 }}>{'id' in editing && editing.id != null ? `编辑世界书` : '新建世界书'}</span>
                 <button className="icon-btn" onClick={() => setEditing(null)}><Icon name="x" /></button>
@@ -385,19 +389,19 @@ function WorldBookForm({ initial, onSave, onCancel }: { initial: WorldBook | { n
   const [content, setContent] = useState(initial.content);
   return (
     <>
-      <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div className="modal-body">
         <div className="field">
           <label>世界书名</label>
           <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="如：北境大陆" />
         </div>
-        <div className="field">
+        <div className="field" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           <label>内容（附加在角色人设之后）</label>
-          <textarea className="textarea" rows={9} value={content} onChange={(e) => setContent(e.target.value)} placeholder="世界观设定文本…" />
+          <textarea className="textarea grow-textarea" value={content} onChange={(e) => setContent(e.target.value)} placeholder="世界观设定文本…" />
         </div>
         {content && (
           <div style={{ fontSize: 12, color: 'var(--text-faint)' }}>
             预览（Markdown 渲染）：
-            <div className="bubble" style={{ marginTop: 6, padding: '10px 14px', fontSize: 13 }}>
+            <div className="bubble preview-scroll" style={{ marginTop: 6, padding: '10px 14px', fontSize: 13 }}>
               <Markdown text={content.slice(0, 400)} />
             </div>
           </div>
@@ -414,15 +418,12 @@ function WorldBookForm({ initial, onSave, onCancel }: { initial: WorldBook | { n
 // ---------------- 技能表 ----------------
 
 function SkillList({ onChanged }: { onChanged: () => void }) {
-  const [tools, setTools] = useState<McpTool[]>([]);
+  const tools = useStore((s) => s.tools);
   const addToast = useStore((s) => s.addToast);
-  const refresh = async () => {
-    setTools(await db.tools.toArray());
-    onChanged();
-  };
+  const refresh = useStore((s) => s.refreshTools);
   useEffect(() => {
     refresh();
-  }, []);
+  }, [refresh]);
 
   const deleteTool = async (t: McpTool) => {
     if (t.isBuiltIn) {
@@ -432,6 +433,7 @@ function SkillList({ onChanged }: { onChanged: () => void }) {
     if (!confirm(`确定删除技能「${t.name}」？`)) return;
     await db.tools.delete(t.id!);
     await refresh();
+    onChanged();
     addToast('已删除技能');
   };
 

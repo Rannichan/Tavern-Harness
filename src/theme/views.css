@@ -52,6 +52,51 @@
 .modal.confirm {
   width: min(420px, calc(100vw - 32px));
 }
+
+/* ---------- 大尺寸编辑弹窗（角色卡 / 世界书） ---------- */
+.modal-editor {
+  width: min(1040px, calc(100vw - 32px));
+  height: min(90dvh, 960px);
+}
+.modal-editor .modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+}
+.modal-editor .grow-textarea {
+  flex: 1;
+  min-height: 110px;
+  resize: vertical;
+}
+.modal-editor .preview-scroll {
+  max-height: 200px;
+  overflow: auto;
+}
+/* 角色卡：人设 Prompt 所在的 field 容器弹性增长，textaarea 填满 */
+.modal-editor .prompt-field {
+  flex: 3;
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+}
+.modal-editor .prompt-field .grow-textarea {
+  flex: 1;
+  min-height: 0;
+}
+.modal-editor .greeting-grow {
+  min-height: 88px;
+}
+/* 技能清单：限制最大高度并滚动，避免挤压 Prompt 的弹性空间 */
+.modal-editor .skill-list-scroll {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 108px;
+  overflow-y: auto;
+  align-content: flex-start;
+}
 .confirm-args {
   background: var(--code-bg);
   border: 1px solid var(--border);

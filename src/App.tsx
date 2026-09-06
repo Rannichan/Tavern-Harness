@@ -112,8 +112,12 @@ function SessionHeader({
     const { exportSessionJson } = await import('./core/stats');
     try {
       const safe = session.title.replace(/[\\/:*?"<>|\s]+/g, '_').slice(0, 40) || 'session';
-      await exportSessionJson(session.id!, `${safe}-${Date.now()}.json`);
-      addToast('会话已导出（分享文件）');
+      const result = await exportSessionJson(session.id!, `${safe}-${Date.now()}.json`);
+      if (result === 'canceled') {
+        addToast('已取消导出');
+      } else {
+        addToast('会话已导出（分享文件）');
+      }
     } catch (e) {
       addToast(`导出失败: ${(e as Error).message}`, 'error');
     }

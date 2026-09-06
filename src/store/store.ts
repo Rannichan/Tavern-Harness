@@ -9,6 +9,7 @@ import type {
   ToolConfirmationRequest,
   WorldBook,
   NpcCharacter,
+  McpTool,
 } from '../types/models';
 import { streamChatCompletions, buildChatRequest } from '../core/openai';
 import {
@@ -55,6 +56,7 @@ interface AppState {
   npcs: NpcCharacter[];
   sessions: ChatSession[];
   worldBooks: WorldBook[];
+  tools: McpTool[];
   messages: Record<number, ChatMessage[]>;
   participants: Record<number, ChatParticipant[]>;
 
@@ -81,6 +83,7 @@ interface AppState {
   refreshSessions: () => Promise<void>;
   refreshNpcs: () => Promise<void>;
   refreshWorldBooks: () => Promise<void>;
+  refreshTools: () => Promise<void>;
   refreshProviders: () => Promise<void>;
   loadMessages: (sessionId: number) => Promise<void>;
 
@@ -103,6 +106,7 @@ export const useStore = create<AppState>((set, get) => ({
   npcs: [],
   sessions: [],
   worldBooks: [],
+  tools: [],
   messages: {},
   participants: {},
 
@@ -123,7 +127,8 @@ export const useStore = create<AppState>((set, get) => ({
       const npcs = await db.npcs.toArray();
       const sessions = await db.sessions.orderBy('updatedAt').reverse().toArray();
       const worldBooks = await db.worldBooks.toArray();
-      set({ initialized: true, settings, npcs, sessions, worldBooks });
+      const tools = await db.tools.toArray();
+      set({ initialized: true, settings, npcs, sessions, worldBooks, tools });
       await get().refreshProviders();
       applyThemeManual(settings.themeMode, settings.themeColor);
       await scheduleRestoredTasks();
@@ -165,6 +170,10 @@ export const useStore = create<AppState>((set, get) => ({
 
   refreshWorldBooks: async () => {
     set({ worldBooks: await db.worldBooks.toArray() });
+  },
+
+  refreshTools: async () => {
+    set({ tools: await db.tools.toArray() });
   },
 
   refreshProviders: async () => {
@@ -804,6 +813,15 @@ async function streamAssistantTurn(
           }
         } else {
           result = await executeToolCall(tc.name, tc.argumentsJson, { sessionId, requestConfirmation: async () => true });
+        }
+        // 数据变更类工具执行后即时刷新 store，保证界面（角色工坊等）无需刷新即可看到最新数据
+        if (result.startsWith('OK:')) {
+          if (tc.name.includes('character')) await useStore.getState().refreshNpcs();
+          if (tc.name.includes('world_book')) await useStore.getState().refreshWorldBooks();
+          if (tc.name.includes('skill')) {
+            await useStore.getState().refreshTools();
+            await useStore.getState().refreshNpcs();
+          }
         }
         await db.messages.add({
           sessionId,

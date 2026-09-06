@@ -1,6 +1,6 @@
 import { db } from '../db/database';
 import type { ChatMessage } from '../types/models';
-import { saveJsonFile } from './fileDownload';
+import { saveJsonFile, type SaveResult } from './fileDownload';
 
 // ============================================================
 // 生涯统计（append-only）与工具函数
@@ -72,7 +72,7 @@ export function sessionPreviewText(content: string, maxLength = 60): string {
 }
 
 /** 另存会话为 JSON 文件（弹出保存对话框，支持选择位置与文件名） */
-export async function exportSessionJson(sessionId: number, suggestedName?: string): Promise<void> {
+export async function exportSessionJson(sessionId: number, suggestedName?: string): Promise<SaveResult> {
   const session = await db.sessions.get(sessionId);
   if (!session) throw new Error('会话不存在');
   const messages = await db.messages.where('sessionId').equals(sessionId).sortBy('timestamp');
@@ -87,7 +87,7 @@ export async function exportSessionJson(sessionId: number, suggestedName?: strin
     exportedAt: Date.now(),
     messages: mapped,
   };
-  await saveJsonFile(payload, suggestedName ?? `session-${sessionId}-${Date.now()}.json`);
+  return saveJsonFile(payload, suggestedName ?? `session-${sessionId}-${Date.now()}.json`);
 }
 
 // ============================================================

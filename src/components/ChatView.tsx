@@ -107,9 +107,13 @@ function MessageBubble({
   if (msg.role === 'tool') {
     const isError = msg.content.startsWith('ERROR:') || msg.content.startsWith('CANCELLED:');
     return (
-      <div className={`tool-result fade-up ${isError ? 'err' : ''}`}>
-        <Icon name={isError ? 'cancel' : 'check'} size={13} />
-        <span className="mono">{msg.content.slice(0, 200)}{msg.content.length > 200 ? '…' : ''}</span>
+      <div className="msg-row tool-row fade-up">
+        <div className="msg-body">
+          <div className={`tool-result ${isError ? 'err' : ''}`}>
+            <Icon name={isError ? 'cancel' : 'check'} size={13} />
+            <span className="mono">{msg.content.slice(0, 200)}{msg.content.length > 200 ? '…' : ''}</span>
+          </div>
+        </div>
       </div>
     );
   }
@@ -357,8 +361,8 @@ function ToolCallCard({ tc, executing }: { tc: ToolCallRecord; executing: boolea
   return (
     <div className={`tool-card ${executing ? 'executing' : ''}`}>
       <button className="tool-card-head" onClick={() => setOpen(!open)}>
-        {executing ? <span className="spinner" style={{ width: 12, height: 12 }} /> : <Icon name="dice" size={13} />}
-        <span>调用工具: {tc.name}</span>
+        <span className="tool-card-icon">{executing ? <span className="spinner" style={{ width: 12, height: 12 }} /> : '🔧'}</span>
+        <span className="tool-card-name">调用工具: {tc.name}</span>
         <span className="collp-arrow" style={{ transform: open ? 'rotate(180deg)' : undefined }}>▾</span>
       </button>
       {open && (
@@ -638,9 +642,13 @@ export function MessageMenu() {
         onClose={() => setRawLog(null)}
         onExport={async () => {
           const raw = buildRawLog(rawLog);
-          await saveTextFile(raw, 'text/plain', `raw-log-${rawLog.id}.txt`);
-          addToast('已导出原始日志（自动脱敏）');
-          setRawLog(null);
+          const result = await saveTextFile(raw, 'text/plain', `raw-log-${rawLog.id}.txt`);
+          if (result === 'canceled') {
+            addToast('已取消导出');
+          } else {
+            addToast('已导出原始日志（自动脱敏）');
+            setRawLog(null);
+          }
         }}
       />
     );
