@@ -8,6 +8,7 @@ import { StatsView } from './components/StatsView';
 import { Dashboard } from './components/Dashboard';
 import { ConfirmationDialog } from './components/ConfirmationDialog';
 import { Toasts } from './components/Toasts';
+import { AchievementModal } from './components/AchievementModal';
 import { Icon, SessionVisual, Modal } from './components/shared';
 import type { NpcCharacter } from './types/models';
 import './theme/chat.css';
@@ -72,6 +73,7 @@ export default function App() {
       <ConfirmationDialog />
       <MessageMenu />
       <Toasts />
+      <AchievementModal />
     </>
   );
 }

@@ -297,6 +297,69 @@
   align-items: center;
   gap: 8px;
 }
+
+/* ---------- 成就陈列柜 ---------- */
+.ach-shelf {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+.ach-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.18s ease;
+  opacity: 0.72;
+}
+.ach-card.unlocked {
+  opacity: 1;
+  border-color: color-mix(in srgb, var(--primary) 45%, transparent);
+  background: color-mix(in srgb, var(--primary-soft) 55%, var(--surface));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 12%, transparent), 0 6px 24px color-mix(in srgb, var(--glow) 28%, transparent);
+}
+.ach-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.ach-card-icon {
+  font-size: 26px;
+  line-height: 1;
+}
+.ach-card-status {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  color: var(--text-faint);
+}
+.ach-card.unlocked .ach-card-status {
+  color: var(--success);
+}
+.ach-card-name {
+  font-weight: 800;
+  font-size: 14.5px;
+}
+.ach-card-desc {
+  font-size: 11.5px;
+  color: var(--text-dim);
+  line-height: 1.4;
+  min-height: 32px;
+}
+.ach-card-time {
+  font-size: 10.5px;
+  color: var(--text-faint);
+}
+.ach-shelf-summary {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.ach-shelf-summary b {
+  color: var(--text);
+}
 .set-row {
   display: flex;
   align-items: center;

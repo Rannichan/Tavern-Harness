@@ -165,7 +165,7 @@ export function Sidebar() {
             <Icon name="users" size={13} /> 角色工坊
           </button>
           <button className={`nav-chip ${activeView === 'stats' ? 'active' : ''}`} onClick={() => setActiveView('stats')}>
-            <Icon name="chart" size={13} /> 成就
+            <Icon name="trophy" size={13} /> 成就
           </button>
           <button className={`nav-chip ${activeView === 'settings' ? 'active' : ''}`} onClick={() => setActiveView('settings')}>
             <Icon name="settings" size={13} /> 设置

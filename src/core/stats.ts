@@ -1,6 +1,7 @@
 import { db } from '../db/database';
 import type { ChatMessage } from '../types/models';
 import { saveJsonFile, type SaveResult } from './fileDownload';
+import { checkAchievementUnlocks } from './achievements';
 
 // ============================================================
 // 生涯统计（append-only）与工具函数
@@ -38,6 +39,9 @@ export async function accumulateStats(delta: StatsDelta, sessionId: number | nul
     }
   }
   void sessionId;
+
+  // 成就检测（基于累计 Token 数）
+  await checkAchievementUnlocks();
 }
 
 export async function getCareerStats() {
@@ -52,9 +56,6 @@ export async function resetCareerStats(): Promise<void> {
   await db.careerNpcStats.clear();
 }
 
-// ============================================================
-// 会话预览与导出
-// ============================================================
 
 /** 从消息内容剥离思考标签，用于列表预览 */
 export function stripThinking(content: string): string {

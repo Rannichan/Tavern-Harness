@@ -31,12 +31,13 @@ import { getEnabledToolsForSession, executeToolCall } from '../core/tools/toolEx
 import { scheduleRestoredTasks } from '../core/tools/toolExecutor';
 import { applyTheme as applyThemeManual } from '../theme/theme';
 import { estimateTokensFromChars, accumulateStats, sessionPreviewText } from '../core/stats';
+import { ACHIEVEMENTS, registerUnlockDispatcher, type AchievementDef } from '../core/achievements';
 
 // ============================================================
 // Store（对应 MainViewModel）
 // ============================================================
 
-export type ActiveView = 'chat' | 'characters' | 'settings' | 'stats';
+export type ActiveView = 'chat' | 'characters' | 'settings' | 'stats' | 'achievements';
 
 interface StreamingState {
   sessionId: number | null;
@@ -49,6 +50,11 @@ interface Toast {
   kind: 'info' | 'error';
 }
 
+export interface AchievementState {
+  def: AchievementDef;
+  unlockedAt: number | null;
+}
+
 interface AppState {
   initialized: boolean;
   settings: AppSettings | null;
@@ -59,6 +65,9 @@ interface AppState {
   tools: McpTool[];
   messages: Record<number, ChatMessage[]>;
   participants: Record<number, ChatParticipant[]>;
+  achievements: AchievementState[];
+  /** 生涯总 token（输入 + 输出），实时刷新用于成就进度展示 */
+  careerTotalTokens: number | null;
 
   activeSessionId: number | null;
   activeView: ActiveView;
@@ -85,6 +94,7 @@ interface AppState {
   refreshWorldBooks: () => Promise<void>;
   refreshTools: () => Promise<void>;
   refreshProviders: () => Promise<void>;
+  refreshAchievements: () => Promise<void>;
   loadMessages: (sessionId: number) => Promise<void>;
 
   /** 聚合所有启用 Provider 的模型列表（与 App 的 aggregateEnabledProviderModels 一致） */
@@ -109,6 +119,8 @@ export const useStore = create<AppState>((set, get) => ({
   tools: [],
   messages: {},
   participants: {},
+  achievements: [],
+  careerTotalTokens: null,
 
   activeSessionId: null,
   activeView: 'chat',
@@ -132,6 +144,7 @@ export const useStore = create<AppState>((set, get) => ({
       await get().refreshProviders();
       applyThemeManual(settings.themeMode, settings.themeColor);
       await scheduleRestoredTasks();
+      await get().refreshAchievements();
       // 不自动创建会话：由用户通过左下角「新建」或仪表盘入口创建
       if (sessions.length > 0) {
         set({ activeSessionId: sessions[0].id! });
@@ -174,6 +187,19 @@ export const useStore = create<AppState>((set, get) => ({
 
   refreshTools: async () => {
     set({ tools: await db.tools.toArray() });
+  },
+
+  refreshAchievements: async () => {
+    const unlocked = await db.achievementUnlocks.toArray();
+    const byId = new Map(unlocked.map((u) => [u.achievementId, u.unlockedAt]));
+    set({
+      achievements: ACHIEVEMENTS.map((def) => ({
+        def,
+        unlockedAt: byId.get(def.id) ?? null,
+      })),
+    });
+    const stats = (await db.careerStats.get(1)) ?? { id: 1, inputTokens: 0, outputTokens: 0, totalRounds: 0 };
+    set({ careerTotalTokens: stats.inputTokens + stats.outputTokens });
   },
 
   refreshProviders: async () => {
@@ -349,6 +375,16 @@ export const useStore = create<AppState>((set, get) => ({
 
   removeToast: (id) => set({ toasts: get().toasts.filter((t) => t.id !== id) }),
 }));
+
+// ============================================================
+// 成就解锁分发（UI 层以此为唯一入口展示解锁弹窗）
+// ============================================================
+
+registerUnlockDispatcher((ach, total) => {
+  import('../components/AchievementModal').then(({ showAchievementUnlock }) => {
+    showAchievementUnlock(ach, total);
+  });
+});
 
 // ============================================================
 // 内部实现

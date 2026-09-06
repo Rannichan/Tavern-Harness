@@ -140,6 +140,13 @@ export interface CareerNpcStat {
   rounds: number;
 }
 
+/** 成就解锁记录 */
+export interface AchievementUnlock {
+  id?: number;
+  achievementId: string;
+  unlockedAt: number;
+}
+
 export interface McpTool {
   id?: number;
   name: string;

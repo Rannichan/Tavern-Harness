@@ -914,6 +914,157 @@ body.resizing .sidebar-resizer {
   font-size: 44px;
 }
 
+/* ---------- 成就解锁庆祝（奖杯 + 撒花） ---------- */
+.ach-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 6, 16, 0.5);
+  backdrop-filter: blur(3px);
+  z-index: 1400;
+  animation: fadeIn 0.2s ease;
+}
+.ach-celebration {
+  position: fixed;
+  inset: 0;
+  z-index: 1401;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  perspective: 800px;
+}
+.ach-celebration .ach-trophy,
+.ach-celebration .ach-caption {
+  pointer-events: auto;
+}
+.ach-rain {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.ach-rain i {
+  position: absolute;
+  top: -24px;
+  border-radius: 2px;
+  opacity: 0;
+  animation: confettiFall linear infinite;
+}
+.ach-rain i.round {
+  border-radius: 50%;
+}
+@keyframes confettiFall {
+  0% {
+    transform: translate3d(0, -4vh, 0) rotate(0deg);
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(var(--drift, 0px), 108vh, 0) rotate(var(--rot, 520deg));
+    opacity: 0;
+  }
+}
+.ach-trophy {
+  position: relative;
+  width: 150px;
+  height: 150px;
+  display: grid;
+  place-items: center;
+  animation: trophyIn 0.9s cubic-bezier(0.18, 0.9, 0.28, 1.35) both;
+}
+.ach-trophy-badge {
+  position: relative;
+  z-index: 1;
+  width: 128px;
+  height: 128px;
+  display: grid;
+  place-items: center;
+  font-size: 64px;
+  border-radius: 50%;
+  background: linear-gradient(160deg, #ffe9a8, #f5c24d 55%, #d99a2b);
+  box-shadow:
+    0 0 0 6px rgba(255, 233, 168, 0.25),
+    0 0 0 12px rgba(255, 233, 168, 0.12),
+    0 18px 60px rgba(240, 180, 60, 0.55);
+}
+.ach-trophy-glow {
+  position: absolute;
+  inset: -34px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 210, 110, 0.55), transparent 62%);
+  animation: trophyGlow 2.2s ease-in-out infinite;
+}
+@keyframes trophyIn {
+  0% {
+    opacity: 0;
+    transform: translateY(46px) scale(0.3) rotate(-12deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(0deg);
+  }
+}
+@keyframes trophyGlow {
+  0%,
+  100% {
+    opacity: 0.65;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+}
+.ach-caption {
+  position: absolute;
+  bottom: clamp(56px, 15vh, 140px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+  animation: captionIn 0.7s 0.35s ease both;
+  width: min(420px, calc(100vw - 48px));
+}
+@keyframes captionIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 22px);
+  }
+}
+.ach-caption-title {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  color: #ffd166;
+  text-shadow: 0 0 18px rgba(255, 209, 102, 0.5);
+}
+.ach-caption-name {
+  font-size: 30px;
+  font-weight: 900;
+  color: var(--text);
+  text-shadow: 0 2px 22px rgba(0, 0, 0, 0.35);
+}
+.ach-caption-desc {
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+.ach-caption-total {
+  font-size: 11.5px;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+}
+.ach-celebration .ach-trophy.leave,
+.ach-celebration .ach-caption.leave {
+  transition: all 0.26s ease;
+  opacity: 0;
+  transform: translateY(26px) scale(0.94);
+}
+
 /* ---------- Toast ---------- */
 .toast-wrap {
   position: fixed;

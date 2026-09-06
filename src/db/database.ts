@@ -2,6 +2,7 @@ import Dexie, { type Table } from 'dexie';
 import type {
   ApiProvider,
   AppSettings,
+  AchievementUnlock,
   CareerNpcStat,
   CareerStatsTotal,
   ChatMessage,
@@ -26,6 +27,7 @@ export class TavernDB extends Dexie {
   tasks!: Table<ScheduledTask, string>;
   careerStats!: Table<CareerStatsTotal, number>;
   careerNpcStats!: Table<CareerNpcStat, number>;
+  achievementUnlocks!: Table<AchievementUnlock, number>;
 
   constructor() {
     super('tavern-harness');
@@ -42,6 +44,7 @@ export class TavernDB extends Dexie {
       careerStats: 'id',
       careerNpcStats: 'npcId',
       workspaceFiles: 'path, updatedAt',
+      achievementUnlocks: '++id, achievementId, unlockedAt',
     });
   }
 }
