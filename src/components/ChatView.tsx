@@ -4,6 +4,8 @@ import type { ChatMessage, ChatParticipant, ChatSession, ToolCallRecord } from '
 import { Avatar, Icon, Markdown, Collapse, Modal, AttachCard } from './shared';
 import { formatMetrics } from '../core/stats';
 import { saveTextFile } from '../core/fileDownload';
+import { effectiveDisplayQueue, initializeTurnQueue, speakerLabel } from '../core/turnLoop';
+import { onChatScroll, registerChatEl, onQueueScroll, registerQueueEl, scrollChatTo, scrollQueueToLoop } from '../core/linkedScroll';
 
 function fmtTime(ts: number): string {
   const d = new Date(ts);
@@ -50,14 +52,30 @@ export function ChatView({
 
   useEffect(() => {
     const el = scrollRef.current;
-    if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
-  }, [messages.length, updateStreaming, messages[messages.length - 1]?.content.length]);
+    // 注册滚动容器，供「对话⇄队列」双向联动（registerChatEl 内部会重置抑制标志）
+    registerChatEl(el);
+    return () => registerChatEl(null); // 卸载时解除引用，避免跨会话联动到已卸载的容器
+  }, []);
+
+  // 自动滚动到底（新消息 / 流式更新时）：群聊流式生成时同样跟随最新内容
+  const isGroup = session.mode === 'GROUP';
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+    // 群聊：仅在已处于底部或正在流式生成时自动吸附（流式画布增长时继续跟随），
+    // 用户主动向上回看时不打断
+    if (!isGroup || nearBottom || updateStreaming) {
+      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages.length, updateStreaming, messages[messages.length - 1]?.content.length, isGroup]);
 
   const npcId = session.associatedId;
   const npc = useStore((s) => s.npcs.find((n) => n.id === npcId));
 
   return (
-    <div className="chat-scroll" ref={scrollRef}>
+    <div className="chat-scroll" ref={scrollRef} onScroll={onChatScroll}>
       <div className="chat-col">
         {messages.length === 0 && (
           <div className="empty-state fade-up">
@@ -70,7 +88,13 @@ export function ChatView({
           </div>
         )}
         {messages.map((m) => (
-          <MessageBubble key={m.id} msg={m} session={session} participants={participants} streaming={streaming && m.id === lastMsgId(messages)} />
+          <MessageBubble 
+            key={m.id} 
+            msg={m} 
+            session={session} 
+            participants={participants} 
+            loopIndex={isGroup ? (m.loopIndex ?? 0) : null}
+            streaming={streaming && m.id === lastMsgId(messages)} />
         ))}
       </div>
     </div>
@@ -90,16 +114,19 @@ function MessageBubble({
   session,
   participants,
   streaming,
+  loopIndex,
 }: {
   msg: ChatMessage;
   session: ChatSession;
   participants: ChatParticipant[];
   streaming: boolean;
+  /** 群聊循环号（0 起）；非群聊为 null */
+  loopIndex: number | null;
 }) {
   // System 消息（/new 标记）
   if (msg.role === 'system') {
     return (
-      <div className="sys-banner fade-up">⟐ {msg.content}</div>
+      <div className="sys-banner fade-up" data-loop={loopIndex ?? undefined}>⟐ {msg.content}</div>
     );
   }
 
@@ -107,7 +134,7 @@ function MessageBubble({
   if (msg.role === 'tool') {
     const isError = msg.content.startsWith('ERROR:') || msg.content.startsWith('CANCELLED:');
     return (
-      <div className="msg-row tool-row fade-up">
+      <div className="msg-row tool-row fade-up" data-loop={loopIndex ?? undefined} data-speaker={msg.speakerParticipantId != null ? String(msg.speakerParticipantId) : undefined}>
         <div className="msg-body">
           <div className={`tool-result ${isError ? 'err' : ''}`}>
             <Icon name={isError ? 'cancel' : 'check'} size={13} />
@@ -149,12 +176,20 @@ function MessageBubble({
   const npcAvatar = speaker?.npcId ? useStore((s) => s.npcs.find((n) => n.id === speaker.npcId)?.avatarDataUrl ?? null) : null;
 
   if (isUser) {
-    return <UserBubble msg={msg} session={session} editing={isEditing} />;
+    return <UserBubble msg={msg} session={session} editing={isEditing} loopIndex={loopIndex} />;
   }
+
+  // 用于「点击队列发言 → 对话定位」：NPC 用 participantId，玩家/未知用 null（定位到循环首条）
+  const speakerKey = msg.speakerParticipantId != null ? String(msg.speakerParticipantId) : null;
+
+  // 群聊：NPC 发言的 @台词 高亮（斜体加粗 + 特殊颜色）
+  const mentionNames = session.mode === 'GROUP'
+    ? participants.filter((p) => p.participantId !== msg.speakerParticipantId).map((p) => p.displayName)
+    : [];
 
   if (isEditing) {
     return (
-      <div className="msg-row fade-up">
+      <div className="msg-row fade-up" data-loop={loopIndex ?? undefined} data-speaker={speakerKey ?? undefined}>
         <Avatar name={speakerName} colorOrdinal={npcHue} imageUrl={npcAvatar} />
         <div className="msg-body">
           <div className="msg-head">
@@ -168,7 +203,12 @@ function MessageBubble({
   }
 
   return (
-    <div className={`msg-row fade-up ${streaming ? 'streaming' : ''}`} onContextMenu={(e) => { e.preventDefault(); openMsgMenu(e, msg, session); }}>
+    <div
+      className={`msg-row fade-up ${streaming ? 'streaming' : ''}`}
+      data-loop={loopIndex ?? undefined}
+      data-speaker={speakerKey ?? undefined}
+      onContextMenu={(e) => { e.preventDefault(); openMsgMenu(e, msg, session); }}
+    >
       <Avatar name={speakerName} colorOrdinal={npcHue} imageUrl={npcAvatar} />
       <div className="msg-body">
         <div className="msg-head">
@@ -204,7 +244,7 @@ function MessageBubble({
             )}
             <div className="bubble-content-row">
               <div className="bubble-text">
-                {msg.content ? <Markdown text={msg.content} mentionNames={participants.map((p) => p.displayName)} /> : streaming && <span className="stream-cursor" />}
+                {msg.content ? <Markdown text={msg.content} mentionNames={mentionNames} /> : streaming && <span className="stream-cursor" />}
               </div>
               {/* 编辑按钮：位于正文气泡内最右侧，铅笔图标 */}
               <button className="msg-edit-btn" title="编辑消息" onClick={() => startEditingMsg(msg.id!)}>
@@ -315,9 +355,15 @@ function BubbleEditor({
   );
 }
 
-function UserBubble({ msg, session, editing }: { msg: ChatMessage; session: ChatSession; editing?: boolean }) {
+function UserBubble({ msg, session, editing, loopIndex }: { msg: ChatMessage; session: ChatSession; editing?: boolean; loopIndex?: number | null }) {
+  const participants = useStore((s) => (session.id != null ? (s.participants[session.id] ?? []) : []));
+  // 群聊中「用户消息」的 @角色名 也作为特殊指令高亮（点名）
+  const mentionNames =
+    session.mode === 'GROUP'
+      ? participants.filter((p) => p.kind === 'NPC').map((p) => p.displayName)
+      : [];
   return (
-    <div className="msg-row user-row fade-up" onContextMenu={(e) => { e.preventDefault(); openMsgMenu(e, msg, session); }}>
+    <div className="msg-row user-row fade-up" data-loop={loopIndex ?? undefined} data-speaker="player" onContextMenu={(e) => { e.preventDefault(); openMsgMenu(e, msg, session); }}>
       <div className="avatar sm user-avatar">我</div>
       <div className="msg-body">
         <div className="msg-head right">
@@ -337,7 +383,7 @@ function UserBubble({ msg, session, editing }: { msg: ChatMessage; session: Chat
             )}
             <div className="bubble-content-row">
               <div className="bubble-text">
-                {msg.content && <Markdown text={msg.content} />}
+                {msg.content && <Markdown text={msg.content} mentionNames={mentionNames} />}
               </div>
               <button className="msg-edit-btn" title="编辑消息" onClick={() => startEditingMsg(msg.id!)}>
                 <Icon name="pencil" size={13} />
@@ -380,6 +426,10 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
   const [text, setText] = useState('');
   const [attachments, setAttachments] = useState<{ dataUrl: string; name: string }[]>([]);
   const [showCmd, setShowCmd] = useState(false);
+  const [showMention, setShowMention] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState('');
+  const mentionRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [typing, setTyping] = useState(false);
   const [showModels, setShowModels] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -404,7 +454,68 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
       setText('');
       setAttachments([]);
       setShowCmd(false);
+      setShowMention(false);
     });
+  };
+
+  // 输入区 @ 自动补全（仅在群聊、且匹配到成员时展示；不支持 @自己）
+  const sessionParticipants = useStore((s) => s.participants[sessionId] ?? []);
+  const groupMembers = useMemo(() => {
+    return sessionParticipants
+      .filter((p) => p.kind === 'NPC')
+      .map((p) => p.displayName)
+      .sort((a, b) => a.length - b.length);
+  }, [sessionParticipants]);
+  const mentionCandidates = useMemo(() => {
+    if (!showMention || session?.mode !== 'GROUP') return [];
+    const q = mentionQuery.trim().toLowerCase();
+    return groupMembers.filter((n) => !q || n.toLowerCase().includes(q));
+  }, [showMention, mentionQuery, groupMembers, session?.mode]);
+  const activeMentionIdx = useRef(0);
+
+  const closeMention = () => {
+    setShowMention(false);
+    setMentionQuery('');
+    activeMentionIdx.current = 0;
+  };
+
+  const applyMention = (name: string) => {
+    if (!textareaRef.current) return;
+    const el = textareaRef.current;
+    const pos = el.selectionStart ?? text.length;
+    const before = text.slice(0, pos);
+    const after = text.slice(pos);
+    const atIdx = before.lastIndexOf('@');
+    const hasSpaceAfter = /^\s/.test(after);
+    const suffix = hasSpaceAfter || after === '' ? '' : ' ';
+    const next = before.slice(0, atIdx) + `@${name}` + suffix + after;
+    setText(next);
+    closeMention();
+    requestAnimationFrame(() => {
+      el.focus();
+      const caret = before.slice(0, atIdx).length + name.length + 1 + suffix.length;
+      el.setSelectionRange(caret, caret);
+    });
+  };
+
+  const detectMention = (value: string, caret: number) => {
+    if (session?.mode !== 'GROUP') {
+      setShowMention(false);
+      return;
+    }
+    if (caret < 0 || caret > value.length) {
+      setShowMention(false);
+      return;
+    }
+    const before = value.slice(0, caret);
+    const m = /(?:^|[^A-Za-z0-9_@])(@[\u4e00-\u9fa5A-Za-z0-9_]{0,30})$/.exec(before);
+    if (!m) {
+      setShowMention(false);
+      return;
+    }
+    setMentionQuery(m[1].slice(1).toLowerCase());
+    setShowMention(true);
+    activeMentionIdx.current = 0;
   };
 
   // 拖放 / 粘贴附件
@@ -420,6 +531,16 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
     window.addEventListener('paste', onPaste);
     return () => window.removeEventListener('paste', onPaste);
   }, []);
+
+  // 点击自动补全面板外部时关闭
+  useEffect(() => {
+    if (!showMention) return;
+    const onDoc = (e: MouseEvent) => {
+      if (mentionRef.current && !mentionRef.current.contains(e.target as Node)) closeMention();
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [showMention]);
 
   const commands = ['/new', '/pass'];
 
@@ -441,7 +562,7 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
           {commands.map((c) => (
             <button key={c} className="cmd-item" onClick={() => { setText(c); setShowCmd(false); }}>
               <span className="cmd-text">{c}</span>
-              <span className="cmd-desc">{c === '/new' ? '开始新话题（截断上下文）' : '跳过本轮发言（群聊中）'}</span>
+              <span className="cmd-desc">{c === '/new' ? '开始新话题（截断上下文）' : '跳过本轮发言（群聊中，不修改对话历史）'}</span>
             </button>
           ))}
         </div>
@@ -481,27 +602,76 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
             e.target.value = '';
           }}
         />
-        <textarea
-          value={text}
-          onChange={(e) => {
-            setText(e.target.value);
-            setShowCmd(e.target.value.startsWith('/') && !e.target.value.includes('\n'));
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-              e.preventDefault();
-              doSend();
+        <div className="composer-input-wrap">
+          <textarea
+            ref={textareaRef}
+            value={text}
+            onChange={(e) => {
+              const v = e.target.value;
+              setText(v);
+              setShowCmd(v.startsWith('/') && !v.includes('\n'));
+              detectMention(v, e.target.selectionStart ?? v.length);
+            }}
+            onKeyDown={(e) => {
+              // @ 自动补全面板键盘导航
+              if (showMention && mentionCandidates.length > 0) {
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault();
+                  activeMentionIdx.current = (activeMentionIdx.current + 1) % mentionCandidates.length;
+                  return;
+                }
+                if (e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  activeMentionIdx.current = (activeMentionIdx.current - 1 + mentionCandidates.length) % mentionCandidates.length;
+                  return;
+                }
+                if (e.key === 'Enter' || e.key === 'Tab') {
+                  e.preventDefault();
+                  applyMention(mentionCandidates[activeMentionIdx.current]);
+                  return;
+                }
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  closeMention();
+                  return;
+                }
+              }
+              if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                doSend();
+              }
+              if (e.key === 'Escape') {
+                setShowCmd(false);
+                setShowMention(false);
+              }
+            }}
+            onClick={(e) => detectMention(text, e.currentTarget.selectionStart ?? text.length)}
+            onKeyUp={(e) => detectMention(text, e.currentTarget.selectionStart ?? text.length)}
+            placeholder={
+              session?.mode === 'GROUP'
+                ? `输入消息… 支持 @角色名 指定发言，/new 新话题，/pass 跳过`
+                : '输入消息… 支持 Markdown / 数学公式，/new 开始新话题'
             }
-            if (e.key === 'Escape') setShowCmd(false);
-          }}
-          placeholder={
-            session?.mode === 'GROUP'
-              ? `输入消息… 支持 @角色名 指定发言，/new 新话题，/pass 跳过`
-              : '输入消息… 支持 Markdown / 数学公式，/new 开始新话题'
-          }
-          rows={1}
-          style={{ height: 'auto', minHeight: 38 }}
-        />
+            rows={1}
+            style={{ height: 'auto', minHeight: 38 }}
+          />
+          {showMention && mentionCandidates.length > 0 && (
+            <div className="mention-pop" ref={mentionRef}>
+              <div className="mention-pop-head">@ 点名角色</div>
+              {mentionCandidates.map((n, i) => (
+                <button
+                  key={n}
+                  className={`mention-item ${i === activeMentionIdx.current ? 'active' : ''}`}
+                  onMouseEnter={() => { activeMentionIdx.current = i; }}
+                  onClick={() => applyMention(n)}
+                >
+                  <span className="mention-item-at">@</span>
+                  {n}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         {streaming ? (
           <button className="btn btn-primary btn-round" onClick={stopStreaming} title="停止生成">
             <Icon name="stop" size={15} />
@@ -514,7 +684,7 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
       </div>
       <div className="composer-hint">
         <span>Enter 发送 · Shift+Enter 换行</span>
-        <span className="composer-hint-right">魔法命令: /new · /pass</span>
+        <span className="composer-hint-right">魔法命令: /new · /pass{session?.mode === 'GROUP' ? ' · @角色名 点名' : ''}</span>
       </div>
     </div>
   );
@@ -872,6 +1042,235 @@ function prettyJson(s: string): string {
   } catch {
     return s;
   }
+}
+
+// ============================================================
+// 发言队列面板（群聊右侧）：按循环展示完整发言顺序历史 + 实时指示正在发言者
+// ============================================================
+
+export function TurnQueuePanel({
+  session,
+  participants,
+}: {
+  session: ChatSession;
+  participants: ChatParticipant[];
+}) {
+  if (session.mode !== 'GROUP') return null;
+  const byId = useMemo(() => new Map(participants.map((p) => [p.participantId, p])), [participants]);
+  const npcs = useStore((s) => s.npcs);
+  const streamingSessionId = useStore((s) => s.streaming.sessionId);
+  // 订阅实时队列快照（每个回合推进 / 发言开始 / 玩家轮到都会更新）
+  const live = useStore((s) => s.liveQueueBySession[session.id!]);
+  // 展示历史：多个循环的完整顺序（发言过的角色不移除，新循环追加在历史后面）
+  const loops = useMemo(() => {
+    if (live) {
+      return live.history.length > 0 ? live.history : [live.queue.length > 0 ? live.queue : initializeTurnQueue(participants, live.turnOrderMode)];
+    }
+    const fallback = effectiveDisplayQueue(session, participants);
+    return [fallback];
+  }, [live, session, participants]);
+
+  const isStreamingThisSession = streamingSessionId === session.id;
+  // 正在发言者 = 剩余队列队首（live.queue[0]；随发言推进而变化）且正在流式生成
+  const liveQueue = live?.queue ?? effectiveDisplayQueue(session, participants);
+  const currentId = liveQueue.length > 0 ? parseInt(liveQueue[0], 10) : null;
+  const current = currentId != null ? byId.get(currentId) : null;
+  const isCurrentPlaying = current != null && current.kind === 'NPC' && isStreamingThisSession;
+  const currentSpeakingId = isCurrentPlaying ? String(currentId) : null;
+  const loopLabel = (live?.loopIndex ?? session.loopIndex) + 1;
+
+  // ---- 联动滚动：注册队列滚动容器，双向驱动由 linkedScroll 协调 ----
+  const bodyRef = useRef<HTMLDivElement>(null);
+  // 注册容器（registerQueueEl 内部重置抑制标志），body 只做注册，不含自驱动滚动
+  useEffect(() => {
+    registerQueueEl(bodyRef.current);
+    return () => registerQueueEl(null); // 卸载时解除引用
+  }, []);
+  // 新循环加入（轮数变化）→ 队列自动滚到当前循环（底部对齐，整组可见）
+  const loopsLen = loops.length;
+  useEffect(() => {
+    if (loopsLen > 0) scrollQueueToLoop(loopLabel);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loopsLen]);
+
+  const handleQueueItemClick = (loopNum: number, speakerKey: string | null) => {
+    scrollChatTo(loopNum - 1, speakerKey);
+  };
+
+  const renderLoop = (loopQueue: string[], loopNum: number) => {
+    const isCurrent = loopNum === loopLabel;
+    return (
+      <div
+        className="turn-queue-loop-group"
+        key={loopNum}
+        data-loop={loopNum - 1}
+      >
+        <div className="turn-queue-loop-head">
+          <span>第 {loopNum} 轮</span>
+          {isCurrent && <span className="turn-queue-loop-cur">当前</span>}
+        </div>
+        <ul className="turn-queue-list">
+          {loopQueue.map((id, i) => {
+            const p = byId.get(parseInt(id, 10));
+            if (!p) return null;
+            const isPlayer = p.kind === 'PLAYER';
+            const npc = p.npcId ? npcs.find((n) => n.id === p.npcId) : undefined;
+            const hue = npc?.avatarColorOrdinal ?? 0;
+            const avatarUrl = npc?.avatarDataUrl ?? null;
+            // 正在发言：仅当前循环中该角色 = 剩余队首（含思考阶段）
+            const isSpeaking = isCurrent && id === currentSpeakingId;
+            // 轮到玩家（且未在发言中）：队列首部 = 玩家 → 等待你
+            const isWaitingPlayer = isCurrent && isPlayer && currentId != null && id === String(currentId);
+            return (
+              <li
+                key={`${loopNum}-${id}`}
+                className={`turn-queue-item ${isSpeaking ? 'active playing' : ''} ${isWaitingPlayer ? 'waiting-user' : ''}`}
+                onClick={() => handleQueueItemClick(loopNum, isPlayer ? 'player' : id)}
+                title={isPlayer ? '点击定位到你的发言' : `点击定位到 ${speakerLabel(p)} 的发言`}
+              >
+                {isSpeaking && <span className="turn-queue-badge">▶ 发言中</span>}
+                {!isSpeaking && isWaitingPlayer && <span className="turn-queue-badge waiting">等待你</span>}
+                {!isSpeaking && !isWaitingPlayer && <span className="turn-queue-idx">{i + 1}</span>}
+                <Avatar name={speakerLabel(p)} colorOrdinal={hue} imageUrl={avatarUrl} size="xs" />
+                <span className="turn-queue-name">{speakerLabel(p)}</span>
+                {isPlayer && <span className="turn-queue-seat">你</span>}
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    );
+  };
+
+  return (
+    <div className="turn-queue">
+      <div className="turn-queue-head">
+        <span>发言队列</span>
+        <span className="turn-queue-loop">共 {loops.length} 轮</span>
+      </div>
+      <div className="turn-queue-body" ref={bodyRef} onScroll={onQueueScroll}>
+        {loops.map((loopQueue, idx) => renderLoop(loopQueue, idx + 1))}
+      </div>
+      <div className="turn-queue-foot">
+        <span>{(live?.turnOrderMode ?? session.turnOrderMode) === 'RANDOM' ? '随机顺序（每轮洗牌）' : '固定座位顺序'}</span>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// 群聊排队排序弹窗（固定顺序模式下的手工调整 / 随机切换）
+// ============================================================
+
+export function SortOrderModal({
+  session,
+  participants,
+  onClose,
+}: {
+  session: ChatSession;
+  participants: ChatParticipant[];
+  onClose: () => void;
+}) {
+  const setTurnOrderMode = useStore((s) => s.setTurnOrderMode);
+  const reorderParticipants = useStore((s) => s.reorderParticipants);
+  const addToast = useStore((s) => s.addToast);
+  const npcs = useStore((s) => s.npcs);
+  const [mode, setMode] = useState<'PRESET' | 'RANDOM'>(session.turnOrderMode);
+  const [order, setOrder] = useState<ChatParticipant[]>(() =>
+    [...participants].sort((a, b) => a.seatOrder - b.seatOrder)
+  );
+  const dragRef = useRef<{ id: number } | null>(null);
+
+  const applyMode = async (m: 'PRESET' | 'RANDOM') => {
+    setMode(m);
+    if (m === 'PRESET') {
+      await setTurnOrderMode(session.id!, 'PRESET');
+      addToast('已切换为固定顺序（按座位排列）');
+    } else {
+      await setTurnOrderMode(session.id!, 'RANDOM');
+      addToast('已切换为随机顺序（每轮开始洗牌）');
+    }
+  };
+
+  const onDragStart = (idx: number) => {
+    dragRef.current = { id: order[idx].participantId };
+  };
+  const onDrop = (targetIdx: number) => {
+    const drag = dragRef.current;
+    dragRef.current = null;
+    if (!drag || drag.id === order[targetIdx].participantId) return;
+    setOrder((prev) => {
+      const from = prev.findIndex((p) => p.participantId === drag.id);
+      if (from < 0) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(targetIdx, 0, moved);
+      return next;
+    });
+  };
+  const onSave = async () => {
+    await reorderParticipants(session.id!, order.map((p) => p.participantId));
+    addToast('已保存固定座位顺序');
+    onClose();
+  };
+
+  return (
+    <Modal onClose={onClose} width="min(440px, calc(100vw - 32px))">
+      <div className="modal-head">
+        <span style={{ fontWeight: 800, fontSize: 15 }}>发言顺序设置</span>
+        <button className="icon-btn" onClick={onClose}><Icon name="x" /></button>
+      </div>
+      <div className="modal-body">
+        {/* 顺序模式切换 */}
+        <div className="seg">
+          <button
+            className={`seg-btn ${mode === 'PRESET' ? 'active' : ''}`}
+            onClick={() => applyMode('PRESET')}
+            title="每个循环开始时，队列按固定座位顺序排列（可拖动调整）"
+          >
+            固定顺序
+          </button>
+          <button
+            className={`seg-btn ${mode === 'RANDOM' ? 'active' : ''}`}
+            onClick={() => applyMode('RANDOM')}
+            title="每个循环开始时，队列随机洗牌"
+          >
+            随机顺序
+          </button>
+        </div>
+        <div className="sort-hint">
+          {mode === 'PRESET' ? '拖动调整发言顺序：队首优先发言' : '队列会在每个循环开始时洗牌（当前展示预设预览）'}
+        </div>
+        <div className="sort-list">
+          {order.map((p, i) => {
+            const npc = p.npcId ? npcs.find((n) => n.id === p.npcId) : undefined;
+            const hue = npc?.avatarColorOrdinal ?? 0;
+            const avatarUrl = npc?.avatarDataUrl ?? null;
+            return (
+              <div
+                key={p.participantId}
+                className="sort-item"
+                draggable={mode === 'PRESET'}
+                onDragStart={() => onDragStart(i)}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={() => onDrop(i)}
+              >
+                <span className="sort-grip">⠿</span>
+                <Avatar name={speakerLabel(p)} colorOrdinal={hue} imageUrl={avatarUrl} size="xs" />
+                <span className="sort-name">{speakerLabel(p)}</span>
+                {p.kind === 'PLAYER' && <span className="sort-tag">你</span>}
+                <span className="sort-idx">{i + 1}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      <div className="modal-foot">
+        <button className="btn" onClick={onClose}>取消</button>
+        <button className="btn btn-primary" disabled={mode !== 'PRESET'} onClick={onSave}>保存顺序</button>
+      </div>
+    </Modal>
+  );
 }
 
 export default ChatView;

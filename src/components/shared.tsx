@@ -237,6 +237,9 @@ const ICONS: Record<string, React.ReactNode> = {
   paperclip: <path d="M21.44 11.05 12.25 20.24a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.82-2.83l8.49-8.48" />,
   share: <><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" /><path d="m16 6-4-4-4 4M12 2v13" /></>,
   'user-persona': <><circle cx="12" cy="8" r="4" /><path d="M4 20c1.5-3.2 4.4-5 8-5s6.5 1.8 8 5" /></>,
+  sort: <><path d="M11 5h10M11 9h7M11 13h4" /><path d="m3 17 3 3 3-3M6 20V4" /></>,
+  shuffle: <><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5" /></>,
+  list: <><path d="M8 6h13M8 12h13M8 18h13" /><path d="M3 6h.01M3 12h.01M3 18h.01" /></>,
   pencil: <><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5l-5 1 1-5Z" /><path d="m15 5 4 4" /></>,
   download: <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="m7 10 5 5 5-5M12 15V3" /></>,
 };

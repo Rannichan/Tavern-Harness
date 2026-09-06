@@ -186,14 +186,14 @@ export function renderMarkdown(source: string, opts?: { mathEnabled?: boolean })
   return html;
 }
 
-/** @mention 高亮（发言者名字最长优先） */
+/** @mention 高亮（发言者名字最长优先；斜体加粗 + 特殊字体颜色，作为特殊文本内指令） */
 export function highlightMentions(html: string, names: string[]): string {
   const sorted = [...names].sort((a, b) => b.length - a.length);
   let result = html;
   for (const name of sorted) {
     // 仅在非 code 区域高亮（简化处理：直接替换 @名字）
     const re = new RegExp(`(@${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})(?=\\s|[，。！？,.!?]|$)`, 'g');
-    result = result.replace(re, '<span class="mention">$1</span>');
+    result = result.replace(re, '<span class="mention" title="点名该角色">$1</span>');
   }
   return result;
 }

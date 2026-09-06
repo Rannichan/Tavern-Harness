@@ -266,6 +266,7 @@ export function scheduleTask(id: string, triggerAtMillis: number): void {
       toolCallsJson: '[]',
       toolCallId: null,
       thinkingContent: null,
+      loopIndex: null,
       timestamp: Date.now(),
       latencyMs: null,
       promptTokens: 0,

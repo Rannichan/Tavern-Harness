@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useStore } from './store/store';
 import { Sidebar } from './components/Sidebar';
-import { ChatView, ChatInput, MessageMenu } from './components/ChatView';
+import { ChatView, ChatInput, MessageMenu, TurnQueuePanel, SortOrderModal } from './components/ChatView';
 import { CharactersView } from './components/CharactersView';
 import { SettingsView } from './components/SettingsView';
 import { StatsView } from './components/StatsView';
@@ -55,13 +55,18 @@ export default function App() {
           {activeView === 'chat' && activeSession && (
             <>
               <SessionHeader session={activeSession} participants={sessionParticipants} />
-              <ChatView
-                session={activeSession}
-                messages={sessionMessages}
-                participants={sessionParticipants}
-                streaming={isStreamingSession}
-              />
-              <ChatInput sessionId={activeSession.id!} />
+              <div className="chat-main-row">
+                <div className="chat-main-col">
+                  <ChatView
+                    session={activeSession}
+                    messages={sessionMessages}
+                    participants={sessionParticipants}
+                    streaming={isStreamingSession}
+                  />
+                  <ChatInput sessionId={activeSession.id!} />
+                </div>
+                <TurnQueuePanel session={activeSession} participants={sessionParticipants} />
+              </div>
             </>
           )}
           {activeView === 'chat' && !activeSession && <Dashboard />}
@@ -92,6 +97,7 @@ function SessionHeader({
   const deleteSession = useStore((s) => s.deleteSession);
   const [picker, setPicker] = useState<'persona' | 'worldbook' | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [showSort, setShowSort] = useState(false);
 
   const modeLabel = session.mode === 'STANDARD' ? '标准对话' : session.mode === 'NPC' ? '角色对话' : '群聊';
   const npcRef = session.associatedId ? npcs.find((n) => n.id === session.associatedId) : null;
@@ -149,6 +155,15 @@ function SessionHeader({
         </div>
       </div>
       <div className="chat-actions">
+        {session.mode === 'GROUP' && (
+          <button
+            className="btn-ghost icon-tooltip has-value"
+            title={session.turnOrderMode === 'RANDOM' ? '发言顺序：随机（每轮洗牌）' : '发言顺序：固定（可拖动调整）'}
+            onClick={() => setShowSort(true)}
+          >
+            <Icon name="sort" size={17} />
+          </button>
+        )}
         <button
           className={`btn-ghost icon-tooltip ${personaName ? 'has-value' : ''}`}
           title={personaName ? `用户人设：${personaName}` : '更换用户人设'}
@@ -236,6 +251,10 @@ function SessionHeader({
             </button>
           </div>
         </Modal>
+      )}
+
+      {showSort && session.mode === 'GROUP' && (
+        <SortOrderModal session={session} participants={participants} onClose={() => setShowSort(false)} />
       )}
     </div>
   );

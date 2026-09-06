@@ -641,7 +641,6 @@ body.resizing .sidebar-resizer {
   flex: 1;
   overflow-y: auto;
   padding: 20px 0 10px;
-  scroll-behavior: smooth;
 }
 .chat-scroll::before {
   content: '';

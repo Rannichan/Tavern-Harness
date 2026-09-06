@@ -23,9 +23,14 @@ import {
   initializeTurnQueue,
   mentionedParticipantIds,
   parseMagicCommand,
+  passPlayer,
+  queueHistoryJson,
   queueJson,
   refreshQueue,
+  safeParseQueue,
+  safeParseQueueHistory,
 } from '../core/turnLoop';
+import type { TurnOrderMode } from '../types/models';
 import { NEW_TOPIC_MARKER, MAX_TOOL_CALL_DEPTH } from '../core/toolDefinitions';
 import { getEnabledToolsForSession, executeToolCall } from '../core/tools/toolExecutor';
 import { scheduleRestoredTasks } from '../core/tools/toolExecutor';
@@ -75,6 +80,16 @@ interface AppState {
   streaming: StreamingState;
   pendingConfirmation: ToolConfirmationRequest | null;
 
+  /** 群聊实时队列快照（与 DB 同步更新，面板订阅此值实现实时指示） */
+  liveQueueBySession: Record<number, {
+    /** 当前循环剩余队列（队首 = 正在发言/下一发言者） */
+    queue: string[];
+    /** 各循环完整初始顺序历史（含当前循环） */
+    history: string[][];
+    loopIndex: number;
+    turnOrderMode: TurnOrderMode;
+  }>;
+
   toasts: Toast[];
 
   init: () => Promise<void>;
@@ -88,6 +103,13 @@ interface AppState {
   stopStreaming: () => void;
   deleteSession: (id: number) => Promise<void>;
   resolveConfirmation: (approved: boolean) => void;
+  setTurnOrderMode: (sessionId: number, mode: TurnOrderMode) => Promise<void>;
+  reorderParticipants: (sessionId: number, participantIdsInOrder: number[]) => Promise<void>;
+  moveParticipant: (sessionId: number, participantId: number, newSeat: number) => Promise<void>;
+  /** 用 DB 最新数据刷新某会话的队列快照（面板实时源） */
+  refreshLiveQueue: (sessionId: number) => Promise<void>;
+  /** 清除某会话的队列快照（会话删除时） */
+  clearLiveQueue: (sessionId: number) => void;
 
   refreshSessions: () => Promise<void>;
   refreshNpcs: () => Promise<void>;
@@ -108,6 +130,8 @@ interface AppState {
 
 let toastSeq = 0;
 let initLock: Promise<void> | null = null;
+/** 用户主动停止生成时置位，用于中断群聊循环 */
+let groupLoopStopped = false;
 
 export const useStore = create<AppState>((set, get) => ({
   initialized: false,
@@ -129,6 +153,8 @@ export const useStore = create<AppState>((set, get) => ({
   streaming: { sessionId: null, abort: null },
   pendingConfirmation: null,
 
+  liveQueueBySession: {},
+
   toasts: [],
 
   init: async () => {
@@ -149,6 +175,7 @@ export const useStore = create<AppState>((set, get) => ({
       if (sessions.length > 0) {
         set({ activeSessionId: sessions[0].id! });
         await get().loadMessages(sessions[0].id!);
+        await get().refreshLiveQueue(sessions[0].id!);
       } else {
         set({ activeSessionId: null, activeView: 'chat' });
       }
@@ -167,7 +194,10 @@ export const useStore = create<AppState>((set, get) => ({
 
   setActiveSession: (id) => {
     set({ activeSessionId: id, activeView: 'chat' });
-    if (id != null) get().loadMessages(id);
+    if (id != null) {
+      get().loadMessages(id);
+      get().refreshLiveQueue(id);
+    }
   },
 
   setActiveView: (v) => set({ activeView: v }),
@@ -269,7 +299,7 @@ export const useStore = create<AppState>((set, get) => ({
       return;
     }
 
-    // 保存用户消息
+    // 保存用户消息（若在群聊中轮到玩家，同时将其移出队列）
     const attachInfos = attachments.map((a, i) => ({
       mimeType: a.startsWith('data:image') ? 'image/png' : 'video/mp4',
       displayName: attachmentNames[i]?.trim() || '附件',
@@ -284,6 +314,8 @@ export const useStore = create<AppState>((set, get) => ({
       toolCallsJson: '[]',
       toolCallId: null,
       thinkingContent: null,
+      // 群聊：用户发言归属于当前循环（用于对话↔队列联动滚动定位）
+      loopIndex: session.mode === 'GROUP' ? currentLoopIndexOf(session) : null,
       timestamp: Date.now(),
       latencyMs: null,
       promptTokens: 0,
@@ -300,6 +332,25 @@ export const useStore = create<AppState>((set, get) => ({
     await db.sessions.update(sessionId, { updatedAt: Date.now(), lastMessage: sessionPreviewText(text) });
     await get().loadMessages(sessionId);
     await get().refreshSessions();
+
+    if (session.mode === 'GROUP') {
+      // 群聊：玩家始终是队列正式成员（默认队首）。轮到玩家时输入 → 将玩家移出队列，
+      // 其余成员继续发言；@点名也能让目标优先/立即发言。
+      const participants = await db.participants.where('sessionId').equals(sessionId).toArray();
+      const fresh = (await db.sessions.get(sessionId)) ?? session;
+      const { queue, loopIndex, loopStarted } = refreshQueue(fresh, participants);
+      const player = participants.find((p) => p.kind === 'PLAYER') ?? { participantId: -1 } as ChatParticipant;
+      const playerId = player.participantId.toString();
+      const isPlayerQueued = queue.includes(playerId);
+      const next = isPlayerQueued
+        ? completeTurn(queue, player.participantId, mentionedParticipantIds(text, participants, player.participantId))
+        : queue;
+      // 边界时 queue 为全新完整顺序 → persistQueue 会把它追加进循环历史
+      await persistQueue(sessionId, next, loopIndex, loopStarted);
+      await get().refreshLiveQueue(sessionId);
+      await continueGroupConversation(sessionId);
+      return;
+    }
 
     await runConversationLoop(session);
   },
@@ -348,7 +399,10 @@ export const useStore = create<AppState>((set, get) => ({
 
   stopStreaming: () => {
     const abort = get().streaming.abort;
-    if (abort) abort.abort();
+    if (abort) {
+      groupLoopStopped = true;
+      abort.abort();
+    }
   },
 
   deleteSession: async (id) => {
@@ -356,6 +410,7 @@ export const useStore = create<AppState>((set, get) => ({
     await db.participants.where('sessionId').equals(id).delete();
     await db.sessions.delete(id);
     if (get().activeSessionId === id) set({ activeSessionId: null });
+    get().clearLiveQueue(id);
     await get().refreshSessions();
   },
 
@@ -365,6 +420,99 @@ export const useStore = create<AppState>((set, get) => ({
     const d = confirmationDeferreds.get(req);
     if (d) d.resolve(approved);
     set({ pendingConfirmation: null });
+  },
+
+  /** 切换群聊发言顺序模式（PRESET 固定座位 / RANDOM 每循环洗牌）并重置当前队列 */
+  setTurnOrderMode: async (sessionId, mode) => {
+    const session = await db.sessions.get(sessionId);
+    if (!session) return;
+    const participants = await db.participants.where('sessionId').equals(sessionId).toArray();
+    const queue = initializeTurnQueue(participants, mode);
+    await db.sessions.update(sessionId, {
+      turnOrderMode: mode,
+      // 切换顺序时重置队列并从新顺序开始；历史也重置为新循环
+      turnQueueJson: queueJson(queue),
+      turnQueueHistoryJson: queueHistoryJson([queue]),
+      loopIndex: 0,
+    });
+    await get().refreshSessions();
+    await get().refreshLiveQueue(sessionId);
+  },
+
+  /** 保存群聊成员的固定座位顺序（由排序弹窗拖动产生） */
+  reorderParticipants: async (sessionId, participantIdsInOrder) => {
+    const participants = await db.participants.where('sessionId').equals(sessionId).toArray();
+    const seatById = new Map<string, number>();
+    participantIdsInOrder.forEach((id, i) => seatById.set(String(id), i));
+    let changed = false;
+    for (const p of participants) {
+      const seat = seatById.get(String(p.participantId));
+      if (seat != null && seat !== p.seatOrder) {
+        await db.participants.update(p, { seatOrder: seat });
+        changed = true;
+      }
+    }
+    if (changed) {
+      await get().loadMessages(sessionId);
+      await get().refreshSessions();
+      await get().refreshLiveQueue(sessionId);
+    }
+  },
+
+  /** 单个成员移动到新座位（拖拽重排时交互式更新，保持其余成员相对位置） */
+  moveParticipant: async (sessionId, participantId, newSeat) => {
+    const participants = (await db.participants.where('sessionId').equals(sessionId).toArray()).sort(
+      (a, b) => a.seatOrder - b.seatOrder
+    );
+    const idx = participants.findIndex((p) => p.participantId === participantId);
+    if (idx < 0) return;
+    const [moved] = participants.splice(idx, 1);
+    const clamped = Math.max(0, Math.min(newSeat, participants.length));
+    participants.splice(clamped, 0, moved);
+    for (let i = 0; i < participants.length; i++) {
+      if (participants[i].seatOrder !== i) {
+        await db.participants.update(participants[i], { seatOrder: i });
+      }
+    }
+    await get().loadMessages(sessionId);
+    await get().refreshSessions();
+    await get().refreshLiveQueue(sessionId);
+  },
+
+  /** 用 DB 最新队列刷新快照（群聊面板的实时数据源） */
+  refreshLiveQueue: async (sessionId) => {
+    const session = await db.sessions.get(sessionId);
+    if (!session) {
+      get().clearLiveQueue(sessionId);
+      return;
+    }
+    const history = await ensureLoopHistory(sessionId);
+    const parts = await db.participants.where('sessionId').equals(sessionId).toArray();
+    // 展示用：队首仅用于「正在发言」指示；队列本身以循环历史为准
+    const queue = safeParseQueue(session.turnQueueJson).filter((id) =>
+      parts.some((p) => String(p.participantId) === id)
+    );
+    set((s) => ({
+      liveQueueBySession: {
+        ...s.liveQueueBySession,
+        [sessionId]: {
+          queue,
+          history,
+          loopIndex: session.loopIndex,
+          turnOrderMode: session.turnOrderMode,
+        },
+      },
+    }));
+  },
+
+  /** 清除某会话的队列快照 */
+  clearLiveQueue: (sessionId) => {
+    set((s) => {
+      if (!(sessionId in s.liveQueueBySession)) return {};
+      const next = { ...s.liveQueueBySession };
+      delete next[sessionId];
+      return { liveQueueBySession: next };
+    });
   },
 
   addToast: (message, kind = 'info') => {
@@ -430,6 +578,7 @@ export async function createSession(
     userPersonaNpcId: opts?.userPersonaNpcId ?? null,
     turnOrderMode: 'PRESET',
     turnQueueJson: '[]',
+    turnQueueHistoryJson: '[]',
     loopIndex: 0,
     lastMessage: '',
     updatedAt: now,
@@ -477,9 +626,12 @@ export async function createSession(
   }
   await db.participants.bulkAdd(participants);
 
-  // 初始化队列
-  const queue = initializeTurnQueue(participants.filter((p) => p.kind === 'NPC'), 'PRESET');
-  await db.sessions.update(id, { turnQueueJson: queueJson(queue) });
+  // 初始化队列（含玩家；玩家默认队首）— 群聊的循环由全体成员组成
+  const queue = initializeTurnQueue(participants, 'PRESET');
+  await db.sessions.update(id, {
+    turnQueueJson: queueJson(queue),
+    turnQueueHistoryJson: queueHistoryJson([queue]),
+  });
 
   // NPC 模式的问候语
   if (mode === 'NPC' && opts?.associatedId != null) {
@@ -494,6 +646,7 @@ export async function createSession(
         toolCallsJson: '[]',
         toolCallId: null,
         thinkingContent: null,
+        loopIndex: 0,
         timestamp: Date.now(),
         latencyMs: null,
         promptTokens: 0,
@@ -512,6 +665,7 @@ export async function createSession(
 
   // 同步 store
   await useStore.getState().refreshSessions();
+  await useStore.getState().refreshLiveQueue(id);
 
   return id;
 }
@@ -527,6 +681,7 @@ async function handleMagicCommand(session: ChatSession, cmd: string): Promise<vo
       toolCallsJson: '[]',
       toolCallId: null,
       thinkingContent: null,
+      loopIndex: session.mode === 'GROUP' ? currentLoopIndexOf(session) : null,
       timestamp: Date.now(),
       latencyMs: null,
       promptTokens: 0,
@@ -543,15 +698,19 @@ async function handleMagicCommand(session: ChatSession, cmd: string): Promise<vo
     await db.sessions.update(session.id!, { updatedAt: Date.now(), lastMessage: '开始新话题' });
     await useStore.getState().loadMessages(session.id!);
   } else if (cmd === '/pass') {
-    // 群聊中跳过当前回合（玩家回合 → 下一位）
+    // 魔法指令 /pass：将玩家移出队列，不修改任何对话历史
     if (session.mode === 'GROUP') {
       const participants = await db.participants.where('sessionId').equals(session.id!).toArray();
       const session1 = await db.sessions.get(session.id!);
       if (session1) {
-        const { queue, loopIndex } = refreshQueue(session1, participants);
-        const next = completeTurn(queue, -1, []);
-        await db.sessions.update(session1.id!, { turnQueueJson: queueJson(next), loopIndex });
-        // 继续群聊
+        const player = participants.find((p) => p.kind === 'PLAYER');
+        const playerId = player ? player.participantId : -1;
+        const { queue, loopIndex, loopStarted } = refreshQueue(session1, participants);
+        // 将玩家移出队列；边界时把新循环完整顺序写入历史
+        await persistQueue(session1.id!, passPlayer(queue, playerId), loopIndex, loopStarted);
+        // 实时刷新队列面板（玩家已移出）
+        await useStore.getState().refreshLiveQueue(session1.id!);
+        // 继续群聊（其余成员依次发言）
         await continueGroupConversation(session.id!);
       }
     } else {
@@ -574,18 +733,78 @@ async function runConversationLoop(session: ChatSession): Promise<void> {
   }
 }
 
+/**
+ * 统一持久化队列与循环历史：
+ * - 保存剩余队列（队首 = 下一发言者）
+ * - loopStarted（刚进入新循环）→ 把新循环完整顺序追加到历史末尾
+ * 所有队列变更点（玩家发言 / /pass / 回合推进 / 循环结束重初始化）都经由它落库，
+ * 保证面板的「循环历史」完整可观测。
+ */
+async function persistQueue(
+  sessionId: number,
+  queue: string[],
+  loopIndex: number,
+  loopStarted: boolean
+): Promise<void> {
+  const session = await db.sessions.get(sessionId);
+  if (!session) return;
+  const history = safeParseQueueHistory(session.turnQueueHistoryJson || '[]');
+  const nextHistory = loopStarted ? [...history, queue] : history;
+  await db.sessions.update(sessionId, {
+    turnQueueJson: queueJson(queue),
+    loopIndex,
+    turnQueueHistoryJson: queueHistoryJson(nextHistory),
+  });
+}
+
 async function refreshQueueAndSave(sessionId: number): Promise<void> {
   const session = await db.sessions.get(sessionId);
   if (!session) return;
   const parts = await db.participants.where('sessionId').equals(sessionId).toArray();
-  const { queue, loopIndex } = refreshQueue(session, parts);
-  await db.sessions.update(sessionId, { turnQueueJson: queueJson(queue), loopIndex });
+  const { queue, loopIndex, loopStarted } = refreshQueue(session, parts);
+  await persistQueue(sessionId, queue, loopIndex, loopStarted);
+  await useStore.getState().refreshLiveQueue(sessionId);
+}
+
+/**
+ * 读取循环历史（带兼容兜底：无历史记录时用当前队列作为第 1 轮）。
+ * 历史的新循环追加由各队列变更点（persistQueue）完成。
+ */
+async function ensureLoopHistory(sessionId: number): Promise<string[][]> {
+  const session = await db.sessions.get(sessionId);
+  if (!session) return [];
+  const history = safeParseQueueHistory(session.turnQueueHistoryJson || '[]');
+  if (history.length > 0) return history;
+  // 兼容旧数据 / 极早阶段：用当前队列作为唯一一轮
+  const parts = await db.participants.where('sessionId').equals(sessionId).toArray();
+  const { queue } = refreshQueue(session, parts);
+  if (queue.length > 0) {
+    await db.sessions.update(sessionId, { turnQueueHistoryJson: queueHistoryJson([queue]) });
+    return [queue];
+  }
+  return [];
 }
 
 function lastUserText(sessionId: number): string {
   const list = useStore.getState().messages[sessionId] ?? [];
   const last = [...list].reverse().find((m) => m.role === 'user');
   return last?.content ?? '';
+}
+
+/** 会话中最近一次「角色/用户」发言文本（用于解析任一发言者消息中的 @ 点名） */
+function lastSpeakerText(sessionId: number): string {
+  const list = useStore.getState().messages[sessionId] ?? [];
+  const last = [...list].reverse().find((m) => m.role === 'user' || m.role === 'assistant');
+  return last?.content ?? '';
+}
+
+/**
+ * 群聊当前循环号（0 起）：以会话最新持久化的 loopIndex 为准。
+ * 玩家在某循环发言时，消息归属该循环；会话刚进入新循环（loopIndex 未变）时，
+ * 新循环的“领首”消息仍归属当前 loopIndex，保证对话与队列循环历史逐轮对齐。
+ */
+function currentLoopIndexOf(session: ChatSession): number {
+  return session.loopIndex ?? 0;
 }
 
 /**
@@ -629,7 +848,8 @@ async function streamAssistantTurn(
   npc: NpcCharacter | null,
   participantId: number | null = null,
   participant?: ChatParticipant,
-  mentionedIds: number[] = []
+  mentionedIds: number[] = [],
+  turnLoopIndex: number | null = null
 ): Promise<void> {
   const settings = useStore.getState().settings;
   if (!settings) return;
@@ -643,6 +863,8 @@ async function streamAssistantTurn(
 
   const sessionId = session.id!;
   useStore.setState({ streaming: { sessionId, abort: new AbortController() } });
+  // 面板实时指示：该角色开始发言（队列首位高亮）
+  await useStore.getState().refreshLiveQueue(sessionId);
 
   const participants = await db.participants.where('sessionId').equals(sessionId).toArray();
   const activeParticipantId = participantId;
@@ -676,7 +898,24 @@ async function streamAssistantTurn(
       systemPrompt = buildNpcSystemPrompt(npc?.prompt ?? '', worldBook?.content, userPersona?.prompt);
     } else {
       const name = participant?.displayName ?? npc?.name ?? '';
-      systemPrompt = buildGroupSystemPrompt(name, npc?.prompt ?? '', worldBook?.content, userPersona?.prompt);
+      // 传入全体成员、玩家称谓与当前回合队列顺序，让模型感知轮次与 @ 呼叫
+      const allSpeakerNames = participants
+        .filter((p) => p.kind === 'NPC')
+        .map((p) => p.displayName);
+      const playerP = participants.find((p) => p.kind === 'PLAYER');
+      const queueOrder = safeParseQueue(session.turnQueueJson).map((id) => {
+        const p = participants.find((pp) => String(pp.participantId) === id);
+        return p
+          ? p.kind === 'PLAYER'
+            ? playerP?.displayName ?? '用户'
+            : p.displayName
+          : id;
+      });
+      systemPrompt = buildGroupSystemPrompt(name, npc?.prompt ?? '', worldBook?.content, userPersona?.prompt, {
+        allSpeakerNames,
+        playerName: playerP?.displayName ?? '用户',
+        currentTurnQueueOrder: queueOrder,
+      });
     }
     nmessages.unshift({ role: 'system', content: systemPrompt });
 
@@ -712,6 +951,7 @@ async function streamAssistantTurn(
       toolCallsJson: '[]',
       toolCallId: null,
       thinkingContent: null,
+      loopIndex: turnLoopIndex,
       timestamp: Date.now(),
       latencyMs: null,
       promptTokens: 0,
@@ -868,6 +1108,7 @@ async function streamAssistantTurn(
           toolCallsJson: '[]',
           toolCallId: tc.id,
           thinkingContent: null,
+          loopIndex: turnLoopIndex,
           timestamp: Date.now(),
           latencyMs: null,
           promptTokens: 0,
@@ -898,13 +1139,22 @@ async function streamAssistantTurn(
 
 /** 群聊主循环：持续从队列取发言者 */
 async function continueGroupConversation(sessionId: number): Promise<void> {
+  groupLoopStopped = false;
   let guard = 0;
   while (guard < 20) {
+    if (groupLoopStopped) break;
     const session = await db.sessions.get(sessionId);
     if (!session) break;
     const players = await db.participants.where('sessionId').equals(sessionId).toArray();
-    const { queue, loopIndex } = refreshQueue(session, players);
+    const { queue, loopIndex, loopStarted } = refreshQueue(session, players);
+    if (loopStarted) {
+      // 循环边界：把新循环的完整顺序写入历史（队首可能直接是 NPC，需先落库），
+      // 并立刻刷新面板 → 新循环立即加入显示
+      await persistQueue(sessionId, queue, loopIndex, true);
+      await useStore.getState().refreshLiveQueue(sessionId);
+    }
     if (queue.length === 0) {
+      // 队列空 = 循环结束：刷新面板
       await refreshQueueAndSave(sessionId);
       break;
     }
@@ -915,24 +1165,22 @@ async function continueGroupConversation(sessionId: number): Promise<void> {
       await refreshQueueAndSave(sessionId);
       break;
     }
+    // 面板实时指示：正在发言者 = 队列首位
+    await useStore.getState().refreshLiveQueue(sessionId);
     const npc = next.npcId ? await db.npcs.get(next.npcId) : null;
     if (!npc) {
-      await db.sessions.update(sessionId, {
-        turnQueueJson: queueJson(completeTurn(queue, nextId, [])),
-        loopIndex,
-      });
+      await persistQueue(sessionId, completeTurn(queue, nextId, []), loopIndex, false);
       guard++;
       continue;
     }
-    const mentioned = mentionedParticipantIds(lastUserText(sessionId), players, nextId);
-    await streamAssistantTurn(session, npc, nextId, next, mentioned);
+    const mentioned = mentionedParticipantIds(lastSpeakerText(sessionId), players, nextId);
+    // 先不推进队列：让流式发言期间队列首位 = 正在发言的角色（面板实时高亮）
+    await streamAssistantTurn(session, npc, nextId, next, mentioned, loopIndex);
+    // 回合结束：移出该发言者 + 被 @ 点名者插入/移到队首（历史轮次不受影响）
+    await persistQueue(sessionId, completeTurn(queue, nextId, mentioned), loopIndex, false);
     guard++;
     // 用户主动 stop 时中断
-    if (!useStore.getState().streaming.sessionId && guard > 1) {
-      // streamAssistantTurn 内部维护 streaming；检查是否中断
-      const isStillStreaming = useStore.getState().streaming.sessionId != null;
-      if (isStillStreaming) break;
-    }
+    if (groupLoopStopped) break;
   }
 }
 

@@ -73,6 +73,8 @@ export interface ChatSession {
   userPersonaNpcId: number | null;
   turnOrderMode: TurnOrderMode;
   turnQueueJson: string;
+  /** 各循环的完整初始顺序历史（JSON 二维数组），用于群聊发言队列面板展示完整历史 */
+  turnQueueHistoryJson: string;
   loopIndex: number;
   lastMessage: string;
   updatedAt: number;
@@ -113,6 +115,8 @@ export interface ChatMessage {
   toolCallsJson: string;
   toolCallId: string | null;
   thinkingContent: string | null;
+  /** 群聊：该消息所属的循环序号（0 起）。用于对话与发言队列联动滚动 / 点击定位 */
+  loopIndex: number | null;
   timestamp: number;
   latencyMs: number | null;
   promptTokens: number;

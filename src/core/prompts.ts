@@ -27,11 +27,30 @@ export function buildGroupSystemPrompt(
   activeSpeakerName: string,
   activeNpcPrompt: string,
   worldBookContent?: string | null,
-  userPersonaPrompt?: string | null
+  userPersonaPrompt?: string | null,
+  requestPayload?: {
+    allSpeakerNames: string[];
+    playerName?: string | null;
+    currentTurnQueueOrder: string[];
+  }
 ): string {
+  const others = (requestPayload?.allSpeakerNames ?? []).filter((n) => n !== activeSpeakerName);
+  const playerName = requestPayload?.playerName ?? '用户';
+  const orderHint =
+    requestPayload?.currentTurnQueueOrder && requestPayload.currentTurnQueueOrder.length > 0
+      ? `\nThe speaking order for the current round is: ${requestPayload.currentTurnQueueOrder.join(' → ')}`
+      : '';
+
   return (
     `You are participating in a multi-character conversation. Reply only as ${activeSpeakerName}.\n` +
-    `Never write dialogue for another participant.\n\n=== ${activeSpeakerName} ===\n` +
+    `Never write dialogue for another participant.\n` +
+    (others.length > 0
+      ? `The other participants are: ${others.join(', ')}.\nThe user (a participant named "${playerName}") may speak at any moment — when they do, respond naturally as ${activeSpeakerName}.\n`
+      : '') +
+    `Messages prefixed with [角色名] are utterances by that participant; messages prefixed with [${playerName}] are the user's.\n` +
+    `When you need to direct the next speaker, you may use @角色名 in your reply to call on another participant.\n` +
+    orderHint +
+    `\n\n=== ${activeSpeakerName} ===\n` +
     activeNpcPrompt +
     (worldBookContent ? `\n\n=== WORLD BOOK (世界书) ===\n${worldBookContent}` : '') +
     (userPersonaPrompt ? `\n\n=== USER INFO (用户扮演的角色) ===\n${userPersonaPrompt}` : '')
