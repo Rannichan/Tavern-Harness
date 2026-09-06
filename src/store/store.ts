@@ -30,7 +30,7 @@ import {
   safeParseQueue,
   safeParseQueueHistory,
 } from '../core/turnLoop';
-import type { TurnOrderMode } from '../types/models';
+import type { ChatCompletionRequest, TurnOrderMode } from '../types/models';
 import { NEW_TOPIC_MARKER, MAX_TOOL_CALL_DEPTH } from '../core/toolDefinitions';
 import { getEnabledToolsForSession, executeToolCall } from '../core/tools/toolExecutor';
 import { scheduleRestoredTasks } from '../core/tools/toolExecutor';
@@ -862,12 +862,15 @@ async function streamAssistantTurn(
   const { baseUrl, apiKey, model } = endpoint;
 
   const sessionId = session.id!;
-  useStore.setState({ streaming: { sessionId, abort: new AbortController() } });
+  const abortController = new AbortController();
+  useStore.setState({ streaming: { sessionId, abort: abortController } });
   // 面板实时指示：该角色开始发言（队列首位高亮）
   await useStore.getState().refreshLiveQueue(sessionId);
 
   const participants = await db.participants.where('sessionId').equals(sessionId).toArray();
   const activeParticipantId = participantId;
+  // 用户点击「停止生成」（stopStreaming → abort.abort()）后置位，用于中断正在进行的流式拉取
+  let stopped = false;
 
   // ---- ReAct 深度循环 ----
   let depth = 0;
@@ -940,6 +943,9 @@ async function streamAssistantTurn(
       baseUrl,
     });
 
+    // 本次循环已因用户停止而中断 → 不再发起新一轮请求
+    if (abortController.signal.aborted) break;
+
     // 草稿消息（流式更新）
     const startTime = Date.now();
     const draftId = await db.messages.add({
@@ -1000,6 +1006,11 @@ async function streamAssistantTurn(
         case 'error':
           errorMsg = chunk.message;
           break;
+        case 'done':
+          // 用户点击「停止」（stopStreaming → abort.abort()）导致读取被中断时,
+          // attemptStream 会以 done 结束;不再继续累积内容/工具调用
+          if (abortController.signal.aborted) stopped = true;
+          break;
       }
       // 流式更新草稿
       useStore.setState((s) => {
@@ -1017,7 +1028,7 @@ async function streamAssistantTurn(
         };
         return { messages: { ...s.messages, [sessionId]: list } };
       });
-    });
+    }, abortController.signal);
 
     // 出错时：撤销草稿消息并提示
     if (errorMsg) {
@@ -1026,6 +1037,12 @@ async function streamAssistantTurn(
       useStore.setState({ streaming: { sessionId: null, abort: null } });
       useStore.getState().addToast(translate('toast.genFailed', { msg: errorMsg }), 'error');
       return;
+    }
+
+    // 用户点击「停止」时：中断后续处理（工具调用、ReAct 下一层）
+    if (stopped || abortController.signal.aborted) {
+      await persistPartialDraft(draftId, sessionId, content, thinking, toolCalls, request, rawLines, promptTokens, completionTokens, startTime, model);
+      break;
     }
 
     // 最终持久化草稿
@@ -1135,6 +1152,49 @@ async function streamAssistantTurn(
 
   useStore.setState({ streaming: { sessionId: null, abort: null } });
   await refreshQueueAndSave(sessionId);
+}
+
+/**
+ * 用户停止生成时，把已流式收到的部分内容持久化为最终消息，
+ * 避免中断后内容丢失（停止而非报错：不加 latency/raw 等数据）。
+ */
+async function persistPartialDraft(
+  draftId: number,
+  sessionId: number,
+  content: string,
+  thinking: string,
+  toolCalls: Array<{ id: string; name: string; argumentsJson: string; contentOffset: number }>,
+  request: ChatCompletionRequest,
+  rawLines: string[],
+  promptTokens: number,
+  completionTokens: number,
+  startTime: number,
+  model: string
+): Promise<void> {
+  const latencyMs = Date.now() - startTime;
+  const finalTokens = completionTokens > 0 ? completionTokens : estimateTokensFromChars(content.length);
+  await db.messages.update(draftId, {
+    content,
+    thinkingContent: thinking || null,
+    toolCallsJson: JSON.stringify(toolCalls.map((tc) => ({ id: tc.id, name: tc.name, argumentsJson: tc.argumentsJson, contentOffset: tc.contentOffset }))),
+    latencyMs,
+    promptTokens,
+    completionTokens: finalTokens,
+    totalTokens: promptTokens + finalTokens,
+    tokensPerSec: latencyMs > 0 ? finalTokens / (latencyMs / 1000) : null,
+    modelUsed: model,
+    rawRequestBody: JSON.stringify(request).slice(0, 64_000),
+    rawResponseBody: rawLines.join('\n').slice(0, 64_000),
+  });
+  await useStore.getState().loadMessages(sessionId);
+
+  // 生涯统计与会话预览仍同步（与正常回合一致）
+  await accumulateStats({ inputTokens: promptTokens, outputTokens: finalTokens, rounds: 0 }, sessionId, null);
+  const preview = sessionPreviewText(content);
+  await db.sessions.update(sessionId, {
+    updatedAt: Date.now(),
+    lastMessage: preview || '…',
+  });
 }
 
 /** 群聊主循环：持续从队列取发言者 */
