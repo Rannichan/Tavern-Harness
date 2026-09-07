@@ -168,17 +168,15 @@ function trimMessagesForNewTopic<T extends {
 
   let keepGreeting: T | null = null;
   if (session?.mode === 'NPC' && session.associatedId != null) {
-    for (const m of before) {
-      if (m.role === 'user') break;
-      if (
-        m.role === 'assistant' &&
-        m.speakerParticipantId === session.associatedId &&
-        (!m.toolCallsJson || m.toolCallsJson === '[]')
-      ) {
-        keepGreeting = m;
-        break;
-      }
-    }
+    const firstUserIdx = before.findIndex((m) => m.role === 'user');
+    const greetingRange = firstUserIdx >= 0 ? before.slice(0, firstUserIdx) : before;
+    keepGreeting =
+      greetingRange.find(
+        (m) =>
+          m.role === 'assistant' &&
+          m.speakerParticipantId === session.associatedId &&
+          (!m.toolCallsJson || m.toolCallsJson === '[]')
+      ) ?? null;
   }
 
   return [...keepSystems, ...(keepGreeting ? [keepGreeting] : []), ...after];
