@@ -159,7 +159,7 @@ export function Sidebar() {
             <div className="brand-sub">{t('nav.brandSub')}</div>
           </div>
         </div>
-        <div className="side-nav">
+        <div className="side-nav" data-hscroll>
           <button className={`nav-chip ${activeView === 'chat' ? 'active' : ''}`} onClick={() => setActiveView('chat')}>
             <Icon name="send" size={13} /> {t('nav.chat')}
           </button>

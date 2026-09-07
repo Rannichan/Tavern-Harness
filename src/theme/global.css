@@ -160,10 +160,28 @@ body.resizing .sidebar-resizer {
   gap: 4px;
   padding: 2px 10px 10px;
   overflow-x: auto;
-  scrollbar-width: none;
+  /* 侧边栏较窄、按钮被遮挡时：显示细滚动条以支持横向滚动 */
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
 }
 .side-nav::-webkit-scrollbar {
-  display: none;
+  height: 6px;
+  background: transparent;
+}
+.side-nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+.side-nav::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background-clip: content-box;
+  min-width: 24px;
+}
+.side-nav::-webkit-scrollbar-thumb:hover {
+  background: var(--text-faint);
+  border: 1px solid transparent;
+  background-clip: content-box;
 }
 .nav-chip {
   flex-shrink: 0;

@@ -70,7 +70,7 @@ export function CharactersView() {
           <h2 className="view-title">{t('workshop.title')}</h2>
           <p className="view-sub">{t('workshop.sub')}</p>
         </div>
-        <div className="side-nav">
+        <div className="side-nav" data-hscroll>
           <button className={`nav-chip ${tab === 'characters' ? 'active' : ''}`} onClick={() => setTab('characters')}>
             {t('workshop.tabCharacters')}
           </button>
