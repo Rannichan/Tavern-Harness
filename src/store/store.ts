@@ -1098,12 +1098,23 @@ async function streamAssistantTurn(
           thinking += chunk.text;
           break;
         case 'tool_call':
-          toolCalls.push({
-            id: chunk.id,
-            name: chunk.name,
-            argumentsJson: chunk.argJson,
-            contentOffset: content.length,
-          });
+          {
+            const idx = toolCalls.findIndex((tc) => tc.id === chunk.id);
+            if (idx >= 0) {
+              toolCalls[idx] = {
+                ...toolCalls[idx],
+                name: chunk.name || toolCalls[idx].name,
+                argumentsJson: chunk.argJson || toolCalls[idx].argumentsJson,
+              };
+            } else {
+              toolCalls.push({
+                id: chunk.id,
+                name: chunk.name,
+                argumentsJson: chunk.argJson,
+                contentOffset: content.length,
+              });
+            }
+          }
           break;
         case 'usage':
           promptTokens = chunk.prompt;

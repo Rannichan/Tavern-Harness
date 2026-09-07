@@ -493,12 +493,16 @@ async function handleUpdateCharacter(args: Record<string, unknown>): Promise<str
   if (Array.isArray(args.enable_skills) || Array.isArray(args.disable_skills)) {
     const allTools = new Set((await db.tools.toArray()).map((t) => t.name));
     const enabled = new Set(npc.enabledToolNames);
-    for (const s of args.enable_skills as string[]) {
-      if (!allTools.has(s)) return `ERROR: 技能 ${s} 不存在`;
-      enabled.add(s);
+    if (Array.isArray(args.enable_skills)) {
+      for (const s of args.enable_skills) {
+        if (!allTools.has(s)) return `ERROR: 技能 ${s} 不存在`;
+        enabled.add(s);
+      }
     }
-    for (const s of args.disable_skills as string[]) {
-      enabled.delete(s);
+    if (Array.isArray(args.disable_skills)) {
+      for (const s of args.disable_skills) {
+        enabled.delete(s);
+      }
     }
     updates.enabledToolNames = [...enabled];
   }

@@ -53,7 +53,12 @@ async function attemptStream(
     if (signal.aborted) controller.abort();
     else signal.addEventListener('abort', onAbort);
   }
-  const timer = setTimeout(() => controller.abort(), OPENAI_TIMEOUTS.read);
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const resetReadTimeout = () => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => controller.abort(), OPENAI_TIMEOUTS.read);
+  };
+  resetReadTimeout();
 
   try {
     const resp = await fetch(url, {
@@ -87,13 +92,14 @@ async function attemptStream(
     const decoder = new TextDecoder();
 
     // Delta 工具调用按 index 组装
-    const toolDeltas = new Map<number, { id: string; name: string; args: string }>();
+    const toolDeltas = new Map<number, { id: string; name: string; args: string; lastEmitted: string }>();
     let hasUsage = false;
 
     let buffer = '';
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
+      resetReadTimeout();
       buffer += decoder.decode(value, { stream: true });
 
       // 按行切分 SSE
@@ -112,10 +118,14 @@ async function attemptStream(
     }
 
     // 收尾：补发未完成的工具调用
-    for (const [, td] of toolDeltas) {
+    for (const [idx, td] of toolDeltas) {
+      const id = td.id || fallbackToolCallId(idx);
+      const nextEmit = `${id}\n${td.name}\n${td.args}`;
+      if (td.lastEmitted === nextEmit) continue;
+      td.lastEmitted = nextEmit;
       onChunk({
         type: 'tool_call',
-        id: td.id || fallbackToolCallId(0),
+        id,
         name: td.name,
         argJson: td.args,
       });
@@ -138,7 +148,7 @@ async function attemptStream(
     onChunk({ type: 'error', message: (e as Error).message || String(e) });
     return true;
   } finally {
-    clearTimeout(timer);
+    if (timer) clearTimeout(timer);
     if (signal) signal.removeEventListener('abort', onAbort);
   }
 }
@@ -146,7 +156,7 @@ async function attemptStream(
 function handleDataLine(
   data: string,
   onChunk: (c: ChatStreamChunk) => void,
-  toolDeltas: Map<number, { id: string; name: string; args: string }>,
+  toolDeltas: Map<number, { id: string; name: string; args: string; lastEmitted: string }>,
   setHasUsage: () => void
 ): void {
   try {
@@ -200,19 +210,41 @@ function handleDataLine(
       if (delta.tool_calls) {
         for (const tc of delta.tool_calls) {
           const idx = tc.index ?? 0;
-          const cur = toolDeltas.get(idx) ?? { id: '', name: '', args: '' };
+          const cur = toolDeltas.get(idx) ?? { id: '', name: '', args: '', lastEmitted: '' };
           if (tc.id) cur.id = tc.id;
-          if (tc.function?.name) cur.name += tc.function.name;
+          if (!cur.id) cur.id = fallbackToolCallId(idx);
+          if (tc.function?.name) {
+            const incomingName = tc.function.name;
+            if (!cur.name || incomingName.startsWith(cur.name) || !cur.name.startsWith(incomingName)) {
+              cur.name = incomingName;
+            }
+          }
           if (tc.function?.arguments) cur.args += tc.function.arguments;
           toolDeltas.set(idx, cur);
+          if (cur.name) {
+            const nextEmit = `${cur.id}\n${cur.name}\n${cur.args}`;
+            if (cur.lastEmitted !== nextEmit) {
+              cur.lastEmitted = nextEmit;
+              onChunk({
+                type: 'tool_call',
+                id: cur.id,
+                name: cur.name,
+                argJson: cur.args,
+              });
+            }
+          }
         }
       }
       if (choice.finish_reason === 'tool_calls') {
         // 立即发出发射工具调用事件
-        for (const [, td] of toolDeltas) {
+        for (const [idx, td] of toolDeltas) {
+          const id = td.id || fallbackToolCallId(idx);
+          const nextEmit = `${id}\n${td.name}\n${td.args}`;
+          if (td.lastEmitted === nextEmit) continue;
+          td.lastEmitted = nextEmit;
           onChunk({
             type: 'tool_call',
-            id: td.id || fallbackToolCallId(0),
+            id,
             name: td.name,
             argJson: td.args,
           });
