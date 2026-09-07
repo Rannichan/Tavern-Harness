@@ -213,7 +213,12 @@ function handleDataLine(
           const cur = toolDeltas.get(idx) ?? { id: '', name: '', args: '', lastEmitted: '' };
           if (tc.id) cur.id = tc.id;
           if (!cur.id) cur.id = fallbackToolCallId(idx);
-          if (tc.function?.name) cur.name += tc.function.name;
+          if (tc.function?.name) {
+            const incomingName = tc.function.name;
+            if (!cur.name || incomingName.startsWith(cur.name) || !cur.name.startsWith(incomingName)) {
+              cur.name = incomingName;
+            }
+          }
           if (tc.function?.arguments) cur.args += tc.function.arguments;
           toolDeltas.set(idx, cur);
           if (cur.name) {

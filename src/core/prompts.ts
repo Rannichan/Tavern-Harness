@@ -171,12 +171,14 @@ function trimMessagesForNewTopic<T extends {
     const firstUserIdx = before.findIndex((m) => m.role === 'user');
     const greetingRange = firstUserIdx >= 0 ? before.slice(0, firstUserIdx) : before;
     keepGreeting =
-      greetingRange.find(
-        (m) =>
-          m.role === 'assistant' &&
-          m.speakerParticipantId === session.associatedId &&
-          (!m.toolCallsJson || m.toolCallsJson === '[]')
-      ) ?? null;
+      [...greetingRange]
+        .reverse()
+        .find(
+          (m) =>
+            m.role === 'assistant' &&
+            m.speakerParticipantId === session.associatedId &&
+            (!m.toolCallsJson || m.toolCallsJson === '[]')
+        ) ?? null;
   }
 
   return [...keepSystems, ...(keepGreeting ? [keepGreeting] : []), ...after];
