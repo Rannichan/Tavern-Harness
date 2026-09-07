@@ -92,7 +92,7 @@ async function attemptStream(
     const decoder = new TextDecoder();
 
     // Delta 工具调用按 index 组装
-    const toolDeltas = new Map<number, { id: string; name: string; args: string }>();
+    const toolDeltas = new Map<number, { id: string; name: string; args: string; lastEmitted: string }>();
     let hasUsage = false;
 
     let buffer = '';
@@ -152,7 +152,7 @@ async function attemptStream(
 function handleDataLine(
   data: string,
   onChunk: (c: ChatStreamChunk) => void,
-  toolDeltas: Map<number, { id: string; name: string; args: string }>,
+  toolDeltas: Map<number, { id: string; name: string; args: string; lastEmitted: string }>,
   setHasUsage: () => void
 ): void {
   try {
@@ -206,19 +206,23 @@ function handleDataLine(
       if (delta.tool_calls) {
         for (const tc of delta.tool_calls) {
           const idx = tc.index ?? 0;
-          const cur = toolDeltas.get(idx) ?? { id: '', name: '', args: '' };
+          const cur = toolDeltas.get(idx) ?? { id: '', name: '', args: '', lastEmitted: '' };
           if (tc.id) cur.id = tc.id;
           if (!cur.id) cur.id = fallbackToolCallId(idx);
           if (tc.function?.name) cur.name += tc.function.name;
           if (tc.function?.arguments) cur.args += tc.function.arguments;
           toolDeltas.set(idx, cur);
           if (cur.name) {
-            onChunk({
-              type: 'tool_call',
-              id: cur.id,
-              name: cur.name,
-              argJson: cur.args,
-            });
+            const nextEmit = `${cur.id}\n${cur.name}\n${cur.args}`;
+            if (cur.lastEmitted !== nextEmit) {
+              cur.lastEmitted = nextEmit;
+              onChunk({
+                type: 'tool_call',
+                id: cur.id,
+                name: cur.name,
+                argJson: cur.args,
+              });
+            }
           }
         }
       }
