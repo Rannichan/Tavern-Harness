@@ -17,6 +17,11 @@ interface StatsData {
   npcStats: Array<{ npcId: number; npcName: string; rounds: number }>;
 }
 
+/** 成就 id（kebab-case，如 old-friend）→ i18n 键（camelCase，如 oldFriend） */
+function idToKey(id: string): string {
+  return id.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
+}
+
 export function StatsView() {
   const addToast = useStore((s) => s.addToast);
   const t = useT();
@@ -97,9 +102,9 @@ function AchievementCard({ data }: { data: AchievementState }) {
         <span className="ach-card-icon">{unlocked ? data.def.icon : '🔒'}</span>
         <span className="ach-card-status">{unlocked ? t('stats.unlockedStatus') : t('stats.locked')}</span>
       </div>
-      <div className="ach-card-name">{unlocked ? t(`ach.${data.def.id}.name`) : t('stats.hidden')}</div>
+      <div className="ach-card-name">{unlocked ? t(`ach.${idToKey(data.def.id)}.name`) : t('stats.hidden')}</div>
       {unlocked && (
-        <div className="ach-card-desc">{t(`ach.${data.def.id}.desc`)}</div>
+        <div className="ach-card-desc">{t(`ach.${idToKey(data.def.id)}.desc`)}</div>
       )}
       {unlocked && data.unlockedAt && (
         <div className="ach-card-time">

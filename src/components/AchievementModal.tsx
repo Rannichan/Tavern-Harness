@@ -67,6 +67,11 @@ function makeConfetti(count: number): ConfettiPiece[] {
   }));
 }
 
+/** 成就 id（kebab-case，如 old-friend）→ i18n 键（camelCase，如 oldFriend） */
+function idToKey(id: string): string {
+  return id.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
+}
+
 function AchievementCelebration() {
   const [, force] = useState(0);
   useEffect(() => {
@@ -136,9 +141,9 @@ function CelebrationOverlay({ item }: { item: QueueItem }) {
         </div>
         <div className={`ach-caption ${leaving ? 'leave' : ''}`}>
           <div className="ach-caption-title">{t('achModal.title')}</div>
-          <div className="ach-caption-name">{t(`ach.${item.ach.id}.name`)}</div>
+          <div className="ach-caption-name">{t(`ach.${idToKey(item.ach.id)}.name`)}</div>
           <div className="ach-caption-desc">
-            {t(`ach.${item.ach.id}.desc`)}
+            {t(`ach.${idToKey(item.ach.id)}.desc`)}
             <br />
             <span className="ach-caption-total">{t('achModal.total', { n: fmt(item.total) })}</span>
           </div>
