@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store/store';
 import { db } from '../db/database';
 import type { NpcCharacter, WorldBook, McpTool } from '../types/models';
-import { Avatar, Icon, Markdown } from './shared';
+import { Avatar, Icon, Markdown, Modal } from './shared';
 import { DeleteConfirmDialog } from './DeleteConfirmDialog';
 import { parseSillyTavernCardFile, type ParsedSillyTavernCard } from '../core/sillyTavernImporter';
 import { ALL_BUILTIN_TOOL_NAMES } from '../core/toolDefinitions';
@@ -481,6 +481,7 @@ function SkillList({ onChanged }: { onChanged: () => void }) {
   const t = useT();
   const refresh = useStore((s) => s.refreshTools);
   const [pendingDelete, setPendingDelete] = useState<McpTool | null>(null);
+  const [detail, setDetail] = useState<McpTool | null>(null);
   useEffect(() => {
     refresh();
   }, [refresh]);
@@ -518,6 +519,9 @@ function SkillList({ onChanged }: { onChanged: () => void }) {
                 <div className="l-sub">{desc}</div>
                 {impl !== 'native' && <div style={{ fontSize: 10.5, marginTop: 2, color: 'var(--warn)' }}>{t('workshop.implType', { t: impl })}</div>}
               </div>
+              <button className="btn btn-sm" onClick={() => setDetail(tt)} title={t('workshop.viewDetails')}>
+                <Icon name="file" size={12} /> {t('workshop.viewDetails')}
+              </button>
               <button className="btn btn-sm btn-danger" onClick={() => setPendingDelete(tt)} disabled={tt.isBuiltIn}>
                 <Icon name="trash" size={12} />
               </button>
@@ -526,6 +530,7 @@ function SkillList({ onChanged }: { onChanged: () => void }) {
         })}
         {tools.length === 0 && <div className="empty-state"><div className="big">🛠</div>{t('workshop.noSkills')}</div>}
       </div>
+      {detail && <SkillDetailModal tool={detail} onClose={() => setDetail(null)} />}
       {pendingDelete && (
         <DeleteConfirmDialog
           title={t('workshop.deleteSkillTitle')}
@@ -535,5 +540,71 @@ function SkillList({ onChanged }: { onChanged: () => void }) {
         />
       )}
     </div>
+  );
+}
+
+// ---------------- 技能详情 ----------------
+
+function SkillDetailModal({ tool, onClose }: { tool: McpTool; onClose: () => void }) {
+  const t = useT();
+  let parsed: { function?: { name?: string; description?: string; parameters?: unknown } } | null = null;
+  try {
+    parsed = JSON.parse(tool.jsonContent) as { function?: { name?: string; description?: string; parameters?: unknown } };
+  } catch { /* 保持 null */ }
+  let exec: unknown = null;
+  let execType = 'native';
+  if (tool.executionJson) {
+    try {
+      exec = JSON.parse(tool.executionJson);
+      execType = (exec as { type?: string }).type ?? 'unknown';
+    } catch { exec = null; execType = 'invalid'; }
+  }
+  const description = parsed?.function?.description ?? '';
+  const parameters = parsed?.function?.parameters;
+
+  return (
+    <Modal onClose={onClose} width={620}>
+      <div className="modal-head">
+        <span style={{ fontWeight: 800, fontSize: 15 }}>
+          {t('workshop.skillDetails')} · <span className="mono">{tool.name}</span>
+          {tool.isBuiltIn && <span className="tag" style={{ marginLeft: 8 }}>{t('common.builtin')}</span>}
+        </span>
+        <button className="icon-btn" onClick={onClose}><Icon name="x" /></button>
+      </div>
+      <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {execType !== 'native' && (
+          <div className="skill-detail-tag" style={{ alignSelf: 'flex-start' }}>
+            {t('workshop.implType', { t: execType })}
+          </div>
+        )}
+        <div className="field">
+          <label>{t('workshop.skillDescription')}</label>
+          <div className="skill-detail-text">{description || '—'}</div>
+        </div>
+        <div className="field">
+          <label>{t('workshop.skillParameters')}</label>
+          {parameters ? (
+            <pre className="skill-detail-json">{JSON.stringify(parameters, null, 2)}</pre>
+          ) : (
+            <div className="skill-detail-text" style={{ color: 'var(--text-faint)' }}>{t('workshop.skillNoParams')}</div>
+          )}
+        </div>
+        <div className="field">
+          <label>{t('workshop.skillExecution')}</label>
+          {exec ? (
+            <pre className="skill-detail-json">{JSON.stringify(exec, null, 2)}</pre>
+          ) : (
+            <div className="skill-detail-text" style={{ color: 'var(--text-faint)' }}>{t('workshop.skillNoExecution')}</div>
+          )}
+        </div>
+        <div className="field">
+          <label>{t('workshop.skillRawJson')}</label>
+          <pre className={`skill-detail-json${parsed ? '' : ' err'}`}>{parsed ? JSON.stringify(parsed, null, 2) : t('workshop.skillBadJson')}</pre>
+        </div>
+      </div>
+      <div className="modal-foot">
+        <button className="btn btn-primary" onClick={onClose}>{t('common.close')}</button>
+      </div>
+    </Modal>
   );
 }

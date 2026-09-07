@@ -69,6 +69,27 @@
   max-width: 100%;
   word-break: break-word;
 }
+/* 消息内容带宽：NPC 气泡恒定全宽，用户气泡右对齐，右边缘平齐。
+   - NPC 侧：msg-body 起点在头像(40px)+gap(11px)=51px 处；气泡恒定宽 = msg-body 宽 - 43px，
+     右边缘固定于 W-43px（用户头像占位 32+11=43 的最外侧）
+   - 用户侧：msg-body 终点在 W-43px；气泡右对齐（右边缘恒为 W-43px，与 NPC 平齐），
+     最长时左边缘到达 NPC 头像位 51px
+   - 效果：任意时刻 NPC 右边缘 == 用户右边缘；用户长气泡左边缘 == NPC 左边缘 */
+.msg-row:not(.user-row) .msg-body > .bubble,
+.msg-row:not(.user-row) .msg-body > .tool-calls,
+.msg-row:not(.user-row) .msg-body > .collp,
+.msg-row:not(.user-row) .msg-body > .msg-metrics {
+  width: calc(100% - 43px);
+  max-width: none;
+  align-self: flex-start;
+}
+.msg-row.user-row .msg-body > .bubble,
+.msg-row.user-row .msg-body > .tool-calls,
+.msg-row.user-row .msg-body > .collp,
+.msg-row.user-row .msg-body > .msg-metrics {
+  max-width: calc(100% - 51px);
+  align-self: flex-end;
+}
 .bubble-user {
   background: var(--bubble-user);
   border-color: var(--bubble-border-user);
