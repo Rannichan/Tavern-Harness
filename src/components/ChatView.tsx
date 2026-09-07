@@ -901,7 +901,7 @@ function stopEditingMsg() {
 export function MessageMenu() {
   const [, force] = useState(0);
   const t = useT();
-  const regenerateLast = useStore((s) => s.regenerateLast);
+  const regenerateMessage = useStore((s) => s.regenerateMessage);
   const addToast = useStore((s) => s.addToast);
   const [rawLog, setRawLog] = useState<ChatMessage | null>(null);
 
@@ -952,7 +952,7 @@ export function MessageMenu() {
       icon: 'refresh',
       onClick: async () => {
         closeMsgMenu();
-        await regenerateLast();
+        await regenerateMessage(msg.id!);
       },
     });
   }

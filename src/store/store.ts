@@ -102,6 +102,8 @@ interface AppState {
 
   sendMessage: (text: string, attachments?: string[], attachmentNames?: string[]) => Promise<void>;
   regenerateLast: () => Promise<void>;
+  /** 重新生成指定消息（右键菜单：右键哪条就重生成哪条）。删除该消息及之后的 tool 消息后重跑 */
+  regenerateMessage: (messageId: number) => Promise<void>;
   editMessage: (messageId: number, newContent: string, sessionId: number, newAttachments?: string[], newAttachmentNames?: string[]) => Promise<void>;
   saveMessageOnly: (messageId: number, newContent: string, sessionId: number, newAttachments?: string[], newAttachmentNames?: string[]) => Promise<void>;
   stopStreaming: () => void;
@@ -382,30 +384,50 @@ export const useStore = create<AppState>((set, get) => ({
   regenerateLast: async () => {
     const sessionId = get().activeSessionId;
     if (sessionId == null) return;
+    if (get().streaming.sessionId != null) return;
+
+    // 默认入口：仍然只重生成「最后一条 assistant 回复」。
+    // 具体删除 / 续跑逻辑见 regenerateMessage。
+    const messages = await db.messages.where('sessionId').equals(sessionId).sortBy('timestamp');
+    const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
+    if (!lastAssistant) return;
+    await get().regenerateMessage(lastAssistant.id!);
+  },
+
+  regenerateMessage: async (messageId) => {
+    const message = await db.messages.get(messageId);
+    if (!message) return;
+    const sessionId = message.sessionId;
     const session = await db.sessions.get(sessionId);
     if (!session) return;
     if (get().streaming.sessionId != null) return;
 
-    // 找到最后一条 assistant 消息，删除它及之后的 tool 消息
+    // 以目标消息的时间戳为切断点：删除它及之后的所有消息（通常为其附属 tool 结果），
+    // 随后重新生成该条回复（重新生成 = 旧回复连同后续内容一起被新回复替换）
     const messages = await db.messages.where('sessionId').equals(sessionId).sortBy('timestamp');
-    const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
-    if (!lastAssistant) return;
-    const cutTime = lastAssistant.timestamp;
-    const toDelete = messages.filter((m) => m.timestamp >= cutTime);
+    const toDelete = messages.filter((m) => m.timestamp >= message.timestamp);
     await db.messages.bulkDelete(toDelete.map((m) => m.id!));
     await get().loadMessages(sessionId);
 
+    // 会话预览回退到删除后最后一条可见消息；空则置空
+    const remaining = await db.messages.where('sessionId').equals(sessionId).sortBy('timestamp');
+    const lastVisible = [...remaining].reverse().find((m) => m.role !== 'tool');
+    await db.sessions.update(sessionId, {
+      updatedAt: Date.now(),
+      lastMessage: lastVisible ? sessionPreviewText(lastVisible.content) || '…' : '',
+    });
+
     if (session.mode === 'GROUP') {
-      // 群聊：重新生成时把被删 assistant 的发言人重新置顶（联动发言队列）……
-      // 但若该条发言本身是当前循环某位成员（未知 speakerParticipantId，如收尾回复），
+      // 群聊：把被重生成 assistant 的发言人重新置顶（联动发言队列）。
+      // 若该条发言是当前循环某位成员（未知 speakerParticipantId，如收尾回复），
       // 无法映射到具体成员，则直接按当前队列继续。
-      const participant = lastAssistant.speakerParticipantId != null
+      const participant = message.speakerParticipantId != null
         ? (await db.participants
             .where('sessionId').equals(sessionId)
-            .filter((p) => p.participantId === lastAssistant.speakerParticipantId)
+            .filter((p) => p.participantId === message.speakerParticipantId)
             .first()) ?? null
         : null;
-      await continueRegeneratedGroupLoop(session, lastAssistant, participant);
+      await continueRegeneratedGroupLoop(session, message, participant);
       await get().refreshSessions();
       return;
     }
@@ -1212,18 +1234,27 @@ async function streamAssistantTurn(
     // ---- 工具调用处理（默认开启） ----
     if (finalToolCalls.length > 0) {
       for (const tc of finalToolCalls) {
-        const needsConfirm = ['update_skill', 'delete_skill', 'update_character', 'delete_character', 'update_world_book', 'delete_world_book'].includes(tc.name);
         let result: string;
-        if (needsConfirm) {
-          const approved = await requestToolConfirmation(sessionId, tc);
-          if (!approved) {
-            result = translate('toast.canceled', { name: tc.name });
+        try {
+          const needsConfirm = ['update_skill', 'delete_skill', 'update_character', 'delete_character', 'update_world_book', 'delete_world_book'].includes(tc.name);
+          if (needsConfirm) {
+            const approved = await requestToolConfirmation(sessionId, tc);
+            if (!approved) {
+              result = translate('toast.canceled', { name: tc.name });
+            } else {
+              result = await executeToolCall(tc.name, tc.argumentsJson, { sessionId, requestConfirmation: async () => true });
+            }
           } else {
             result = await executeToolCall(tc.name, tc.argumentsJson, { sessionId, requestConfirmation: async () => true });
           }
-        } else {
-          result = await executeToolCall(tc.name, tc.argumentsJson, { sessionId, requestConfirmation: async () => true });
+        } catch (e) {
+          // 工具执行本身抛异常（网络 / 沙箱 / 安全拦截等）→ 立即落库为失败结果，
+          // 避免整个回合中断、失败不可见（只有用户下一条消息后才显示）
+          result = `ERROR: ${(e as Error).message || String(e)}`;
         }
+        // 工具没有返回任何内容（空模板 / 空文件 / 空输出等）→ 补占位结果，
+        // 保证调用卡片立即显示「无结果」而不是空白
+        if (!result || !result.trim()) result = translate('tool.noResult');
         // 数据变更类工具执行后即时刷新 store，保证界面（角色工坊等）无需刷新即可看到最新数据
         if (result.startsWith('OK:')) {
           if (tc.name.includes('character')) await useStore.getState().refreshNpcs();
@@ -1255,12 +1286,28 @@ async function streamAssistantTurn(
           rawRequestBody: null,
           rawResponseBody: null,
         });
+
+        // 工具调用失败 / 被取消 / 无结果 → 立即提示，避免用户误以为还在执行中。
+        // 失败判定沿用 UI 的惯例：ERROR: / CANCELLED: 前缀（部分工具成功时返回非 OK: 文本，
+        // 如掷骰结果、JSON 快照、模板输出，不能简单用「非 OK:」判定失败）；
+        // 用户主动取消（CANCELLED + 取消文案）不算失败，不弹错误提示。
+        const canceledResult = translate('toast.canceled', { name: tc.name });
+        const isToolError =
+          result.startsWith('ERROR:') || (result.startsWith('CANCELLED:') && result !== canceledResult);
+        if (isToolError) {
+          useStore
+            .getState()
+            .addToast(translate('toast.toolFailed', { name: tc.name, detail: result.slice(0, 120) }), 'error');
+        }
       }
+
+      // 工具结果在 DB 落库后立刻刷新 UI（无论是否继续下一层 ReAct），
+      // 保证「失败 / 无结果」在工具执行完成时立即可见，而不是等用户下一条消息
+      await useStore.getState().loadMessages(sessionId);
 
       // 有工具结果 → 下一层 ReAct
       depth++;
       if (depth > MAX_TOOL_CALL_DEPTH) break;
-      await useStore.getState().loadMessages(sessionId);
       continue;
     }
 

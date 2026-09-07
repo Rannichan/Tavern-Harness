@@ -360,6 +360,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'toast.providerAdded': '已添加 Provider',
     'toast.statsReset': '统计已重置',
     'toast.canceled': 'CANCELLED: 用户取消了 {name}',
+    'toast.toolFailed': '工具调用失败: {name} — {detail}',
 
     // ---- 工具执行输出（用户可见部分） ----
     'tool.timeout': '请求超时',
@@ -380,6 +381,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'tool.gateShellMsg': '生成式技能请求执行以下高危本地命令：\n\n{script}\n\n请注意这些命令可能影响你的系统，批准后将在本机真实执行。',
     'tool.shellDenied': 'CANCELLED: 用户取消了 {name}',
     'tool.truncated': '\n…(已截断)',
+    'tool.noResult': '(无结果)',
 
     // ---- 系统提示词 ----
     'prompt.worldBook': '=== WORLD BOOK (世界书) ===',
@@ -719,6 +721,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'toast.providerAdded': '已新增 Provider',
     'toast.statsReset': '統計已重置',
     'toast.canceled': 'CANCELLED: 使用者取消了 {name}',
+    'toast.toolFailed': '工具呼叫失敗: {name} — {detail}',
 
     'tool.timeout': '請求逾時',
     'tool.diceRoll': '擲骰 {expr}: [{rolls}] = {total}{crit}',
@@ -738,6 +741,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'tool.gateShellMsg': '生成式技能請求執行以下高風險本地指令：\n\n{script}\n\n請注意這些指令可能影響你的系統，批准後將在本機真實執行。',
     'tool.shellDenied': 'CANCELLED: 用戶取消了 {name}',
     'tool.truncated': '\n…(已截斷)',
+    'tool.noResult': '(無結果)',
 
     'prompt.worldBook': '=== WORLD BOOK (世界書) ===',
     'prompt.userInfo': '=== USER INFO (用戶扮演的角色) ===',
@@ -1076,6 +1080,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'toast.providerAdded': 'Provider added',
     'toast.statsReset': 'Stats reset',
     'toast.canceled': 'CANCELLED: user canceled {name}',
+    'toast.toolFailed': 'Tool call failed: {name} — {detail}',
 
     'tool.timeout': 'Request timed out',
     'tool.diceRoll': '{expr}: [{rolls}] = {total}{crit}',
@@ -1095,6 +1100,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'tool.gateShellMsg': 'A generated skill wants to run these HIGH-RISK commands on your machine:\n\n{script}\n\nThese may affect your system. Approving executes them for real.',
     'tool.shellDenied': 'CANCELLED: user rejected {name}',
     'tool.truncated': '\n…(truncated)',
+    'tool.noResult': '(no result)',
 
     'prompt.worldBook': '=== WORLD BOOK ===',
     'prompt.userInfo': '=== USER INFO (role played by the user) ===',
