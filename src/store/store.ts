@@ -37,6 +37,7 @@ import { getEnabledToolsForSession, executeToolCall } from '../core/tools/toolEx
 import { scheduleRestoredTasks } from '../core/tools/toolExecutor';
 import { applyTheme as applyThemeManual } from '../theme/theme';
 import { setLanguage, translate } from '../core/i18n';
+import { localizeBuiltinNpc } from '../db/database';
 import { estimateTokensFromChars, accumulateStats, sessionPreviewText } from '../core/stats';
 import { ACHIEVEMENTS, registerUnlockDispatcher, type AchievementDef } from '../core/achievements';
 
@@ -121,6 +122,8 @@ interface AppState {
   refreshProviders: () => Promise<void>;
   refreshAchievements: () => Promise<void>;
   loadMessages: (sessionId: number) => Promise<void>;
+  /** 重新加载当前活动会话的参与者（语言切换后刷新内置角色显示名） */
+  refreshParticipants: () => Promise<void>;
 
   /** 聚合所有启用 Provider 的模型列表（与 App 的 aggregateEnabledProviderModels 一致） */
   modelsList: string[];
@@ -166,6 +169,8 @@ export const useStore = create<AppState>((set, get) => ({
     initLock = (async () => {
       const settings = (await db.settings.get(1))!;
       setLanguage(settings.language ?? null);
+      // 内置角色「酒馆老板」按当前语言本地化（未编辑过的字段才会更新）
+      await localizeBuiltinNpc();
       const npcs = await db.npcs.toArray();
       const sessions = await db.sessions.orderBy('updatedAt').reverse().toArray();
       const worldBooks = await db.worldBooks.toArray();
@@ -195,6 +200,11 @@ export const useStore = create<AppState>((set, get) => ({
     set({ settings: next });
     if (partial.language !== undefined) {
       setLanguage(next.language ?? null);
+      // 切换语言后：内置角色文本 / 相关会话元数据一并本地化并刷新
+      await localizeBuiltinNpc();
+      await get().refreshNpcs();
+      await get().refreshSessions();
+      await get().refreshParticipants();
     }
     applyThemeManual(next.themeMode, next.themeColor);
   },
@@ -286,6 +296,13 @@ export const useStore = create<AppState>((set, get) => ({
       messages: { ...s.messages, [sessionId]: messages },
       participants: { ...s.participants, [sessionId]: participants },
     }));
+  },
+
+  /** 重新加载当前活动会话的参与者列表（语言切换本地化内置角色后调用） */
+  refreshParticipants: async () => {
+    const sessionId = get().activeSessionId;
+    if (sessionId == null) return;
+    await get().loadMessages(sessionId);
   },
 
   sendMessage: async (text, attachments = [], attachmentNames = []) => {

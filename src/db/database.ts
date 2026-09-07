@@ -12,8 +12,10 @@ import type {
   NpcCharacter,
   ScheduledTask,
   WorldBook,
+  AppLanguage,
 } from '../types/models';
 import { BUILTIN_TOOLS, ALL_BUILTIN_TOOL_NAMES } from '../core/toolDefinitions';
+import { currentLanguage, translate } from '../core/i18n';
 
 export class TavernDB extends Dexie {
   settings!: Table<AppSettings, number>;
@@ -83,11 +85,11 @@ export const DEFAULT_STATS: CareerStatsTotal = {
   totalRounds: 0,
 };
 
-/** 内置酒馆老板：默认启用所有内置技能 */
+/** 内置酒馆老板：默认启用所有内置技能（名称/人设/开场白随界面语言本地化） */
 export const DEFAULT_NPC: NpcCharacter = {
-  name: '酒馆老板',
-  prompt: '神秘的酒馆老板，可以响应客人的任何需求',
-  greeting: '你来啦！快坐下~',
+  name: translate('builtinNpc.name'),
+  prompt: translate('builtinNpc.prompt'),
+  greeting: translate('builtinNpc.greeting'),
   avatarColorOrdinal: 3,
   avatarDataUrl: null,
   enabledToolNames: [...ALL_BUILTIN_TOOL_NAMES],
@@ -109,6 +111,7 @@ export async function initDatabase(): Promise<void> {
   if (npcCount === 0) {
     await db.npcs.add(DEFAULT_NPC);
   }
+
   // 确保默认 NPC 是内置且受保护的
   const boss = await db.npcs.filter((n) => n.isBuiltIn).first();
   if (boss && !boss.isBuiltIn) {
@@ -121,6 +124,83 @@ export async function initDatabase(): Promise<void> {
   // 内置角色「酒馆老板」默认启用所有内置技能（老数据升级）
   await ensureBossDefaultSkills();
 }
+
+/**
+ * 内置角色「酒馆老板」文本本地化：按当前界面语言写入本地化名称/人设/开场白。
+ * 调用时机：store 应用语言设置（setLanguage）之后，启动时与切换语言时都会执行。
+ * 只把仍是内置原始文案（中文/繁体/英文种子之一）的字段替换为当前语言——
+ * 用户手动编辑过的内容不会被覆盖。
+ */
+export async function localizeBuiltinNpc(): Promise<void> {
+  const boss = await db.npcs.filter((n) => n.isBuiltIn).first();
+  if (!boss) return;
+
+  const lang = currentLanguage();
+  const prevLang = localStorage.getItem(LOCALIZE_LANG_KEY) as AppLanguage | null;
+  // 语言未变化，无需处理
+  if (prevLang === lang) return;
+
+  const isPristine = (v: string) => {
+    const s = v.trim();
+    return (
+      s === '酒馆老板' || s === '神秘的酒馆老板，可以响应客人的任何需求' || s === '你来啦！快坐下~' ||
+      s === '酒館老闆' || s === '神秘的酒館老闆，可以回應客人的任何需求' || s === '你來啦！快坐下~' ||
+      s === 'Tavern Keeper' || s === 'A mysterious tavern keeper who can fulfill any request from guests' || s === 'Welcome! Have a seat~'
+    );
+  };
+  const tName = translate('builtinNpc.name');
+  const tPrompt = translate('builtinNpc.prompt');
+  const tGreeting = translate('builtinNpc.greeting');
+
+  const updates: Partial<NpcCharacter> = {};
+  if (isPristine(boss.name)) updates.name = tName;
+  if (isPristine(boss.prompt || '')) updates.prompt = tPrompt;
+  if (isPristine(boss.greeting || '')) updates.greeting = tGreeting;
+  if (Object.keys(updates).length > 0) {
+    await db.npcs.update(boss.id!, updates);
+    // 会话标题 / 最后一条消息 / 参与者 / 消息里的旧内置文案一并更新（仅限仍是内置原文的记录）
+    const sessions = await db.sessions.toArray();
+    for (const s of sessions) {
+      const changes: Partial<ChatSession> = {};
+      if (s.title === '酒馆老板' || s.title === '酒館老闆' || s.title === 'Tavern Keeper') {
+        changes.title = tName;
+      }
+      if (s.lastMessage && isPristine(s.lastMessage)) {
+        changes.lastMessage = tGreeting;
+      }
+      if (Object.keys(changes).length > 0) {
+        await db.sessions.update(s.id!, changes);
+      }
+    }
+    // 参与者 / 消息里的旧内置文案一并更新（仅限仍是内置原文的记录）
+    const participants = await db.participants.toArray();
+    for (const p of participants) {
+      if (
+        p.kind === 'NPC' &&
+        p.npcId === boss.id &&
+        (p.displayName === '酒馆老板' || p.displayName === '酒館老闆' || p.displayName === 'Tavern Keeper')
+      ) {
+        await db.participants.update(p, { displayName: tName });
+      }
+    }
+    const messages = await db.messages.toArray();
+    for (const m of messages) {
+      if (
+        m.speakerParticipantId === boss.id &&
+        (m.speakerName === '酒馆老板' || m.speakerName === '酒館老闆' || m.speakerName === 'Tavern Keeper')
+      ) {
+        await db.messages.update(m.id!, { speakerName: tName });
+      }
+    }
+  }
+
+  if (prevLang !== lang) {
+    localStorage.setItem(LOCALIZE_LANG_KEY, lang);
+  }
+}
+
+/** 内置角色本地化标记：记录上次写入内置角色文本时使用的语言 */
+const LOCALIZE_LANG_KEY = 'th-builtin-npc-lang';
 
 /** 内置技能（只读保护）第一次使用时写库 */
 export async function seedBuiltinTools(): Promise<void> {
