@@ -152,7 +152,19 @@ export function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="sidebar-head">
-        <div className="brand">
+        <div
+          className="brand"
+          role="button"
+          tabIndex={0}
+          title={t('nav.home')}
+          onClick={() => setActiveSession(null)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              setActiveSession(null);
+            }
+          }}
+        >
           <div className="brand-logo">🫖</div>
           <div>
             <div className="brand-name">Tavern Harness</div>

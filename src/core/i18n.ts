@@ -53,6 +53,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'nav.loading': '正在支起酒馆…',
     'nav.deleteSessionConfirm': '确定删除会话「{title}」？该操作不可恢复，会同时删除其中的全部消息。',
     'nav.resize': '拖动调整宽度',
+    'nav.home': '回到首页',
 
     // ---- 会话头部（App） ----
     'header.modeStandard': '标准对话',
@@ -423,6 +424,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'nav.loading': '正在支起酒館…',
     'nav.deleteSessionConfirm': '確定刪除會話「{title}」？此操作無法復原，會同時刪除其中的全部訊息。',
     'nav.resize': '拖動調整寬度',
+    'nav.home': '回到首頁',
 
     'header.modeStandard': '標準對話',
     'header.modeNpc': '角色對話',
@@ -779,6 +781,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'nav.loading': 'Setting up the tavern…',
     'nav.deleteSessionConfirm': 'Delete session "{title}"? This cannot be undone and will delete all its messages.',
     'nav.resize': 'Drag to resize',
+    'nav.home': 'Back to home',
 
     'header.modeStandard': 'Standard chat',
     'header.modeNpc': 'Character chat',
