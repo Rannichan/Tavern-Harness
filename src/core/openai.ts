@@ -119,9 +119,13 @@ async function attemptStream(
 
     // 收尾：补发未完成的工具调用
     for (const [idx, td] of toolDeltas) {
+      const id = td.id || fallbackToolCallId(idx);
+      const nextEmit = `${id}\n${td.name}\n${td.args}`;
+      if (td.lastEmitted === nextEmit) continue;
+      td.lastEmitted = nextEmit;
       onChunk({
         type: 'tool_call',
-        id: td.id || fallbackToolCallId(idx),
+        id,
         name: td.name,
         argJson: td.args,
       });
@@ -229,9 +233,13 @@ function handleDataLine(
       if (choice.finish_reason === 'tool_calls') {
         // 立即发出发射工具调用事件
         for (const [idx, td] of toolDeltas) {
+          const id = td.id || fallbackToolCallId(idx);
+          const nextEmit = `${id}\n${td.name}\n${td.args}`;
+          if (td.lastEmitted === nextEmit) continue;
+          td.lastEmitted = nextEmit;
           onChunk({
             type: 'tool_call',
-            id: td.id || fallbackToolCallId(idx),
+            id,
             name: td.name,
             argJson: td.args,
           });
