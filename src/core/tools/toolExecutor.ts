@@ -7,7 +7,7 @@ import type {
 } from '../../types/models';
 import { BUILTIN_TOOLS, BUILTIN_TOOL_NAMES } from '../toolDefinitions';
 import { rollDice, webSearch } from './builtinTools';
-import { executeGeneratedSkill, SHELL_ALLOWED } from './generatedSkillExecutor';
+import { executeGeneratedSkill } from './generatedSkillExecutor';
 import { uuid } from '../turnLoop';
 import { translate } from '../i18n';
 
@@ -68,7 +68,7 @@ export async function executeToolCall(
   if (mcpTool && mcpTool.executionJson) {
     try {
       const execution = JSON.parse(mcpTool.executionJson) as GeneratedSkillExecution;
-      return await executeGeneratedSkill(execution, args);
+      return await executeGeneratedSkill(execution, args, ctx.requestConfirmation);
     } catch (e) {
       return `ERROR: 技能实现无效 ${(e as Error).message}`;
     }
@@ -611,5 +611,3 @@ export function safeJsonParse<T>(s: string | null | undefined): T | null {
     return null;
   }
 }
-
-export { SHELL_ALLOWED };

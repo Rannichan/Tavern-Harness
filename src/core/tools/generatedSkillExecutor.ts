@@ -1,4 +1,4 @@
-import type { GeneratedSkillExecution } from '../../types/models';
+import type { GeneratedSkillExecution, ToolConfirmationRequest } from '../../types/models';
 import {
   createWorkspaceFile,
   getWorkspaceFile,
@@ -14,6 +14,9 @@ import { translate } from '../i18n';
 
 const MAX_OUTPUT_CHARS = 20_000;
 
+/** shell 确认请求回调（由调用方注入，走统一确认弹窗链路） */
+export type SkillConfirmFn = (req: ToolConfirmationRequest) => Promise<boolean>;
+
 /** 填充 {{param}} 占位符 */
 export function interpolate(template: string, args: Record<string, unknown>): string {
   return template.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, key: string) => {
@@ -25,7 +28,8 @@ export function interpolate(template: string, args: Record<string, unknown>): st
 
 export async function executeGeneratedSkill(
   execution: GeneratedSkillExecution,
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
+  confirm?: SkillConfirmFn | null
 ): Promise<string> {
   switch (execution.type) {
     case 'template':
@@ -39,7 +43,7 @@ export async function executeGeneratedSkill(
     case 'file_write':
       return execFileWrite(execution, args);
     case 'shell':
-      return execShell(execution, args);
+      return execShell(execution, args, confirm);
     case 'device_action':
       return execDeviceAction(execution, args);
     default:
@@ -195,296 +199,124 @@ function interpolateDeep(value: unknown, args: Record<string, unknown>): unknown
   return value;
 }
 
-// ---------- shell（白名单命令模拟）----------
+// ---------- shell（真实执行：白名单直执 + 黑名单弹窗）----------
+
+/**
+ * 可由本地 sandbox-server 真实执行的命令（白名单，与 sandbox-server.mjs 对齐）。
+ * 白名单命令直接执行，无需弹窗。
+ */
 export const SHELL_ALLOWED = [
   'pwd', 'date', 'echo', 'printf', 'ls', 'cat', 'touch', 'mkdir', 'rm', 'cp', 'mv', 'head', 'tail',
   'wc', 'basename', 'dirname', 'sort', 'uniq', 'grep', 'cut', 'tr', 'sha256sum', 'md5sum', 'du',
   'diff', 'find', 'stat', 'cmp', 'sed',
+  'tar', 'gzip', 'gunzip', 'xz', 'unzip', 'zip', 'jq',
+  'env', 'which', 'type', 'timedatectl', 'uptime', 'whoami', 'uname', 'hostname',
+  'true', 'false', 'seq', 'factor', 'od', 'xxd', 'hexdump', 'strings', 'file', 'cksum', 'sum',
+  'tee', 'xargs', 'awk', 'python3', 'node', 'npm', 'npx', 'git', 'ffprobe', 'openssl', 'calc', 'bc',
 ];
 
-async function execShell(execution: GeneratedSkillExecution, args: Record<string, unknown>): Promise<string> {
+/**
+ * 高危命令：真实执行前需要弹窗确认（与 sandbox-server.mjs 对齐）。
+ * 白名单之外的命令一律拒绝（不在白名单，不在黑名单）。
+ */
+export const SHELL_BLOCKED = [
+  'sudo', 'su', 'doas', 'pkexec', 'passwd', 'chpasswd',
+  'rm', 'shred', 'dd', 'mkfs', 'fdisk', 'parted', 'mount', 'umount', 'swapon', 'swapoff',
+  'reboot', 'shutdown', 'halt', 'poweroff', 'init', 'systemctl', 'service', 'killall', 'pkill', 'kill',
+  'curl', 'wget', 'nc', 'ncat', 'socat', 'telnet', 'ssh', 'scp', 'sftp', 'ftp',
+  'chmod', 'chown', 'chattr', 'setfacl', 'ln', 'mknod', 'mv',
+  'docker', 'podman', 'kubectl', 'helm',
+];
+
+/** 本地 sandbox 是否可用（仅同源 dev/preview 下探测一次） */
+let sandboxAvailable: boolean | null = null;
+async function detectSandbox(): Promise<boolean> {
+  if (sandboxAvailable != null) return sandboxAvailable;
+  if (typeof window === 'undefined' || !/^https?:\/\//.test(window.location.origin)) {
+    sandboxAvailable = false;
+    return false;
+  }
+  try {
+    const resp = await fetch('/api-v2/exec', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ script: 'echo 1' }) });
+    sandboxAvailable = resp.ok;
+  } catch {
+    sandboxAvailable = false;
+  }
+  return sandboxAvailable;
+}
+
+/** 把整段脚本送去本地 sandbox 执行（白名单/黑名单/超时在服务端再做一次） */
+async function execShell(
+  execution: GeneratedSkillExecution,
+  args: Record<string, unknown>,
+  confirm?: SkillConfirmFn | null
+): Promise<string> {
   const script = interpolate(execution.script ?? '', args);
   if (script.length > 8000) return 'ERROR: 脚本超过 8000 字符';
   const lines = script.split('\n').filter((l) => l.trim() && !l.trim().startsWith('#'));
   if (lines.length > 20) return 'ERROR: 脚本行数超过 20';
-  if (/[;&|`$<>]/.test(script.replace(/\$\{/g, ''))) return 'ERROR: 脚本包含禁止字符';
 
-  const outputs: string[] = [];
-  for (const line of lines) {
-    const tokens = line.trim().split(/\s+/);
-    const cmd = tokens[0];
-    const rest = tokens.slice(1);
-    if (!SHELL_ALLOWED.includes(cmd)) return `ERROR: 命令 ${cmd} 不在白名单`;
-    try {
-      outputs.push(await runShellCommand(cmd, rest));
-    } catch (e) {
-      return `ERROR: ${cmd}: ${(e as Error).message}`;
+  // 先尝试让本地沙箱执行（服务端再做一次白名单/黑名单校验）
+  const result = await sendToSandbox(script);
+  if (typeof result === 'string') return result; // ERROR: ...
+
+  // 服务端返回需要确认：脚本包含黑名单命令 → 弹窗请用户批准
+  if (result.needConfirm) {
+    let approved = true;
+    if (confirm) {
+      try {
+        approved = await confirm({
+          sessionId: -1,
+          toolName: 'shell',
+          title: translate('tool.gateShellTitle'),
+          message: translate('tool.gateShellMsg', { script: script.slice(0, 800) }),
+          argsJson: JSON.stringify({ script: script.slice(0, 2000) }),
+        });
+      } catch {
+        approved = false;
+      }
     }
+    if (!approved) return translate('tool.shellDenied', { name: 'shell' });
+    return await execSandboxScript(script);
   }
-  return truncate(outputs.join('\n'));
+
+  return truncate(result.output ?? '');
 }
 
-async function runShellCommand(cmd: string, args: string[]): Promise<string> {
-  const files = await listAllFiles();
-  const cwd = files; // 模拟目录
-  switch (cmd) {
-    case 'pwd':
-      return '/generated_skill_workspace';
-    case 'date': {
-      const fmt = args.join(' ') || undefined;
-      const d = new Date();
-      if (fmt === '-u') return d.toISOString();
-      return d.toString();
-    }
-    case 'echo':
-      return args.join(' ').replace(/^["']|["']$/g, '');
-    case 'printf': {
-      // 仅支持 %s %d
-      return args.map((a) => a.replace(/^%[sd]\s?/, '')).join(' ').trim();
-    }
-    case 'ls': {
-      const showAll = args.includes('-a') || args.includes('-l') || args.includes('-al') || args.includes('-la');
-      return files.map((f) => (showAll ? f : f.replace(/^\./, ''))).join('\n') || '(空)';
-    }
-    case 'cat': {
-      const path = args.join(' ').replace(/^["']|["']$/g, '');
-      const f = files.find((f) => f === path);
-      if (!f) throw new Error(`文件不存在: ${path}`);
-      return await readFileContent(path);
-    }
-    case 'touch': {
-      const path = args.join(' ').replace(/^["']|["']$/g, '');
-      const existing = await getWorkspaceFile(path);
-      if (!existing) await createWorkspaceFile(path, '');
-      return '';
-    }
-    case 'mkdir': {
-      const path = args.filter((a) => a !== '-p').join(' ').replace(/^["']|["']$/g, '');
-      await createWorkspaceFile(path + '/.keep', '');
-      return '';
-    }
-    case 'rm': {
-      const path = args.filter((a) => a !== '-f' && a !== '-r').join(' ').replace(/^["']|["']$/g, '');
-      if (path === '*') {
-        for (const f of files) await removeWorkspaceFile(f);
-        return '';
-      }
-      await removeWorkspaceFile(path);
-      return '';
-    }
-    case 'head': {
-      const n = args.includes('-n') ? parseInt(args[args.indexOf('-n') + 1] ?? '10', 10) || 10 : 10;
-      const path = args[args.length - 1];
-      if (args.length === 1 && !isNaN(parseInt(args[0]))) {
-        // head -5 (stdin 不支持，直接返回空)
-        return '(无 stdin)';
-      }
-      const content = await readFileContent(path);
-      return content.split('\n').slice(0, Math.max(1, Math.min(1000, n))).join('\n');
-    }
-    case 'tail': {
-      const n = args.includes('-n') ? parseInt(args[args.indexOf('-n') + 1] ?? '10', 10) || 10 : 10;
-      const path = args[args.length - 1];
-      const content = await readFileContent(path);
-      return content.split('\n').slice(-Math.max(1, Math.min(1000, n))).join('\n');
-    }
-    case 'wc': {
-      const path = args[args.length - 1];
-      const content = await readFileContent(path);
-      const lines = content.split('\n').length - 1;
-      const words = content.split(/\s+/).filter(Boolean).length;
-      const chars = content.length;
-      return `${lines} ${words} ${chars} ${path}`;
-    }
-    case 'basename':
-      return args[0] ? args[0].split('/').pop() ?? '' : '';
-    case 'dirname':
-      return args[0] ? (args[0].split('/').slice(0, -1).join('/') || '.') : '.';
-    case 'grep': {
-      const pattern = args.find((a) => !a.startsWith('-')) ?? '';
-      const path = args[args.length - 1];
-      const content = await readFileContent(path);
-      const flags = args.filter((a) => a.startsWith('-')).join('');
-      const caseInsensitive = flags.includes('i');
-      const invert = flags.includes('v');
-      const re = new RegExp(pattern, caseInsensitive ? 'i' : '');
-      return content
-        .split('\n')
-        .filter((l, i) => {
-          const m = re.test(l);
-          if (invert) return !m;
-          return m;
-        })
-        .join('\n');
-    }
-    case 'sort': {
-      const path = args[args.length - 1];
-      const content = await readFileContent(path);
-      const lines = content.split('\n');
-      if (args.includes('-r') || args.includes('-nr') || args.includes('-rn')) lines.reverse();
-      if (args.includes('-n') || args.includes('-nr') || args.includes('-rn')) {
-        lines.sort((a, b) => parseFloat(a) - parseFloat(b));
-      } else {
-        lines.sort();
-      }
-      if (args.includes('-u')) return [...new Set(lines)].join('\n');
-      return lines.join('\n');
-    }
-    case 'uniq': {
-      const path = args[args.length - 1];
-      const content = await readFileContent(path);
-      const lines = content.split('\n');
-      const out: string[] = [];
-      for (const l of lines) {
-        if (args.includes('-d')) {
-          if (!out.includes(l) && lines.filter((x) => x === l).length > 1) out.push(l);
-        } else if (args.includes('-u')) {
-          if (lines.filter((x) => x === l).length === 1) out.push(l);
-        } else {
-          if (!out[out.length - 1]?.includes(l)) out.push(l);
-        }
-      }
-      return out.join('\n');
-    }
-    case 'cut': {
-      const path = args[args.length - 1];
-      const content = await readFileContent(path);
-      const cFlag = args.find((a) => a.startsWith('-c'))?.slice(2);
-      const fFlag = args.find((a) => a.startsWith('-f'))?.slice(2);
-      const d = args[args.indexOf('-d') + 1] ?? '\t';
-      return content
-        .split('\n')
-        .map((line) => {
-          if (cFlag) {
-            const [start, end] = cFlag.split('-').map((n) => (n ? parseInt(n, 10) : null));
-            const chars = line.split('');
-            const s = (start ?? 1) - 1;
-            const e = end ?? chars.length;
-            return chars.slice(s, e).join('');
-          }
-          if (fFlag) {
-            const parts = line.split(d);
-            if (fFlag.includes('-')) {
-              const [start, end] = fFlag.split('-').map((n) => (n ? parseInt(n, 10) : null));
-              return parts.slice((start ?? 1) - 1, end ?? parts.length).join(d);
-            }
-            return fFlag.split(',').map((n) => parts[parseInt(n, 10) - 1] ?? '').join(d);
-          }
-          return line;
-        })
-        .join('\n');
-    }
-    case 'sha256sum': {
-      const path = args[args.length - 1];
-      const content = await readFileContent(path);
-      const hash = await sha256(content);
-      return `${hash}  ${path}`;
-    }
-    case 'md5sum': {
-      const path = args[args.length - 1];
-      const content = await readFileContent(path);
-      const hash = await md5(content);
-      return `${hash}  ${path}`;
-    }
-    case 'du': {
-      // 简化：文件大小
-      return files.length === 0 ? '0' : files.map((f) => f).join(' ');
-    }
-    case 'find': {
-      return files.join('\n');
-    }
-    case 'stat': {
-      const path = args[args.length - 1];
-      const f = await getWorkspaceFile(path);
-      if (!f) throw new Error(`文件不存在: ${path}`);
-      const fmt = args[args.indexOf('-c') + 1] ?? '%s';
-      if (fmt === '%s') return String(f.content.length);
-      return JSON.stringify({ path, size: f.content.length, mtime: new Date(f.updatedAt).toISOString() });
-    }
-    case 'cmp': {
-      const fileA = args[0];
-      const fileB = args[1];
-      if (args.includes('-s')) return '';
-      const a = await readFileContent(fileA);
-      const b = await readFileContent(fileB);
-      return a === b ? '' : `${fileA} ${fileB} differ: char 1, line 1`;
-    }
-    case 'sed': {
-      const path = args[args.length - 1];
-      const content = await readFileContent(path);
-      const expr = args[0].replace(/^["']|["']$/g, '');
-      const m = expr.match(/^s\/(.*?)\/(.*?)\/([gip]*)$/);
-      if (m) {
-        const [_, pattern, repl, flags] = m;
-        let text = content;
-        const global = flags.includes('g');
-        const caseIns = flags.includes('i');
-        const re = new RegExp(pattern, caseIns ? (global ? 'gi' : 'i') : global ? 'g' : '');
-        text = text.replace(re, repl);
-        return text;
-      }
-      // 打印行 N[,M]p
-      const pm = expr.match(/^(\d+)(?:,(\d+))?p$/);
-      if (pm) {
-        const start = parseInt(pm[1], 10);
-        const end = pm[2] ? parseInt(pm[2], 10) : start;
-        return content.split('\n').filter((_, i) => i + 1 >= start && i + 1 <= end).join('\n');
-      }
-      return content;
-    }
-    case 'cp': {
-      const [src, dst] = args;
-      const content = await readFileContent(src);
-      await createWorkspaceFile(dst, content);
-      return '';
-    }
-    case 'mv': {
-      const [src, dst] = args;
-      const content = await readFileContent(src);
-      await removeWorkspaceFile(src);
-      await createWorkspaceFile(dst, content);
-      return '';
-    }
-    case 'diff': {
-      const fileA = args[args.length - 2];
-      const fileB = args[args.length - 1];
-      const a = (await readFileContent(fileA)).split('\n');
-      const b = (await readFileContent(fileB)).split('\n');
-      const out: string[] = [];
-      const max = Math.max(a.length, b.length);
-      for (let i = 0; i < max; i++) {
-        if (a[i] !== b[i]) {
-          if (a[i] != null) out.push(`< ${a[i]}`);
-          if (b[i] != null) out.push(`> ${b[i]}`);
-        }
-      }
-      return out.join('\n') || '(无差异)';
-    }
-    default:
-      return `ERROR: 命令 ${cmd} 未实现`;
+interface SandboxResult {
+  needConfirm: boolean;
+  output?: string;
+}
+
+/** 发送脚本到本地沙箱；返回 needConfirm=true 表示需用户批准后重发 */
+async function sendToSandbox(script: string): Promise<SandboxResult | string> {
+  const available = await detectSandbox();
+  if (!available) return 'ERROR: 真实 shell 沙箱未启动（请先运行 node sandbox-server.mjs）';
+  try {
+    const resp = await fetch('/api-v2/exec', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ script: script.slice(0, 8000) }),
+    });
+    const data = (await resp.json()) as { ok?: boolean; message?: string; output?: string; needConfirm?: boolean };
+    if (resp.ok && data.ok) return { needConfirm: false, output: data.output ?? '' };
+    if (data.needConfirm) return { needConfirm: true };
+    return `ERROR: ${data?.message ?? `HTTP ${resp.status}`}`;
+  } catch (e) {
+    return `ERROR: shell 执行端点异常 ${(e as Error).message}`;
   }
 }
 
-async function listAllFiles(): Promise<string[]> {
-  const files = await listAllFromWorkspace();
-  return files;
-}
-
-async function listAllFromWorkspace(): Promise<string[]> {
-  const { listWorkspaceFiles } = await import('./generatedWorkspace');
-  const files = await listWorkspaceFiles();
-  return files.map((f) => f.path.split('/').slice(1).join('/'));
-}
-
-async function sha256(text: string): Promise<string> {
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
-  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
-}
-
-async function md5(text: string): Promise<string> {
-  // 简化实现（Web Crypto 不支持 md5）；用作演示
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
-  return [...new Uint8Array(buf)].slice(0, 16).map((b) => b.toString(16).padStart(2, '0')).join('');
+/** 确认后重发执行 */
+async function execSandboxScript(script: string): Promise<string> {
+  const resp = await fetch('/api-v2/exec', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ script: script.slice(0, 8000), confirmed: true }),
+  });
+  const data = (await resp.json()) as { ok?: boolean; message?: string; output?: string };
+  if (resp.ok && data.ok) return truncate(data.output ?? '');
+  return `ERROR: ${data?.message ?? `HTTP ${resp.status}`}`;
 }
 
 // ---------- device_action ----------

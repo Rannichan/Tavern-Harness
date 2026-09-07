@@ -34,14 +34,8 @@ MyAgent-Android（Mioo）的 Web 版复刻——一个本地优先的 AI 助手 
 - **世界书**：世界观设定附加在人设后，可绑定到会话
 - **技能表（工具）**：
   - 内置：`web_search`（Bing，国内友好）、`roll_dice`、`create_skill` / `update_skill` / `delete_skill`、`manage_timer`、`get_tavern_status`、角色与世界书 CRUD
-  - **生成式技能**：`template` / `http_get` / `javascript`（Web Worker 沙箱）/ `file_read` / `file_write` / `shell`（白名单）/ `device_action`（通知 / 震动）
-  - **确认门控**：更新/删除类操作弹出确认框
-
-### 其他
-- **定时消息**：`manage_timer` 创建定时消息，倒计时结束自动投递回会话
-- **生涯统计**：累计 token、对话轮数、最活跃角色（append-only）
-- **主题**：跟随系统 / 浅色 / 深色，四种主题色（violet / blue / green / amber）
-- **会话管理**：多会话、预览摘要、导出 JSON（可自选保存位置与文件名）
+  - **生成式技能**：`template` / `http_get` / `javascript`（Web Worker 沙箱）/ `file_read` / `file_write` / `shell`（真实执行，白名单直执 + 高危弹窗）/ `device_action`（通知 / 震动）
+  - **确认门控**：更新/删除类操作、以及**高危 shell 命令**均弹出确认框
 
 ## 🚀 使用
 
@@ -57,6 +51,24 @@ npm run preview  # 预览
 1. 添加 Provider：名称、Base URL、API Key，启用后点击「测试连接」拉取模型列表
 2. 在聊天页顶部点击模型名选择模型
 3. 回到对话，开聊！
+
+## 🛡️ 生成式技能 `shell` 的真实执行沙箱（可选）
+
+`shell` 类型默认在浏览器内虚拟工作区模拟（`file_read` / `file_write` 使用 IndexedDB）。如需让 `shell` 技能执行**真实本地命令**，另起一个进程运行本地沙箱服务：
+
+```bash
+node sandbox-server.mjs            # 默认端口 17891
+```
+
+启用后：
+
+- 开发服务器（`npm run dev`）会自动把 `/api-v2/exec` 转发给该服务；已编译产物（`npm run preview` / 静态部署）需在同一站点额外部署该服务（或手动代理）。
+- **权限模型（命令分级）**：
+  - **白名单命令 → 直接执行，不需确认**：`pwd`、`ls`、`cat`、`touch`、`mkdir`、`rm`、`cp`、`mv`、`grep`、`sed`、`tar`、`gzip`、`unzip`、`zip`、`jq`、`awk`、`xargs`、`tee`、`whoami`、`uname`、`uptime`、`python3`、`node`、`git` …
+  - **高危黑名单命令 → 弹窗确认后执行**：`sudo`、`su`、`dd`、`mkfs`、`fdisk`、`mount`、`chmod`、`chown`、`kill`、`curl`、`wget`、`nc`、`ssh`、`scp`、`shutdown`、`reboot`、`systemctl`、`docker`、`kubectl` …（前端先弹窗展示整段脚本，用户批准后带 `confirmed` 标记重发，服务端才放行；拒绝返回 `CANCELLED`）
+  - **其余命令 → 一律拒绝**（前后端双重检查，无弹窗）
+- 其余规范：仅允许 `https://`（见 `http_get` 内网封锁）、单条命令 5s 超时、输出截断、脚本 ≤ 8000 字符 / ≤ 20 行、每行一条命令（无 shell 解释器，`&` `|` `;` `>` 等仅为普通参数，不构成拼接/注入）。
+- 该服务仅监听 `127.0.0.1`，不对外暴露；未启动时返回明确错误提示。
 
 ### 本地 / 局域网服务（CORS）
 

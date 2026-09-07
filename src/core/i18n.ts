@@ -366,6 +366,9 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'tool.gateDeleteChar': '删除角色「{name}」？此操作不可恢复。',
     'tool.gateUpdateWb': '更新世界书「{name}」？',
     'tool.gateDeleteWb': '删除世界书「{name}」？此操作不可恢复。',
+    'tool.gateShellTitle': '确认执行高危 Shell 命令',
+    'tool.gateShellMsg': '生成式技能请求执行以下高危本地命令：\n\n{script}\n\n请注意这些命令可能影响你的系统，批准后将在本机真实执行。',
+    'tool.shellDenied': 'CANCELLED: 用户取消了 {name}',
     'tool.truncated': '\n…(已截断)',
 
     // ---- 系统提示词 ----
@@ -711,6 +714,9 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'tool.gateDeleteChar': '刪除角色「{name}」？此操作無法復原。',
     'tool.gateUpdateWb': '更新世界書「{name}」？',
     'tool.gateDeleteWb': '刪除世界書「{name}」？此操作無法復原。',
+    'tool.gateShellTitle': '確認執行高風險 Shell 指令',
+    'tool.gateShellMsg': '生成式技能請求執行以下高風險本地指令：\n\n{script}\n\n請注意這些指令可能影響你的系統，批准後將在本機真實執行。',
+    'tool.shellDenied': 'CANCELLED: 用戶取消了 {name}',
     'tool.truncated': '\n…(已截斷)',
 
     'prompt.worldBook': '=== WORLD BOOK (世界書) ===',
@@ -1055,6 +1061,9 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'tool.gateDeleteChar': 'Delete character "{name}"? This cannot be undone.',
     'tool.gateUpdateWb': 'Update world book "{name}"?',
     'tool.gateDeleteWb': 'Delete world book "{name}"? This cannot be undone.',
+    'tool.gateShellTitle': 'Confirm high-risk shell command',
+    'tool.gateShellMsg': 'A generated skill wants to run these HIGH-RISK commands on your machine:\n\n{script}\n\nThese may affect your system. Approving executes them for real.',
+    'tool.shellDenied': 'CANCELLED: user rejected {name}',
     'tool.truncated': '\n…(truncated)',
 
     'prompt.worldBook': '=== WORLD BOOK ===',

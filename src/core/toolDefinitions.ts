@@ -268,7 +268,7 @@ function getExecutionDescription(): string {
     '- javascript: `{code: "result = { sum: input.a + input.b }"}`, reads `input`, assigns JSON-safe `result`, 750ms sandbox limit',
     '- file_read: `{path: "notes.md"}` — read file in private workspace (100KB cap)',
     '- file_write: `{path: "notes.jsonl", json_content: {...}, append: true, append_newline: true}`',
-    '- shell: one allow-listed command per line (pwd, date, echo, printf, ls, cat, touch, mkdir, rm, cp, mv, head, tail, wc, basename, dirname, sort, uniq, grep, cut, tr, sha256sum, md5sum, du, diff, find, stat, cmp, sed)',
+    '- shell: one allow-listed command per line, executed as REAL local commands via an optional local sandbox service (node sandbox-server.mjs). Whitelisted commands (pwd, ls, cat, grep, sed, tar, unzip, jq, awk, python3, node, git, ...) run directly without confirmation. High-risk commands (sudo, curl, wget, dd, shutdown, docker, ssh, ...) require a user confirmation dialog first; everything else is rejected',
     '- device_action: `{action: "vibrate", duration_ms: 300}` | notification | flashlight | sequence (1-6 steps)',
   ].join(' ');
 }

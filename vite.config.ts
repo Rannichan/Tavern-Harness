@@ -2,6 +2,8 @@ import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import http from 'node:http';
 import https from 'node:https';
+import { readFileSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 /**
@@ -55,8 +57,58 @@ function corsProxyPlugin(): Plugin {
   };
 }
 
+/**
+ * 生成式技能真实 Shell 执行端点。
+ * 规则：/api-v2/exec 转发到本地 sandbox-server（127.0.0.1:17891，端口从 .sandbox-port 锁文件读取）。
+ * 若 sandbox 未启动（无锁文件），返回 503，前端报错提示先启动服务。
+ */
+function sandboxProxyPlugin(): Plugin {
+  let sandboxPort: number | null = null;
+  const lockPath = join(process.cwd(), '.sandbox-port');
+
+  const loadPort = () => {
+    try {
+      if (existsSync(lockPath)) {
+        const p = parseInt(readFileSync(lockPath, 'utf8').trim(), 10);
+        if (!Number.isNaN(p) && p > 0) return p;
+      }
+    } catch {
+      /* ignore */
+    }
+    return null;
+  };
+
+  return {
+    name: 'sandbox-proxy',
+    configureServer(server) {
+      sandboxPort = loadPort();
+      server.middlewares.use((req: IncomingMessage, res: ServerResponse, next) => {
+        if (req.url !== '/api-v2/exec' || req.method !== 'POST') return next();
+        const port = sandboxPort ?? loadPort();
+        if (!port) {
+          res.writeHead(503, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, message: 'sandbox server not running' }));
+          return;
+        }
+        const proxyReq = http.request(
+          { protocol: 'http:', hostname: '127.0.0.1', port, path: '/exec', method: 'POST', headers: req.headers },
+          (proxyRes) => {
+            res.writeHead(proxyRes.statusCode || 502, proxyRes.headers);
+            proxyRes.pipe(res);
+          }
+        );
+        proxyReq.on('error', (e: Error) => {
+          res.writeHead(502, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, message: `sandbox proxy error: ${e.message}` }));
+        });
+        req.pipe(proxyReq);
+      });
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), corsProxyPlugin()],
+  plugins: [react(), corsProxyPlugin(), sandboxProxyPlugin()],
   server: {
     port: 5173,
     open: false,
