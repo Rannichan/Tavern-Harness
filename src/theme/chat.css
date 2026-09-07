@@ -253,6 +253,40 @@
   max-height: 220px;
   overflow: auto;
 }
+/* 工具卡片展开区：参数 + 结果垂直排列 */
+.tool-card-body {
+  border-top: 1px solid var(--border-soft);
+}
+.tool-card-body .tool-result {
+  border: none;
+  border-radius: 0;
+  padding: 7px 14px;
+}
+/* 未展开时展示的工具调用结果摘要行 */
+.tool-card-result-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 6px 12px 7px;
+  border-top: 1px solid var(--border-soft);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 8%, transparent);
+  word-break: break-all;
+}
+.tool-card-result-line.err {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+}
+.tool-card.has-result .tool-card-name,
+.tool-card.has-result .tool-card-icon {
+  color: var(--success);
+}
+.tool-card.has-error .tool-card-name,
+.tool-card.has-error .tool-card-icon {
+  color: var(--danger);
+}
 .tool-result {
   display: flex;
   align-items: flex-start;
@@ -341,6 +375,10 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* 流式预览：只显示最新一行，超出省略 */
+.collp-preview.live {
+  white-space: nowrap;
 }
 .collp-live {
   display: inline-flex;

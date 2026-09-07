@@ -94,6 +94,33 @@ export function ChatView({
   const npcId = session.associatedId;
   const npc = useStore((s) => s.npcs.find((n) => n.id === npcId));
 
+  // 工具调用结果按 toolCallId 分组；已由 assistant 消息工具卡片展示的调用 id，其结果并入卡片内部渲染
+  const toolResultsByCallId = useMemo(() => {
+    const map = new Map<string, ChatMessage[]>();
+    for (const m of messages) {
+      if (m.role === 'tool' && m.toolCallId) {
+        const arr = map.get(m.toolCallId);
+        if (arr) arr.push(m);
+        else map.set(m.toolCallId, [m]);
+      }
+    }
+    return map;
+  }, [messages]);
+  const displayedToolCallIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const m of messages) {
+      if (m.role !== 'assistant') continue;
+      try {
+        for (const tc of JSON.parse(m.toolCallsJson || '[]') as ToolCallRecord[]) {
+          if (tc.id) ids.add(tc.id);
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    return ids;
+  }, [messages]);
+
   return (
     <div className="chat-scroll" ref={scrollRef} onScroll={onChatScroll}>
       <div className="chat-col">
@@ -114,7 +141,9 @@ export function ChatView({
             session={session} 
             participants={participants} 
             loopIndex={isGroup ? (m.loopIndex ?? 0) : null}
-            streaming={streaming && m.id === lastMsgId(messages)} />
+            streaming={streaming && m.id === lastMsgId(messages)}
+            toolResultsByCallId={toolResultsByCallId}
+            suppressedResultIds={displayedToolCallIds} />
         ))}
       </div>
     </div>
@@ -135,6 +164,8 @@ function MessageBubble({
   participants,
   streaming,
   loopIndex,
+  toolResultsByCallId,
+  suppressedResultIds,
 }: {
   msg: ChatMessage;
   session: ChatSession;
@@ -142,8 +173,13 @@ function MessageBubble({
   streaming: boolean;
   /** 群聊循环号（0 起）；非群聊为 null */
   loopIndex: number | null;
+  /** 工具结果按 toolCallId 分组（用于并入发起它的调用卡片内部展示） */
+  toolResultsByCallId: Map<string, ChatMessage[]>;
+  /** 已在 assistant 消息工具卡片内展示结果的 toolCallId 集合（独立结果行不再重复渲染） */
+  suppressedResultIds: Set<string>;
 }) {
   const t = useT();
+  const turnStreaming = useStore((s) => s.streaming.sessionId === session.id);
   // System 消息（/new 标记）
   if (msg.role === 'system') {
     return (
@@ -153,6 +189,8 @@ function MessageBubble({
 
   // 工具消息
   if (msg.role === 'tool') {
+    // 该结果已并入发起它的工具调用卡片内部 → 不再独立渲染
+    if (msg.toolCallId && suppressedResultIds.has(msg.toolCallId)) return null;
     const isError = msg.content.startsWith('ERROR:') || msg.content.startsWith('CANCELLED:');
     return (
       <div className="msg-row tool-row fade-up" data-loop={loopIndex ?? undefined} data-speaker={msg.speakerParticipantId != null ? String(msg.speakerParticipantId) : undefined}>
@@ -250,7 +288,12 @@ function MessageBubble({
         {toolCalls.length > 0 && (
           <div className="tool-calls">
             {toolCalls.map((tc, i) => (
-              <ToolCallCard key={i} tc={tc} executing={streaming} />
+              <ToolCallCard
+                key={i}
+                tc={tc}
+                executing={turnStreaming && (toolResultsByCallId.get(tc.id) ?? []).length === 0}
+                results={toolResultsByCallId.get(tc.id) ?? []}
+              />
             ))}
           </div>
         )}
@@ -306,6 +349,8 @@ function BubbleEditor({
 
   const doSave = async () => {
     if (!text.trim() || streaming) return;
+    // 立即退回消息气泡状态；保存 + 重新生成在后台继续
+    onDone();
     await editMessage(
       msg.id!,
       text,
@@ -313,11 +358,11 @@ function BubbleEditor({
       attachments.map((a) => a.dataUrl),
       attachments.map((a) => a.name)
     );
-    onDone();
   };
 
   const doSaveOnly = async () => {
     if (!text.trim() || streaming) return;
+    onDone();
     await saveMessageOnly(
       msg.id!,
       text,
@@ -325,7 +370,6 @@ function BubbleEditor({
       attachments.map((a) => a.dataUrl),
       attachments.map((a) => a.name)
     );
-    onDone();
   };
 
   // 主按钮动作：玩家 → 保存并重新生成；NPC → 仅保存
@@ -436,7 +480,7 @@ function UserBubble({ msg, session, editing, loopIndex }: { msg: ChatMessage; se
   );
 }
 
-function ToolCallCard({ tc, executing }: { tc: ToolCallRecord; executing: boolean }) {
+function ToolCallCard({ tc, executing, results }: { tc: ToolCallRecord; executing: boolean; results: ChatMessage[] }) {
   const t = useT();
   const [open, setOpen] = useState(false);
   let args: unknown;
@@ -445,15 +489,35 @@ function ToolCallCard({ tc, executing }: { tc: ToolCallRecord; executing: boolea
   } catch {
     args = tc.argumentsJson;
   }
+  const hasResult = results.length > 0;
+  const isError = results.some((r) => r.content.startsWith('ERROR:') || r.content.startsWith('CANCELLED:'));
+  const resultText = results.map((r) => r.content).join('\n');
   return (
-    <div className={`tool-card ${executing ? 'executing' : ''}`}>
+    <div className={`tool-card ${executing ? 'executing' : ''} ${hasResult ? (isError ? 'has-error' : 'has-result') : ''}`}>
       <button className="tool-card-head" onClick={() => setOpen(!open)}>
-        <span className="tool-card-icon">{executing ? <span className="spinner" style={{ width: 12, height: 12 }} /> : '🔧'}</span>
+        <span className="tool-card-icon">
+          {executing ? <span className="spinner" style={{ width: 12, height: 12 }} /> : hasResult ? <Icon name={isError ? 'cancel' : 'check'} size={13} /> : '🔧'}
+        </span>
         <span className="tool-card-name">{t('chat.toolCall', { name: tc.name })}</span>
         <span className="collp-arrow" style={{ transform: open ? 'rotate(180deg)' : undefined }}>▾</span>
       </button>
+      {/* 未展开时也展示工具调用结果摘要（已执行完毕） */}
+      {hasResult && !open && (
+        <div className={`tool-card-result-line ${isError ? 'err' : ''}`}>
+          <Icon name={isError ? 'cancel' : 'check'} size={12} />
+          <span className="mono">{resultText.replace(/\s+/g, ' ').slice(0, 160)}{resultText.length > 160 ? '…' : ''}</span>
+        </div>
+      )}
       {open && (
-        <pre className="tool-args mono">{JSON.stringify(args, null, 2)}</pre>
+        <div className="tool-card-body">
+          <pre className="tool-args mono">{JSON.stringify(args, null, 2)}</pre>
+          {hasResult && (
+            <div className={`tool-result ${isError ? 'err' : ''}`}>
+              <Icon name={isError ? 'cancel' : 'check'} size={13} />
+              <span className="mono">{resultText.length > 2000 ? resultText.slice(0, 2000) + '…' : resultText}</span>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

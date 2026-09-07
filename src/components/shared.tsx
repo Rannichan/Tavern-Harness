@@ -193,8 +193,12 @@ export function Collapse({
     const el = contentRef.current;
     if (el) {
       setOverflow(el.scrollHeight > el.clientHeight + 4);
+      // 流式进行中：实时跟随最新内容（钉在底部，展示最新的一行/一段）
+      if (live && open) {
+        el.scrollTop = el.scrollHeight;
+      }
     }
-  }, [preview, children]);
+  }, [preview, children, live, open]);
 
   const cls = `collp ${accent !== 'default' ? `collp-${accent}` : ''}`;
   return (
@@ -211,7 +215,13 @@ export function Collapse({
           {overflow && !preview && <div className="collp-more">{t('chat.collpMore')}</div>}
         </div>
       )}
-      {!open && preview && <div className="collp-preview">{preview.slice(0, 120)}{preview.length > 120 ? '…' : ''}</div>}
+      {!open && preview && (
+        <div className={`collp-preview ${live ? 'live' : ''}`}>
+          {/* 流式中只显示最新的一行内容，否则显示开头预览 */}
+          {live ? (preview.trim().split('\n').filter(Boolean).slice(-1)[0] ?? '') : preview.slice(0, 120)}
+          {!live && preview.length > 120 ? '…' : ''}
+        </div>
+      )}
     </div>
   );
 }
