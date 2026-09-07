@@ -21,14 +21,122 @@
 // ============================================================
 
 import { createServer } from 'node:http';
-import { spawn } from 'node:child_process';
-import { writeFileSync, existsSync } from 'node:fs';
-import { join, dirname, resolve, sep } from 'node:path';
+import { spawn, spawnSync } from 'node:child_process';
+import { writeFileSync, existsSync, readFileSync } from 'node:fs';
+import { join, dirname, resolve, sep, delimiter } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.argv[2] || process.env.SANDBOX_PORT || 17891);
 const LOCK_FILE = join(__dirname, '.sandbox-port');
+
+// ---- Windows 适配 ----
+// 该沙箱命令集为 Unix 风格。Windows 上尽量使用 Git for Windows 自带的
+// usr/bin 工具（bool 验证过 pwd/ls/date/echo 等均存在）。
+const IS_WIN = process.platform === 'win32';
+function findGitUsrBin() {
+  if (!IS_WIN) return null;
+  const candidates = [
+    // 常见 Git 安装位置（不含 \cmd 的父级为安装根，usr\bin 在根下）
+    'C:\\Program Files\\Git\\usr\\bin',
+    'C:\\Program Files (x86)\\Git\\usr\\bin',
+  ];
+  try {
+    const which = spawnSync('where', ['git'], { encoding: 'utf8' });
+    if (which.status === 0 && which.stdout) {
+      const gitPath = which.stdout.split(/\r?\n/).find((l) => l.trim());
+      if (gitPath) {
+        const root = dirname(dirname(gitPath)); // 去掉 \cmd\git.exe
+        const p = join(root, 'usr', 'bin');
+        if (existsSync(join(p, 'pwd.exe'))) return p;
+      }
+    }
+  } catch { /* ignore */ }
+  for (const c of candidates) if (existsSync(join(c, 'pwd.exe'))) return c;
+  return null;
+}
+const GIT_USR_BIN = findGitUsrBin();
+// 子进程继承的 PATH：Git usr\bin 放最前，保证 Unix 命令优先
+const SPAWN_ENV = {
+  ...process.env,
+  PATH: GIT_USR_BIN ? `${GIT_USR_BIN}${delimiter}${process.env.PATH ?? ''}` : (process.env.PATH ?? ''),
+};
+
+// cmd.exe 内建命令没有独立可执行文件，spawn 找不到；需要转换为 cmd 可执行的形式
+const CMD_BUILTINS = new Set(['echo', 'date', 'type', 'set', 'cd', 'cls', 'dir', 'copy', 'del', 'rd', 'md']);
+function cmdForLine(cmd, args) {
+  if (!IS_WIN || !CMD_BUILTINS.has(cmd)) return { cmd, args };
+  // echo/date/type 在 Git bash 中都有真实可执行文件，优先用它们（GIT_USR_BIN 已注入 PATH）
+  if (GIT_USR_BIN && cmd !== 'set' && cmd !== 'cd' && cmd !== 'cls' && cmd !== 'dir' && cmd !== 'copy' && cmd !== 'del' && cmd !== 'rd' && cmd !== 'md') {
+    return { cmd, args };
+  }
+  // 其余真正需要 cmd.exe 内建：拼成单条命令行交给 cmd /c
+  return { cmd: 'cmd', args: ['/c', [cmd, ...args].join(' ')] };
+}
+
+/**
+ * 命令行分词：支持单引号/双引号（去引号）、反斜杠转义、引号内空白保持原样。
+ * `& | ; > < $ ( ) \` 等字符在引号外保持字面量（不作为 shell 操作符）——
+ * 仍然每行一条命令、经 spawn 直接执行（无 shell 解释器），不构成拼接/注入。
+ * 参数以空白开头/结尾（如 printf 的 \n" 结尾）会被 trim 掉，与之前行为一致。
+ */
+function tokenize(line) {
+  const tokens = [];
+  let cur = null;   // 当前 token 缓冲（null 表示不在 token 中）
+  let quote = null; // null | "'" | '"'
+  let i = 0;
+  while (i < line.length) {
+    const ch = line[i];
+    if (quote) {
+      if (ch === '\\' && quote === '"' && i + 1 < line.length) {
+        // 双引号内只转义 \" \\；其余反斜杠保留字面量（与 bash 一致）
+        const nx = line[i + 1];
+        if (nx === '"' || nx === '\\') {
+          cur += nx;
+          i += 2;
+          continue;
+        }
+        cur += ch;
+        i += 1;
+        continue;
+      }
+      if (ch === quote) {
+        quote = null;
+        i += 1;
+        continue;
+      }
+      cur += ch;
+      i += 1;
+      continue;
+    }
+    if (ch === "'" || ch === '"') {
+      if (cur === null) cur = '';
+      quote = ch;
+      i += 1;
+      continue;
+    }
+    if (ch === '\\' && i + 1 < line.length) {
+      // 引号外：反斜杠转义下一个字符，避免引号被当作语法（如 \" 保留为字面量 "）
+      if (cur === null) cur = '';
+      cur += line[i + 1];
+      i += 2;
+      continue;
+    }
+    if (/\s/.test(ch)) {
+      if (cur !== null) {
+        tokens.push(cur);
+        cur = null;
+      }
+      i += 1;
+      continue;
+    }
+    if (cur === null) cur = '';
+    cur += ch;
+    i += 1;
+  }
+  if (cur !== null) tokens.push(cur);
+  return tokens;
+}
 
 // ---- 白名单：可直接执行（黑名单优先于本名单判断） ----
 const SHELL_ALLOWED_REAL = new Set([
@@ -150,14 +258,18 @@ function validateScript(script, confirmed) {
 }
 
 function runOne(line) {
-  const tokens = line.split(/\s+/);
-  const cmd = tokens[0];
-  const args = tokens.slice(1);
+  const tokens = tokenize(line);
+  let cmd = tokens[0];
+  let args = tokens.slice(1);
+  const adapted = cmdForLine(cmd, args);
+  cmd = adapted.cmd;
+  args = adapted.args;
   return new Promise((resolve, reject) => {
     const child = spawn(cmd, args, {
       cwd: process.cwd(),
       shell: false,
       stdio: ['ignore', 'pipe', 'pipe'],
+      env: SPAWN_ENV,
     });
     let stdout = '';
     let stderr = '';

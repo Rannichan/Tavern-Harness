@@ -322,6 +322,18 @@
   width: 100%;
   word-break: break-all;
 }
+/* 展开态工具结果：保留换行与缩进 */
+.tool-result .mono {
+  white-space: pre-wrap;
+}
+/* 折叠态摘要行：强制单行省略 */
+.tool-card-result-line .mono {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
 .tool-result.err {
   color: var(--danger);
   background: var(--danger-soft);

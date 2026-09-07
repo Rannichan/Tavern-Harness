@@ -52,9 +52,15 @@ npm run preview  # 预览
 2. 在聊天页顶部点击模型名选择模型
 3. 回到对话，开聊！
 
-## 🛡️ 生成式技能 `shell` 的真实执行沙箱（可选）
+## 🛡️ 生成式技能 `shell` 的真实执行沙箱
 
-`shell` 类型默认在浏览器内虚拟工作区模拟（`file_read` / `file_write` 使用 IndexedDB）。如需让 `shell` 技能执行**真实本地命令**，另起一个进程运行本地沙箱服务：
+`shell` 类型默认在浏览器内虚拟工作区模拟（`file_read` / `file_write` 使用 IndexedDB）。如需让 `shell` 技能执行**真实本地命令**，无需手动操作——**开发服务器（`npm run dev`）会在首次收到 `/api-v2/exec` 请求时自动拉起沙箱服务**（`node sandbox-server.mjs`，默认为本机 `127.0.0.1:17891`），并复用已有实例（手动先启动也可，不会被重复拉起）。
+
+```bash
+npm start          # 或 npm run dev —— 沙箱自动随启
+```
+
+也可以手动单独启动（可选，常用于调试独立沙箱）：
 
 ```bash
 node sandbox-server.mjs            # 默认端口 17891

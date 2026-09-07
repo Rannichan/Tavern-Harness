@@ -228,12 +228,14 @@ export const SHELL_BLOCKED = [
   'docker', 'podman', 'kubectl', 'helm',
 ];
 
-/** 本地 sandbox 是否可用（仅同源 dev/preview 下探测一次） */
+/** 本地 sandbox 是否可用（成功则永久缓存；失败后短暂重试，避免探测结果永久失效） */
 let sandboxAvailable: boolean | null = null;
+let sandboxRetryAt = 0;
 async function detectSandbox(): Promise<boolean> {
-  if (sandboxAvailable != null) return sandboxAvailable;
+  if (sandboxAvailable === true) return true;
+  if (Date.now() < sandboxRetryAt) return false;
   if (typeof window === 'undefined' || !/^https?:\/\//.test(window.location.origin)) {
-    sandboxAvailable = false;
+    sandboxRetryAt = Date.now() + 60_000;
     return false;
   }
   try {
@@ -242,6 +244,7 @@ async function detectSandbox(): Promise<boolean> {
   } catch {
     sandboxAvailable = false;
   }
+  if (!sandboxAvailable) sandboxRetryAt = Date.now() + 5000; // 5 秒后自动重试，无需刷新页面
   return sandboxAvailable;
 }
 

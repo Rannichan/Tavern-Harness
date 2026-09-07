@@ -501,11 +501,11 @@ function ToolCallCard({ tc, executing, results }: { tc: ToolCallRecord; executin
         <span className="tool-card-name">{t('chat.toolCall', { name: tc.name })}</span>
         <span className="collp-arrow" style={{ transform: open ? 'rotate(180deg)' : undefined }}>▾</span>
       </button>
-      {/* 未展开时也展示工具调用结果摘要（已执行完毕） */}
+      {/* 未展开时展示工具调用结果摘要行（单行折叠，便于扫读） */}
       {hasResult && !open && (
         <div className={`tool-card-result-line ${isError ? 'err' : ''}`}>
           <Icon name={isError ? 'cancel' : 'check'} size={12} />
-          <span className="mono">{resultText.replace(/\s+/g, ' ').slice(0, 160)}{resultText.length > 160 ? '…' : ''}</span>
+          <span className="mono">{resultText.trim().split('\n').filter(Boolean).slice(0, 2).join(' · ') || resultText.replace(/\s+/g, ' ').slice(0, 160)}{resultText.length > 160 ? '…' : ''}</span>
         </div>
       )}
       {open && (

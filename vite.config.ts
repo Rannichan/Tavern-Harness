@@ -2,6 +2,8 @@ import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import http from 'node:http';
 import https from 'node:https';
+import net from 'node:net';
+import { spawn, type ChildProcess } from 'node:child_process';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -60,11 +62,14 @@ function corsProxyPlugin(): Plugin {
 /**
  * 生成式技能真实 Shell 执行端点。
  * 规则：/api-v2/exec 转发到本地 sandbox-server（127.0.0.1:17891，端口从 .sandbox-port 锁文件读取）。
- * 若 sandbox 未启动（无锁文件），返回 503，前端报错提示先启动服务。
+ * 若 sandbox 未启动，会在收到请求时自动拉起 sandbox-server 子进程，无需手动执行 node sandbox-server.mjs。
  */
 function sandboxProxyPlugin(): Plugin {
-  let sandboxPort: number | null = null;
+  let sandboxChild: ChildProcess | null = null;
+  let starting: Promise<number | null> | null = null;
   const lockPath = join(process.cwd(), '.sandbox-port');
+  const SANDBOX_SCRIPT = join(process.cwd(), 'sandbox-server.mjs');
+  const DEFAULT_PORT = 17891;
 
   const loadPort = () => {
     try {
@@ -78,30 +83,86 @@ function sandboxProxyPlugin(): Plugin {
     return null;
   };
 
+  /** 探测 127.0.0.1:port 是否已有服务监听 */
+  const portOpen = (port: number) =>
+    new Promise<boolean>((resolve) => {
+      const sock = net.connect({ host: '127.0.0.1', port, timeout: 400 });
+      sock.once('connect', () => {
+        sock.destroy();
+        resolve(true);
+      });
+      sock.once('timeout', () => {
+        sock.destroy();
+        resolve(false);
+      });
+      sock.once('error', () => resolve(false));
+    });
+
+  /** 确保 sandbox-server 在运行：已有则复用；否则自动拉起并等待就绪 */
+  const ensureSandbox = async (): Promise<number | null> => {
+    if (starting) return starting;
+    starting = (async () => {
+      // 1) 复用已在运行的沙箱（手动启动/上次 vite 拉起）
+      const known = loadPort() ?? DEFAULT_PORT;
+      if (await portOpen(known)) return known;
+      if (known !== DEFAULT_PORT && (await portOpen(DEFAULT_PORT))) return DEFAULT_PORT;
+      // 2) 自动拉起子进程
+      if (!sandboxChild && existsSync(SANDBOX_SCRIPT)) {
+        sandboxChild = spawn(process.execPath, [SANDBOX_SCRIPT, String(DEFAULT_PORT)], {
+          cwd: process.cwd(),
+          stdio: 'ignore',
+          windowsHide: true,
+        });
+        sandboxChild.on('exit', () => {
+          sandboxChild = null;
+        });
+        sandboxChild.unref();
+        process.once('exit', () => {
+          try {
+            sandboxChild?.kill();
+          } catch {
+            /* ignore */
+          }
+        });
+      }
+      if (!sandboxChild) return null;
+      // 3) 等待就绪（最多 3s）
+      for (let i = 0; i < 30; i++) {
+        await new Promise((r) => setTimeout(r, 100));
+        if (await portOpen(DEFAULT_PORT)) return DEFAULT_PORT;
+      }
+      return null;
+    })().finally(() => {
+      starting = null;
+    });
+    return starting;
+  };
+
   return {
     name: 'sandbox-proxy',
     configureServer(server) {
-      sandboxPort = loadPort();
       server.middlewares.use((req: IncomingMessage, res: ServerResponse, next) => {
         if (req.url !== '/api-v2/exec' || req.method !== 'POST') return next();
-        const port = sandboxPort ?? loadPort();
-        if (!port) {
-          res.writeHead(503, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ ok: false, message: 'sandbox server not running' }));
-          return;
-        }
-        const proxyReq = http.request(
-          { protocol: 'http:', hostname: '127.0.0.1', port, path: '/exec', method: 'POST', headers: req.headers },
-          (proxyRes) => {
-            res.writeHead(proxyRes.statusCode || 502, proxyRes.headers);
-            proxyRes.pipe(res);
+        void (async () => {
+          const port = await ensureSandbox();
+          if (!port) {
+            res.writeHead(503, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: false, message: 'sandbox server not running' }));
+            return;
           }
-        );
-        proxyReq.on('error', (e: Error) => {
-          res.writeHead(502, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ ok: false, message: `sandbox proxy error: ${e.message}` }));
-        });
-        req.pipe(proxyReq);
+          const proxyReq = http.request(
+            { protocol: 'http:', hostname: '127.0.0.1', port, path: '/exec', method: 'POST', headers: req.headers },
+            (proxyRes) => {
+              res.writeHead(proxyRes.statusCode || 502, proxyRes.headers);
+              proxyRes.pipe(res);
+            }
+          );
+          proxyReq.on('error', (e: Error) => {
+            res.writeHead(502, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: false, message: `sandbox proxy error: ${e.message}` }));
+          });
+          req.pipe(proxyReq);
+        })();
       });
     },
   };
