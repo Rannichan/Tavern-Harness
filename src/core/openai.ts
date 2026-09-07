@@ -53,7 +53,12 @@ async function attemptStream(
     if (signal.aborted) controller.abort();
     else signal.addEventListener('abort', onAbort);
   }
-  const timer = setTimeout(() => controller.abort(), OPENAI_TIMEOUTS.read);
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const resetReadTimeout = () => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => controller.abort(), OPENAI_TIMEOUTS.read);
+  };
+  resetReadTimeout();
 
   try {
     const resp = await fetch(url, {
@@ -94,6 +99,7 @@ async function attemptStream(
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
+      resetReadTimeout();
       buffer += decoder.decode(value, { stream: true });
 
       // 按行切分 SSE
@@ -112,10 +118,10 @@ async function attemptStream(
     }
 
     // 收尾：补发未完成的工具调用
-    for (const [, td] of toolDeltas) {
+    for (const [idx, td] of toolDeltas) {
       onChunk({
         type: 'tool_call',
-        id: td.id || fallbackToolCallId(0),
+        id: td.id || fallbackToolCallId(idx),
         name: td.name,
         argJson: td.args,
       });
@@ -138,7 +144,7 @@ async function attemptStream(
     onChunk({ type: 'error', message: (e as Error).message || String(e) });
     return true;
   } finally {
-    clearTimeout(timer);
+    if (timer) clearTimeout(timer);
     if (signal) signal.removeEventListener('abort', onAbort);
   }
 }
@@ -202,17 +208,26 @@ function handleDataLine(
           const idx = tc.index ?? 0;
           const cur = toolDeltas.get(idx) ?? { id: '', name: '', args: '' };
           if (tc.id) cur.id = tc.id;
+          if (!cur.id) cur.id = fallbackToolCallId(idx);
           if (tc.function?.name) cur.name += tc.function.name;
           if (tc.function?.arguments) cur.args += tc.function.arguments;
           toolDeltas.set(idx, cur);
+          if (cur.name) {
+            onChunk({
+              type: 'tool_call',
+              id: cur.id,
+              name: cur.name,
+              argJson: cur.args,
+            });
+          }
         }
       }
       if (choice.finish_reason === 'tool_calls') {
         // 立即发出发射工具调用事件
-        for (const [, td] of toolDeltas) {
+        for (const [idx, td] of toolDeltas) {
           onChunk({
             type: 'tool_call',
-            id: td.id || fallbackToolCallId(0),
+            id: td.id || fallbackToolCallId(idx),
             name: td.name,
             argJson: td.args,
           });

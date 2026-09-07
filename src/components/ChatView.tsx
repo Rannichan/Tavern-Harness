@@ -486,17 +486,19 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
   const doSend = () => {
     if (!canSend || typing) return;
     if (streaming) return;
+    const sendingText = text.trim();
+    const sendingAttachments = [...attachments];
+    setText('');
+    setAttachments([]);
+    setShowCmd(false);
+    setShowMention(false);
     setTyping(true);
     sendMessage(
-      text.trim(),
-      attachments.map((a) => a.dataUrl),
-      attachments.map((a) => a.name)
+      sendingText,
+      sendingAttachments.map((a) => a.dataUrl),
+      sendingAttachments.map((a) => a.name)
     ).finally(() => {
       setTyping(false);
-      setText('');
-      setAttachments([]);
-      setShowCmd(false);
-      setShowMention(false);
     });
   };
 

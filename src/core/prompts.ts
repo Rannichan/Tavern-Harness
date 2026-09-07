@@ -7,6 +7,7 @@ import type {
 } from '../types/models';
 import { sanitizeHistoryContentForModel } from './openai';
 import { translate } from './i18n';
+import { NEW_TOPIC_MARKER } from './toolDefinitions';
 
 // ============================================================
 // 提示词组装 — 与 MainViewModel.buildNpcSystemPrompt 等一致
@@ -81,7 +82,8 @@ export function buildNetworkMessagesForSession(p: {
   participants: ChatParticipant[];
   activeSpeakerParticipantId: number | null;
 }): NetworkMessage[] {
-  const { messages, session, participants, activeSpeakerParticipantId } = p;
+  const { session, participants, activeSpeakerParticipantId } = p;
+  const messages = trimMessagesForNewTopic(p.messages, session);
   const result: NetworkMessage[] = [];
   const participantMap = new Map(participants.map((pp) => [pp.participantId, pp]));
 
@@ -140,6 +142,46 @@ export function buildNetworkMessagesForSession(p: {
   }
 
   return result;
+}
+
+function trimMessagesForNewTopic<T extends {
+  role: string;
+  content: string;
+  speakerParticipantId: number | null;
+  toolCallsJson: string;
+}>(
+  messages: T[],
+  session: ChatSession | null
+): T[] {
+  let lastNewTopicIdx = -1;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === 'system' && messages[i].content === NEW_TOPIC_MARKER) {
+      lastNewTopicIdx = i;
+      break;
+    }
+  }
+  if (lastNewTopicIdx < 0) return messages;
+
+  const before = messages.slice(0, lastNewTopicIdx);
+  const after = messages.slice(lastNewTopicIdx + 1);
+  const keepSystems = before.filter((m) => m.role === 'system' && m.content !== NEW_TOPIC_MARKER);
+
+  let keepGreeting: T | null = null;
+  if (session?.mode === 'NPC' && session.associatedId != null) {
+    for (const m of before) {
+      if (m.role === 'user') break;
+      if (
+        m.role === 'assistant' &&
+        m.speakerParticipantId === session.associatedId &&
+        (!m.toolCallsJson || m.toolCallsJson === '[]')
+      ) {
+        keepGreeting = m;
+        break;
+      }
+    }
+  }
+
+  return [...keepSystems, ...(keepGreeting ? [keepGreeting] : []), ...after];
 }
 
 /** 附件转 data URL content parts（base64 图片/视频） */
