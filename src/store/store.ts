@@ -27,6 +27,7 @@ import {
   queueHistoryJson,
   queueJson,
   refreshQueue,
+  requeueSpeaker,
   safeParseQueue,
   safeParseQueueHistory,
 } from '../core/turnLoop';
@@ -377,6 +378,21 @@ export const useStore = create<AppState>((set, get) => ({
     await db.messages.bulkDelete(toDelete.map((m) => m.id!));
     await get().loadMessages(sessionId);
 
+    if (session.mode === 'GROUP') {
+      // 群聊：重新生成时把被删 assistant 的发言人重新置顶（联动发言队列）……
+      // 但若该条发言本身是当前循环某位成员（未知 speakerParticipantId，如收尾回复），
+      // 无法映射到具体成员，则直接按当前队列继续。
+      const participant = lastAssistant.speakerParticipantId != null
+        ? (await db.participants
+            .where('sessionId').equals(sessionId)
+            .filter((p) => p.participantId === lastAssistant.speakerParticipantId)
+            .first()) ?? null
+        : null;
+      await continueRegeneratedGroupLoop(session, lastAssistant, participant);
+      await get().refreshSessions();
+      return;
+    }
+
     await runConversationLoop(session);
     await get().refreshSessions();
   },
@@ -399,7 +415,63 @@ export const useStore = create<AppState>((set, get) => ({
     }));
     await db.messages.update(messageId, { content: newContent, attachments, attachmentInfos });
     await get().loadMessages(sessionId);
-    await runConversationLoop((await db.sessions.get(sessionId))!);
+
+    const session = await db.sessions.get(sessionId);
+    if (!session) return;
+    if (session.mode === 'GROUP' && message.role === 'assistant') {
+      // 群聊中编辑的是 NPC 的发言 → 重新生成该发言者的回复，
+      // 并把该发言人重新置顶队列（联动发言队列：它还没轮完一轮时优先补发）。
+      const participant =
+        message.speakerParticipantId != null
+          ? (await db.participants
+              .where('sessionId')
+              .equals(sessionId)
+              .filter((p) => p.participantId === message.speakerParticipantId)
+              .first()) ?? null
+          : null;
+      await continueRegeneratedGroupLoop(session, message, participant);
+      await get().refreshSessions();
+      return;
+    }
+    if (session.mode === 'GROUP' && message.role === 'user') {
+      // 群聊中编辑的是玩家消息 → 发言队列回退到该消息所属「循环与轮次」：
+      // 1) 用循环历史里该轮的完整初始顺序重建队列（移除玩家 + 该轮玩家之前已发言者，
+      //    后者仅在 RANDOM 模式玩家非队首时可能出现）
+      // 2) 循环历史与 loopIndex 截断回退到该轮
+      // 3) 应用编辑文本中的 @点名 → 进入群聊主循环重新生成
+      const participants = await db.participants.where('sessionId').equals(sessionId).toArray();
+      const fresh = (await db.sessions.get(sessionId)) ?? session;
+      const player = participants.find((p) => p.kind === 'PLAYER') ?? null;
+      const playerId = player?.participantId ?? -1;
+      const targetLoop = message.loopIndex ?? 0;
+      const history = safeParseQueueHistory(fresh.turnQueueHistoryJson || '[]');
+      const curQueue = safeParseQueue(fresh.turnQueueJson);
+      const loopOrder =
+        history[targetLoop] ??
+        (curQueue.length > 0 ? curQueue : initializeTurnQueue(participants, fresh.turnOrderMode));
+      // 该轮中玩家发言之前已发言的 NPC（其消息未被删除 → 不重讲）
+      const spokenBeforePlayer = new Set(
+        messages
+          .filter(
+            (m) => m.role === 'assistant' && m.loopIndex === targetLoop && m.timestamp < message.timestamp && m.speakerParticipantId != null
+          )
+          .map((m) => m.speakerParticipantId as number)
+      );
+      // 重建该轮：移除玩家、被 @ 点名者置顶 → 再剔除玩家之前已发言的 NPC
+      let rolledQueue = completeTurn(loopOrder, playerId, mentionedParticipantIds(newContent, participants, playerId));
+      rolledQueue = rolledQueue.filter((id) => !spokenBeforePlayer.has(parseInt(id, 10)));
+      await db.sessions.update(sessionId, {
+        turnQueueJson: queueJson(rolledQueue),
+        loopIndex: targetLoop,
+        turnQueueHistoryJson: queueHistoryJson(history.slice(0, targetLoop + 1)),
+      });
+      await get().refreshLiveQueue(sessionId);
+      await continueGroupConversation(sessionId);
+      await get().refreshSessions();
+      return;
+    }
+
+    await runConversationLoop(session);
     await get().refreshSessions();
   },
 
@@ -1259,6 +1331,37 @@ async function continueGroupConversation(sessionId: number): Promise<void> {
     // 用户主动 stop 时中断
     if (groupLoopStopped) break;
   }
+}
+
+/**
+ * 群聊中「编辑消息 / 重新生成」后的续跑：
+ * 把被编辑的 assistant 发言人重新置顶当前队列（联动发言队列），
+ * 再进入群聊主循环 —— 因此新回复会由「刚才被编辑的角色」生成，
+ * 其余轮次按队列自然推进，队列面板历史也会同步更新。
+ *
+ * 参数 editedSpeaker 可为 null（如发言者已被删除 / 未知 speakerParticipantId），
+ * 此时退化为普通 continueGroupConversation。
+ */
+async function continueRegeneratedGroupLoop(
+  session: ChatSession,
+  editedMessage: ChatMessage,
+  editedSpeaker: ChatParticipant | null
+): Promise<void> {
+  const sessionId = session.id!;
+  const participants = await db.participants.where('sessionId').equals(sessionId).toArray();
+  const speakerParticipantId = editedSpeaker?.participantId ?? editedMessage.speakerParticipantId;
+  if (speakerParticipantId == null) {
+    // 发言者不可映射 → 仅刷新队列并照常续跑
+    await refreshQueueAndSave(sessionId);
+    await continueGroupConversation(sessionId);
+    return;
+  }
+  const { queue, loopIndex, loopStarted } = refreshQueue(session, participants);
+  // 编辑后：该角色“重讲一遍” → 置顶队列，联动发言队列面板与下一轮顺序
+  const nextQueue = requeueSpeaker(queue, speakerParticipantId);
+  await persistQueue(sessionId, nextQueue, loopIndex, loopStarted);
+  await useStore.getState().refreshLiveQueue(sessionId);
+  await continueGroupConversation(sessionId);
 }
 
 /** 请求用户确认（挂起直到 resolveConfirmation） */

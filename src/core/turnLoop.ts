@@ -110,6 +110,18 @@ export function passPlayer(queue: string[], playerParticipantId: number): string
   return queue.filter((id) => id !== String(playerParticipantId));
 }
 
+/**
+ * 把某位发言者重新放回队列（供「重新生成/编辑消息」后联动发言队列使用）：
+ * - 若该卷仍在本轮队列中 → 移回队首（优先补发，模拟“重讲一遍”）
+ * - 若该卷已被消费（不在队列、说明本轮已轮过）→ 插入队首，相当于进入新一轮补发
+ * 无论哪种情况，都保留其余成员相对顺序，仅把目标提到队首。
+ */
+export function requeueSpeaker(queue: string[], speakerParticipantId: number): string[] {
+  const id = String(speakerParticipantId);
+  const rest = queue.filter((q) => q !== id);
+  return [id, ...rest];
+}
+
 /** 刷新队列：为空时 loopIndex++ 并重新初始化；返回是否刚开启新循环 */
 export function refreshQueue(
   session: Pick<ChatSession, 'turnOrderMode' | 'loopIndex' | 'turnQueueJson'>,

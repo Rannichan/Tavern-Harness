@@ -301,6 +301,8 @@ function BubbleEditor({
   const editMessage = useStore((s) => s.editMessage);
   const saveMessageOnly = useStore((s) => s.saveMessageOnly);
   const streaming = useStore((s) => s.streaming.sessionId === session.id);
+  // 玩家（user）消息：保存并重新生成；NPC（assistant）消息：仅保存、不触发生成
+  const isUserMsg = msg.role === 'user';
 
   const doSave = async () => {
     if (!text.trim() || streaming) return;
@@ -326,6 +328,9 @@ function BubbleEditor({
     onDone();
   };
 
+  // 主按钮动作：玩家 → 保存并重新生成；NPC → 仅保存
+  const primaryAction = isUserMsg ? doSave : doSaveOnly;
+
   return (
     <div className="bubble-editor">
       <textarea
@@ -337,7 +342,7 @@ function BubbleEditor({
         onKeyDown={(e) => {
           if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
             e.preventDefault();
-            doSave();
+            primaryAction();
           }
           if (e.key === 'Escape') {
             e.preventDefault();
@@ -380,11 +385,8 @@ function BubbleEditor({
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           <span className="bubble-editor-hint">{t('chat.saveHint')}</span>
           <button className="btn btn-sm" onClick={onDone}>{t('common.cancel')}</button>
-          <button className="btn btn-sm" disabled={!text.trim() || streaming} onClick={doSaveOnly}>
-            {t('chat.saveOnly')}
-          </button>
-          <button className="btn btn-sm btn-primary" disabled={!text.trim() || streaming} onClick={doSave}>
-            {t('chat.saveRegenerate')}
+          <button className="btn btn-sm btn-primary" disabled={!text.trim() || streaming} onClick={primaryAction}>
+            {isUserMsg ? t('chat.saveRegenerate') : t('chat.saveOnly')}
           </button>
         </div>
       </div>
