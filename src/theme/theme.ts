@@ -73,6 +73,22 @@ export function isDarkMode(mode: ThemeMode): boolean {
   return mode === 'dark';
 }
 
+let themeWatcherInstalled = false;
+
+/** 监听系统深浅色切换，模式为「跟随系统」时自动重新应用主题 */
+export function watchSystemTheme(onChange: () => void): void {
+  if (themeWatcherInstalled || typeof window === 'undefined') return;
+  themeWatcherInstalled = true;
+  const mq = window.matchMedia('(prefers-color-scheme: dark)');
+  const listener = () => onChange();
+  if (typeof mq.addEventListener === 'function') {
+    mq.addEventListener('change', listener);
+  } else {
+    // 旧版 Safari 回退
+    (mq as unknown as { addListener: (fn: () => void) => void }).addListener(listener);
+  }
+}
+
 /** 应用主题 CSS 变量到 :root */
 export function applyTheme(mode: ThemeMode, color: ThemeColor): void {
   const dark = isDarkMode(mode);

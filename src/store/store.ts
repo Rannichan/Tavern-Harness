@@ -35,7 +35,7 @@ import type { ChatCompletionRequest, TurnOrderMode } from '../types/models';
 import { NEW_TOPIC_MARKER, MAX_TOOL_CALL_DEPTH } from '../core/toolDefinitions';
 import { getEnabledToolsForSession, executeToolCall } from '../core/tools/toolExecutor';
 import { scheduleRestoredTasks } from '../core/tools/toolExecutor';
-import { applyTheme as applyThemeManual } from '../theme/theme';
+import { applyTheme as applyThemeManual, watchSystemTheme } from '../theme/theme';
 import { setLanguage, translate } from '../core/i18n';
 import { localizeBuiltinNpc } from '../db/database';
 import { estimateTokensFromChars, accumulateStats, sessionPreviewText } from '../core/stats';
@@ -180,6 +180,11 @@ export const useStore = create<AppState>((set, get) => ({
       set({ initialized: true, settings, npcs, sessions, worldBooks, tools });
       await get().refreshProviders();
       applyThemeManual(settings.themeMode, settings.themeColor);
+      // 跟随系统模式下，系统切换深浅色时自动重新应用主题
+      watchSystemTheme(() => {
+        const s = useStore.getState().settings;
+        if (s) applyThemeManual(s.themeMode, s.themeColor);
+      });
       await scheduleRestoredTasks();
       await get().refreshAchievements();
       // 不自动创建会话：由用户通过左下角「新建」或仪表盘入口创建
