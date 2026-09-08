@@ -22,7 +22,9 @@
 
 import { createServer } from 'node:http';
 import { spawn, spawnSync } from 'node:child_process';
-import { writeFileSync, existsSync, readFileSync } from 'node:fs';
+import {
+  writeFileSync, existsSync, readFileSync, readFile, writeFile, mkdirSync, readdir, stat, unlink, realpathSync,
+} from 'node:fs';
 import { join, dirname, resolve, sep, delimiter } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -170,6 +172,34 @@ const MAX_OUTPUT = 64 * 1024;
 const CMD_TIMEOUT_MS = 5000;
 const MAX_CMD_CHARS = 2000;
 
+// ---- 真实文件工作区（generate_skill 的 file_read / file_write 落盘区） ----
+// 项目根目录下 sandbox_workspace/，仅允许读写该目录内文件（虚拟磁盘）。
+const WORKSPACE_ROOT = resolve(__dirname, 'sandbox_workspace');
+const MAX_FILE_READ_CHARS = 100_000;   // 单文件读取上限（与前端虚拟工作区一致）
+const MAX_FILE_WRITE_BYTES = 400 * 1024; // 单文件写入上限 400KB
+const MAX_LIST_ENTRIES = 500;
+
+/** 相对路径校验：禁止绝对路径、.. 等，锁定在 sandbox_workspace 内 */
+function sanitizeWorkspaceRelativePath(p) {
+  const normalized = String(p).replace(/\\/g, '/').trim();
+  if (!normalized || normalized.startsWith('/')) throw new Error('非法路径');
+  const parts = normalized.split('/').filter((s) => s && s !== '.');
+  if (parts.length === 0) throw new Error('非法路径');
+  if (parts.some((s) => s === '..')) throw new Error('路径不能包含 ..');
+  return parts.join('/');
+}
+
+function workspacePathFor(rel) {
+  const safe = sanitizeWorkspaceRelativePath(rel);
+  return join(WORKSPACE_ROOT, ...safe.split('/'));
+}
+
+/** 校验最终解析路径仍在工作区内（防符号链接逃逸） */
+function assertInside(root, p) {
+  const rp = resolve(p);
+  if (rp !== root && !rp.startsWith(root + sep)) throw new Error('路径超出工作区');
+}
+
 // ---- HTTP 服务 ----
 const server = createServer(async (req, res) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -179,7 +209,69 @@ const server = createServer(async (req, res) => {
     res.end();
     return;
   }
-  if (req.method !== 'POST' || req.url !== '/exec') {
+  if (req.method !== 'POST') {
+    res.writeHead(404);
+    res.end(JSON.stringify({ ok: false, message: 'not found' }));
+    return;
+  }
+
+  // ---- 真实文件工作区端点（file_read / file_write / file_list） ----
+  if (req.url === '/file_read' || req.url === '/file_write' || req.url === '/file_list') {
+    let body = '';
+    for await (const chunk of req) body += chunk;
+    if (body.length > 512 * 1024) {
+      res.writeHead(413);
+      res.end(JSON.stringify({ ok: false, message: 'body too large' }));
+      return;
+    }
+    let payload;
+    try {
+      payload = JSON.parse(body);
+    } catch {
+      res.writeHead(400);
+      res.end(JSON.stringify({ ok: false, message: 'invalid json' }));
+      return;
+    }
+    try {
+      if (req.url === '/file_read') {
+        const rel = sanitizeWorkspaceRelativePath(String(payload?.path ?? ''));
+        const fp = workspacePathFor(rel);
+        const text = await readFileAsync(fp);
+        res.end(JSON.stringify({ ok: true, path: rel, content: text.slice(0, MAX_FILE_READ_CHARS) }));
+      } else if (req.url === '/file_write') {
+        const rel = sanitizeWorkspaceRelativePath(String(payload?.path ?? ''));
+        const fp = workspacePathFor(rel);
+        const mode = payload?.mode === 'append' ? 'append' : 'write';
+        mkdirSync(dirname(fp), { recursive: true });
+        assertInside(WORKSPACE_ROOT, realpathSync(dirname(fp)));
+        if (existsSync(fp)) assertInside(WORKSPACE_ROOT, realpathSync(fp)); // 已有实体文件防符号链接
+        const content = String(payload?.content ?? '');
+        if (Buffer.byteLength(content, 'utf8') > MAX_FILE_WRITE_BYTES) {
+          throw new Error(`文件超过 ${MAX_FILE_WRITE_BYTES / 1024}KB 上限`);
+        }
+        if (mode === 'append') {
+          const existing = existsSync(fp) ? await readFilePromise(fp, 'utf8') : '';
+          await writeFilePromise(fp, existing + content, 'utf8');
+        } else {
+          await writeFilePromise(fp, content, 'utf8');
+        }
+        res.end(JSON.stringify({ ok: true, path: rel, mode, bytes: Buffer.byteLength(content, 'utf8') }));
+      } else {
+        // file_list：返回工作区相对路径（分组目录）
+        const files = [];
+        await walkWorkspace(WORKSPACE_ROOT, '', files);
+        files.sort();
+        const sliced = files.slice(0, MAX_LIST_ENTRIES);
+        res.end(JSON.stringify({ ok: true, files: sliced, truncated: files.length > MAX_LIST_ENTRIES }));
+      }
+    } catch (e) {
+      res.writeHead(400);
+      res.end(JSON.stringify({ ok: false, message: String((e && e.message) || e) }));
+    }
+    return;
+  }
+
+  if (req.url !== '/exec') {
     res.writeHead(404);
     res.end(JSON.stringify({ ok: false, message: 'not found' }));
     return;
@@ -310,8 +402,53 @@ function runOne(line) {
   });
 }
 
+// ---- 真实工作区文件工具 ----
+function readFileAsync(p) {
+  return new Promise((resolve, reject) => {
+    readFile(p, 'utf8', (err, data) => (err ? reject(new Error('文件不存在')) : resolve(data)));
+  });
+}
+function readFilePromise(p, enc) {
+  return new Promise((resolve, reject) => {
+    readFile(p, enc, (err, data) => (err ? reject(err) : resolve(data)));
+  });
+}
+function writeFilePromise(p, data, enc) {
+  return new Promise((resolve, reject) => {
+    writeFile(p, data, enc, (err) => (err ? reject(err) : resolve()));
+  });
+}
+/** 递归收集工作区相对文件路径（仅文件） */
+function readdirPromise(p) {
+  return new Promise((resolve, reject) => {
+    readdir(p, { withFileTypes: true }, (err, ents) => (err ? reject(err) : resolve(ents)));
+  });
+}
+async function walkWorkspace(dir, prefix, out) {
+  let entries;
+  try {
+    entries = await readdirPromise(dir);
+  } catch {
+    return; // 目录不存在 → 空
+  }
+  for (const ent of entries) {
+    const rel = prefix ? `${prefix}/${ent.name}` : ent.name;
+    const full = join(dir, ent.name);
+    try {
+      if (ent.isDirectory()) {
+        await walkWorkspace(full, rel, out);
+      } else if (ent.isFile()) {
+        out.push(rel);
+      }
+    } catch { /* 跳过无权限项 */ }
+  }
+}
+
 // ---- 锁文件 + 启动 ----
+// 确保工作区根目录存在
+mkdirSync(WORKSPACE_ROOT, { recursive: true });
 writeFileSync(LOCK_FILE, String(PORT));
 server.listen(PORT, '127.0.0.1', () => {
   console.log(`[sandbox-server] listening on http://127.0.0.1:${PORT} (lock: ${LOCK_FILE})`);
+  console.log(`[sandbox-server] workspace: ${WORKSPACE_ROOT}`);
 });

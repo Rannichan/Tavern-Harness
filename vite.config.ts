@@ -142,7 +142,9 @@ function sandboxProxyPlugin(): Plugin {
     name: 'sandbox-proxy',
     configureServer(server) {
       server.middlewares.use((req: IncomingMessage, res: ServerResponse, next) => {
-        if (req.url !== '/api-v2/exec' || req.method !== 'POST') return next();
+        // 转发与沙箱服务相关的端点：/exec 及真实工作区文件端点
+        const m = /^\/api-v2\/(exec|file_read|file_write|file_list)$/.exec(req.url || '');
+        if (!m || req.method !== 'POST') return next();
         void (async () => {
           const port = await ensureSandbox();
           if (!port) {
@@ -151,7 +153,7 @@ function sandboxProxyPlugin(): Plugin {
             return;
           }
           const proxyReq = http.request(
-            { protocol: 'http:', hostname: '127.0.0.1', port, path: '/exec', method: 'POST', headers: req.headers },
+            { protocol: 'http:', hostname: '127.0.0.1', port, path: `/${m[1]}`, method: 'POST', headers: req.headers },
             (proxyRes) => {
               res.writeHead(proxyRes.statusCode || 502, proxyRes.headers);
               proxyRes.pipe(res);

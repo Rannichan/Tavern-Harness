@@ -3,3 +3,5 @@ dist/
 .DS_Store
 *.local
 .sandbox-port
+# 生成式技能 file_* 落盘区（真实磁盘工作区）
+sandbox_workspace/

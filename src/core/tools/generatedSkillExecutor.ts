@@ -153,10 +153,98 @@ async function execJavaScript(execution: GeneratedSkillExecution, args: Record<s
   });
 }
 
+// ---------- file_read / file_write（优先落盘到项目 sandbox_workspace/，服务不可用时回退虚拟工作区）----------
+/** 本地文件服务可用性（探测与 shell 沙箱同一端点，成功则缓存） */
+let fileServerAvailable: boolean | null = null;
+let fileServerRetryAt = 0;
+async function detectFileServer(): Promise<boolean> {
+  if (fileServerAvailable === true) return true;
+  if (Date.now() < fileServerRetryAt) return false;
+  if (typeof window === 'undefined' || !/^https?:\/\//.test(window.location.origin)) {
+    fileServerRetryAt = Date.now() + 60_000;
+    return false;
+  }
+  try {
+    const resp = await fetch('/api-v2/file_list', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    fileServerAvailable = resp.ok;
+  } catch {
+    fileServerAvailable = false;
+  }
+  if (!fileServerAvailable) fileServerRetryAt = Date.now() + 5000; // 5 秒后自动重试
+  return fileServerAvailable;
+}
+
+/** 平台前缀：沙箱真实工作区 vs 虚拟工作区 */
+const fsMode: { disk: boolean } = { disk: false };
+async function resolveFsMode(): Promise<boolean> {
+  if (fsMode.disk) return true;
+  if (await detectFileServer()) {
+    fsMode.disk = true;
+    return true;
+  }
+  return false;
+}
+
+async function diskFileRead(path: string): Promise<string | null> {
+  try {
+    const resp = await fetch('/api-v2/file_read', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path }),
+    });
+    const data = (await resp.json()) as { ok?: boolean; message?: string; content?: string };
+    if (resp.ok && data.ok) return data.content ?? '';
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+async function diskFileWrite(path: string, content: string, append: boolean): Promise<string> {
+  try {
+    const resp = await fetch('/api-v2/file_write', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path, content, mode: append ? 'append' : 'write' }),
+    });
+    const data = (await resp.json()) as { ok?: boolean; message?: string };
+    if (!resp.ok || !data.ok) throw new Error(data?.message || `HTTP ${resp.status}`);
+    return `OK: 已写入 ${path} (${content.length} 字符)`;
+  } catch (e) {
+    throw new Error(`磁盘写入失败: ${(e as Error).message}`);
+  }
+}
+
+async function diskFileList(): Promise<string[] | null> {
+  try {
+    const resp = await fetch('/api-v2/file_list', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    const data = (await resp.json()) as { ok?: boolean; files?: string[]; message?: string };
+    if (resp.ok && data.ok) return data.files ?? [];
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 // ---------- file_read ----------
 async function execFileRead(execution: GeneratedSkillExecution, args: Record<string, unknown>): Promise<string> {
   try {
     const path = sanitizeRelativePath(interpolate(execution.path ?? '', args));
+    const onDisk = await resolveFsMode();
+    if (onDisk) {
+      const text = await diskFileRead(path);
+      if (text !== null) return truncate(text);
+      // 磁盘服务可用但文件不存在 → 明确报错
+      return `ERROR: 文件不存在: ${path}`;
+    }
     const f = await getWorkspaceFile(path);
     if (!f) return `ERROR: 文件不存在: ${path}`;
     return truncate(f.content);
@@ -174,6 +262,17 @@ async function execFileWrite(execution: GeneratedSkillExecution, args: Record<st
       content = JSON.stringify(interpolateDeep(execution.json_content, args), null, 2);
     } else {
       content = interpolate(execution.content ?? '', args);
+    }
+    const onDisk = await resolveFsMode();
+    if (onDisk) {
+      let diskContent = content;
+      if (execution.append) {
+        const sep = execution.append_newline ? '\n' : '';
+        const existing = (await diskFileRead(path)) ?? '';
+        diskContent = existing + (existing.endsWith('\n') || !existing ? '' : sep) + diskContent;
+        if (execution.append_newline) diskContent += '\n';
+      }
+      return await diskFileWrite(path, diskContent, execution.append ?? false);
     }
     const existing = await getWorkspaceFile(path);
     if (execution.append && existing) {
