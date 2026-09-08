@@ -761,33 +761,37 @@ export async function createSession(
     turnQueueHistoryJson: queueHistoryJson([queue]),
   });
 
-  // NPC 模式的问候语
+  // NPC 模式的问候语：主开场白 + 多个备用开场白中随机选一个
   if (mode === 'NPC' && opts?.associatedId != null) {
     const npc = await db.npcs.get(opts.associatedId);
-    if (npc?.greeting) {
-      await db.messages.add({
-        sessionId: id,
-        role: 'assistant',
-        speakerParticipantId: opts.associatedId,
-        speakerName: npc.name,
-        content: npc.greeting,
-        toolCallsJson: '[]',
-        toolCallId: null,
-        thinkingContent: null,
-        loopIndex: 0,
-        timestamp: Date.now(),
-        latencyMs: null,
-        promptTokens: 0,
-        completionTokens: 0,
-        totalTokens: 0,
-        tokensPerSec: null,
-        modelUsed: null,
-        attachments: [],
-        attachmentInfos: [],
-        rawRequestBody: null,
-        rawResponseBody: null,
-      });
-      await db.sessions.update(id, { lastMessage: sessionPreviewText(npc.greeting) });
+    if (npc) {
+      const all = [npc.greeting, ...(npc.alternateGreetings ?? [])].filter(Boolean);
+      const greeting = all.length > 0 ? all[Math.floor(Math.random() * all.length)] : '';
+      if (greeting) {
+        await db.messages.add({
+          sessionId: id,
+          role: 'assistant',
+          speakerParticipantId: opts.associatedId,
+          speakerName: npc.name,
+          content: greeting,
+          toolCallsJson: '[]',
+          toolCallId: null,
+          thinkingContent: null,
+          loopIndex: 0,
+          timestamp: Date.now(),
+          latencyMs: null,
+          promptTokens: 0,
+          completionTokens: 0,
+          totalTokens: 0,
+          tokensPerSec: null,
+          modelUsed: null,
+          attachments: [],
+          attachmentInfos: [],
+          rawRequestBody: null,
+          rawResponseBody: null,
+        });
+        await db.sessions.update(id, { lastMessage: sessionPreviewText(greeting) });
+      }
     }
   }
 

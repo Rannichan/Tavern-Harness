@@ -49,6 +49,8 @@ interface StEnvelope {
   mes_example?: string;
   system_prompt?: string;
   post_history_instructions?: string;
+  /** v3 的额外开场白（备用），创建对话时随机选用 */
+  alternate_greetings?: string[];
   character_book?: StLorebook;
   /** v3 的 assets 图标（可选 base64 data URL） */
   assets?: Array<{ type?: string; uri?: string; name?: string; ext?: string }>;
@@ -230,6 +232,25 @@ function extractAvatarFromCard(data: StEnvelope): string | null {
   return null;
 }
 
+/** 把 PNG 文件字节转成 data URL（导入时作为角色头像的兜底来源） */
+function pngToDataUrl(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let bin = '';
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    bin += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return `data:image/png;base64,${btoa(bin)}`;
+}
+
+/**
+ * 解析头像：优先卡内 assets 图标（v3），否则直接用 PNG 文件本身作为头像。
+ * 卡片 PNG 通常就是角色立绘/头像，保证几乎所有角色卡导入后都有头像。
+ */
+function resolveAvatar(data: StEnvelope, pngDataUrl: string | null): string | null {
+  return extractAvatarFromCard(data) ?? pngDataUrl;
+}
+
 /** 渲染内嵌世界书（character_book）为可读文本 */
 function renderLorebook(book: StLorebook | undefined, fallbackName: string) {
   if (!book || !Array.isArray(book.entries)) return null;
@@ -249,10 +270,21 @@ function renderLorebook(book: StLorebook | undefined, fallbackName: string) {
   };
 }
 
+/** 归一化多开场白：主开场白 + 去重后的 alternate_greetings（去空白/截断） */
+function buildGreetings(data: StEnvelope, maxLen = 1000): { greeting: string; alternateGreetings: string[] } {
+  const greeting = (data.first_mes ?? '').slice(0, maxLen);
+  const alternates = (data.alternate_greetings ?? [])
+    .map((g) => (typeof g === 'string' ? g.trim() : ''))
+    .filter((g, i, arr) => g && g !== greeting && arr.indexOf(g) === i)
+    .slice(0, 20)
+    .map((g) => g.slice(0, maxLen));
+  return { greeting, alternateGreetings: alternates };
+}
+
 /** 创建角色与可选世界书（重名自动加后缀） */
-async function persistCard(data: StEnvelope, key: 'ccv3' | 'chara'): Promise<SillyTavernImportResult> {
+async function persistCard(data: StEnvelope, key: 'ccv3' | 'chara', pngDataUrl: string | null = null): Promise<SillyTavernImportResult> {
   const name = data.name?.trim() || '未命名角色';
-  const greeting = data.first_mes ?? '';
+  const { greeting, alternateGreetings } = buildGreetings(data);
 
   // 重名加后缀
   let finalName = name;
@@ -265,9 +297,10 @@ async function persistCard(data: StEnvelope, key: 'ccv3' | 'chara'): Promise<Sil
   const npc: NpcCharacter = {
     name: finalName,
     prompt: buildPromptFromStructured(data, name),
-    greeting: greeting.slice(0, 1000),
+    greeting,
+    alternateGreetings,
     avatarColorOrdinal: Math.floor(Math.random() * 6),
-    avatarDataUrl: extractAvatarFromCard(data),
+    avatarDataUrl: resolveAvatar(data, pngDataUrl),
     enabledToolNames: [],
     isBuiltIn: false,
     createdAt: Date.now(),
@@ -301,12 +334,12 @@ async function persistCard(data: StEnvelope, key: 'ccv3' | 'chara'): Promise<Sil
   };
 }
 
-/** 导入角色卡 PNG 文件：创建角色（重名自动加后缀）与可选世界书 */
+/** 导入角色卡 PNG 文件：创建角色（重名自动加后缀）与可选世界书，PNG 图片本身作为头像 */
 export async function importSillyTavernCard(file: File): Promise<SillyTavernImportResult> {
   const buffer = await file.arrayBuffer();
   const parsed = parsePngChara(buffer);
   if (!parsed) throw new Error('未找到角色卡数据（ccv3 / chara）');
-  return persistCard(parsed.data, parsed.key);
+  return persistCard(parsed.data, parsed.key, pngToDataUrl(buffer));
 }
 
 // ============================================================
@@ -323,7 +356,7 @@ export interface ParsedSillyTavernCard {
   worldBook: { name: string; content: string } | null;
 }
 
-/** 解析 PNG 角色卡为表单草稿，不写入数据库 */
+/** 解析 PNG 角色卡为表单草稿，不写入数据库（PNG 图片本身作为头像） */
 export async function parseSillyTavernCardFile(file: File): Promise<ParsedSillyTavernCard> {
   const buffer = await file.arrayBuffer();
   const parsed = parsePngChara(buffer);
@@ -331,14 +364,15 @@ export async function parseSillyTavernCardFile(file: File): Promise<ParsedSillyT
 
   const { key, data } = parsed;
   const name = data.name?.trim() || '未命名角色';
-  const greeting = data.first_mes ?? '';
+  const { greeting, alternateGreetings } = buildGreetings(data);
 
   const character: NpcCharacter = {
     name,
     prompt: buildPromptFromStructured(data, name),
-    greeting: greeting.slice(0, 1000),
+    greeting,
+    alternateGreetings,
     avatarColorOrdinal: Math.floor(Math.random() * 6),
-    avatarDataUrl: extractAvatarFromCard(data),
+    avatarDataUrl: resolveAvatar(data, pngToDataUrl(buffer)),
     enabledToolNames: [],
     isBuiltIn: false,
     createdAt: Date.now(),
@@ -350,12 +384,12 @@ export async function parseSillyTavernCardFile(file: File): Promise<ParsedSillyT
   return { version: key === 'ccv3' ? 'v3' : 'v2', character, worldBook };
 }
 
-/** 从 data URL 导入（兼容老接口） */
+/** 从 data URL 导入（兼容老接口，PNG 本身作为头像兜底） */
 export function importSillyTavernFromDataUrl(dataUrl: string): Promise<SillyTavernImportResult> {
   const buffer = decodeBase64Png(dataUrl);
   const parsed = parsePngChara(buffer);
   if (!parsed) throw new Error('未找到角色卡数据');
-  return persistCard(parsed.data, parsed.key);
+  return persistCard(parsed.data, parsed.key, dataUrl.startsWith('data:') ? dataUrl : null);
 }
 
 function decodeBase64Png(dataUrl: string): ArrayBuffer {

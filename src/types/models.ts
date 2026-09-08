@@ -61,6 +61,8 @@ export interface NpcCharacter {
   name: string;
   prompt: string;
   greeting: string;
+  /** 额外开场白（创建对话时随机选用一个，含 greeting） */
+  alternateGreetings?: string[];
   avatarColorOrdinal: number;
   avatarDataUrl?: string | null;
   enabledToolNames: string[]; // CSV in DB; array in memory

@@ -164,6 +164,7 @@ function CharacterGrid({ npcs, onEdit, onImportPng }: { npcs: NpcCharacter[]; on
                   name: '',
                   prompt: '',
                   greeting: '',
+                  alternateGreetings: [],
                   avatarColorOrdinal: Math.floor(Math.random() * 6),
                   avatarDataUrl: null,
                   enabledToolNames: [],
@@ -220,7 +221,8 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
   const t = useT();
   const [name, setName] = useState(npc.name);
   const [prompt, setPrompt] = useState(npc.prompt);
-  const [greeting, setGreeting] = useState(npc.greeting);
+  // 多个开场白：第一个保存在 greeting，其余保存在 alternateGreetings
+  const [greetings, setGreetings] = useState<string[]>([npc.greeting, ...(npc.alternateGreetings ?? [])]);
   const [avatarDataUrl, setAvatarDataUrl] = useState<string | null>(npc.avatarDataUrl ?? null);
   // 技能启用状态（内置角色「酒馆老板」默认启用所有内置技能，同时保留已有自定义技能）
   const [enabledToolNames, setEnabledToolNames] = useState<string[]>(() => {
@@ -242,19 +244,24 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
       addToast(t('toast.nameRequired'), 'error');
       return;
     }
-    const data: Partial<NpcCharacter> = { name: name.trim(), prompt, greeting, avatarDataUrl, enabledToolNames };
+    // 清理空白/重复项：第一项作为主开场白，其余作为备用
+    const cleaned = greetings.map((g) => g.trim()).filter((g, i, arr) => g && arr.indexOf(g) === i);
+    const npcData = {
+      name: name.trim(),
+      prompt,
+      greeting: cleaned[0] ?? '',
+      alternateGreetings: cleaned.slice(1),
+      avatarDataUrl,
+      enabledToolNames,
+    };
     if (isNew) {
       await db.npcs.add({
         ...npc,
-        name: name.trim(),
-        prompt,
-        greeting,
-        avatarDataUrl,
-        enabledToolNames,
+        ...npcData,
       });
       addToast(t('toast.charCreated', { name }));
     } else {
-      await db.npcs.update(npc.id!, data);
+      await db.npcs.update(npc.id!, npcData);
       addToast(t('toast.charUpdated', { name }));
     }
     onSaved();
@@ -301,8 +308,30 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
               <textarea className="textarea grow-textarea" value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder={t('workshop.promptPh')} />
             </div>
             <div className="field" style={{ flexShrink: 0 }}>
-              <label>{t('workshop.greetingLabel')}</label>
-              <textarea className="textarea grow-textarea greeting-grow" value={greeting} onChange={(e) => setGreeting(e.target.value)} placeholder={t('workshop.greetingPh')} />
+              <label>
+                {t('workshop.greetingLabel')}
+                <span className="field-hint"> {t('workshop.greetingRandomHint')}</span>
+              </label>
+              {greetings.map((g, i) => (
+                <div key={i} className="greeting-input">
+                  <textarea
+                    className="textarea grow-textarea greeting-grow"
+                    value={g}
+                    onChange={(e) => setGreetings((prev) => prev.map((x, j) => (j === i ? e.target.value : x)))}
+                    placeholder={t('workshop.greetingPh')}
+                  />
+                  <button
+                    className="icon-btn greeting-del"
+                    title={t('common.delete')}
+                    onClick={() => setGreetings((prev) => prev.filter((_, j) => j !== i))}
+                  >
+                    <Icon name="x" size={13} />
+                  </button>
+                </div>
+              ))}
+              <button className="btn btn-sm btn-ghost" style={{ alignSelf: 'flex-start' }} onClick={() => setGreetings((prev) => [...prev, ''])}>
+                <Icon name="plus" size={12} /> {t('workshop.addAltGreeting')}
+              </button>
             </div>
             {/* 启用技能：从卡片移入编辑页 */}
             <div className="field" style={{ flexShrink: 0 }}>

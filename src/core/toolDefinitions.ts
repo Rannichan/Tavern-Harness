@@ -159,6 +159,7 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
       properties: {
         name: { type: 'string', minLength: 1, maxLength: 40 },
         greeting: { type: 'string', minLength: 1, maxLength: 1000, description: 'First message the character says' },
+        alternate_greetings: { type: 'array', items: { type: 'string', maxLength: 1000 }, description: 'Optional alternative greetings; one is picked at random when a chat starts' },
         prompt: { type: 'string', minLength: 1, maxLength: 4000, description: 'Persona / system prompt' },
       },
       required: ['name', 'greeting', 'prompt'],
@@ -174,6 +175,7 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
         name: { type: 'string', description: 'Existing character name' },
         new_name: { type: 'string', maxLength: 40 },
         greeting: { type: 'string', maxLength: 1000 },
+        alternate_greetings: { type: 'array', items: { type: 'string', maxLength: 1000 }, description: 'Replace the full list of alternate greetings' },
         prompt: { type: 'string', maxLength: 4000 },
         enable_skills: { type: 'array', items: { type: 'string' }, description: 'Skill names to enable (must exist)' },
         disable_skills: { type: 'array', items: { type: 'string' }, description: 'Skill names to disable' },

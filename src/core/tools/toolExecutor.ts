@@ -465,10 +465,18 @@ async function handleCreateCharacter(args: Record<string, unknown>): Promise<str
   if (!name || !greeting || !prompt) return 'ERROR: 需要 name / greeting / prompt';
   const exists = await db.npcs.where('name').equals(name).first();
   if (exists) return `ERROR: 角色 ${name} 已存在`;
+  const alternates = Array.isArray(args.alternate_greetings)
+    ? (args.alternate_greetings as unknown[])
+        .map((g) => String(g ?? '').trim())
+        .filter((g, i, arr) => g && g !== greeting && arr.indexOf(g) === i)
+        .slice(0, 20)
+        .map((g) => g.slice(0, 1000))
+    : [];
   await db.npcs.add({
     name,
     prompt,
     greeting,
+    alternateGreetings: alternates,
     avatarColorOrdinal: Math.floor(Math.random() * 6),
     avatarDataUrl: null,
     enabledToolNames: [],
@@ -489,6 +497,13 @@ async function handleUpdateCharacter(args: Record<string, unknown>): Promise<str
     updates.name = n;
   }
   if (args.greeting != null) updates.greeting = String(args.greeting).slice(0, 1000);
+  if (Array.isArray(args.alternate_greetings)) {
+    updates.alternateGreetings = (args.alternate_greetings as unknown[])
+      .map((g) => String(g ?? '').trim())
+      .filter((g, i, arr) => g && g !== String(args.greeting ?? npc.greeting) && arr.indexOf(g) === i)
+      .slice(0, 20)
+      .map((g) => g.slice(0, 1000));
+  }
   if (args.prompt != null) updates.prompt = String(args.prompt).slice(0, 4000);
   if (Array.isArray(args.enable_skills) || Array.isArray(args.disable_skills)) {
     const allTools = new Set((await db.tools.toArray()).map((t) => t.name));
