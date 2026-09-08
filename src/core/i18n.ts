@@ -164,7 +164,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'settings.light': '浅色',
     'settings.dark': '深色',
     'settings.themeColor': '主题色',
-    'settings.themeTip': '提示：可分别体验「紫罗兰 / 苍蓝 / 翡翠森林 / 赛博琥珀」四种氛围',
+    'settings.themeTip': '提示：可分别体验「红葡萄酒 / 苍蓝 / 翡翠森林 / 赛博琥珀」四种氛围',
     'settings.language': '🌐 界面语言/Language',
     'settings.languageLabel': '界面语言/Language',
     'settings.followBrowser': '跟随系统语言',
@@ -313,7 +313,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'confirm.allow': '允许',
 
     // ---- 主题色名 ----
-    'theme.violet': '紫罗兰',
+    'theme.violet': '红葡萄酒',
     'theme.blue': '苍蓝',
     'theme.green': '翡翠森林',
     'theme.amber': '赛博琥珀',
@@ -535,7 +535,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'settings.light': '淺色',
     'settings.dark': '深色',
     'settings.themeColor': '主題色',
-    'settings.themeTip': '提示：可分別體驗「紫羅蘭 / 蒼藍 / 翡翠森林 / 賽博琥珀」四種氛圍',
+    'settings.themeTip': '提示：可分別體驗「紅葡萄酒 / 蒼藍 / 翡翠森林 / 賽博琥珀」四種氛圍',
     'settings.language': '🌐 介面語言/Language',
     'settings.languageLabel': '介面語言/Language',
     'settings.followBrowser': '跟隨系統語言',
@@ -677,7 +677,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'confirm.reject': '拒絕',
     'confirm.allow': '允許',
 
-    'theme.violet': '紫羅蘭',
+    'theme.violet': '紅葡萄酒',
     'theme.blue': '蒼藍',
     'theme.green': '翡翠森林',
     'theme.amber': '賽博琥珀',
@@ -896,7 +896,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'settings.light': 'Light',
     'settings.dark': 'Dark',
     'settings.themeColor': 'Theme color',
-    'settings.themeTip': 'Tip: try the four palettes — Violet / Azure / Emerald Forest / Cyber Amber',
+    'settings.themeTip': 'Tip: try the four palettes — Red Wine / Azure / Emerald Forest / Cyber Amber',
     'settings.language': '🌐 Interface Language',
     'settings.languageLabel': 'Interface Language',
     'settings.followBrowser': 'Follow system language',
@@ -1038,7 +1038,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'confirm.reject': 'Reject',
     'confirm.allow': 'Allow',
 
-    'theme.violet': 'Violet',
+    'theme.violet': 'Red Wine',
     'theme.blue': 'Azure',
     'theme.green': 'Emerald Forest',
     'theme.amber': 'Cyber Amber',

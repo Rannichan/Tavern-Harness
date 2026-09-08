@@ -31,8 +31,10 @@
   flex-direction: row-reverse;
 }
 .msg-name {
-  font-weight: 800;
+  font-weight: 700;
   font-size: 12.5px;
+  font-family: var(--font-serif);
+  letter-spacing: 0.4px;
   color: var(--text-dim);
 }
 .msg-model {
@@ -64,7 +66,7 @@
   border-top-left-radius: 4px;
   padding: 11px 15px;
   font-size: 14px;
-  box-shadow: var(--shadow);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--text) 3%, transparent), var(--shadow);
   min-width: 0;
   max-width: 100%;
   word-break: break-word;
@@ -451,12 +453,12 @@
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 4px 6px 4px 6px;
-  box-shadow: var(--shadow);
+  box-shadow: 0 0 0 1px transparent, var(--shadow);
   transition: border-color 0.16s, box-shadow 0.16s;
 }
 .composer-box:focus-within {
   border-color: color-mix(in srgb, var(--primary) 45%, transparent);
-  box-shadow: 0 0 0 3px var(--primary-soft);
+  box-shadow: 0 0 0 3px var(--primary-soft), 0 0 24px color-mix(in srgb, var(--glow) 55%, transparent);
 }
 .composer-box textarea {
   flex: 1;
@@ -500,6 +502,7 @@
 .composer-box .composer-model-btn.open {
   background: var(--primary-soft);
   border-color: color-mix(in srgb, var(--primary) 45%, transparent);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--glow) 40%, transparent);
 }
 .composer-model-label {
   white-space: nowrap;
@@ -829,8 +832,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 12.5px;
-  font-weight: 800;
+  font-family: var(--font-serif);
+  font-size: 13.5px;
+  font-weight: 700;
   color: var(--text);
   padding-bottom: 8px;
   border-bottom: 1px solid var(--border-soft);

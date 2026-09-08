@@ -10,6 +10,9 @@
   --radius-sm: 9px;
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
     'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+  /* 衬线展示栈：本地系统衬线，零网络依赖；用于品牌名 / Hero / 页面标题 / 统计数字 */
+  --font-serif: 'Iowan Old Style', 'Palatino Linotype', 'Songti SC', 'Noto Serif SC',
+    'Source Han Serif SC', 'STSong', serif;
   --font-mono: 'SF Mono', 'JetBrains Mono', 'Fira Code', Consolas, 'Courier New', monospace;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -145,20 +148,25 @@ body.resizing .sidebar-resizer {
 .brand-logo {
   width: 38px;
   height: 38px;
-  border-radius: 12px;
-  background: var(--grad-from);
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, var(--grad-from), var(--grad-to) 88%);
   display: grid;
   place-items: center;
   color: #fff;
   font-weight: 800;
   font-size: 19px;
-  box-shadow: 0 4px 14px var(--glow);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 45%, transparent), 0 0 22px var(--glow);
   flex-shrink: 0;
+  transition: box-shadow 0.2s ease;
+}
+.brand:hover .brand-logo {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 60%, transparent), 0 0 30px var(--glow);
 }
 .brand-name {
-  font-weight: 800;
-  font-size: 17px;
-  letter-spacing: 0.2px;
+  font-family: var(--font-serif);
+  font-weight: 700;
+  font-size: 18px;
+  letter-spacing: 0.3px;
 }
 .brand-sub {
   font-size: 11px;
@@ -168,7 +176,7 @@ body.resizing .sidebar-resizer {
 .side-nav {
   display: flex;
   gap: 4px;
-  padding: 2px 10px 10px;
+  padding: 7px 10px 17px;
   overflow-x: auto;
   /* 侧边栏较窄、按钮被遮挡时：显示细滚动条以支持横向滚动 */
   scrollbar-width: thin;
@@ -209,14 +217,15 @@ body.resizing .sidebar-resizer {
   white-space: nowrap;
 }
 .nav-chip:hover {
-  background: var(--surface-2);
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
   color: var(--text);
+  border-color: color-mix(in srgb, var(--primary) 25%, transparent);
 }
 .nav-chip.active {
-  background: var(--grad-from);
-  border-color: transparent;
-  color: #fff;
-  box-shadow: 0 3px 12px var(--glow);
+  background: var(--primary-soft);
+  border-color: color-mix(in srgb, var(--primary) 55%, transparent);
+  color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-soft), 0 2px 14px var(--glow);
 }
 .nav-chip .dot {
   width: 7px;
@@ -248,11 +257,14 @@ body.resizing .sidebar-resizer {
   width: 100%;
 }
 .session-item:hover {
-  background: var(--surface-2);
+  background: color-mix(in srgb, var(--primary) 6%, transparent);
 }
 .session-item.active {
   background: var(--primary-soft);
-  border-color: color-mix(in srgb, var(--primary) 28%, transparent);
+  border-color: color-mix(in srgb, var(--primary) 32%, transparent);
+}
+.session-item.active {
+  box-shadow: inset 3px 0 0 var(--primary);
 }
 .session-item .svc {
   width: 34px;
@@ -268,6 +280,7 @@ body.resizing .sidebar-resizer {
 .session-item.active .svc {
   background: var(--grad-from);
   border-color: transparent;
+  box-shadow: 0 0 12px var(--glow);
 }
 /* 群聊外框保持中性底色，选中（激活）时不变色 */
 .session-item.active .svc.svc-group {
@@ -375,8 +388,9 @@ body.resizing .sidebar-resizer {
   min-width: 0;
 }
 .session-item .stitle {
-  font-weight: 600;
-  font-size: 13.2px;
+  font-family: var(--font-serif);
+  font-weight: 700;
+  font-size: 13.8px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -425,11 +439,13 @@ body.resizing .sidebar-resizer {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 4px 8px 8px;
+  padding: 2px 6px 8px;
   position: sticky;
   top: 0;
   z-index: 2;
-  background: var(--surface);
+  /* 透明背景，仅保留下方细分隔线，与侧边栏融为一体 */
+  background: transparent;
+  border-bottom: 1px solid var(--border-soft);
 }
 /* 新建按钮：粗体文字 + 加号，不高亮 */
 .session-new-btn {
@@ -492,7 +508,7 @@ body.resizing .sidebar-resizer {
   padding: 8px 15px;
   border-radius: 10px;
   border: 1px solid var(--border);
-  background: var(--surface);
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
   color: var(--text);
   font-size: 13.2px;
   font-weight: 600;
@@ -501,8 +517,8 @@ body.resizing .sidebar-resizer {
 }
 .btn:hover {
   border-color: color-mix(in srgb, var(--primary) 45%, transparent);
-  background: var(--surface-2);
-  transform: translateY(-1px);
+  background: var(--primary-soft);
+  color: var(--primary);
 }
 .btn:active {
   transform: translateY(0);
@@ -516,11 +532,13 @@ body.resizing .sidebar-resizer {
   background: var(--grad-from);
   border-color: transparent;
   color: #fff;
-  box-shadow: 0 4px 14px var(--glow);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 40%, transparent), 0 4px 18px var(--glow);
 }
 .btn-primary:hover {
-  filter: brightness(1.08);
+  filter: brightness(1.06);
   background: var(--grad-from);
+  color: #fff;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 55%, transparent), 0 6px 26px var(--glow);
 }
 .btn-danger {
   color: var(--danger);
@@ -669,14 +687,10 @@ body.resizing .sidebar-resizer {
   flex: 1;
   overflow-y: auto;
   padding: 20px 0 10px;
-}
-.chat-scroll::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  background: color-mix(in srgb, var(--glow) 14%, transparent);
-  pointer-events: none;
+  /* 与聊天头部 / 输入区同一块磨砂玻璃面：统一底色，消除可见的色块分界线 */
+  background: color-mix(in srgb, var(--surface) 62%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
 .chat-col {
@@ -695,7 +709,7 @@ body.resizing .sidebar-resizer {
   gap: 12px;
   padding: 12px 22px;
   border-bottom: 1px solid var(--border);
-  background: color-mix(in srgb, var(--surface) 60%, transparent);
+  background: color-mix(in srgb, var(--surface) 62%, transparent);
   backdrop-filter: blur(16px);
   z-index: 5;
 }
@@ -705,8 +719,9 @@ body.resizing .sidebar-resizer {
   border-radius: 12px;
   display: grid;
   place-items: center;
-  font-weight: 800;
+  font-weight: 700;
   font-size: 17px;
+  font-family: var(--font-serif);
   color: #fff;
   flex-shrink: 0;
   background: var(--grad-from);
@@ -761,8 +776,9 @@ body.resizing .sidebar-resizer {
   min-width: 0;
 }
 .chat-header .ttitle {
-  font-weight: 800;
-  font-size: 15.5px;
+  font-family: var(--font-serif);
+  font-weight: 700;
+  font-size: 17px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -850,32 +866,36 @@ body.resizing .sidebar-resizer {
 }
 .dash-hero {
   position: relative;
-  padding: 30px 30px 26px;
+  padding: 34px 34px 30px;
   border-radius: var(--radius-lg);
   overflow: hidden;
-  border: 1px solid var(--border);
-  background: color-mix(in srgb, var(--grad-from) 12%, var(--surface));
-  box-shadow: var(--shadow-lg);
+  border: 1px solid color-mix(in srgb, var(--primary) 26%, var(--border));
+  background: color-mix(in srgb, var(--primary) 7%, var(--surface));
+  box-shadow: 0 22px 60px color-mix(in srgb, var(--glow) 22%, transparent);
 }
 .dash-hero::before {
   content: '';
   position: absolute;
   inset: -40% -20%;
-  background: color-mix(in srgb, var(--glow) 20%, transparent);
+  background: radial-gradient(ellipse at 50% -20%, color-mix(in srgb, var(--glow) 42%, transparent), transparent 65%);
   pointer-events: none;
 }
 .dash-hero h1 {
-  margin: 0 0 6px;
-  font-size: 26px;
-  font-weight: 900;
-  letter-spacing: 0.4px;
+  position: relative;
+  margin: 0 0 8px;
+  font-family: var(--font-serif);
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
 }
 .dash-hero p {
-  margin: 0 0 18px;
+  position: relative;
+  margin: 0 0 20px;
   color: var(--text-dim);
-  max-width: 560px;
+  max-width: 620px;
 }
 .dash-hero .actions {
+  position: relative;
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
@@ -892,8 +912,9 @@ body.resizing .sidebar-resizer {
   background: var(--surface);
 }
 .stat-card .v {
-  font-size: 26px;
-  font-weight: 900;
+  font-family: var(--font-serif);
+  font-size: 27px;
+  font-weight: 700;
   background: var(--grad-from);
   -webkit-background-clip: text;
   background-clip: text;
@@ -907,24 +928,31 @@ body.resizing .sidebar-resizer {
   letter-spacing: 0.4px;
 }
 .section-title {
-  font-size: 13px;
-  font-weight: 800;
-  color: var(--text-dim);
-  letter-spacing: 1px;
-  text-transform: uppercase;
+  font-family: var(--font-serif);
+  font-size: 15.5px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.4px;
   margin: 6px 0 10px;
   display: flex;
   align-items: center;
   gap: 8px;
 }
+.section-title::after {
+  content: '';
+  flex: 1;
+  max-width: 120px;
+  height: 1px;
+  background: linear-gradient(to right, var(--border), transparent);
+}
 
-/* ---------- 彩色首字母（低饱和度纯色） ---------- */
-.avatar-hue-0 { background: #d98aa6; }
-.avatar-hue-1 { background: #d9a673; }
-.avatar-hue-2 { background: #6fbe96; }
-.avatar-hue-3 { background: #7f9ad9; }
-.avatar-hue-4 { background: #a894d9; }
-.avatar-hue-5 { background: #79b0bc; }
+/* ---------- 彩色首字母（低饱和度暖色调，与暖核桃木夜风格统一） ---------- */
+.avatar-hue-0 { background: #C27063; } /* 红葡萄酒 */
+.avatar-hue-1 { background: #D9A673; } /* 琥珀 */
+.avatar-hue-2 { background: #6FAE80; } /* 苔藓绿 */
+.avatar-hue-3 { background: #6F9FB8; } /* 烛光湖蓝 */
+.avatar-hue-4 { background: #A98DB5; } /* 暖紫藤 */
+.avatar-hue-5 { background: #7BA89F; } /* 雾青 */
 
 /* ---------- 空状态 ---------- */
 .empty-state {
@@ -939,6 +967,8 @@ body.resizing .sidebar-resizer {
 }
 .empty-state .big {
   font-size: 44px;
+  filter: grayscale(0.15) brightness(1.05);
+  opacity: 0.9;
 }
 
 /* ---------- 成就解锁庆祝（奖杯 + 撒花） ---------- */
