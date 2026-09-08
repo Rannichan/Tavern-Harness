@@ -2,8 +2,7 @@ import type { GeneratedSkillExecution, ToolConfirmationRequest } from '../../typ
 import {
   createWorkspaceFile,
   getWorkspaceFile,
-  readFileContent,
-  removeWorkspaceFile,
+  listWorkspaceFiles,
   sanitizeRelativePath,
 } from './generatedWorkspace';
 import { translate } from '../i18n';
@@ -13,6 +12,10 @@ import { translate } from '../i18n';
 // ============================================================
 
 const MAX_OUTPUT_CHARS = 20_000;
+/** 单文件读写字符上限（与沙箱服务 file_read/file_write 对齐） */
+const MAX_READ_CHARS = 100_000;
+/** 虚拟工作区 IndexedDB 键前缀 */
+const WORKSPACE_KEY = 'generated_skill_workspace';
 
 /** shell 确认请求回调（由调用方注入，走统一确认弹窗链路） */
 export type SkillConfirmFn = (req: ToolConfirmationRequest) => Promise<boolean>;
@@ -89,31 +92,65 @@ async function execHttpGet(execution: GeneratedSkillExecution, args: Record<stri
   }
 }
 
-// ---------- javascript（Web Worker 沙箱）----------
-const workerUrlByCode = new Map<string, string>();
+// ---------- javascript（Web Worker 沙箱，async/await + 受限桥接 API）----------
+/**
+ * Worker 内注入的受限桥接函数（$read / $write / $append / $list）。
+ * 实现通过 postMessage 与主线程通信，实际能力全部复用主线程中已验证的
+ * 文件读写沙箱（路径校验、大小上限、磁盘/虚拟双模式），技能代码本身
+ * 拿不到任意文件系统或网络能力。
+ */
+const JS_INJECT_BOOT = `
+self.__pending = new Map();
+self.__seq = 0;
+self.__bridge = (method, payload) => new Promise((resolve, reject) => {
+  const id = ++self.__seq;
+  self.__pending.set(id, { resolve, reject });
+  self.postMessage({ __bridge__: true, id, method, payload });
+});
+self.__req = async (name, payload) => {
+  const r = await self.__bridge(name, payload);
+  if (r && r.ok === false) throw new Error(r.error || '操作失败');
+  return r;
+};
+self.__run = async (ev) => {
+  const input = ev.input;
+  const $read = async (p) => (await self.__req('read', { path: p })).content;
+  const $write = async (p, c) => (await self.__req('write', { path: p, content: c })).result;
+  const $append = async (p, c) => (await self.__req('append', { path: p, content: c })).result;
+  const $list = async () => (await self.__req('list', {})).files;
+  try {
+    const fn = new Function('input', '$read', '$write', '$append', '$list', CODE_FN);
+    const result = await fn(input, $read, $write, $append, $list);
+    let safe;
+    try {
+      safe = JSON.parse(JSON.stringify(result ?? null));
+    } catch (e) {
+      self.postMessage({ __error__: 'result 不可序列化: ' + String(e) });
+      return;
+    }
+    self.postMessage({ __result__: safe });
+  } catch (e) {
+    self.postMessage({ __error__: String((e && e.message) || e) });
+  }
+};
+self.onmessage = (ev) => {
+  const d = ev.data;
+  if (d && d.__bridge_resp__) {
+    const p = self.__pending.get(d.id);
+    if (!p) return;
+    self.__pending.delete(d.id);
+    if (d.ok) p.resolve(d.result); else p.reject(new Error(d.error));
+    return;
+  }
+  self.__run(d);
+};
+`;
+
 function createSandboxWorker(code: string): Worker {
-  const src = `
-    self.onmessage = (ev) => {
-      const input = ev.data.input;
-      let result;
-      try {
-        const timeout = setTimeout(() => { throw new Error('timeout'); }, 750);
-        // 用 Function 将用户代码包在作用域内执行
-        const fn = new Function('input', \`"use strict";\n${JSON.stringify(code)}\nreturn result;\`);
-        result = fn(input);
-        clearTimeout(timeout);
-      } catch (e) {
-        self.postMessage({ __error__: String(e && e.message || e) });
-        return;
-      }
-      try {
-        const safe = JSON.parse(JSON.stringify(result ?? null));
-        self.postMessage({ result: safe });
-      } catch (e) {
-        self.postMessage({ __error__: 'result 不可序列化: ' + String(e) });
-      }
-    };
-  `;
+  // 函数体内声明 let result，兼容旧式 `result = {...}` 用户代码；
+  // 函数体为 async 包装，用户代码可用 await + $read/$write/$append/$list
+  const codeFn = `return (async () => { "use strict";\nlet result;\n${code}\nreturn result; })();`;
+  const src = JS_INJECT_BOOT.replace('CODE_FN', JSON.stringify(codeFn));
   const blob = new Blob([src], { type: 'application/javascript' });
   return new Worker(URL.createObjectURL(blob));
 }
@@ -131,17 +168,33 @@ async function execJavaScript(execution: GeneratedSkillExecution, args: Record<s
       resolve(`ERROR: 无法创建沙箱 ${(e as Error).message}`);
       return;
     }
+    // 单次执行总超时（含所有桥接等待），到点即 terminate
     const timer = setTimeout(() => {
       worker.terminate();
-      resolve('ERROR: 脚本执行超时 (750ms)');
-    }, 2000);
+      resolve('ERROR: 脚本执行超时 (5000ms)');
+    }, 5000);
+    // 桥接请求：复用主线程已验证的文件沙箱能力
     worker.onmessage = (ev: MessageEvent) => {
-      clearTimeout(timer);
-      worker.terminate();
-      if (ev.data && ev.data.__error__) {
-        resolve(`ERROR: ${ev.data.__error__}`);
-      } else {
-        resolve(truncate(JSON.stringify(ev.data?.result ?? null)));
+      const d = ev.data;
+      if (!d) return;
+      if (d.__bridge__) {
+        void handleBridgeCall(d).then(
+          (result) => worker.postMessage({ __bridge_resp__: true, id: d.id, ok: true, result }),
+          (err) => worker.postMessage({ __bridge_resp__: true, id: d.id, ok: false, error: String((err && err.message) || err) })
+        );
+        return;
+      }
+      if (d.__error__) {
+        clearTimeout(timer);
+        worker.terminate();
+        resolve(`ERROR: ${d.__error__}`);
+        return;
+      }
+      if ('__result__' in d) {
+        clearTimeout(timer);
+        worker.terminate();
+        resolve(truncate(JSON.stringify(d.__result__ ?? null)));
+        return;
       }
     };
     worker.onerror = (e) => {
@@ -151,6 +204,64 @@ async function execJavaScript(execution: GeneratedSkillExecution, args: Record<s
     };
     worker.postMessage({ input });
   });
+}
+
+/**
+ * 主线程侧桥接实现：全部复用已验证的文件沙箱逻辑。
+ * 统一返回 { ok, content?/result?/files?, error? }，Worker 内 $read 等
+ * 在失败时 reject 成 Error，技能代码用 try/catch 接住。
+ */
+async function handleBridgeCall(req: { method: string; payload: Record<string, unknown> }): Promise<unknown> {
+  const { method, payload } = req;
+  switch (method) {
+    case 'read': {
+      const path = sanitizeRelativePath(String(payload.path ?? ''));
+      const onDisk = await resolveFsMode();
+      if (onDisk) {
+        const text = await diskFileRead(path);
+        if (text !== null) return { ok: true, content: text.slice(0, MAX_READ_CHARS) };
+        return { ok: false, error: `文件不存在: ${path}` };
+      }
+      const f = await getWorkspaceFile(path);
+      if (!f) return { ok: false, error: `文件不存在: ${path}` };
+      return { ok: true, content: f.content.slice(0, MAX_READ_CHARS) };
+    }
+    case 'write': {
+      const path = sanitizeRelativePath(String(payload.path ?? ''));
+      const content = String(payload.content ?? '');
+      const onDisk = await resolveFsMode();
+      if (onDisk) {
+        return { ok: true, result: await diskFileWrite(path, content, false) };
+      }
+      if (content.length > MAX_READ_CHARS) return { ok: false, error: '文件超过可写大小上限' };
+      await createWorkspaceFile(path, content);
+      return { ok: true, result: `OK: 已写入 ${path} (${content.length} 字符)` };
+    }
+    case 'append': {
+      const path = sanitizeRelativePath(String(payload.path ?? ''));
+      const content = String(payload.content ?? '');
+      const onDisk = await resolveFsMode();
+      if (onDisk) {
+        return { ok: true, result: await diskFileWrite(path, content, true) };
+      }
+      const existing = await getWorkspaceFile(path);
+      const newContent = (existing ? existing.content : '') + content;
+      if (newContent.length > MAX_READ_CHARS) return { ok: false, error: '文件超过可写大小上限' };
+      await createWorkspaceFile(path, newContent);
+      return { ok: true, result: `OK: 已追加 ${path}` };
+    }
+    case 'list': {
+      const onDisk = await resolveFsMode();
+      if (onDisk) {
+        const files = (await diskFileList()) ?? [];
+        return { ok: true, files: files.slice(0, 500) };
+      }
+      const files = await listWorkspaceFiles();
+      return { ok: true, files: files.map((f) => f.path.slice(WORKSPACE_KEY.length + 1)) };
+    }
+    default:
+      return { ok: false, error: `未知桥接方法 ${method}` };
+  }
 }
 
 // ---------- file_read / file_write（优先落盘到项目 sandbox_workspace/，服务不可用时回退虚拟工作区）----------

@@ -34,7 +34,7 @@ MyAgent-Android（Mioo）的 Web 版复刻——一个本地优先的 AI 助手 
 - **世界书**：世界观设定附加在人设后，可绑定到会话
 - **技能表（工具）**：
   - 内置：`web_search`（Bing，国内友好）、`roll_dice`、`create_skill` / `update_skill` / `delete_skill`、`manage_timer`、`get_tavern_status`、角色与世界书 CRUD
-  - **生成式技能**：`template` / `http_get` / `javascript`（Web Worker 沙箱）/ `file_read` / `file_write` / `shell`（真实执行，白名单直执 + 高危弹窗）/ `device_action`（通知 / 震动）
+  - **生成式技能**：`template` / `http_get` / `javascript`（Web Worker 沙箱，支持 async/await，可注入 `$read`/`$write`/`$append`/`$list` 持久化游戏状态）/ `file_read` / `file_write` / `shell`（真实执行，白名单直执 + 高危弹窗）/ `device_action`（通知 / 震动）
   - **确认门控**：更新/删除类操作、以及**高危 shell 命令**均弹出确认框
 
 ## 🚀 使用
