@@ -5,3 +5,6 @@ dist/
 .sandbox-port
 # 生成式技能 file_* 落盘区（真实磁盘工作区）
 sandbox_workspace/
+# 本地开发辅助内容（技能文件、规范图等）
+skills/
+*.png
