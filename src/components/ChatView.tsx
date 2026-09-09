@@ -1231,42 +1231,77 @@ export function TurnQueuePanel({
   const live = useStore((s) => s.liveQueueBySession[session.id!]);
   const isStreamingThisSession = streamingSessionId === session.id;
   const playerId = useMemo(() => participants.find((p) => p.kind === 'PLAYER')?.participantId ?? -1, [participants]);
-  const composedCurrentLoop = useMemo(() => {
-    if (!live) return null;
-    const loop = live.loopIndex;
-    const spoken = sessionMessages
-      .filter((m) => m.loopIndex === loop && (m.role === 'assistant' || m.role === 'user'))
-      .sort((a, b) => a.timestamp - b.timestamp)
-      .map((m) => (m.role === 'user' ? playerId : m.speakerParticipantId))
-      .filter((id): id is number => id != null)
-      .map(String);
-    const remaining = [...live.queue];
-    if (isStreamingThisSession && spoken.length > 0 && remaining.length > 0 && spoken[spoken.length - 1] === remaining[0]) {
-      remaining.shift();
-    }
-    return [...spoken, ...remaining];
-  }, [live, sessionMessages, playerId, isStreamingThisSession]);
-  // 展示历史：多个循环的完整顺序（发言过的角色不移除，新循环追加在历史后面）
-  const loops = useMemo(() => {
-    if (live) {
-      const base = live.history.length > 0 ? [...live.history] : [live.queue.length > 0 ? live.queue : initializeTurnQueue(participants, live.turnOrderMode)];
-      const cur = Math.max(0, Math.min(live.loopIndex, base.length - 1));
-      if (composedCurrentLoop && composedCurrentLoop.length > 0) {
-        base[cur] = composedCurrentLoop;
-      }
-      return base;
-    }
-    const fallback = effectiveDisplayQueue(session, participants);
-    return [fallback];
-  }, [live, session, participants, composedCurrentLoop]);
-
+  const loopLabel = (live?.loopIndex ?? session.loopIndex) + 1;
+  const currentLoopIndex = loopLabel - 1;
   // 正在发言者 = 剩余队列队首（live.queue[0]；随发言推进而变化）且正在流式生成
   const liveQueue = live?.queue ?? effectiveDisplayQueue(session, participants);
   const currentId = liveQueue.length > 0 ? parseInt(liveQueue[0], 10) : null;
   const current = currentId != null ? byId.get(currentId) : null;
   const isCurrentPlaying = current != null && current.kind === 'NPC' && isStreamingThisSession;
-  const currentSpeakingId = isCurrentPlaying ? String(currentId) : null;
-  const loopLabel = (live?.loopIndex ?? session.loopIndex) + 1;
+  const spokenByLoop = useMemo(() => {
+    const map = new Map<number, string[]>();
+    const list = [...sessionMessages]
+      .filter((m) => m.loopIndex != null && (m.role === 'assistant' || m.role === 'user'))
+      .sort((a, b) => a.timestamp - b.timestamp);
+    for (const m of list) {
+      const loop = m.loopIndex as number;
+      const speakerId = m.role === 'user' ? playerId : m.speakerParticipantId;
+      if (speakerId == null) continue;
+      const arr = map.get(loop) ?? [];
+      arr.push(String(speakerId));
+      map.set(loop, arr);
+    }
+    return map;
+  }, [sessionMessages, playerId]);
+  const currentSpoken = spokenByLoop.get(currentLoopIndex) ?? [];
+  const currentRemaining = useMemo(() => {
+    const rem = [...liveQueue];
+    if (isCurrentPlaying && currentSpoken.length > 0 && rem.length > 0 && rem[0] === currentSpoken[currentSpoken.length - 1]) {
+      rem.shift();
+    }
+    return rem;
+  }, [liveQueue, currentSpoken, isCurrentPlaying]);
+  const currentDisplay = useMemo(
+    () => [...currentSpoken, ...currentRemaining],
+    [currentSpoken, currentRemaining]
+  );
+  const currentSpeakingIndex = useMemo(() => {
+    if (!isCurrentPlaying || currentId == null) return null;
+    const cid = String(currentId);
+    if (currentSpoken.length > 0 && currentSpoken[currentSpoken.length - 1] === cid) return currentSpoken.length - 1;
+    return currentSpoken.length;
+  }, [isCurrentPlaying, currentId, currentSpoken]);
+  const currentWaitingIndex = useMemo(() => {
+    if (isCurrentPlaying || currentId == null) return null;
+    return currentSpoken.length;
+  }, [isCurrentPlaying, currentId, currentSpoken]);
+  // 展示历史：当前循环显示“已发言 + 剩余队列”；已结束循环显示“真实已发言顺序”
+  const loops = useMemo(() => {
+    if (live) {
+      const loopIndices = [
+        ...Array.from(spokenByLoop.keys()),
+        ...live.history.map((_, i) => i),
+        currentLoopIndex,
+      ];
+      const maxLoop = Math.max(0, ...loopIndices);
+      const out: string[][] = [];
+      for (let i = 0; i <= maxLoop; i++) {
+        if (i === currentLoopIndex) {
+          out.push(currentDisplay.length > 0 ? currentDisplay : (live.history[i] ?? []));
+          continue;
+        }
+        const spoken = spokenByLoop.get(i) ?? [];
+        if (spoken.length > 0) {
+          out.push(spoken);
+          continue;
+        }
+        out.push(live.history[i] ?? []);
+      }
+      return out;
+    }
+    const fallback = effectiveDisplayQueue(session, participants);
+    return [fallback];
+  }, [live, spokenByLoop, currentLoopIndex, currentDisplay, session, participants]);
 
   // ---- 联动滚动：注册队列滚动容器，双向驱动由 linkedScroll 协调 ----
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -1315,12 +1350,19 @@ export function TurnQueuePanel({
             const hue = npc?.avatarColorOrdinal ?? 0;
             const avatarUrl = npc?.avatarDataUrl ?? null;
             // 正在发言：仅当前循环中该角色 = 剩余队首（含思考阶段）
-            const isSpeaking = isCurrent && id === currentSpeakingId;
+            const isSpeaking = isCurrent && currentSpeakingIndex != null && i === currentSpeakingIndex;
             // 轮到玩家（且未在发言中）：队列首部 = 玩家 → 等待你
-            const isWaitingPlayer = isCurrent && isPlayer && currentId != null && id === String(currentId);
+            const isWaitingPlayer =
+              isCurrent &&
+              !isSpeaking &&
+              isPlayer &&
+              currentWaitingIndex != null &&
+              i === currentWaitingIndex &&
+              currentId != null &&
+              id === String(currentId);
             return (
               <li
-                key={`${loopNum}-${id}`}
+                key={`${loopNum}-${id}-${i}`}
                 className={`turn-queue-item ${isSpeaking ? 'active playing' : ''} ${isWaitingPlayer ? 'waiting-user' : ''}`}
                 onClick={() => handleQueueItemClick(loopNum, isPlayer ? 'player' : id)}
                 title={isPlayer ? t('chat.queueLocateSelf') : t('chat.queueLocateNpc', { name: speakerLabel(p) })}
