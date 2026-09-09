@@ -608,12 +608,12 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
     () => (session?.mode === 'GROUP' ? renderMentionRichNodes(text, groupMembers) : []),
     [session?.mode, text, groupMembers]
   );
-  const activeMentionIdx = useRef(0);
+  const [activeMentionIdx, setActiveMentionIdx] = useState(0);
 
   const closeMention = () => {
     setShowMention(false);
     setMentionQuery('');
-    activeMentionIdx.current = 0;
+    setActiveMentionIdx(0);
   };
 
   const applyMention = (name: string) => {
@@ -623,8 +623,9 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
     const before = text.slice(0, pos);
     const after = text.slice(pos);
     const atIdx = before.lastIndexOf('@');
+    if (atIdx < 0) return;
     const hasSpaceAfter = /^\s/.test(after);
-    const suffix = hasSpaceAfter || after === '' ? '' : ' ';
+    const suffix = hasSpaceAfter ? '' : ' ';
     const next = before.slice(0, atIdx) + `@${name}` + suffix + after;
     setText(next);
     closeMention();
@@ -652,7 +653,7 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
     }
     setMentionQuery(m[1].slice(1).toLowerCase());
     setShowMention(true);
-    activeMentionIdx.current = 0;
+    setActiveMentionIdx(0);
   };
 
   // 拖放 / 粘贴附件
@@ -764,17 +765,17 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
               if (showMention && mentionCandidates.length > 0) {
                 if (e.key === 'ArrowDown') {
                   e.preventDefault();
-                  activeMentionIdx.current = (activeMentionIdx.current + 1) % mentionCandidates.length;
+                  setActiveMentionIdx((idx) => (idx + 1) % mentionCandidates.length);
                   return;
                 }
                 if (e.key === 'ArrowUp') {
                   e.preventDefault();
-                  activeMentionIdx.current = (activeMentionIdx.current - 1 + mentionCandidates.length) % mentionCandidates.length;
+                  setActiveMentionIdx((idx) => (idx - 1 + mentionCandidates.length) % mentionCandidates.length);
                   return;
                 }
                 if (e.key === 'Enter' || e.key === 'Tab') {
                   e.preventDefault();
-                  applyMention(mentionCandidates[activeMentionIdx.current]);
+                  applyMention(mentionCandidates[activeMentionIdx]);
                   return;
                 }
                 if (e.key === 'Escape') {
@@ -789,7 +790,7 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
               }
               if (e.key === 'Escape') {
                 setShowCmd(false);
-                setShowMention(false);
+                closeMention();
               }
             }}
             onScroll={(e) => {
@@ -814,8 +815,8 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
               {mentionCandidates.map((n, i) => (
                 <button
                   key={n}
-                  className={`mention-item ${i === activeMentionIdx.current ? 'active' : ''}`}
-                  onMouseEnter={() => { activeMentionIdx.current = i; }}
+                  className={`mention-item ${i === activeMentionIdx ? 'active' : ''}`}
+                  onMouseEnter={() => { setActiveMentionIdx(i); }}
                   onClick={() => applyMention(n)}
                 >
                   <span className="mention-item-at">@</span>
@@ -1246,9 +1247,11 @@ export function TurnQueuePanel({
     for (const m of list) {
       const loop = m.loopIndex as number;
       const speakerId = m.role === 'user' ? playerId : m.speakerParticipantId;
+      if (m.role === 'assistant' && !trimEdgeNewlines(m.content)) continue;
       if (speakerId == null) continue;
       const arr = map.get(loop) ?? [];
-      arr.push(String(speakerId));
+      const key = String(speakerId);
+      if (arr[arr.length - 1] !== key) arr.push(key);
       map.set(loop, arr);
     }
     return map;

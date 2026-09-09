@@ -1090,10 +1090,12 @@ function lastUserText(sessionId: number): string {
   return last?.content ?? '';
 }
 
-/** 会话中最近一次「角色/用户」发言文本（用于解析任一发言者消息中的 @ 点名） */
-function lastSpeakerText(sessionId: number): string {
+/** 最近一次某 NPC 的发言文本（用于解析该 NPC 发言中的 @ 点名） */
+function lastAssistantTextBySpeaker(sessionId: number, speakerParticipantId: number): string {
   const list = useStore.getState().messages[sessionId] ?? [];
-  const last = [...list].reverse().find((m) => m.role === 'user' || m.role === 'assistant');
+  const last = [...list]
+    .reverse()
+    .find((m) => m.role === 'assistant' && m.speakerParticipantId === speakerParticipantId);
   return last?.content ?? '';
 }
 
@@ -1592,9 +1594,9 @@ async function continueGroupConversation(sessionId: number): Promise<void> {
       guard++;
       continue;
     }
-    const mentioned = mentionedParticipantIds(lastSpeakerText(sessionId), players, nextId);
     // 先不推进队列：让流式发言期间队列首位 = 正在发言的角色（面板实时高亮）
-    await streamAssistantTurn(session, npc, nextId, next, mentioned, loopIndex);
+    await streamAssistantTurn(session, npc, nextId, next, [], loopIndex);
+    const mentioned = mentionedParticipantIds(lastAssistantTextBySpeaker(sessionId, nextId), players, nextId);
     // 回合结束：移出该发言者 + 被 @ 点名者插入/移到队首（历史轮次不受影响）
     await persistQueue(sessionId, completeTurn(queue, nextId, mentioned), loopIndex, false);
     guard++;
