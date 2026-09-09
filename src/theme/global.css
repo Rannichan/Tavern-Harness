@@ -822,7 +822,7 @@ body.resizing .sidebar-resizer {
   background: var(--danger-soft);
 }
 
-/* 切换列表（用户人设/世界书）选项 */
+/* 切换列表（用户人设/Lorebook）选项 */
 .sel-opt {
   display: flex;
   align-items: center;

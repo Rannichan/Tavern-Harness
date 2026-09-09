@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { useStore } from '../store/store';
 import { db } from '../db/database';
-import { PALETTES, type ThemeColor, type ThemeMode } from '../theme/theme';
+import { type ThemeMode } from '../theme/theme';
 import type { ApiProvider, AppLanguage, ReasoningEffort } from '../types/models';
 import { Icon } from './shared';
 import { DeleteConfirmDialog } from './DeleteConfirmDialog';
@@ -156,22 +156,6 @@ export function SettingsView() {
                 <option value="light">{t('settings.light')}</option>
                 <option value="dark">{t('settings.dark')}</option>
               </select>
-            </div>
-            <div className="field">
-              <label>{t('settings.themeColor')}</label>
-              <div style={{ display: 'flex', gap: 8 }}>
-                {(Object.keys(PALETTES) as ThemeColor[]).map((c) => (
-                  <button
-                    key={c}
-                    className={`theme-swatch ${settings.themeColor === c ? 'active' : ''}`}
-                    style={{ background: `linear-gradient(135deg, ${PALETTES[c].gradientFrom}, ${PALETTES[c].gradientTo})` }}
-                    onClick={() => setSettings({ themeColor: c })}
-                    title={t(`theme.${c}`)}
-                  >
-                    {settings.themeColor === c && '✓'}
-                  </button>
-                ))}
-              </div>
             </div>
             <p style={{ fontSize: 12, color: 'var(--text-faint)', margin: 0 }}>
               {t('settings.themeTip')}

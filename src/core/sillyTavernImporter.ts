@@ -251,7 +251,7 @@ function resolveAvatar(data: StEnvelope, pngDataUrl: string | null): string | nu
   return extractAvatarFromCard(data) ?? pngDataUrl;
 }
 
-/** 渲染内嵌世界书（character_book）为可读文本 */
+/** 渲染内嵌 Lorebook（character_book）为可读文本 */
 function renderLorebook(book: StLorebook | undefined, fallbackName: string) {
   if (!book || !Array.isArray(book.entries)) return null;
   const entries = book.entries.filter((e) => e.enabled !== false && e.content && e.content.trim());
@@ -265,7 +265,7 @@ function renderLorebook(book: StLorebook | undefined, fallbackName: string) {
     )
     .join('\n\n');
   return {
-    name: (book.name || `${fallbackName} 的世界书`).slice(0, 60),
+    name: (book.name || `${fallbackName} 的 Lorebook`).slice(0, 60),
     content: rendered.slice(0, 10_000),
   };
 }
@@ -281,7 +281,7 @@ function buildGreetings(data: StEnvelope, maxLen = 1000): { greeting: string; al
   return { greeting, alternateGreetings: alternates };
 }
 
-/** 创建角色与可选世界书（重名自动加后缀） */
+/** 创建角色与可选 Lorebook（重名自动加后缀） */
 async function persistCard(data: StEnvelope, key: 'ccv3' | 'chara', pngDataUrl: string | null = null): Promise<SillyTavernImportResult> {
   const name = data.name?.trim() || '未命名角色';
   const { greeting, alternateGreetings } = buildGreetings(data);
@@ -334,7 +334,7 @@ async function persistCard(data: StEnvelope, key: 'ccv3' | 'chara', pngDataUrl: 
   };
 }
 
-/** 导入角色卡 PNG 文件：创建角色（重名自动加后缀）与可选世界书，PNG 图片本身作为头像 */
+/** 导入角色卡 PNG 文件：创建角色（重名自动加后缀）与可选 Lorebook，PNG 图片本身作为头像 */
 export async function importSillyTavernCard(file: File): Promise<SillyTavernImportResult> {
   const buffer = await file.arrayBuffer();
   const parsed = parsePngChara(buffer);
@@ -343,7 +343,7 @@ export async function importSillyTavernCard(file: File): Promise<SillyTavernImpo
 }
 
 // ============================================================
-// 预填草稿（不落库）：UI 把解析结果填入「新建角色 / 新建世界书」表单，
+// 预填草稿（不落库）：UI 把解析结果填入「新建角色 / 新建 Lorebook」表单，
 // 由用户确认后手动保存
 // ============================================================
 
@@ -352,7 +352,7 @@ export interface ParsedSillyTavernCard {
   version: string;
   /** 预填到新建角色表单的数据（含头像、人设 prompt、开场白） */
   character: NpcCharacter;
-  /** 卡内嵌的世界书（若有），预填到新建世界书表单 */
+  /** 卡内嵌的 Lorebook（若有），预填到新建 Lorebook 表单 */
   worldBook: { name: string; content: string } | null;
 }
 

@@ -53,7 +53,7 @@
   width: min(420px, calc(100vw - 32px));
 }
 
-/* ---------- 大尺寸编辑弹窗（角色卡 / 世界书） ---------- */
+/* ---------- 大尺寸编辑弹窗（角色卡 / Lorebook） ---------- */
 .modal-editor {
   width: min(1040px, calc(100vw - 32px));
   height: min(90dvh, 960px);
@@ -214,7 +214,7 @@
   display: flex;
   gap: 6px;
 }
-/* 世界书卡片（复用 char-card 外壳，内容区预览更多行） */
+/* Lorebook卡片（复用 char-card 外壳，内容区预览更多行） */
 .wb-card .cname {
   font-family: var(--font-serif);
   font-weight: 700;
@@ -228,7 +228,7 @@
   color: var(--text-dim);
   line-height: 1.5;
   display: -webkit-box;
-  -webkit-line-clamp: 10; /* 世界书内容最多展示 10 行 */
+  -webkit-line-clamp: 10; /* Lorebook内容最多展示 10 行 */
   -webkit-box-orient: vertical;
   overflow: hidden;
   white-space: pre-line;
@@ -250,7 +250,7 @@
   opacity: 0.5;
 }
 
-/* ---------- 列表（世界书 / 技能 / 文件） ---------- */
+/* ---------- 列表（Lorebook / 技能 / 文件） ---------- */
 .list-item {
   display: flex;
   align-items: center;
@@ -601,29 +601,6 @@
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--surface);
-}
-
-/* ---------- 主题色样 ---------- */
-.theme-swatch {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  border: 2px solid transparent;
-  color: #fff;
-  font-size: 14px;
-  font-weight: 800;
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-  transition: all 0.15s;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-}
-.theme-swatch:hover {
-  transform: scale(1.08);
-}
-.theme-swatch.active {
-  border-color: var(--text);
-  box-shadow: 0 0 0 3px var(--primary-soft), 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 /* ---------- 消息右键菜单 ---------- */

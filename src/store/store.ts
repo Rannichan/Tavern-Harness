@@ -179,11 +179,11 @@ export const useStore = create<AppState>((set, get) => ({
       const tools = await db.tools.toArray();
       set({ initialized: true, settings, npcs, sessions, worldBooks, tools });
       await get().refreshProviders();
-      applyThemeManual(settings.themeMode, settings.themeColor);
+      applyThemeManual(settings.themeMode);
       // 跟随系统模式下，系统切换深浅色时自动重新应用主题
       watchSystemTheme(() => {
         const s = useStore.getState().settings;
-        if (s) applyThemeManual(s.themeMode, s.themeColor);
+        if (s) applyThemeManual(s.themeMode);
       });
       await scheduleRestoredTasks();
       await get().refreshAchievements();
@@ -213,7 +213,7 @@ export const useStore = create<AppState>((set, get) => ({
       await get().refreshSessions();
       await get().refreshParticipants();
     }
-    applyThemeManual(next.themeMode, next.themeColor);
+    applyThemeManual(next.themeMode);
   },
 
   setActiveSession: (id) => {

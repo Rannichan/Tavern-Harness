@@ -1,9 +1,6 @@
-export type ThemeColor = 'violet' | 'blue' | 'green' | 'amber';
 export type ThemeMode = 'system' | 'light' | 'dark';
 
 export interface ThemePalette {
-  id: ThemeColor;
-  name: string;
   /** 深色模式主色（烛光发光色，浅亮） */
   primary: string;
   /** 浅色模式主色（在羊皮纸背景上有足够对比的深色变体） */
@@ -16,54 +13,15 @@ export interface ThemePalette {
   glow: string;
 }
 
-/** 与 MyAgent-Android 一致的 4 套主题色——为适配暖核桃木夜色，色相整体向暖偏移：
-    主色 → 红葡萄酒（本主题）、烛光湖蓝（青调）、苔藓绿、赛博琥珀保留为烛光色 */
-export const PALETTES: Record<ThemeColor, ThemePalette> = {
-  // 红葡萄酒：深玫瑰红至砖红，压在核桃木夜色上有温暖的"陈酿"感
-  violet: {
-    id: 'violet',
-    name: '红葡萄酒',
-    primary: '#F0B8B2',
-    primaryLight: '#A13D3D',
-    primaryDim: '#B06A63',
-    accentSoft: 'rgba(240,184,178,0.15)',
-    gradientFrom: '#C27063',
-    gradientTo: '#C27063',
-    glow: 'rgba(226,120,110,0.32)',
-  },
-  blue: {
-    id: 'blue',
-    name: '苍蓝',
-    primary: '#9CCDE0',
-    primaryLight: '#2A6E8A',
-    primaryDim: '#4E87A6',
-    accentSoft: 'rgba(156,205,224,0.15)',
-    gradientFrom: '#6f9fb8',
-    gradientTo: '#6f9fb8',
-    glow: 'rgba(130,190,215,0.28)',
-  },
-  green: {
-    id: 'green',
-    name: '翡翠森林',
-    primary: '#A4DCA0',
-    primaryLight: '#2F7D46',
-    primaryDim: '#4C9666',
-    accentSoft: 'rgba(164,220,160,0.14)',
-    gradientFrom: '#6fae80',
-    gradientTo: '#6fae80',
-    glow: 'rgba(142,200,122,0.26)',
-  },
-  amber: {
-    id: 'amber',
-    name: '赛博琥珀',
-    primary: '#FFCB8B',
-    primaryLight: '#9A5B17',
-    primaryDim: '#C88A3F',
-    accentSoft: 'rgba(255,203,139,0.16)',
-    gradientFrom: '#d9a673',
-    gradientTo: '#d9a673',
-    glow: 'rgba(255,178,96,0.34)',
-  },
+/** 固定主题色：赛博琥珀（与 MyAgent-Android 温暖烛光一致） */
+export const AMBER_PALETTE: ThemePalette = {
+  primary: '#FFCB8B',
+  primaryLight: '#9A5B17',
+  primaryDim: '#C88A3F',
+  accentSoft: 'rgba(255,203,139,0.16)',
+  gradientFrom: '#d9a673',
+  gradientTo: '#d9a673',
+  glow: 'rgba(255,178,96,0.34)',
 };
 
 export function isDarkMode(mode: ThemeMode): boolean {
@@ -89,15 +47,14 @@ export function watchSystemTheme(onChange: () => void): void {
   }
 }
 
-/** 应用主题 CSS 变量到 :root */
-export function applyTheme(mode: ThemeMode, color: ThemeColor): void {
+/** 应用主题 CSS 变量到 :root（固定使用琥珀色主题） */
+export function applyTheme(mode: ThemeMode): void {
   const dark = isDarkMode(mode);
-  const p = PALETTES[color];
+  const p = AMBER_PALETTE;
   const root = document.documentElement;
   const is = (light: string, darkV: string) => (dark ? darkV : light);
 
   root.dataset.theme = dark ? 'dark' : 'light';
-  root.dataset.color = color;
 
   const vars: Record<string, string> = {
     // 主色：浅色模式用深色变体（羊皮纸底上对比足够），深色模式用烛光浅亮色
@@ -143,14 +100,9 @@ export function applyTheme(mode: ThemeMode, color: ThemeColor): void {
 
   Object.entries(vars).forEach(([k, v]) => root.style.setProperty(k, v));
 
-  // 暗色主题下的琥珀/绿/蓝回退到不同冷暖的中性背景（与 App 行为一致：只有 violet 有专属暗色背景）
+  // 琥珀主题的暗色背景（暖木色）
   if (dark) {
-    const bgByColor: Record<string, string> = {
-      blue: '#0E191C',
-      green: '#0F1B12',
-      amber: '#20160E',
-    };
-    root.style.setProperty('--bg', bgByColor[color] ?? '#17120A');
+    root.style.setProperty('--bg', '#20160E');
     root.style.setProperty('--surface', '#211A10');
   }
 }

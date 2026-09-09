@@ -12,8 +12,8 @@ import { useT } from '../core/i18n';
 const ALL_DEFAULT_SKILLS = [...ALL_BUILTIN_TOOL_NAMES];
 
 // ============================================================
-// 角色工坊（NPC 管理 / 世界书 / 技能表 / PNG 导入）
-// 说明：PNG 导入只解析不落库，打开「新建角色 / 新建世界书」表单预填，
+// 角色工坊（NPC 管理 / Lorebook / 技能表 / PNG 导入）
+// 说明：PNG 导入只解析不落库，打开「新建角色 / 新建Lorebook」表单预填，
 //       由用户手动点保存
 // ============================================================
 
@@ -25,7 +25,7 @@ export function CharactersView() {
   const [tab, setTab] = useState<'characters' | 'worldbooks' | 'skills'>('characters');
   const [editing, setEditing] = useState<NpcCharacter | null>(null);
   const [isNew, setIsNew] = useState(false);
-  // PNG 解析出的草稿：角色 + 内嵌世界书
+  // PNG 解析出的草稿：角色 + 内嵌Lorebook
   const [importDraft, setImportDraft] = useState<ParsedSillyTavernCard | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -53,7 +53,7 @@ export function CharactersView() {
         setIsNew(true);
         addToast(t('toast.importedChar', { name: draft.character.name, version: draft.version }));
       } else {
-        // 世界书 tab：草稿交给 WorldBookList，由 useEffect 打开预填表单（含提示）
+        // Lorebook tab：草稿交给 WorldBookList，由 useEffect 打开预填表单（含提示）
         if (!draft.worldBook) {
           addToast(t('toast.noEmbeddedWb', { name: draft.character.name }), 'error');
         }
@@ -360,13 +360,13 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
   );
 }
 
-// ---------------- 世界书 ----------------
+// ---------------- Lorebook ----------------
 
 function WorldBookList({ books, onChanged, onImportPng, importDraft, onImportDraftConsumed }: {
   books: WorldBook[];
   onChanged: () => void;
   onImportPng: () => void;
-  /** PNG 解析出的角色卡草稿（含内嵌世界书） */
+  /** PNG 解析出的角色卡草稿（含内嵌Lorebook） */
   importDraft: ParsedSillyTavernCard | null;
   /** 草稿已被消费（保存/取消）后通知父组件清空 */
   onImportDraftConsumed: () => void;
@@ -376,7 +376,7 @@ function WorldBookList({ books, onChanged, onImportPng, importDraft, onImportDra
   const [editing, setEditing] = useState<WorldBook | { name: string; content: string; imageUri: null; createdAt: number } | null>(null);
   const [pendingDelete, setPendingDelete] = useState<WorldBook | null>(null);
 
-  // PNG 导入产生草稿后：预填「新建世界书」表单（不落库，由用户手动保存）
+  // PNG 导入产生草稿后：预填「新建Lorebook」表单（不落库，由用户手动保存）
   useEffect(() => {
     if (!importDraft) return;
     if (importDraft.worldBook) {

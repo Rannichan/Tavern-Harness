@@ -2,7 +2,7 @@
 
 MyAgent-Android（Mioo）的 Web 版复刻——一个本地优先的 AI 助手 / Agent 聊天客户端，跑在你自己的浏览器里。
 
-**Tavern Harness** 提供与 Android 版一致的功能：任意 OpenAI 兼容 API、多 Provider 管理、角色卡（NPC）、世界书、生成式技能、群聊回合制、多模态附件、定时消息、生涯统计等。所有数据通过 IndexedDB 存储在本地，无需自建服务端。
+**Tavern Harness** 提供与 Android 版一致的功能：任意 OpenAI 兼容 API、多 Provider 管理、角色卡（NPC）、Lorebook、生成式技能、群聊回合制、多模态附件、定时消息、生涯统计等。所有数据通过 IndexedDB 存储在本地，无需自建服务端。
 
 > ⚠️ **数据说明**：全部数据（会话、配置、角色等）保存在浏览器 IndexedDB 中，**与浏览器、端口、站点绑定**。换浏览器（如 Chrome → Safari）、开隐私窗口、或换端口访问会看不到旧数据——这是浏览器安全机制，属于正常现象。如需迁移，可在对话页右上角「分享对话」导出会话 JSON（可自定义保存位置与文件名）。
 
@@ -30,10 +30,10 @@ MyAgent-Android（Mioo）的 Web 版复刻——一个本地优先的 AI 助手 
 
 ### 角色工坊（对标 SillyTavern）
 - **角色卡（NPC）**：人设、开场白、彩色首字母头像 / 选图，编辑页内按角色启用技能（内置角色「酒馆老板」默认启用全部内置技能）
-- **SillyTavern PNG 导入**：chara V2 / ccv3 V3 一键导入，解析人设、开场白、内嵌世界书
-- **世界书**：世界观设定附加在人设后，可绑定到会话
+- **SillyTavern PNG 导入**：chara V2 / ccv3 V3 一键导入，解析人设、开场白、内嵌Lorebook
+- **Lorebook**：世界观设定附加在人设后，可绑定到会话
 - **技能表（工具）**：
-  - 内置：`web_search`（Bing，国内友好）、`roll_dice`、`create_skill` / `update_skill` / `delete_skill`、`manage_timer`、`get_tavern_status`、角色与世界书 CRUD
+  - 内置：`web_search`（Bing，国内友好）、`roll_dice`、`create_skill` / `update_skill` / `delete_skill`、`manage_timer`、`get_tavern_status`、角色与Lorebook CRUD
   - **生成式技能**：`template` / `http_get` / `javascript`（Web Worker 沙箱，支持 async/await，可注入 `$read`/`$write`/`$append`/`$list` 持久化游戏状态）/ `file_read` / `file_write` / `shell`（真实执行，白名单直执 + 高危弹窗）/ `device_action`（通知 / 震动）
   - **确认门控**：更新/删除类操作、以及**高危 shell 命令**均弹出确认框
 

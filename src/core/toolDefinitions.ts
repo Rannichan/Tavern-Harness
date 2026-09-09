@@ -136,7 +136,7 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
   ),
   fn(
     'get_tavern_status',
-    'Read-only snapshot of the tavern: characters, world books, skills and career statistics. Never modifies anything.',
+    'Read-only snapshot of the tavern: characters, Lorebooks, skills and career statistics. Never modifies anything.',
     {
       type: 'object',
       properties: {
@@ -197,7 +197,7 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
   ),
   fn(
     'create_conversation',
-    'Create a new conversation. The player is always included automatically; you only need to specify the characters to add, plus optional world book, speaking order, random-order switch, and user persona.',
+    'Create a new conversation. The player is always included automatically; you only need to specify the characters to add, plus optional Lorebook, speaking order, random-order switch, and user persona.',
     {
       type: 'object',
       properties: {
@@ -210,7 +210,7 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
           uniqueItems: true,
           description: 'Character names to add to the conversation. The player is included automatically.',
         },
-        world_book: { type: 'string', description: 'Optional world book name' },
+        world_book: { type: 'string', description: 'Optional Lorebook name' },
         speaking_order: {
           type: 'array',
           items: { type: 'string' },
@@ -226,7 +226,7 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
   ),
   fn(
     'create_world_book',
-    'Create a world book (world-building text appended to character personas).',
+    'Create a Lorebook (world-building text appended to character personas).',
     {
       type: 'object',
       properties: {
@@ -239,7 +239,7 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
   ),
   fn(
     'update_world_book',
-    'Update a world book. Requires user confirmation.',
+    'Update a Lorebook. Requires user confirmation.',
     {
       type: 'object',
       properties: {
@@ -253,7 +253,7 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
   ),
   fn(
     'delete_world_book',
-    'Delete a world book. Requires user confirmation. Unlinks from all sessions.',
+    'Delete a Lorebook. Requires user confirmation. Unlinks from all sessions.',
     {
       type: 'object',
       properties: { name: { type: 'string' } },

@@ -6,6 +6,7 @@ import {
   closestCenter,
   useSensor,
   useSensors,
+  type Modifier,
   type DragEndEvent,
 } from '@dnd-kit/core';
 import {
@@ -23,6 +24,20 @@ import { useT } from '../core/i18n';
 // ============================================================
 // 新建对话弹窗（侧边栏「新建」与仪表盘「新建对话」共用）
 // ============================================================
+
+/** 拖拽约束：只允许上下拖动，且不超出排序列表（表单）的垂直范围。
+ *  替代官方 @dnd-kit/modifiers（未安装），语义等同
+ *  restrictToVerticalAxis + restrictToParentElement。 */
+const restrictToSortList: Modifier = ({ transform, activeNodeRect, containerNodeRect }) => {
+  let { x, y } = transform;
+  x = 0;
+  if (activeNodeRect && containerNodeRect) {
+    const containerTop = containerNodeRect.top - activeNodeRect.top;
+    const containerBottom = containerNodeRect.bottom - activeNodeRect.bottom;
+    y = Math.min(Math.max(y, containerTop), containerBottom);
+  }
+  return { ...transform, x, y };
+};
 
 export function NewSessionMenu({ onClose }: { onClose: () => void }) {
   const npcs = useStore((s) => s.npcs);
@@ -122,7 +137,7 @@ export function NewSessionMenu({ onClose }: { onClose: () => void }) {
             <span className="tag">{modeLabel}</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[restrictToSortList]} onDragEnd={onDragEnd}>
               <SortableContext items={participantOrder} strategy={verticalListSortingStrategy}>
                 <div className="sort-list">
                   {participantOrder.map((id, index) => {
@@ -180,7 +195,7 @@ export function NewSessionMenu({ onClose }: { onClose: () => void }) {
           </select>
         </div>
 
-        {/* 世界书 */}
+        {/* Lorebook */}
         <div className="field">
           <label>{t('newSession.worldbook')}</label>
           <select className="select" value={worldBookId ?? ''} onChange={(e) => setWorldBookId(e.target.value ? Number(e.target.value) : null)}>
