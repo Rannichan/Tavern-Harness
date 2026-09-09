@@ -1047,7 +1047,15 @@
   z-index: 1;
 }
 .mention.mention-live {
-  font-style: normal;
+  font-weight: inherit;
+  font-style: inherit;
+  background: none;
+  border-radius: 0;
+  padding: 0;
+  color: var(--primary);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--primary) 55%, transparent);
+  text-underline-offset: 2px;
 }
 .mention-pop {
   position: absolute;

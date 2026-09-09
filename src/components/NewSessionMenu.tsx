@@ -188,7 +188,6 @@ export function NewSessionMenu({ onClose, editingSession }: { onClose: () => voi
                       <ParticipantSortItem
                         key={id}
                         participantId={id}
-                        index={index}
                         name={id === -1 ? t('common.user') : npc?.name ?? t('newSession.notSelected')}
                         avatarColorOrdinal={npc?.avatarColorOrdinal ?? 0}
                         avatarDataUrl={npc?.avatarDataUrl ?? null}
@@ -272,7 +271,6 @@ export function NewSessionMenu({ onClose, editingSession }: { onClose: () => voi
 
 function ParticipantSortItem({
   participantId,
-  index,
   name,
   avatarColorOrdinal,
   avatarDataUrl,
@@ -280,7 +278,6 @@ function ParticipantSortItem({
   onRemove,
 }: {
   participantId: number;
-  index: number;
   name: string;
   avatarColorOrdinal: number;
   avatarDataUrl: string | null;
@@ -307,7 +304,6 @@ function ParticipantSortItem({
       <Avatar name={name} colorOrdinal={avatarColorOrdinal} imageUrl={avatarDataUrl} size="xs" />
       <span className="sort-name">{name}</span>
       {!removable && <span className="sort-tag">{t('common.you')}</span>}
-      <span className="sort-idx">{index + 1}</span>
       {removable && (
         <button className="npc-slot-x" onClick={(e) => { e.stopPropagation(); onRemove(); }}>
           <Icon name="x" size={11} />

@@ -1226,23 +1226,40 @@ export function TurnQueuePanel({
   const byId = useMemo(() => new Map(participants.map((p) => [p.participantId, p])), [participants]);
   const npcs = useStore((s) => s.npcs);
   const streamingSessionId = useStore((s) => s.streaming.sessionId);
+  const sessionMessages = useStore((s) => (session.id != null ? (s.messages[session.id] ?? []) : []));
   // 订阅实时队列快照（每个回合推进 / 发言开始 / 玩家轮到都会更新）
   const live = useStore((s) => s.liveQueueBySession[session.id!]);
+  const isStreamingThisSession = streamingSessionId === session.id;
+  const playerId = useMemo(() => participants.find((p) => p.kind === 'PLAYER')?.participantId ?? -1, [participants]);
+  const composedCurrentLoop = useMemo(() => {
+    if (!live) return null;
+    const loop = live.loopIndex;
+    const spoken = sessionMessages
+      .filter((m) => m.loopIndex === loop && (m.role === 'assistant' || m.role === 'user'))
+      .sort((a, b) => a.timestamp - b.timestamp)
+      .map((m) => (m.role === 'user' ? playerId : m.speakerParticipantId))
+      .filter((id): id is number => id != null)
+      .map(String);
+    const remaining = [...live.queue];
+    if (isStreamingThisSession && spoken.length > 0 && remaining.length > 0 && spoken[spoken.length - 1] === remaining[0]) {
+      remaining.shift();
+    }
+    return [...spoken, ...remaining];
+  }, [live, sessionMessages, playerId, isStreamingThisSession]);
   // 展示历史：多个循环的完整顺序（发言过的角色不移除，新循环追加在历史后面）
   const loops = useMemo(() => {
     if (live) {
       const base = live.history.length > 0 ? [...live.history] : [live.queue.length > 0 ? live.queue : initializeTurnQueue(participants, live.turnOrderMode)];
       const cur = Math.max(0, Math.min(live.loopIndex, base.length - 1));
-      if (live.queue.length > 0) {
-        base[cur] = live.queue;
+      if (composedCurrentLoop && composedCurrentLoop.length > 0) {
+        base[cur] = composedCurrentLoop;
       }
       return base;
     }
     const fallback = effectiveDisplayQueue(session, participants);
     return [fallback];
-  }, [live, session, participants]);
+  }, [live, session, participants, composedCurrentLoop]);
 
-  const isStreamingThisSession = streamingSessionId === session.id;
   // 正在发言者 = 剩余队列队首（live.queue[0]；随发言推进而变化）且正在流式生成
   const liveQueue = live?.queue ?? effectiveDisplayQueue(session, participants);
   const currentId = liveQueue.length > 0 ? parseInt(liveQueue[0], 10) : null;

@@ -78,6 +78,8 @@
   flex: 1;
   min-height: 110px;
   padding: 12px 14px;
+  max-height: none;
+  height: 100%;
 }
 /* 角色卡：人设 Prompt 所在的 field 容器弹性增长，textaarea 填满 */
 .modal-editor .prompt-field {
@@ -677,8 +679,9 @@
 }
 .npc-slot-x {
   position: absolute;
-  top: 6px;
+  top: 50%;
   right: 6px;
+  transform: translateY(-50%);
   width: 20px;
   height: 20px;
   padding: 0;
