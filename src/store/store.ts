@@ -31,7 +31,7 @@ import {
   safeParseQueue,
   safeParseQueueHistory,
 } from '../core/turnLoop';
-import type { ChatCompletionRequest, TurnOrderMode } from '../types/models';
+import type { ChatCompletionRequest, SessionMode, TurnOrderMode } from '../types/models';
 import { NEW_TOPIC_MARKER, MAX_TOOL_CALL_DEPTH } from '../core/toolDefinitions';
 import { getEnabledToolsForSession, executeToolCall } from '../core/tools/toolExecutor';
 import { scheduleRestoredTasks } from '../core/tools/toolExecutor';
@@ -108,6 +108,16 @@ interface AppState {
   saveMessageOnly: (messageId: number, newContent: string, sessionId: number, newAttachments?: string[], newAttachmentNames?: string[]) => Promise<void>;
   stopStreaming: () => void;
   deleteSession: (id: number) => Promise<void>;
+  updateSessionSettings: (sessionId: number, opts: {
+    title?: string;
+    npcIds: number[];
+    worldBookId?: number | null;
+    userPersonaNpcId?: number | null;
+    turnOrderMode?: TurnOrderMode;
+    participantOrder?: number[];
+    enableGreeting?: boolean;
+  }) => Promise<void>;
+  resetSessionConversation: (sessionId: number) => Promise<void>;
   resolveConfirmation: (approved: boolean) => void;
   setTurnOrderMode: (sessionId: number, mode: TurnOrderMode) => Promise<void>;
   reorderParticipants: (sessionId: number, participantIdsInOrder: number[]) => Promise<void>;
@@ -552,6 +562,60 @@ export const useStore = create<AppState>((set, get) => ({
     await get().refreshSessions();
   },
 
+  updateSessionSettings: async (sessionId, opts) => {
+    const session = await db.sessions.get(sessionId);
+    if (!session) return;
+    const npcIds = [...new Set((opts.npcIds ?? []).filter((id) => Number.isFinite(id)).map(Number))].slice(0, 5);
+    if (npcIds.length === 0) return;
+    const participantOrder = opts.participantOrder ?? [-1, ...npcIds];
+    const participants = await buildSessionParticipants(sessionId, npcIds, participantOrder);
+    const finalNpcIds = participants.filter((p) => p.kind === 'NPC' && p.npcId != null).map((p) => p.npcId!);
+    if (finalNpcIds.length === 0) return;
+    const finalTitle = opts.title?.trim() || participants
+      .filter((p) => p.kind === 'NPC' && p.npcId != null)
+      .map((p) => p.displayName)
+      .join('、');
+    const turnOrderMode = opts.turnOrderMode === 'RANDOM' ? 'RANDOM' : 'PRESET';
+    const queue = initializeTurnQueue(participants, turnOrderMode);
+    await db.participants.where('sessionId').equals(sessionId).delete();
+    await db.participants.bulkAdd(participants);
+    await db.sessions.update(sessionId, {
+      title: finalTitle,
+      mode: finalNpcIds.length === 1 ? 'NPC' : 'GROUP',
+      associatedId: finalNpcIds.length === 1 ? finalNpcIds[0] : null,
+      worldBookId: opts.worldBookId ?? null,
+      userPersonaNpcId: opts.userPersonaNpcId ?? null,
+      enableGreeting: opts.enableGreeting !== false,
+      turnOrderMode,
+      turnQueueJson: queueJson(queue),
+      turnQueueHistoryJson: queueHistoryJson([queue]),
+      loopIndex: 0,
+      updatedAt: Date.now(),
+    });
+    await get().loadMessages(sessionId);
+    await get().refreshSessions();
+    await get().refreshLiveQueue(sessionId);
+  },
+
+  resetSessionConversation: async (sessionId) => {
+    const session = await db.sessions.get(sessionId);
+    if (!session) return;
+    const participants = (await db.participants.where('sessionId').equals(sessionId).toArray()).sort((a, b) => a.seatOrder - b.seatOrder);
+    const queue = initializeTurnQueue(participants, session.turnOrderMode);
+    await db.messages.where('sessionId').equals(sessionId).delete();
+    const lastMessage = await seedOpeningGreeting(sessionId, session.mode, session.associatedId, queue, session.enableGreeting !== false);
+    await db.sessions.update(sessionId, {
+      turnQueueJson: queueJson(queue),
+      turnQueueHistoryJson: queueHistoryJson([queue]),
+      loopIndex: 0,
+      lastMessage,
+      updatedAt: Date.now(),
+    });
+    await get().loadMessages(sessionId);
+    await get().refreshSessions();
+    await get().refreshLiveQueue(sessionId);
+  },
+
   resolveConfirmation: (approved) => {
     const req = get().pendingConfirmation;
     if (!req) return;
@@ -716,6 +780,7 @@ export async function createSession(
    associatedId: mode === 'NPC' ? (requestedNpcIds[0] ?? null) : null,
    worldBookId: opts?.worldBookId ?? null,
    userPersonaNpcId: opts?.userPersonaNpcId ?? null,
+   enableGreeting: opts?.enableGreeting !== false,
    turnOrderMode,
    turnQueueJson: '[]',
    turnQueueHistoryJson: '[]',
@@ -789,46 +854,9 @@ export async function createSession(
   });
 
   const enableGreeting = opts?.enableGreeting !== false;
-  let greetingSpeakerId: number | null = null;
-  if (enableGreeting) {
-    if (mode === 'NPC' && opts?.associatedId != null) {
-      greetingSpeakerId = opts.associatedId;
-    } else if (mode === 'GROUP') {
-      const firstSpeakerId = Number(queue[0] ?? NaN);
-      greetingSpeakerId = Number.isFinite(firstSpeakerId) && firstSpeakerId !== -1 ? firstSpeakerId : null;
-    }
-  }
-  if (greetingSpeakerId != null) {
-    const npc = await db.npcs.get(greetingSpeakerId);
-    if (npc) {
-      const all = [npc.greeting, ...(npc.alternateGreetings ?? [])].filter(Boolean);
-      const greeting = all.length > 0 ? all[Math.floor(Math.random() * all.length)] : '';
-      if (greeting) {
-        await db.messages.add({
-          sessionId: id,
-          role: 'assistant',
-          speakerParticipantId: greetingSpeakerId,
-          speakerName: npc.name,
-          content: greeting,
-          toolCallsJson: '[]',
-          toolCallId: null,
-          thinkingContent: null,
-          loopIndex: 0,
-          timestamp: Date.now(),
-          latencyMs: null,
-          promptTokens: 0,
-          completionTokens: 0,
-          totalTokens: 0,
-          tokensPerSec: null,
-          modelUsed: null,
-          attachments: [],
-          attachmentInfos: [],
-          rawRequestBody: null,
-          rawResponseBody: null,
-        });
-        await db.sessions.update(id, { lastMessage: sessionPreviewText(greeting) });
-      }
-    }
+  const greetingPreview = await seedOpeningGreeting(id, mode, mode === 'NPC' ? (requestedNpcIds[0] ?? null) : null, queue, enableGreeting);
+  if (greetingPreview) {
+    await db.sessions.update(id, { lastMessage: greetingPreview });
   }
 
   // 同步 store
@@ -836,6 +864,93 @@ export async function createSession(
   await useStore.getState().refreshLiveQueue(id);
 
   return id;
+}
+
+async function buildSessionParticipants(sessionId: number, npcIds: number[], participantOrder?: number[]): Promise<ChatParticipant[]> {
+  const participantsById = new Map<number, ChatParticipant>();
+  participantsById.set(-1, {
+    sessionId,
+    participantId: -1,
+    kind: 'PLAYER',
+    npcId: null,
+    displayName: translate('common.user'),
+    seatOrder: 0,
+  });
+  for (const npcId of npcIds) {
+    const npc = await db.npcs.get(npcId);
+    if (!npc) continue;
+    participantsById.set(npcId, {
+      sessionId,
+      participantId: npcId,
+      kind: 'NPC',
+      npcId,
+      displayName: npc.name,
+      seatOrder: participantsById.size,
+    });
+  }
+  const defaultParticipantOrder = [...participantsById.keys()];
+  const validParticipantIds = new Set(defaultParticipantOrder);
+  const normalizedParticipantOrder: number[] = [];
+  for (const rawId of participantOrder ?? []) {
+    const participantId = Number(rawId);
+    if (!validParticipantIds.has(participantId) || normalizedParticipantOrder.includes(participantId)) continue;
+    normalizedParticipantOrder.push(participantId);
+  }
+  for (const participantId of defaultParticipantOrder) {
+    if (!normalizedParticipantOrder.includes(participantId)) normalizedParticipantOrder.push(participantId);
+  }
+  return normalizedParticipantOrder
+    .map((participantId, seatOrder) => {
+      const participant = participantsById.get(participantId);
+      return participant ? { ...participant, seatOrder } : null;
+    })
+    .filter(Boolean) as ChatParticipant[];
+}
+
+async function seedOpeningGreeting(
+  sessionId: number,
+  mode: SessionMode,
+  associatedId: number | null,
+  queue: string[],
+  enableGreeting: boolean
+): Promise<string> {
+  if (!enableGreeting) return '';
+  let greetingSpeakerId: number | null = null;
+  if (mode === 'NPC' && associatedId != null) {
+    greetingSpeakerId = associatedId;
+  } else if (mode === 'GROUP') {
+    const firstSpeakerId = Number(queue[0] ?? NaN);
+    greetingSpeakerId = Number.isFinite(firstSpeakerId) && firstSpeakerId !== -1 ? firstSpeakerId : null;
+  }
+  if (greetingSpeakerId == null) return '';
+  const npc = await db.npcs.get(greetingSpeakerId);
+  if (!npc) return '';
+  const all = [npc.greeting, ...(npc.alternateGreetings ?? [])].filter(Boolean);
+  const greeting = all.length > 0 ? all[Math.floor(Math.random() * all.length)] : '';
+  if (!greeting) return '';
+  await db.messages.add({
+    sessionId,
+    role: 'assistant',
+    speakerParticipantId: greetingSpeakerId,
+    speakerName: npc.name,
+    content: greeting,
+    toolCallsJson: '[]',
+    toolCallId: null,
+    thinkingContent: null,
+    loopIndex: 0,
+    timestamp: Date.now(),
+    latencyMs: null,
+    promptTokens: 0,
+    completionTokens: 0,
+    totalTokens: 0,
+    tokensPerSec: null,
+    modelUsed: null,
+    attachments: [],
+    attachmentInfos: [],
+    rawRequestBody: null,
+    rawResponseBody: null,
+  });
+  return sessionPreviewText(greeting);
 }
 
 async function handleMagicCommand(session: ChatSession, cmd: string): Promise<void> {

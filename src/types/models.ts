@@ -75,6 +75,7 @@ export interface ChatSession {
   associatedId: number | null; // NPC id（NPC 模式）
   worldBookId: number | null;
   userPersonaNpcId: number | null;
+  enableGreeting?: boolean;
   turnOrderMode: TurnOrderMode;
   turnQueueJson: string;
   /** 各循环的完整初始顺序历史（JSON 二维数组），用于群聊发言队列面板展示完整历史 */
