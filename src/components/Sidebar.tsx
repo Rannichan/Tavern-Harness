@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useStore } from '../store/store';
 import { db } from '../db/database';
 import { Icon, Modal, SessionVisual } from './shared';
@@ -18,11 +19,15 @@ export function Sidebar() {
   const setActiveSession = useStore((s) => s.setActiveSession);
   const setActiveView = useStore((s) => s.setActiveView);
   const deleteSession = useStore((s) => s.deleteSession);
+  const refreshSessions = useStore((s) => s.refreshSessions);
   const addToast = useStore((s) => s.addToast);
   const t = useT();
 
   const [showNew, setShowNew] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<ChatSession | null>(null);
+  const [renameTarget, setRenameTarget] = useState<ChatSession | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [sessionMenu, setSessionMenu] = useState<{ session: ChatSession; x: number; y: number } | null>(null);
   const [query, setQuery] = useState('');
   // 搜索命中的会话 id 集合（null = 未在搜索中）
   const [searchHits, setSearchHits] = useState<Set<number> | null>(null);
@@ -70,6 +75,38 @@ export function Sidebar() {
     addToast(t('toast.sessionDeleted'));
     setConfirmDelete(null);
   };
+
+  const openRename = (session: ChatSession) => {
+    setSessionMenu(null);
+    setRenameTarget(session);
+    setRenameValue(session.title);
+  };
+
+  const handleRename = async () => {
+    if (!renameTarget) return;
+    const title = renameValue.trim();
+    if (!title) return;
+    if (title === renameTarget.title) {
+      setRenameTarget(null);
+      return;
+    }
+    await db.sessions.update(renameTarget.id!, { title });
+    await refreshSessions();
+    addToast(t('toast.sessionRenamed'));
+    setRenameTarget(null);
+  };
+
+  useEffect(() => {
+    if (!sessionMenu && !renameTarget) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setSessionMenu(null);
+        setRenameTarget(null);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [sessionMenu, renameTarget]);
 
   // 搜索：标题 / 消息内容关键词匹配
   useEffect(() => {
@@ -202,6 +239,10 @@ export function Sidebar() {
               key={s.id}
               className={`session-item ${s.id === activeSessionId && activeView === 'chat' ? 'active' : ''}`}
               onClick={() => setActiveSession(s.id!)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                setSessionMenu({ session: s, x: e.clientX, y: e.clientY });
+              }}
             >
               {s.mode === 'NPC' ? (
                 <SessionVisual mode="NPC" npcName={npc?.name ?? 'NPC'} hue={npc?.avatarColorOrdinal ?? 0} imageUrl={npc?.avatarDataUrl} />
@@ -212,17 +253,6 @@ export function Sidebar() {
                 <div className="stitle">{s.title}</div>
                 <div className="sprev">{s.lastMessage || t('nav.newConversation')}</div>
               </div>
-              <span
-                className="sdel"
-                role="button"
-                tabIndex={0}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setConfirmDelete(s);
-                }}
-              >
-                <Icon name="trash" size={13} />
-              </span>
             </button>
           );
         })}
@@ -257,6 +287,66 @@ export function Sidebar() {
       </div>
 
       {showNew && <NewSessionMenu onClose={() => setShowNew(false)} />}
+
+      {sessionMenu &&
+        createPortal(
+          <>
+            <div className="overlay-msg" onClick={() => setSessionMenu(null)} />
+            <div
+              className="msg-menu card"
+              style={{
+                left: Math.max(8, Math.min(sessionMenu.x, window.innerWidth - 196)),
+                top: Math.max(8, Math.min(sessionMenu.y, window.innerHeight - 132)),
+              }}
+            >
+              <button className="msg-menu-item" onClick={() => openRename(sessionMenu.session)}>
+                <Icon name="pencil" size={13} /> {t('nav.renameSession')}
+              </button>
+              <button
+                className="msg-menu-item danger"
+                onClick={() => {
+                  setConfirmDelete(sessionMenu.session);
+                  setSessionMenu(null);
+                }}
+              >
+                <Icon name="trash" size={13} /> {t('nav.deleteSession')}
+              </button>
+            </div>
+          </>,
+          document.body
+        )}
+
+      {renameTarget && (
+        <Modal onClose={() => setRenameTarget(null)} width="min(420px, calc(100vw - 32px))">
+          <div className="modal-head">
+            <span style={{ fontWeight: 800, fontSize: 15, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Icon name="pencil" size={15} /> {t('nav.renameSession')}
+            </span>
+            <button className="icon-btn" onClick={() => setRenameTarget(null)}><Icon name="x" /></button>
+          </div>
+          <div className="modal-body">
+            <input
+              className="input"
+              type="text"
+              value={renameValue}
+              placeholder={t('nav.renameSessionPh')}
+              autoFocus
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && renameValue.trim()) {
+                  void handleRename();
+                }
+              }}
+            />
+          </div>
+          <div className="modal-foot">
+            <button className="btn" onClick={() => setRenameTarget(null)}>{t('common.cancel')}</button>
+            <button className="btn btn-primary" onClick={() => void handleRename()} disabled={!renameValue.trim()}>
+              <Icon name="pencil" size={13} /> {t('common.rename')}
+            </button>
+          </div>
+        </Modal>
+      )}
 
       {/* 删除会话确认弹窗 */}
       {confirmDelete && (
