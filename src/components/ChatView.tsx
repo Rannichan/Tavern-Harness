@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   DndContext,
   PointerSensor,
@@ -30,6 +30,29 @@ function fmtTime(ts: number): string {
   const hh = String(d.getHours()).padStart(2, '0');
   const mm = String(d.getMinutes()).padStart(2, '0');
   return `${hh}:${mm}`;
+}
+
+function trimEdgeNewlines(text: string): string {
+  return text.replace(/^(?:\r?\n)+|(?:\r?\n)+$/g, '');
+}
+
+function renderMentionRichNodes(text: string, names: string[]): ReactNode[] {
+  if (!text) return [];
+  const sorted = [...names].sort((a, b) => b.length - a.length);
+  if (sorted.length === 0) return [text];
+  const re = new RegExp(`@(?:${sorted.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})(?=\\s|[，。！？,.!?]|$)`, 'g');
+  const out: ReactNode[] = [];
+  let last = 0;
+  let i = 0;
+  for (const m of text.matchAll(re)) {
+    const idx = m.index ?? 0;
+    const hit = m[0];
+    if (idx > last) out.push(text.slice(last, idx));
+    out.push(<span key={`m-${i++}`} className="mention mention-live">{hit}</span>);
+    last = idx + hit.length;
+  }
+  if (last < text.length) out.push(text.slice(last));
+  return out;
 }
 
 /** 从 dataUrl / URL 猜测一个可显示的文件名 */
@@ -233,6 +256,7 @@ function MessageBubble({
   const speakerName = msg.speakerName ?? (isUser ? t('common.user') : session.mode === 'NPC' ? t('chat.speakerChar') : t('chat.speakerAssistant'));
   const npcHue = speaker?.npcId ? useStore((s) => s.npcs.find((n) => n.id === speaker.npcId)?.avatarColorOrdinal ?? 0) : 0;
   const npcAvatar = speaker?.npcId ? useStore((s) => s.npcs.find((n) => n.id === speaker.npcId)?.avatarDataUrl ?? null) : null;
+  const visibleContent = isUser ? msg.content : trimEdgeNewlines(msg.content);
 
   if (isUser) {
     return <UserBubble msg={msg} session={session} editing={isEditing} loopIndex={loopIndex} />;
@@ -297,7 +321,7 @@ function MessageBubble({
             ))}
           </div>
         )}
-        {(msg.content || msg.attachments.length > 0) && (
+        {(visibleContent || msg.attachments.length > 0) && (
           <div className={`bubble ${isUser ? 'bubble-user' : ''}`}>
             {msg.attachments.length > 0 && (
               <div className="attachments">
@@ -308,7 +332,7 @@ function MessageBubble({
             )}
             <div className="bubble-content-row">
               <div className="bubble-text">
-                {msg.content ? <Markdown text={msg.content} mentionNames={mentionNames} /> : streaming && <span className="stream-cursor" />}
+                {visibleContent ? <Markdown text={visibleContent} mentionNames={mentionNames} /> : streaming && <span className="stream-cursor" />}
               </div>
               {/* 编辑按钮：位于正文气泡内最右侧，铅笔图标 */}
               <button className="msg-edit-btn" title={t('chat.editMsg')} onClick={() => startEditingMsg(msg.id!)}>
@@ -535,6 +559,7 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
   const [showMention, setShowMention] = useState(false);
   const [mentionQuery, setMentionQuery] = useState('');
   const mentionRef = useRef<HTMLDivElement>(null);
+  const richRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [typing, setTyping] = useState(false);
   const [showModels, setShowModels] = useState(false);
@@ -579,12 +604,16 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
     const q = mentionQuery.trim().toLowerCase();
     return groupMembers.filter((n) => !q || n.toLowerCase().includes(q));
   }, [showMention, mentionQuery, groupMembers, session?.mode]);
-  const activeMentionIdx = useRef(0);
+  const mentionRichNodes = useMemo(
+    () => (session?.mode === 'GROUP' ? renderMentionRichNodes(text, groupMembers) : []),
+    [session?.mode, text, groupMembers]
+  );
+  const [activeMentionIdx, setActiveMentionIdx] = useState(0);
 
   const closeMention = () => {
     setShowMention(false);
     setMentionQuery('');
-    activeMentionIdx.current = 0;
+    setActiveMentionIdx(0);
   };
 
   const applyMention = (name: string) => {
@@ -594,8 +623,9 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
     const before = text.slice(0, pos);
     const after = text.slice(pos);
     const atIdx = before.lastIndexOf('@');
+    if (atIdx < 0) return;
     const hasSpaceAfter = /^\s/.test(after);
-    const suffix = hasSpaceAfter || after === '' ? '' : ' ';
+    const suffix = hasSpaceAfter ? '' : ' ';
     const next = before.slice(0, atIdx) + `@${name}` + suffix + after;
     setText(next);
     closeMention();
@@ -623,7 +653,7 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
     }
     setMentionQuery(m[1].slice(1).toLowerCase());
     setShowMention(true);
-    activeMentionIdx.current = 0;
+    setActiveMentionIdx(0);
   };
 
   // 拖放 / 粘贴附件
@@ -711,8 +741,18 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
           }}
         />
         <div className="composer-input-wrap">
+          {session?.mode === 'GROUP' && text && (
+            <div
+              className="composer-rich"
+              ref={richRef}
+              aria-hidden
+            >
+              {mentionRichNodes}
+            </div>
+          )}
           <textarea
             ref={textareaRef}
+            className={session?.mode === 'GROUP' && text ? 'with-rich' : ''}
             value={text}
             onChange={(e) => {
               const v = e.target.value;
@@ -725,17 +765,17 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
               if (showMention && mentionCandidates.length > 0) {
                 if (e.key === 'ArrowDown') {
                   e.preventDefault();
-                  activeMentionIdx.current = (activeMentionIdx.current + 1) % mentionCandidates.length;
+                  setActiveMentionIdx((idx) => (idx + 1) % mentionCandidates.length);
                   return;
                 }
                 if (e.key === 'ArrowUp') {
                   e.preventDefault();
-                  activeMentionIdx.current = (activeMentionIdx.current - 1 + mentionCandidates.length) % mentionCandidates.length;
+                  setActiveMentionIdx((idx) => (idx - 1 + mentionCandidates.length) % mentionCandidates.length);
                   return;
                 }
                 if (e.key === 'Enter' || e.key === 'Tab') {
                   e.preventDefault();
-                  applyMention(mentionCandidates[activeMentionIdx.current]);
+                  applyMention(mentionCandidates[activeMentionIdx]);
                   return;
                 }
                 if (e.key === 'Escape') {
@@ -750,8 +790,14 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
               }
               if (e.key === 'Escape') {
                 setShowCmd(false);
-                setShowMention(false);
+                closeMention();
               }
+            }}
+            onScroll={(e) => {
+              const rich = richRef.current;
+              if (!rich) return;
+              rich.scrollTop = e.currentTarget.scrollTop;
+              rich.scrollLeft = e.currentTarget.scrollLeft;
             }}
             onClick={(e) => detectMention(text, e.currentTarget.selectionStart ?? text.length)}
             onKeyUp={(e) => detectMention(text, e.currentTarget.selectionStart ?? text.length)}
@@ -769,8 +815,8 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
               {mentionCandidates.map((n, i) => (
                 <button
                   key={n}
-                  className={`mention-item ${i === activeMentionIdx.current ? 'active' : ''}`}
-                  onMouseEnter={() => { activeMentionIdx.current = i; }}
+                  className={`mention-item ${i === activeMentionIdx ? 'active' : ''}`}
+                  onMouseEnter={() => { setActiveMentionIdx(i); }}
                   onClick={() => applyMention(n)}
                 >
                   <span className="mention-item-at">@</span>
@@ -996,6 +1042,7 @@ function RawLogModal({ msg, onClose, onExport }: { msg: ChatMessage; onClose: ()
   const merged = assembleFullResponseJson(msg.rawResponseBody);
 
   const [tab, setTab] = useState<'request' | 'merged'>('request');
+  const [autoWrap, setAutoWrap] = useState(true);
 
   return (
     <Modal onClose={onClose} width="min(760px, calc(100vw - 40px))">
@@ -1008,6 +1055,13 @@ function RawLogModal({ msg, onClose, onExport }: { msg: ChatMessage; onClose: ()
             <button className={`raw-tab ${tab === 'request' ? 'active' : ''}`} onClick={() => setTab('request')}>{t('chat.requestBody')}</button>
             <button className={`raw-tab ${tab === 'merged' ? 'active' : ''}`} onClick={() => setTab('merged')}>{t('chat.fullResponse')}</button>
           </div>
+          <div className="raw-wrap-toggle">
+            <span className="raw-wrap-label">{t('chat.autoWrap')}</span>
+            <label className="switch">
+              <input type="checkbox" checked={autoWrap} onChange={(e) => setAutoWrap(e.target.checked)} />
+              <span className="switch-slider" />
+            </label>
+          </div>
           <button className="btn btn-sm" onClick={onExport} title={t('chat.exportTip')}>
             <Icon name="download" size={12} /> {t('common.export')}
           </button>
@@ -1016,7 +1070,7 @@ function RawLogModal({ msg, onClose, onExport }: { msg: ChatMessage; onClose: ()
       </div>
       <div className="modal-body" style={{ padding: 0 }}>
         {tab === 'request' && (
-          <pre className="raw-pre mono">{req || t('chat.noRequestBody')}</pre>
+          <pre className={`raw-pre mono ${autoWrap ? '' : 'raw-pre-nowrap'}`}>{req || t('chat.noRequestBody')}</pre>
         )}
         {tab === 'merged' && (
           merged ? (
@@ -1025,7 +1079,7 @@ function RawLogModal({ msg, onClose, onExport }: { msg: ChatMessage; onClose: ()
                 <span>{t('chat.fullResponseJson')}</span>
                 <span className="mono" style={{ fontSize: 11, color: 'var(--text-faint)' }}>{t('chat.fromSse')}</span>
               </div>
-              <pre className="raw-pre mono">{JSON.stringify(merged, null, 2)}</pre>
+              <pre className={`raw-pre mono ${autoWrap ? '' : 'raw-pre-nowrap'}`}>{JSON.stringify(merged, null, 2)}</pre>
             </div>
           ) : (
             <div className="raw-empty">{t('chat.noRawContent')}</div>
@@ -1173,25 +1227,84 @@ export function TurnQueuePanel({
   const byId = useMemo(() => new Map(participants.map((p) => [p.participantId, p])), [participants]);
   const npcs = useStore((s) => s.npcs);
   const streamingSessionId = useStore((s) => s.streaming.sessionId);
+  const sessionMessages = useStore((s) => (session.id != null ? (s.messages[session.id] ?? []) : []));
   // 订阅实时队列快照（每个回合推进 / 发言开始 / 玩家轮到都会更新）
   const live = useStore((s) => s.liveQueueBySession[session.id!]);
-  // 展示历史：多个循环的完整顺序（发言过的角色不移除，新循环追加在历史后面）
-  const loops = useMemo(() => {
-    if (live) {
-      return live.history.length > 0 ? live.history : [live.queue.length > 0 ? live.queue : initializeTurnQueue(participants, live.turnOrderMode)];
-    }
-    const fallback = effectiveDisplayQueue(session, participants);
-    return [fallback];
-  }, [live, session, participants]);
-
   const isStreamingThisSession = streamingSessionId === session.id;
+  const playerId = useMemo(() => participants.find((p) => p.kind === 'PLAYER')?.participantId ?? -1, [participants]);
+  const loopLabel = (live?.loopIndex ?? session.loopIndex) + 1;
+  const currentLoopIndex = loopLabel - 1;
   // 正在发言者 = 剩余队列队首（live.queue[0]；随发言推进而变化）且正在流式生成
   const liveQueue = live?.queue ?? effectiveDisplayQueue(session, participants);
   const currentId = liveQueue.length > 0 ? parseInt(liveQueue[0], 10) : null;
   const current = currentId != null ? byId.get(currentId) : null;
   const isCurrentPlaying = current != null && current.kind === 'NPC' && isStreamingThisSession;
-  const currentSpeakingId = isCurrentPlaying ? String(currentId) : null;
-  const loopLabel = (live?.loopIndex ?? session.loopIndex) + 1;
+  const spokenByLoop = useMemo(() => {
+    const map = new Map<number, string[]>();
+    const list = [...sessionMessages]
+      .filter((m) => m.loopIndex != null && (m.role === 'assistant' || m.role === 'user'))
+      .sort((a, b) => a.timestamp - b.timestamp);
+    for (const m of list) {
+      const loop = m.loopIndex as number;
+      const speakerId = m.role === 'user' ? playerId : m.speakerParticipantId;
+      if (m.role === 'assistant' && !trimEdgeNewlines(m.content)) continue;
+      if (speakerId == null) continue;
+      const arr = map.get(loop) ?? [];
+      const key = String(speakerId);
+      if (arr[arr.length - 1] !== key) arr.push(key);
+      map.set(loop, arr);
+    }
+    return map;
+  }, [sessionMessages, playerId]);
+  const currentSpoken = spokenByLoop.get(currentLoopIndex) ?? [];
+  const currentRemaining = useMemo(() => {
+    const rem = [...liveQueue];
+    if (isCurrentPlaying && currentSpoken.length > 0 && rem.length > 0 && rem[0] === currentSpoken[currentSpoken.length - 1]) {
+      rem.shift();
+    }
+    return rem;
+  }, [liveQueue, currentSpoken, isCurrentPlaying]);
+  const currentDisplay = useMemo(
+    () => [...currentSpoken, ...currentRemaining],
+    [currentSpoken, currentRemaining]
+  );
+  const currentSpeakingIndex = useMemo(() => {
+    if (!isCurrentPlaying || currentId == null) return null;
+    const cid = String(currentId);
+    if (currentSpoken.length > 0 && currentSpoken[currentSpoken.length - 1] === cid) return currentSpoken.length - 1;
+    return currentSpoken.length;
+  }, [isCurrentPlaying, currentId, currentSpoken]);
+  const currentWaitingIndex = useMemo(() => {
+    if (isCurrentPlaying || currentId == null) return null;
+    return currentSpoken.length;
+  }, [isCurrentPlaying, currentId, currentSpoken]);
+  // 展示历史：当前循环显示“已发言 + 剩余队列”；已结束循环显示“真实已发言顺序”
+  const loops = useMemo(() => {
+    if (live) {
+      const loopIndices = [
+        ...Array.from(spokenByLoop.keys()),
+        ...live.history.map((_, i) => i),
+        currentLoopIndex,
+      ];
+      const maxLoop = Math.max(0, ...loopIndices);
+      const out: string[][] = [];
+      for (let i = 0; i <= maxLoop; i++) {
+        if (i === currentLoopIndex) {
+          out.push(currentDisplay.length > 0 ? currentDisplay : (live.history[i] ?? []));
+          continue;
+        }
+        const spoken = spokenByLoop.get(i) ?? [];
+        if (spoken.length > 0) {
+          out.push(spoken);
+          continue;
+        }
+        out.push(live.history[i] ?? []);
+      }
+      return out;
+    }
+    const fallback = effectiveDisplayQueue(session, participants);
+    return [fallback];
+  }, [live, spokenByLoop, currentLoopIndex, currentDisplay, session, participants]);
 
   // ---- 联动滚动：注册队列滚动容器，双向驱动由 linkedScroll 协调 ----
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -1240,12 +1353,19 @@ export function TurnQueuePanel({
             const hue = npc?.avatarColorOrdinal ?? 0;
             const avatarUrl = npc?.avatarDataUrl ?? null;
             // 正在发言：仅当前循环中该角色 = 剩余队首（含思考阶段）
-            const isSpeaking = isCurrent && id === currentSpeakingId;
+            const isSpeaking = isCurrent && currentSpeakingIndex != null && i === currentSpeakingIndex;
             // 轮到玩家（且未在发言中）：队列首部 = 玩家 → 等待你
-            const isWaitingPlayer = isCurrent && isPlayer && currentId != null && id === String(currentId);
+            const isWaitingPlayer =
+              isCurrent &&
+              !isSpeaking &&
+              isPlayer &&
+              currentWaitingIndex != null &&
+              i === currentWaitingIndex &&
+              currentId != null &&
+              id === String(currentId);
             return (
               <li
-                key={`${loopNum}-${id}`}
+                key={`${loopNum}-${id}-${i}`}
                 className={`turn-queue-item ${isSpeaking ? 'active playing' : ''} ${isWaitingPlayer ? 'waiting-user' : ''}`}
                 onClick={() => handleQueueItemClick(loopNum, isPlayer ? 'player' : id)}
                 title={isPlayer ? t('chat.queueLocateSelf') : t('chat.queueLocateNpc', { name: speakerLabel(p) })}

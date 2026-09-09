@@ -474,6 +474,7 @@ function WorldBookForm({ initial, onSave, onCancel }: { initial: WorldBook | { n
   const t = useT();
   const [name, setName] = useState(initial.name);
   const [content, setContent] = useState(initial.content);
+  const [renderMarkdown, setRenderMarkdown] = useState(false);
   return (
     <>
       <div className="modal-body">
@@ -482,17 +483,24 @@ function WorldBookForm({ initial, onSave, onCancel }: { initial: WorldBook | { n
           <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('workshop.wbNamePh')} />
         </div>
         <div className="field" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-          <label>{t('workshop.wbContentLabel')}</label>
-          <textarea className="textarea grow-textarea" value={content} onChange={(e) => setContent(e.target.value)} placeholder={t('workshop.wbContentPh')} />
-        </div>
-        {content && (
-          <div style={{ fontSize: 12, color: 'var(--text-faint)' }}>
-            {t('workshop.wbPreview')}
-            <div className="bubble preview-scroll" style={{ marginTop: 6, padding: '10px 14px', fontSize: 13 }}>
-              <Markdown text={content.slice(0, 400)} />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+            <label>{t('workshop.wbContentLabel')}</label>
+            <div className="raw-wrap-toggle">
+              <span className="raw-wrap-label">{t('workshop.wbMarkdownRender')}</span>
+              <label className="switch">
+                <input type="checkbox" checked={renderMarkdown} onChange={(e) => setRenderMarkdown(e.target.checked)} />
+                <span className="switch-slider" />
+              </label>
             </div>
           </div>
-        )}
+          {!renderMarkdown ? (
+            <textarea className="textarea grow-textarea" value={content} onChange={(e) => setContent(e.target.value)} placeholder={t('workshop.wbContentPh')} />
+          ) : (
+            <div className="bubble preview-scroll wb-render-pane">
+              {content ? <Markdown text={content} /> : <span style={{ color: 'var(--text-faint)', fontSize: 13 }}>{t('workshop.wbContentPh')}</span>}
+            </div>
+          )}
+        </div>
       </div>
       <div className="modal-foot">
         <button className="btn" onClick={onCancel}>{t('common.cancel')}</button>

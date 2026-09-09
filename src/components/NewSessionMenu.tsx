@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   DndContext,
   PointerSensor,
@@ -20,6 +20,8 @@ import { CSS } from '@dnd-kit/utilities';
 import { useStore, createSession } from '../store/store';
 import { Avatar, Icon, Modal } from './shared';
 import { useT } from '../core/i18n';
+import { db } from '../db/database';
+import type { ChatSession } from '../types/models';
 
 // ============================================================
 // 新建对话弹窗（侧边栏「新建」与仪表盘「新建对话」共用）
@@ -39,18 +41,20 @@ const restrictToSortList: Modifier = ({ transform, activeNodeRect, containerNode
   return { ...transform, x, y };
 };
 
-export function NewSessionMenu({ onClose }: { onClose: () => void }) {
+export function NewSessionMenu({ onClose, editingSession }: { onClose: () => void; editingSession?: ChatSession | null }) {
   const npcs = useStore((s) => s.npcs);
   const worldBooks = useStore((s) => s.worldBooks);
   const addToast = useStore((s) => s.addToast);
+  const updateSessionSettings = useStore((s) => s.updateSessionSettings);
   const t = useT();
+  const isEditing = Boolean(editingSession?.id);
 
   const [participantOrder, setParticipantOrder] = useState<number[]>([-1]);
-  const [title, setTitle] = useState('');
-  const [userPersonaNpcId, setUserPersonaNpcId] = useState<number | null>(null);
-  const [worldBookId, setWorldBookId] = useState<number | null>(null);
-  const [turnOrderMode, setTurnOrderMode] = useState<'PRESET' | 'RANDOM'>('PRESET');
-  const [enableGreeting, setEnableGreeting] = useState(true);
+  const [title, setTitle] = useState(editingSession?.title ?? '');
+  const [userPersonaNpcId, setUserPersonaNpcId] = useState<number | null>(editingSession?.userPersonaNpcId ?? null);
+  const [worldBookId, setWorldBookId] = useState<number | null>(editingSession?.worldBookId ?? null);
+  const [turnOrderMode, setTurnOrderMode] = useState<'PRESET' | 'RANDOM'>(editingSession?.turnOrderMode ?? 'PRESET');
+  const [enableGreeting, setEnableGreeting] = useState(editingSession?.enableGreeting !== false);
   const selectedNpcIds = participantOrder.filter((id) => id !== -1);
   const modeLabel = selectedNpcIds.length === 0 ? t('newSession.notSelected') : selectedNpcIds.length === 1 ? t('newSession.npcChat') : t('newSession.groupChat', { n: selectedNpcIds.length });
   const sensors = useSensors(
@@ -58,12 +62,47 @@ export function NewSessionMenu({ onClose }: { onClose: () => void }) {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
+  useEffect(() => {
+    if (!editingSession?.id) return;
+    let cancelled = false;
+    (async () => {
+      const participants = (await db.participants.where('sessionId').equals(editingSession.id!).toArray()).sort((a, b) => a.seatOrder - b.seatOrder);
+      if (!cancelled) {
+        setTitle(editingSession.title);
+        setUserPersonaNpcId(editingSession.userPersonaNpcId ?? null);
+        setWorldBookId(editingSession.worldBookId ?? null);
+        setTurnOrderMode(editingSession.turnOrderMode);
+        setEnableGreeting(editingSession.enableGreeting !== false);
+        setParticipantOrder(participants.map((p) => p.participantId));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [editingSession?.id]);
+
   const create = async () => {
     if (selectedNpcIds.length === 0) {
       addToast(t('toast.pickOneNpc'), 'error');
       return;
     }
     const finalTitle = title.trim() || selectedNpcIds.map((id) => npcs.find((n) => n.id === id)?.name).filter(Boolean).join('、');
+    if (isEditing && editingSession?.id) {
+      await updateSessionSettings(editingSession.id, {
+        title: finalTitle,
+        npcIds: selectedNpcIds,
+        worldBookId,
+        userPersonaNpcId,
+        turnOrderMode,
+        participantOrder,
+        enableGreeting,
+      });
+      await useStore.getState().refreshSessions();
+      useStore.getState().setActiveSession(editingSession.id);
+      addToast(t('toast.sessionUpdated'));
+      onClose();
+      return;
+    }
     let sid: number;
     if (selectedNpcIds.length === 1) {
       sid = await createSession('NPC', {
@@ -118,7 +157,7 @@ export function NewSessionMenu({ onClose }: { onClose: () => void }) {
   return (
     <Modal onClose={onClose} width={460} className="new-session-modal">
       <div className="modal-head">
-        <span style={{ fontWeight: 800, fontSize: 15 }}>{t('newSession.title')}</span>
+        <span style={{ fontWeight: 800, fontSize: 15 }}>{isEditing ? t('nav.editSession') : t('newSession.title')}</span>
         <button className="icon-btn" onClick={onClose}><Icon name="x" /></button>
       </div>
       <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -149,7 +188,6 @@ export function NewSessionMenu({ onClose }: { onClose: () => void }) {
                       <ParticipantSortItem
                         key={id}
                         participantId={id}
-                        index={index}
                         name={id === -1 ? t('common.user') : npc?.name ?? t('newSession.notSelected')}
                         avatarColorOrdinal={npc?.avatarColorOrdinal ?? 0}
                         avatarDataUrl={npc?.avatarDataUrl ?? null}
@@ -225,7 +263,7 @@ export function NewSessionMenu({ onClose }: { onClose: () => void }) {
       </div>
       <div className="modal-foot">
         <button className="btn" onClick={onClose}>{t('common.cancel')}</button>
-        <button className="btn btn-primary" disabled={!canCreate} onClick={create}>{t('common.ok')}</button>
+        <button className="btn btn-primary" disabled={!canCreate} onClick={create}>{isEditing ? t('common.save') : t('common.ok')}</button>
       </div>
     </Modal>
   );
@@ -233,7 +271,6 @@ export function NewSessionMenu({ onClose }: { onClose: () => void }) {
 
 function ParticipantSortItem({
   participantId,
-  index,
   name,
   avatarColorOrdinal,
   avatarDataUrl,
@@ -241,7 +278,6 @@ function ParticipantSortItem({
   onRemove,
 }: {
   participantId: number;
-  index: number;
   name: string;
   avatarColorOrdinal: number;
   avatarDataUrl: string | null;
@@ -268,7 +304,6 @@ function ParticipantSortItem({
       <Avatar name={name} colorOrdinal={avatarColorOrdinal} imageUrl={avatarDataUrl} size="xs" />
       <span className="sort-name">{name}</span>
       {!removable && <span className="sort-tag">{t('common.you')}</span>}
-      <span className="sort-idx">{index + 1}</span>
       {removable && (
         <button className="npc-slot-x" onClick={(e) => { e.stopPropagation(); onRemove(); }}>
           <Icon name="x" size={11} />

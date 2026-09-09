@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useStore } from './store/store';
 import { Sidebar } from './components/Sidebar';
-import { ChatView, ChatInput, MessageMenu, TurnQueuePanel, SortOrderModal } from './components/ChatView';
+import { ChatView, ChatInput, MessageMenu, TurnQueuePanel } from './components/ChatView';
 import { CharactersView } from './components/CharactersView';
 import { SettingsView } from './components/SettingsView';
 import { StatsView } from './components/StatsView';
 import { Dashboard } from './components/Dashboard';
+import { NewSessionMenu } from './components/NewSessionMenu';
 import { ConfirmationDialog } from './components/ConfirmationDialog';
 import { Toasts } from './components/Toasts';
 import { AchievementModal } from './components/AchievementModal';
@@ -93,14 +94,13 @@ function SessionHeader({
   participants: ReturnType<typeof useStore.getState>['participants'][number];
 }) {
   const npcs = useStore((s) => s.npcs);
-  const worldBooks = useStore((s) => s.worldBooks);
-  const refreshSessions = useStore((s) => s.refreshSessions);
   const addToast = useStore((s) => s.addToast);
   const deleteSession = useStore((s) => s.deleteSession);
+  const resetSessionConversation = useStore((s) => s.resetSessionConversation);
   const t = useT();
-  const [picker, setPicker] = useState<'persona' | 'worldbook' | null>(null);
+  const [showEdit, setShowEdit] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [showSort, setShowSort] = useState(false);
 
   const modeLabel = session.mode === 'STANDARD' ? t('header.modeStandard') : session.mode === 'NPC' ? t('header.modeNpc') : t('header.modeGroup');
   const npcRef = session.associatedId ? npcs.find((n) => n.id === session.associatedId) : null;
@@ -110,20 +110,6 @@ function SessionHeader({
     colorOrdinal: n.avatarColorOrdinal,
     imageUrl: n.avatarDataUrl,
   }));
-
-  const changePersona = async (npcId: number | null) => {
-    await updateSessionMeta(session.id!, { userPersonaNpcId: npcId });
-    await refreshSessions();
-    addToast(npcId == null ? t('toast.personaCleared') : t('toast.personaChanged'));
-    setPicker(null);
-  };
-
-  const changeWorldBook = async (worldBookId: number | null) => {
-    await updateSessionMeta(session.id!, { worldBookId });
-    await refreshSessions();
-    addToast(worldBookId == null ? t('toast.wbRemoved') : t('toast.wbChanged'));
-    setPicker(null);
-  };
 
   const share = async () => {
     const { exportSessionJson } = await import('./core/stats');
@@ -140,9 +126,6 @@ function SessionHeader({
     }
   };
 
-  const personaName = session.userPersonaNpcId != null ? npcs.find((n) => n.id === session.userPersonaNpcId)?.name : null;
-  const worldBookName = session.worldBookId != null ? worldBooks.find((b) => b.id === session.worldBookId)?.name : null;
-
   return (
     <div className="chat-header">
       <SessionVisual mode={session.mode} npcName={npcRef?.name ?? undefined} hue={npcRef?.avatarColorOrdinal ?? 0} imageUrl={npcRef?.avatarDataUrl} members={session.mode === 'GROUP' ? groupMemberAvatars : undefined} size="lg" />
@@ -158,28 +141,11 @@ function SessionHeader({
         </div>
       </div>
       <div className="chat-actions">
-        {session.mode === 'GROUP' && (
-          <button
-            className="btn-ghost icon-tooltip has-value"
-            title={session.turnOrderMode === 'RANDOM' ? t('header.sortRandomTip') : t('header.sortFixedTip')}
-            onClick={() => setShowSort(true)}
-          >
-            <Icon name="sort" size={17} />
-          </button>
-        )}
-        <button
-          className={`btn-ghost icon-tooltip ${personaName ? 'has-value' : ''}`}
-          title={personaName ? t('header.personaTipVal', { name: personaName }) : t('header.personaTip')}
-          onClick={() => setPicker('persona')}
-        >
-          <Icon name="user-persona" size={17} />
+        <button className="btn-ghost icon-tooltip" title={t('header.editSessionTip')} onClick={() => setShowEdit(true)}>
+          <Icon name="pencil" size={17} />
         </button>
-        <button
-          className={`btn-ghost icon-tooltip ${worldBookName ? 'has-value' : ''}`}
-          title={worldBookName ? t('header.worldbookTipVal', { name: worldBookName }) : t('header.worldbookTip')}
-          onClick={() => setPicker('worldbook')}
-        >
-          <Icon name="book" size={17} />
+        <button className="btn-ghost icon-tooltip" title={t('header.resetSessionTip')} onClick={() => setConfirmReset(true)}>
+          <Icon name="refresh" size={17} />
         </button>
         <button className="btn-ghost icon-tooltip" title={t('header.shareTip')} onClick={share}>
           <Icon name="share" size={17} />
@@ -189,44 +155,29 @@ function SessionHeader({
         </button>
       </div>
 
-      {picker === 'persona' && (
-        <Modal onClose={() => setPicker(null)} width="min(420px, calc(100vw - 32px))">
-          <div className="modal-head">
-            <span style={{ fontWeight: 800, fontSize: 15 }}>{t('header.changePersona')}</span>
-            <button className="icon-btn" onClick={() => setPicker(null)}><Icon name="x" /></button>
-          </div>
-          <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 420, overflowY: 'auto' }}>
-            <button className={`sel-opt ${session.userPersonaNpcId == null ? 'active' : ''}`} onClick={() => changePersona(null)}>
-              <span>{t('header.noPersona')}</span>
-              {session.userPersonaNpcId == null && <span className="sel-opt-check">✓</span>}
-            </button>
-            {npcs.filter((n) => n.id != null && n.id !== session.associatedId).map((n) => (
-              <button key={n.id} className={`sel-opt ${session.userPersonaNpcId === n.id ? 'active' : ''}`} onClick={() => changePersona(n.id!)}>
-                <span>{n.name}</span>
-                {session.userPersonaNpcId === n.id && <span className="sel-opt-check">✓</span>}
-              </button>
-            ))}
-          </div>
-        </Modal>
-      )}
+      {showEdit && <NewSessionMenu editingSession={session} onClose={() => setShowEdit(false)} />}
 
-      {picker === 'worldbook' && (
-        <Modal onClose={() => setPicker(null)} width="min(420px, calc(100vw - 32px))">
+      {confirmReset && (
+        <Modal onClose={() => setConfirmReset(false)} width="min(400px, calc(100vw - 32px))">
           <div className="modal-head">
-            <span style={{ fontWeight: 800, fontSize: 15 }}>{t('header.changeWorldbook')}</span>
-            <button className="icon-btn" onClick={() => setPicker(null)}><Icon name="x" /></button>
+            <span style={{ fontWeight: 800, fontSize: 15 }}>{t('header.resetSessionTitle')}</span>
+            <button className="icon-btn" onClick={() => setConfirmReset(false)}><Icon name="x" /></button>
           </div>
-          <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 420, overflowY: 'auto' }}>
-            <button className={`sel-opt ${session.worldBookId == null ? 'active' : ''}`} onClick={() => changeWorldBook(null)}>
-              <span>{t('header.noWorldbook')}</span>
-              {session.worldBookId == null && <span className="sel-opt-check">✓</span>}
+          <div className="modal-body">
+            {t('header.resetSessionConfirm', { title: session.title })}
+          </div>
+          <div className="modal-foot">
+            <button className="btn" onClick={() => setConfirmReset(false)}>{t('common.cancel')}</button>
+            <button
+              className="btn btn-primary"
+              onClick={async () => {
+                await resetSessionConversation(session.id!);
+                setConfirmReset(false);
+                addToast(t('toast.sessionReset'));
+              }}
+            >
+              <Icon name="refresh" size={13} /> {t('header.resetSessionAction')}
             </button>
-            {worldBooks.map((b) => (
-              <button key={b.id} className={`sel-opt ${session.worldBookId === b.id ? 'active' : ''}`} onClick={() => changeWorldBook(b.id!)}>
-                <span>{b.name}</span>
-                {session.worldBookId === b.id && <span className="sel-opt-check">✓</span>}
-              </button>
-            ))}
           </div>
         </Modal>
       )}
@@ -256,14 +207,6 @@ function SessionHeader({
         </Modal>
       )}
 
-      {showSort && session.mode === 'GROUP' && (
-        <SortOrderModal session={session} participants={participants} onClose={() => setShowSort(false)} />
-      )}
     </div>
   );
-}
-
-async function updateSessionMeta(id: number, patch: { userPersonaNpcId?: number | null; worldBookId?: number | null }) {
-  const { db } = await import('./db/database');
-  await db.sessions.update(id, patch);
 }

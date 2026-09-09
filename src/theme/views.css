@@ -74,6 +74,13 @@
   max-height: 200px;
   overflow: auto;
 }
+.modal-editor .wb-render-pane {
+  flex: 1;
+  min-height: 110px;
+  padding: 12px 14px;
+  max-height: none;
+  height: 100%;
+}
 /* 角色卡：人设 Prompt 所在的 field 容器弹性增长，textaarea 填满 */
 .modal-editor .prompt-field {
   flex: 3;
@@ -672,21 +679,29 @@
 }
 .npc-slot-x {
   position: absolute;
-  top: -6px;
-  right: -6px;
-  width: 17px;
-  height: 17px;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
   padding: 0;
-  border-radius: 50%;
-  border: none;
-  background: var(--danger);
-  color: #fff;
+  border-radius: 7px;
+  border: 1px solid color-mix(in srgb, var(--danger) 26%, var(--border));
+  background: color-mix(in srgb, var(--danger-soft) 72%, var(--surface));
+  color: var(--danger);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: var(--shadow);
+  box-shadow: none;
   line-height: 1;
+  opacity: 0.92;
+  transition: background 0.16s, border-color 0.16s, opacity 0.16s;
+}
+.npc-slot-x:hover {
+  border-color: color-mix(in srgb, var(--danger) 55%, var(--border));
+  background: color-mix(in srgb, var(--danger-soft) 88%, var(--surface));
+  opacity: 1;
 }
 .npc-slot-x svg {
   display: block;
@@ -837,6 +852,18 @@
   color: var(--text);
   box-shadow: var(--shadow);
 }
+.raw-wrap-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.raw-wrap-label {
+  font-size: 12px;
+  color: var(--text-faint);
+  font-weight: 600;
+}
 .raw-pre {
   margin: 0;
   padding: 14px 16px;
@@ -847,6 +874,10 @@
   white-space: pre-wrap;
   word-break: break-all;
   background: var(--code-bg);
+}
+.raw-pre-nowrap {
+  white-space: pre;
+  word-break: normal;
 }
 .raw-merged {
   display: flex;

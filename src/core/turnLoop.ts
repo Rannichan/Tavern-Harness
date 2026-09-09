@@ -66,18 +66,28 @@ export function mentionedParticipantIds(
   participants: ChatParticipant[],
   speakerParticipantId: number
 ): number[] {
-  const names = participants
+  const mentionables = participants
     .filter((p) => p.participantId !== speakerParticipantId)
-    .map((p) => p.displayName)
-    .sort((a, b) => b.length - a.length);
-  const found: number[] = [];
-  for (const name of names) {
+    .map((p) => ({ id: p.participantId, name: p.displayName }))
+    .sort((a, b) => b.name.length - a.name.length);
+  const hits: Array<{ id: number; index: number; length: number }> = [];
+  for (const p of mentionables) {
     // @名字 后跟空白或标点（中英文）
-    const re = new RegExp(`@${escapeRegExp(name)}(?=\\s|[，。！？,.!?]|$)`);
-    if (re.test(text)) {
-      const p = participants.find((pp) => pp.displayName === name);
-      if (p) found.push(p.participantId);
+    const re = new RegExp(`@${escapeRegExp(p.name)}(?=\\s|[，。！？,.!?]|$)`, 'g');
+    for (const m of text.matchAll(re)) {
+      hits.push({ id: p.id, index: m.index ?? 0, length: m[0].length });
     }
+  }
+  hits.sort((a, b) => (a.index - b.index) || (b.length - a.length));
+  const found: number[] = [];
+  const occupied: Array<{ start: number; end: number }> = [];
+  for (const h of hits) {
+    const start = h.index;
+    const end = h.index + h.length;
+    const overlap = occupied.some((r) => !(end <= r.start || start >= r.end));
+    if (overlap || found.includes(h.id)) continue;
+    occupied.push({ start, end });
+    found.push(h.id);
   }
   return found;
 }
@@ -88,8 +98,10 @@ function escapeRegExp(s: string): string {
 
 /**
  * 完成一轮发言：发言者（或 /pass 跳过的玩家）移出队列。
- * 被 @ 点名者若在队列中 → 移到队首；若不在队列中 → 插入队首。
- * 因此被点名者会立即（或优先）再次获得发言机会。
+ * 被 @ 点名者统一插入到「当前发言者之后」（即剩余队列队首）：
+ * - 若原本仍在本轮队列中，先移除原位置再插入（避免重复）；
+ * - 若原本已不在本轮队列中，则直接插入。
+ * 多个 @ 按文本出现顺序排列（后出现的排在前者后面）。
  */
 export function completeTurn(
   queue: string[],
@@ -98,11 +110,11 @@ export function completeTurn(
 ): string[] {
   const rest = queue.filter((id) => id !== String(speakerParticipantId));
   const mentioned = [...new Set(mentionedIds.map(String))];
-  const out = [...rest];
-  for (const id of mentioned.reverse()) {
-    out.splice(0, 0, id);
+  let out = [...rest];
+  for (const id of mentioned) {
+    out = out.filter((q) => q !== id);
   }
-  return out;
+  return [...mentioned, ...out];
 }
 
 /** 玩家 /pass 跳过：将玩家移出队列，不修改任何对话历史 */

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import DOMPurify from 'dompurify';
 import { renderMarkdown, highlightMentions } from '../core/markdown';
 import { useT } from '../core/i18n';
 
@@ -46,7 +47,10 @@ export function Markdown({ text, mathEnabled = true, mentionNames = [] }: MdProp
   const html = useMemo(() => {
     let h = renderMarkdown(text, { mathEnabled });
     if (mentionNames.length > 0) h = highlightMentions(h, mentionNames);
-    return h;
+    return DOMPurify.sanitize(h, {
+      USE_PROFILES: { html: true },
+      ALLOW_UNKNOWN_PROTOCOLS: false,
+    });
   }, [text, mathEnabled, mentionNames]);
 
   return <div className="md" dangerouslySetInnerHTML={{ __html: html }} />;
