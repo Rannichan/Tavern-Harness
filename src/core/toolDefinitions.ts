@@ -14,6 +14,7 @@ export const BUILTIN_TOOL_NAMES = [
   'create_character',
   'update_character',
   'delete_character',
+  'create_conversation',
   'create_world_book',
   'update_world_book',
   'delete_world_book',
@@ -191,6 +192,35 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
       type: 'object',
       properties: { name: { type: 'string' } },
       required: ['name'],
+      additionalProperties: false,
+    }
+  ),
+  fn(
+    'create_conversation',
+    'Create a new conversation. The player is always included automatically; you only need to specify the characters to add, plus optional world book, speaking order, random-order switch, and user persona.',
+    {
+      type: 'object',
+      properties: {
+        title: { type: 'string', maxLength: 60, description: 'Conversation name' },
+        participants: {
+          type: 'array',
+          items: { type: 'string' },
+          minItems: 1,
+          maxItems: 5,
+          uniqueItems: true,
+          description: 'Character names to add to the conversation. The player is included automatically.',
+        },
+        world_book: { type: 'string', description: 'Optional world book name' },
+        speaking_order: {
+          type: 'array',
+          items: { type: 'string' },
+          uniqueItems: true,
+          description: "Optional fixed speaking order. Use character names plus 'user' for the player.",
+        },
+        user_persona: { type: 'string', description: 'Optional character name used as the user persona' },
+        random_order: { type: 'boolean', default: false, description: 'Whether to randomize speaking order each round' },
+      },
+      required: ['participants'],
       additionalProperties: false,
     }
   ),

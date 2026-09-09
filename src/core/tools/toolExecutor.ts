@@ -1,4 +1,5 @@
 import { db } from '../../db/database';
+import { createSession } from '../../store/store';
 import type {
   ChatCompletionTool,
   GeneratedSkillExecution,
@@ -113,6 +114,8 @@ async function runNativeTool(
     case 'delete_character':
       return await gate(ctx, 'delete_character', translate('tool.gateDeleteChar', { name: String(args.name ?? '') }), () => handleDeleteCharacter(args));
 
+    case 'create_conversation':
+      return await handleCreateConversation(args);
     case 'create_world_book':
       return await handleCreateWorldBook(args);
     case 'update_world_book':
@@ -538,6 +541,81 @@ async function handleDeleteCharacter(args: Record<string, unknown>): Promise<str
     await db.participants.where('[sessionId+participantId]').equals([s.id!, npc.id!]).delete();
   }
   return `OK: 已删除角色 ${name}`;
+}
+
+async function handleCreateConversation(args: Record<string, unknown>): Promise<string> {
+  const rawParticipants = Array.isArray(args.participants)
+    ? (args.participants as unknown[]).map((name) => String(name ?? '').trim()).filter(Boolean)
+    : [];
+  if (rawParticipants.length === 0) return 'ERROR: 需要至少一个参与角色';
+  if (new Set(rawParticipants).size !== rawParticipants.length) return 'ERROR: participants 里有重复角色';
+
+  const npcIds: number[] = [];
+  const npcNameToId = new Map<string, number>();
+  for (const name of rawParticipants) {
+    const npc = await db.npcs.where('name').equals(name).first();
+    if (!npc?.id) return `ERROR: 角色 ${name} 不存在`;
+    npcIds.push(npc.id);
+    npcNameToId.set(npc.name, npc.id);
+  }
+
+  let worldBookId: number | null = null;
+  if (args.world_book != null) {
+    const worldBookName = String(args.world_book).trim();
+    if (worldBookName) {
+      const worldBook = await db.worldBooks.where('name').equals(worldBookName).first();
+      if (!worldBook?.id) return `ERROR: 世界书 ${worldBookName} 不存在`;
+      worldBookId = worldBook.id;
+    }
+  }
+
+  let userPersonaNpcId: number | null = null;
+  if (args.user_persona != null) {
+    const personaName = String(args.user_persona).trim();
+    if (personaName) {
+      const persona = await db.npcs.where('name').equals(personaName).first();
+      if (!persona?.id) return `ERROR: 用户人设 ${personaName} 不存在`;
+      userPersonaNpcId = persona.id;
+    }
+  }
+
+  const orderTokens = Array.isArray(args.speaking_order)
+    ? (args.speaking_order as unknown[]).map((token) => String(token ?? '').trim()).filter(Boolean)
+    : [];
+  const playerAliases = new Set(['user', 'player', 'me', 'self', 'you', '用户', '用戶', '玩家']);
+  const participantOrder: number[] = [];
+  for (const token of orderTokens) {
+    const normalized = token.toLowerCase();
+    if (playerAliases.has(normalized)) {
+      if (participantOrder.includes(-1)) return 'ERROR: 发言顺序中玩家重复出现';
+      participantOrder.push(-1);
+      continue;
+    }
+    const npcId = npcNameToId.get(token);
+    if (npcId == null) return `ERROR: 发言顺序中的参与者 ${token} 不存在`;
+    if (participantOrder.includes(npcId)) return `ERROR: 发言顺序中的参与者 ${token} 重复出现`;
+    participantOrder.push(npcId);
+  }
+  for (const participantId of [-1, ...npcIds]) {
+    if (!participantOrder.includes(participantId)) participantOrder.push(participantId);
+  }
+
+  const mode = npcIds.length === 1 ? 'NPC' : 'GROUP';
+  const sessionId = await createSession(mode, {
+    associatedId: npcIds[0],
+    npcIds,
+    title: String(args.title ?? '').trim().slice(0, 60) || undefined,
+    worldBookId,
+    userPersonaNpcId,
+    turnOrderMode: args.random_order === true ? 'RANDOM' : 'PRESET',
+    participantOrder,
+  });
+  return JSON.stringify({
+    session_id: sessionId,
+    mode,
+    participant_count: npcIds.length + 1,
+    random_order: args.random_order === true,
+  }, null, 2);
 }
 
 // ---------- 世界书 CRUD ----------
