@@ -698,6 +698,7 @@ export async function createSession(
     userPersonaNpcId?: number | null;
     turnOrderMode?: TurnOrderMode;
     participantOrder?: number[];
+    enableGreeting?: boolean;
   }
 ): Promise<number> {
  let title = opts?.title;
@@ -787,9 +788,18 @@ export async function createSession(
     turnQueueHistoryJson: queueHistoryJson([queue]),
   });
 
-  // NPC 模式的问候语：主开场白 + 多个备用开场白中随机选一个
-  if (mode === 'NPC' && opts?.associatedId != null) {
-    const npc = await db.npcs.get(opts.associatedId);
+  const enableGreeting = opts?.enableGreeting !== false;
+  let greetingSpeakerId: number | null = null;
+  if (enableGreeting) {
+    if (mode === 'NPC' && opts?.associatedId != null) {
+      greetingSpeakerId = opts.associatedId;
+    } else if (mode === 'GROUP') {
+      const firstSpeakerId = Number(queue[0] ?? NaN);
+      greetingSpeakerId = Number.isFinite(firstSpeakerId) && firstSpeakerId !== -1 ? firstSpeakerId : null;
+    }
+  }
+  if (greetingSpeakerId != null) {
+    const npc = await db.npcs.get(greetingSpeakerId);
     if (npc) {
       const all = [npc.greeting, ...(npc.alternateGreetings ?? [])].filter(Boolean);
       const greeting = all.length > 0 ? all[Math.floor(Math.random() * all.length)] : '';
@@ -797,7 +807,7 @@ export async function createSession(
         await db.messages.add({
           sessionId: id,
           role: 'assistant',
-          speakerParticipantId: opts.associatedId,
+          speakerParticipantId: greetingSpeakerId,
           speakerName: npc.name,
           content: greeting,
           toolCallsJson: '[]',

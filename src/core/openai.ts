@@ -263,6 +263,10 @@ function handleDataLine(
 function splitThinkingMarkers(content: string): Array<{ kind: 'think' | 'text'; text: string }> {
   // 以 "thinking:" / "reasoning:" / "思考:" 等行为分界，将前后文本拆为 thinking/text 段
   const markerRe = /\b(?:thinking|reasoning|思考)\s*(?:content)?\s*[:\-＝=]/gi;
+  const closeRe = /<\/?(?:thinking|reasoning|think)>/i;
+  if (!/\b(?:thinking|reasoning|思考)\s*(?:content)?\s*[:\-＝=]/i.test(content) && !closeRe.test(content)) {
+    return [{ kind: 'text', text: content }];
+  }
   return splitByMarkers(content, markerRe);
 }
 
@@ -277,9 +281,11 @@ function splitByMarkers(content: string, markerRe: RegExp): Array<{ kind: 'think
       current = '';
     }
   };
-  const lines = content.split('\n');
+  const lines = content.match(/[^\n]*\n|[^\n]+$/g) ?? [];
   const closeRe = /^\s*<\/?(?:thinking|reasoning|think)>?\s*$/i;
-  for (const line of lines) {
+  for (const rawLine of lines) {
+    const hasTrailingNewline = rawLine.endsWith('\n');
+    const line = hasTrailingNewline ? rawLine.slice(0, -1) : rawLine;
     const m = line.match(markerRe);
     const close = closeRe.test(line.trim());
     if (close) {
@@ -292,10 +298,11 @@ function splitByMarkers(content: string, markerRe: RegExp): Array<{ kind: 'think
       push('text');
       inThink = true;
       // 丢弃 marker 本身
-      current = line.replace(markerRe, '').trim();
+      current = line.replace(markerRe, '').replace(/^\s+/, '');
+      if (hasTrailingNewline) current += '\n';
       continue;
     }
-    current += (current ? '\n' : '') + line;
+    current += rawLine;
   }
   if (inThink) push('think');
   else push('text');
