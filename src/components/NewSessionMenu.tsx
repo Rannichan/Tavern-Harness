@@ -118,7 +118,7 @@ export function NewSessionMenu({ onClose }: { onClose: () => void }) {
         {/* 参与者与顺序 */}
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-            <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-dim)', letterSpacing: 0.3 }}>{t('newSession.participants')}</label>
+            <label className="new-session-section-label">{t('newSession.participants')}</label>
             <span className="tag">{modeLabel}</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -150,20 +150,22 @@ export function NewSessionMenu({ onClose }: { onClose: () => void }) {
             ) : (
               selectedNpcIds.length < 5 && <SlotPicker excluded={selectedNpcIds} onPick={addParticipant} />
             )}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '4px 2px 0' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                <span style={{ fontSize: 12.5, fontWeight: 700 }}>{t('chat.sortRandom')}</span>
-                <span className="field-hint">{t('newSession.orderHint')}</span>
+            {selectedNpcIds.length >= 2 && (
+              <div className="new-session-random-row">
+                <div className="field" style={{ gap: 3 }}>
+                  <label>{t('chat.sortRandom')}</label>
+                  <span className="field-hint">{t('newSession.orderHint')}</span>
+                </div>
+                <label className="switch">
+                  <input
+                    type="checkbox"
+                    checked={turnOrderMode === 'RANDOM'}
+                    onChange={(e) => setTurnOrderMode(e.target.checked ? 'RANDOM' : 'PRESET')}
+                  />
+                  <span className="switch-slider" />
+                </label>
               </div>
-              <label className="switch">
-                <input
-                  type="checkbox"
-                  checked={turnOrderMode === 'RANDOM'}
-                  onChange={(e) => setTurnOrderMode(e.target.checked ? 'RANDOM' : 'PRESET')}
-                />
-                <span className="switch-slider" />
-              </label>
-            </div>
+            )}
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 5 }}>
             {t('newSession.addHint')}
@@ -262,7 +264,7 @@ function SlotPicker({ excluded, onPick }: { excluded: number[]; onPick: (npcId: 
         title={t('newSession.addCharTip')}
         onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
       >
-        ＋
+        + {t('newSession.addCharTip')}
       </button>
       {open && (
         <div className="slot-picker-menu card">
