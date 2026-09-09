@@ -675,8 +675,13 @@
   cursor: pointer;
   text-align: left;
 }
-.cmd-item:hover {
+.cmd-item:hover,
+.cmd-item.active {
   background: var(--primary-soft);
+}
+.cmd-item.active .cmd-text,
+.cmd-item.active .cmd-desc {
+  color: var(--primary);
 }
 .cmd-text {
   font-family: var(--font-mono);
@@ -1046,7 +1051,8 @@
   position: relative;
   z-index: 1;
 }
-.mention.mention-live {
+.mention.mention-live,
+.cmd-live {
   font-weight: inherit;
   font-style: inherit;
   background: none;

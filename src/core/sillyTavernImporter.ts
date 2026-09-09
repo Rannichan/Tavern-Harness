@@ -265,7 +265,7 @@ function renderLorebook(book: StLorebook | undefined, fallbackName: string) {
     )
     .join('\n\n');
   return {
-    name: (book.name || `${fallbackName} 的 Lorebook`).slice(0, 60),
+    name: (book.name || `${fallbackName} 的世界书`).slice(0, 60),
     content: rendered.slice(0, 10_000),
   };
 }

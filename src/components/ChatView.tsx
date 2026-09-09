@@ -21,7 +21,7 @@ import type { ChatMessage, ChatParticipant, ChatSession, ToolCallRecord } from '
 import { Avatar, Icon, Markdown, Collapse, Modal, AttachCard } from './shared';
 import { formatMetrics } from '../core/stats';
 import { saveTextFile } from '../core/fileDownload';
-import { effectiveDisplayQueue, initializeTurnQueue, speakerLabel } from '../core/turnLoop';
+import { effectiveDisplayQueue, initializeTurnQueue, speakerLabel, suggestMagicCommands } from '../core/turnLoop';
 import { onChatScroll, registerChatEl, onQueueScroll, registerQueueEl, scrollChatTo, scrollQueueToLoop } from '../core/linkedScroll';
 import { useT, translate } from '../core/i18n';
 
@@ -36,20 +36,35 @@ function trimEdgeNewlines(text: string): string {
   return text.replace(/^(?:\r?\n)+|(?:\r?\n)+$/g, '');
 }
 
-function renderMentionRichNodes(text: string, names: string[]): ReactNode[] {
+function renderComposerRichNodes(text: string, names: string[]): ReactNode[] {
   if (!text) return [];
-  const sorted = [...names].sort((a, b) => b.length - a.length);
-  if (sorted.length === 0) return [text];
-  const re = new RegExp(`@(?:${sorted.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})(?=\\s|[，。！？,.!?]|$)`, 'g');
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const mentionRe =
+    names.length > 0
+      ? new RegExp(`@(?:${[...names].sort((a, b) => b.length - a.length).map(esc).join('|')})(?=\\s|[，。！？,.!?]|$)`, 'g')
+      : null;
+  const hits: Array<{ start: number; end: number; cls: string }> = [];
+  if (mentionRe) {
+    for (const m of text.matchAll(mentionRe)) {
+      hits.push({ start: m.index ?? 0, end: (m.index ?? 0) + m[0].length, cls: 'mention mention-live' });
+    }
+  }
+  // 行首魔法指令前缀（/new /pass 及它们的前缀）也用高亮颜色
+  const cmdMatch = /^(\/[A-Za-z]*)/.exec(text);
+  const cmdTok = cmdMatch ? cmdMatch[1] : '';
+  if (cmdTok && suggestMagicCommands(cmdTok).length > 0) {
+    hits.push({ start: 0, end: cmdTok.length, cls: 'cmd-live' });
+  }
+  if (hits.length === 0) return [];
+  hits.sort((a, b) => a.start - b.start);
   const out: ReactNode[] = [];
   let last = 0;
   let i = 0;
-  for (const m of text.matchAll(re)) {
-    const idx = m.index ?? 0;
-    const hit = m[0];
-    if (idx > last) out.push(text.slice(last, idx));
-    out.push(<span key={`m-${i++}`} className="mention mention-live">{hit}</span>);
-    last = idx + hit.length;
+  for (const h of hits) {
+    if (h.start < last) continue;
+    if (h.start > last) out.push(text.slice(last, h.start));
+    out.push(<span key={`h-${i++}`} className={h.cls}>{text.slice(h.start, h.end)}</span>);
+    last = h.end;
   }
   if (last < text.length) out.push(text.slice(last));
   return out;
@@ -604,11 +619,13 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
     const q = mentionQuery.trim().toLowerCase();
     return groupMembers.filter((n) => !q || n.toLowerCase().includes(q));
   }, [showMention, mentionQuery, groupMembers, session?.mode]);
-  const mentionRichNodes = useMemo(
-    () => (session?.mode === 'GROUP' ? renderMentionRichNodes(text, groupMembers) : []),
+  const composerRichNodes = useMemo(
+    () => renderComposerRichNodes(text, session?.mode === 'GROUP' ? groupMembers : []),
     [session?.mode, text, groupMembers]
   );
   const [activeMentionIdx, setActiveMentionIdx] = useState(0);
+  const cmdRef = useRef<HTMLDivElement>(null);
+  const [activeCmdIdx, setActiveCmdIdx] = useState(0);
 
   const closeMention = () => {
     setShowMention(false);
@@ -651,9 +668,12 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
       setShowMention(false);
       return;
     }
-    setMentionQuery(m[1].slice(1).toLowerCase());
+    const q = m[1].slice(1).toLowerCase();
+    // 仅在查询词变化（含面板首次打开）时重置选中项；
+    // 否则方向键选中后紧跟的 onKeyUp 会把高亮打回第一项（“选不中”/“跳回去”问题）
+    if (!(showMention && q === mentionQuery)) setActiveMentionIdx(0);
+    setMentionQuery(q);
     setShowMention(true);
-    setActiveMentionIdx(0);
   };
 
   // 拖放 / 粘贴附件
@@ -680,7 +700,32 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
     return () => document.removeEventListener('mousedown', onDoc);
   }, [showMention]);
 
-  const commands = ['/new', '/pass'];
+  // 键盘选中项滚动到可视区（@ 点名 / 魔法指令候选）
+  useEffect(() => {
+    if (!showMention || !mentionRef.current) return;
+    mentionRef.current.querySelector('.mention-item.active')?.scrollIntoView({ block: 'nearest' });
+  }, [activeMentionIdx, showMention]);
+
+  useEffect(() => {
+    if (!showCmd || !cmdRef.current) return;
+    cmdRef.current.querySelector('.cmd-item.active')?.scrollIntoView({ block: 'nearest' });
+  }, [activeCmdIdx, showCmd]);
+
+  // 输入区 / 魔法指令自动补全候选 + 键盘选中项（列表缩短时自动收敛）
+  const cmdCandidates = useMemo(() => suggestMagicCommands(text), [text]);
+  const cmdIdx = Math.min(activeCmdIdx, Math.max(0, cmdCandidates.length - 1));
+
+  const applyCommand = (cmd: string) => {
+    setText(cmd);
+    setShowCmd(false);
+    setActiveCmdIdx(0);
+    requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(cmd.length, cmd.length);
+    });
+  };
 
   return (
     <div className="composer">
@@ -695,12 +740,21 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
           ))}
         </div>
       )}
-      {showCmd && (
-        <div className="cmd-menu">
-          {commands.map((c) => (
-            <button key={c} className="cmd-item" onClick={() => { setText(c); setShowCmd(false); }}>
-              <span className="cmd-text">{c}</span>
-              <span className="cmd-desc">{c === '/new' ? t('chat.cmdNew') : t('chat.cmdPass')}</span>
+      {showCmd && cmdCandidates.length > 0 && (
+        <div className="cmd-menu" ref={cmdRef}>
+          {cmdCandidates.map((c, i) => (
+            <button
+              key={c.text}
+              className={`cmd-item ${i === cmdIdx ? 'active' : ''}`}
+              onMouseEnter={() => setActiveCmdIdx(i)}
+              onClick={() => {
+                setText(c.text);
+                setShowCmd(false);
+                setActiveCmdIdx(0);
+              }}
+            >
+              <span className="cmd-text">{c.text}</span>
+              <span className="cmd-desc">{c.description}</span>
             </button>
           ))}
         </div>
@@ -741,55 +795,84 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
           }}
         />
         <div className="composer-input-wrap">
-          {session?.mode === 'GROUP' && text && (
+          {composerRichNodes.length > 0 && (
             <div
               className="composer-rich"
               ref={richRef}
               aria-hidden
             >
-              {mentionRichNodes}
+              {composerRichNodes}
             </div>
           )}
           <textarea
             ref={textareaRef}
-            className={session?.mode === 'GROUP' && text ? 'with-rich' : ''}
+            className={composerRichNodes.length > 0 ? 'with-rich' : ''}
             value={text}
             onChange={(e) => {
               const v = e.target.value;
               setText(v);
-              setShowCmd(v.startsWith('/') && !v.includes('\n'));
+              const cmdOpen = v.startsWith('/') && !v.includes('\n');
+              setShowCmd(cmdOpen);
+              // 面板重新打开时选中回到第一项
+              if (cmdOpen && !showCmd) setActiveCmdIdx(0);
               detectMention(v, e.target.selectionStart ?? v.length);
             }}
             onKeyDown={(e) => {
-              // @ 自动补全面板键盘导航
-              if (showMention && mentionCandidates.length > 0) {
+              const composing = e.nativeEvent.isComposing;
+              // 输入法组词期间不劫持方向键/回车（否则拼音候选选择被破坏）
+              const mentionOpen = !composing && showMention && mentionCandidates.length > 0;
+              // 仅在输入仍是「前缀」时拦截回车/Tab；键入完整命令（如 /new）时回车直接发送
+              const cmdOpen =
+                !composing &&
+                showCmd &&
+                cmdCandidates.length > 0 &&
+                cmdCandidates.some((c) => c.text !== text);
+              if (mentionOpen || cmdOpen) {
                 if (e.key === 'ArrowDown') {
                   e.preventDefault();
-                  setActiveMentionIdx((idx) => (idx + 1) % mentionCandidates.length);
+                  if (mentionOpen) {
+                    setActiveMentionIdx((idx) => (idx + 1) % mentionCandidates.length);
+                  } else {
+                    setActiveCmdIdx((idx) => (idx + 1) % cmdCandidates.length);
+                  }
                   return;
                 }
                 if (e.key === 'ArrowUp') {
                   e.preventDefault();
-                  setActiveMentionIdx((idx) => (idx - 1 + mentionCandidates.length) % mentionCandidates.length);
+                  if (mentionOpen) {
+                    setActiveMentionIdx((idx) => (idx - 1 + mentionCandidates.length) % mentionCandidates.length);
+                  } else {
+                    setActiveCmdIdx((idx) => (idx - 1 + cmdCandidates.length) % cmdCandidates.length);
+                  }
                   return;
                 }
                 if (e.key === 'Enter' || e.key === 'Tab') {
                   e.preventDefault();
-                  applyMention(mentionCandidates[activeMentionIdx]);
+                  if (mentionOpen) {
+                    applyMention(mentionCandidates[activeMentionIdx]);
+                  } else {
+                    applyCommand(cmdCandidates[cmdIdx].text);
+                  }
                   return;
                 }
                 if (e.key === 'Escape') {
                   e.preventDefault();
-                  closeMention();
+                  if (mentionOpen) {
+                    closeMention();
+                  } else {
+                    setShowCmd(false);
+                    setActiveCmdIdx(0);
+                  }
                   return;
                 }
               }
-              if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+              if (e.key === 'Enter' && !e.shiftKey && !composing) {
                 e.preventDefault();
                 doSend();
               }
               if (e.key === 'Escape') {
                 setShowCmd(false);
+                setActiveCmdIdx(0);
                 closeMention();
               }
             }}

@@ -564,7 +564,7 @@ async function handleCreateConversation(args: Record<string, unknown>): Promise<
     const worldBookName = String(args.world_book).trim();
     if (worldBookName) {
       const worldBook = await db.worldBooks.where('name').equals(worldBookName).first();
-      if (!worldBook?.id) return `ERROR: Lorebook ${worldBookName} 不存在`;
+      if (!worldBook?.id) return `ERROR: 世界书 ${worldBookName} 不存在`;
       worldBookId = worldBook.id;
     }
   }
@@ -626,32 +626,32 @@ async function handleCreateWorldBook(args: Record<string, unknown>): Promise<str
   const name = String(args.name ?? '').trim();
   const content = String(args.content ?? '');
   if (!name || !content) return 'ERROR: 需要 name / content';
-  if (await db.worldBooks.where('name').equals(name).first()) return `ERROR: Lorebook ${name} 已存在`;
+  if (await db.worldBooks.where('name').equals(name).first()) return `ERROR: 世界书 ${name} 已存在`;
   await db.worldBooks.add({ name, content: content.slice(0, 10_000), imageUri: null, createdAt: Date.now() });
-  return `OK: 已创建 Lorebook ${name}`;
+  return `OK: 已创建世界书 ${name}`;
 }
 
 async function handleUpdateWorldBook(args: Record<string, unknown>): Promise<string> {
   const name = String(args.name ?? '');
   const book = await db.worldBooks.where('name').equals(name).first();
-  if (!book) return `ERROR: Lorebook ${name} 不存在`;
+  if (!book) return `ERROR: 世界书 ${name} 不存在`;
   const updates: Partial<import('../../types/models').WorldBook> = {};
   if (args.new_name) updates.name = String(args.new_name).slice(0, 60);
   if (args.content != null) updates.content = String(args.content).slice(0, 10_000);
   await db.worldBooks.update(book.id!, updates);
-  return `OK: 已更新 Lorebook ${name}`;
+  return `OK: 已更新世界书 ${name}`;
 }
 
 async function handleDeleteWorldBook(args: Record<string, unknown>): Promise<string> {
   const name = String(args.name ?? '');
   const book = await db.worldBooks.where('name').equals(name).first();
-  if (!book) return `ERROR: Lorebook ${name} 不存在`;
+  if (!book) return `ERROR: 世界书 ${name} 不存在`;
   await db.worldBooks.delete(book.id!);
   const sessions = await db.sessions.toArray();
   for (const s of sessions) {
     if (s.worldBookId === book.id) await db.sessions.update(s.id!, { worldBookId: null });
   }
-  return `OK: 已删除 Lorebook ${name}`;
+  return `OK: 已删除世界书 ${name}`;
 }
 
 // ---------- 工具列举 ----------
