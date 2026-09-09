@@ -609,12 +609,14 @@ async function handleCreateConversation(args: Record<string, unknown>): Promise<
     userPersonaNpcId,
     turnOrderMode: args.random_order === true ? 'RANDOM' : 'PRESET',
     participantOrder,
+    enableGreeting: args.enable_greeting !== false,
   });
   return JSON.stringify({
     session_id: sessionId,
     mode,
     participant_count: npcIds.length + 1,
     random_order: args.random_order === true,
+    greeting_enabled: args.enable_greeting !== false,
   }, null, 2);
 }
 

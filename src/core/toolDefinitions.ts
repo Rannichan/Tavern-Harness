@@ -219,6 +219,11 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
         },
         user_persona: { type: 'string', description: 'Optional character name used as the user persona' },
         random_order: { type: 'boolean', default: false, description: 'Whether to randomize speaking order each round' },
+        enable_greeting: {
+          type: 'boolean',
+          default: true,
+          description: 'Whether to seed an opening greeting. In group chats, only the first non-user speaker greets; if the user goes first, no greeting is added.',
+        },
       },
       required: ['participants'],
       additionalProperties: false,

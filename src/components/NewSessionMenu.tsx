@@ -50,6 +50,7 @@ export function NewSessionMenu({ onClose }: { onClose: () => void }) {
   const [userPersonaNpcId, setUserPersonaNpcId] = useState<number | null>(null);
   const [worldBookId, setWorldBookId] = useState<number | null>(null);
   const [turnOrderMode, setTurnOrderMode] = useState<'PRESET' | 'RANDOM'>('PRESET');
+  const [enableGreeting, setEnableGreeting] = useState(true);
   const selectedNpcIds = participantOrder.filter((id) => id !== -1);
   const modeLabel = selectedNpcIds.length === 0 ? t('newSession.notSelected') : selectedNpcIds.length === 1 ? t('newSession.npcChat') : t('newSession.groupChat', { n: selectedNpcIds.length });
   const sensors = useSensors(
@@ -72,6 +73,7 @@ export function NewSessionMenu({ onClose }: { onClose: () => void }) {
         userPersonaNpcId,
         turnOrderMode,
         participantOrder,
+        enableGreeting,
       });
     } else {
       sid = await createSession('GROUP', {
@@ -81,6 +83,7 @@ export function NewSessionMenu({ onClose }: { onClose: () => void }) {
         userPersonaNpcId,
         turnOrderMode,
         participantOrder,
+        enableGreeting,
       });
     }
     await useStore.getState().refreshSessions();
@@ -181,6 +184,20 @@ export function NewSessionMenu({ onClose }: { onClose: () => void }) {
                 </label>
               </div>
             )}
+            <div className="new-session-random-row">
+              <div className="field" style={{ gap: 3 }}>
+                <label>{t('newSession.greeting')}</label>
+                <span className="field-hint">{t('newSession.greetingHint')}</span>
+              </div>
+              <label className="switch">
+                <input
+                  type="checkbox"
+                  checked={enableGreeting}
+                  onChange={(e) => setEnableGreeting(e.target.checked)}
+                />
+                <span className="switch-slider" />
+              </label>
+            </div>
           </div>
         </div>
 
