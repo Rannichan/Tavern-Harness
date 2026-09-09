@@ -5,6 +5,7 @@
   "description": "Tavern Harness — 酒馆模式下的本地 AI Agent 助手（MyAgent-Android 的 Web 复刻）",
   "type": "module",
   "scripts": {
+    "start": "vite",
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview"
