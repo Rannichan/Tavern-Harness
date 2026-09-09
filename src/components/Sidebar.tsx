@@ -295,8 +295,8 @@ export function Sidebar() {
             <div
               className="msg-menu card"
               style={{
-                left: Math.min(sessionMenu.x, window.innerWidth - 196),
-                top: Math.min(sessionMenu.y, window.innerHeight - 132),
+                left: Math.max(8, Math.min(sessionMenu.x, window.innerWidth - 196)),
+                top: Math.max(8, Math.min(sessionMenu.y, window.innerHeight - 132)),
               }}
             >
               <button className="msg-menu-item" onClick={() => openRename(sessionMenu.session)}>
@@ -342,7 +342,7 @@ export function Sidebar() {
           <div className="modal-foot">
             <button className="btn" onClick={() => setRenameTarget(null)}>{t('common.cancel')}</button>
             <button className="btn btn-primary" onClick={() => void handleRename()} disabled={!renameValue.trim()}>
-              <Icon name="pencil" size={13} /> {t('common.save')}
+              <Icon name="pencil" size={13} /> {t('common.rename')}
             </button>
           </div>
         </Modal>
