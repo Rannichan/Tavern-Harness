@@ -603,9 +603,10 @@ export const useStore = create<AppState>((set, get) => ({
     const participants = (await db.participants.where('sessionId').equals(sessionId).toArray()).sort((a, b) => a.seatOrder - b.seatOrder);
     const queue = initializeTurnQueue(participants, session.turnOrderMode);
     await db.messages.where('sessionId').equals(sessionId).delete();
-    const lastMessage = await seedOpeningGreeting(sessionId, session.mode, session.associatedId, queue, session.enableGreeting !== false);
+    const greetingSpeakerId = pickGreetingSpeakerId(session.mode, session.associatedId, queue, session.enableGreeting !== false);
+    const lastMessage = await seedOpeningGreeting(sessionId, greetingSpeakerId);
     await db.sessions.update(sessionId, {
-      turnQueueJson: queueJson(queue),
+      turnQueueJson: queueJson(session.mode === 'GROUP' && greetingSpeakerId != null ? completeTurn(queue, greetingSpeakerId, []) : queue),
       turnQueueHistoryJson: queueHistoryJson([queue]),
       loopIndex: 0,
       lastMessage,
@@ -614,6 +615,9 @@ export const useStore = create<AppState>((set, get) => ({
     await get().loadMessages(sessionId);
     await get().refreshSessions();
     await get().refreshLiveQueue(sessionId);
+    if (session.mode === 'GROUP' && greetingSpeakerId != null) {
+      void continueGroupConversation(sessionId);
+    }
   },
 
   resolveConfirmation: (approved) => {
@@ -854,14 +858,22 @@ export async function createSession(
   });
 
   const enableGreeting = opts?.enableGreeting !== false;
-  const greetingPreview = await seedOpeningGreeting(id, mode, mode === 'NPC' ? (requestedNpcIds[0] ?? null) : null, queue, enableGreeting);
+  const greetingSpeakerId = pickGreetingSpeakerId(mode, mode === 'NPC' ? (requestedNpcIds[0] ?? null) : null, queue, enableGreeting);
+  const greetingPreview = await seedOpeningGreeting(id, greetingSpeakerId);
   if (greetingPreview) {
-    await db.sessions.update(id, { lastMessage: greetingPreview });
+    const patch: Partial<ChatSession> = { lastMessage: greetingPreview };
+    if (mode === 'GROUP' && greetingSpeakerId != null) {
+      patch.turnQueueJson = queueJson(completeTurn(queue, greetingSpeakerId, []));
+    }
+    await db.sessions.update(id, patch);
   }
 
   // 同步 store
   await useStore.getState().refreshSessions();
   await useStore.getState().refreshLiveQueue(id);
+  if (mode === 'GROUP' && greetingSpeakerId != null) {
+    void continueGroupConversation(id);
+  }
 
   return id;
 }
@@ -909,19 +921,8 @@ async function buildSessionParticipants(sessionId: number, npcIds: number[], par
 
 async function seedOpeningGreeting(
   sessionId: number,
-  mode: SessionMode,
-  associatedId: number | null,
-  queue: string[],
-  enableGreeting: boolean
+  greetingSpeakerId: number | null
 ): Promise<string> {
-  if (!enableGreeting) return '';
-  let greetingSpeakerId: number | null = null;
-  if (mode === 'NPC' && associatedId != null) {
-    greetingSpeakerId = associatedId;
-  } else if (mode === 'GROUP') {
-    const firstSpeakerId = Number(queue[0] ?? NaN);
-    greetingSpeakerId = Number.isFinite(firstSpeakerId) && firstSpeakerId !== -1 ? firstSpeakerId : null;
-  }
   if (greetingSpeakerId == null) return '';
   const npc = await db.npcs.get(greetingSpeakerId);
   if (!npc) return '';
@@ -951,6 +952,21 @@ async function seedOpeningGreeting(
     rawResponseBody: null,
   });
   return sessionPreviewText(greeting);
+}
+
+function pickGreetingSpeakerId(
+  mode: SessionMode,
+  associatedId: number | null,
+  queue: string[],
+  enableGreeting: boolean
+): number | null {
+  if (!enableGreeting) return null;
+  if (mode === 'NPC' && associatedId != null) return associatedId;
+  if (mode === 'GROUP') {
+    const firstSpeakerId = Number(queue[0] ?? NaN);
+    if (Number.isFinite(firstSpeakerId) && firstSpeakerId !== -1) return firstSpeakerId;
+  }
+  return null;
 }
 
 async function handleMagicCommand(session: ChatSession, cmd: string): Promise<void> {
@@ -1347,9 +1363,19 @@ async function streamAssistantTurn(
       ...tc,
       id: tc.id || `call-${Date.now()}-${i}`,
     }));
+    const normalizedContent = trimEdgeNewlines(content);
+    const isEmptyAssistantReply =
+      !normalizedContent &&
+      !thinking.trim() &&
+      finalToolCalls.length === 0;
+    if (isEmptyAssistantReply) {
+      await db.messages.delete(draftId);
+      await useStore.getState().loadMessages(sessionId);
+      continue;
+    }
 
     await db.messages.update(draftId, {
-      content,
+      content: normalizedContent,
       thinkingContent: thinking || null,
       toolCallsJson: JSON.stringify(
         finalToolCalls.map((tc) => ({ id: tc.id, name: tc.name, argumentsJson: tc.argumentsJson, contentOffset: tc.contentOffset }))
@@ -1376,7 +1402,7 @@ async function streamAssistantTurn(
     );
 
     // 更新会话预览
-    const preview = sessionPreviewText(content);
+    const preview = sessionPreviewText(normalizedContent);
     await db.sessions.update(sessionId, {
       updatedAt: Date.now(),
       lastMessage: preview || '…',
@@ -1491,9 +1517,19 @@ async function persistPartialDraft(
   model: string
 ): Promise<void> {
   const latencyMs = Date.now() - startTime;
-  const finalTokens = completionTokens > 0 ? completionTokens : estimateTokensFromChars(content.length);
+  const normalizedContent = trimEdgeNewlines(content);
+  const isEmptyAssistantReply =
+    !normalizedContent &&
+    !thinking.trim() &&
+    toolCalls.length === 0;
+  if (isEmptyAssistantReply) {
+    await db.messages.delete(draftId);
+    await useStore.getState().loadMessages(sessionId);
+    return;
+  }
+  const finalTokens = completionTokens > 0 ? completionTokens : estimateTokensFromChars(normalizedContent.length);
   await db.messages.update(draftId, {
-    content,
+    content: normalizedContent,
     thinkingContent: thinking || null,
     toolCallsJson: JSON.stringify(toolCalls.map((tc) => ({ id: tc.id, name: tc.name, argumentsJson: tc.argumentsJson, contentOffset: tc.contentOffset }))),
     latencyMs,
@@ -1509,11 +1545,15 @@ async function persistPartialDraft(
 
   // 生涯统计与会话预览仍同步（与正常回合一致）
   await accumulateStats({ inputTokens: promptTokens, outputTokens: finalTokens, rounds: 0 }, sessionId, null);
-  const preview = sessionPreviewText(content);
+  const preview = sessionPreviewText(normalizedContent);
   await db.sessions.update(sessionId, {
     updatedAt: Date.now(),
     lastMessage: preview || '…',
   });
+}
+
+function trimEdgeNewlines(text: string): string {
+  return text.replace(/^(?:\r?\n)+|(?:\r?\n)+$/g, '');
 }
 
 /** 群聊主循环：持续从队列取发言者 */

@@ -32,6 +32,10 @@ function fmtTime(ts: number): string {
   return `${hh}:${mm}`;
 }
 
+function trimEdgeNewlines(text: string): string {
+  return text.replace(/^(?:\r?\n)+|(?:\r?\n)+$/g, '');
+}
+
 /** 从 dataUrl / URL 猜测一个可显示的文件名 */
 function attachmentName(a: string): string {
   const attach = translate('common.attachment');
@@ -233,6 +237,7 @@ function MessageBubble({
   const speakerName = msg.speakerName ?? (isUser ? t('common.user') : session.mode === 'NPC' ? t('chat.speakerChar') : t('chat.speakerAssistant'));
   const npcHue = speaker?.npcId ? useStore((s) => s.npcs.find((n) => n.id === speaker.npcId)?.avatarColorOrdinal ?? 0) : 0;
   const npcAvatar = speaker?.npcId ? useStore((s) => s.npcs.find((n) => n.id === speaker.npcId)?.avatarDataUrl ?? null) : null;
+  const visibleContent = isUser ? msg.content : trimEdgeNewlines(msg.content);
 
   if (isUser) {
     return <UserBubble msg={msg} session={session} editing={isEditing} loopIndex={loopIndex} />;
@@ -297,7 +302,7 @@ function MessageBubble({
             ))}
           </div>
         )}
-        {(msg.content || msg.attachments.length > 0) && (
+        {(visibleContent || msg.attachments.length > 0) && (
           <div className={`bubble ${isUser ? 'bubble-user' : ''}`}>
             {msg.attachments.length > 0 && (
               <div className="attachments">
@@ -308,7 +313,7 @@ function MessageBubble({
             )}
             <div className="bubble-content-row">
               <div className="bubble-text">
-                {msg.content ? <Markdown text={msg.content} mentionNames={mentionNames} /> : streaming && <span className="stream-cursor" />}
+                {visibleContent ? <Markdown text={visibleContent} mentionNames={mentionNames} /> : streaming && <span className="stream-cursor" />}
               </div>
               {/* 编辑按钮：位于正文气泡内最右侧，铅笔图标 */}
               <button className="msg-edit-btn" title={t('chat.editMsg')} onClick={() => startEditingMsg(msg.id!)}>
@@ -996,6 +1001,7 @@ function RawLogModal({ msg, onClose, onExport }: { msg: ChatMessage; onClose: ()
   const merged = assembleFullResponseJson(msg.rawResponseBody);
 
   const [tab, setTab] = useState<'request' | 'merged'>('request');
+  const [autoWrap, setAutoWrap] = useState(true);
 
   return (
     <Modal onClose={onClose} width="min(760px, calc(100vw - 40px))">
@@ -1008,6 +1014,10 @@ function RawLogModal({ msg, onClose, onExport }: { msg: ChatMessage; onClose: ()
             <button className={`raw-tab ${tab === 'request' ? 'active' : ''}`} onClick={() => setTab('request')}>{t('chat.requestBody')}</button>
             <button className={`raw-tab ${tab === 'merged' ? 'active' : ''}`} onClick={() => setTab('merged')}>{t('chat.fullResponse')}</button>
           </div>
+          <label className="raw-wrap-toggle">
+            <input type="checkbox" checked={autoWrap} onChange={(e) => setAutoWrap(e.target.checked)} />
+            <span>{t('chat.autoWrap')}</span>
+          </label>
           <button className="btn btn-sm" onClick={onExport} title={t('chat.exportTip')}>
             <Icon name="download" size={12} /> {t('common.export')}
           </button>
@@ -1016,7 +1026,7 @@ function RawLogModal({ msg, onClose, onExport }: { msg: ChatMessage; onClose: ()
       </div>
       <div className="modal-body" style={{ padding: 0 }}>
         {tab === 'request' && (
-          <pre className="raw-pre mono">{req || t('chat.noRequestBody')}</pre>
+          <pre className={`raw-pre mono ${autoWrap ? '' : 'raw-pre-nowrap'}`}>{req || t('chat.noRequestBody')}</pre>
         )}
         {tab === 'merged' && (
           merged ? (
@@ -1025,7 +1035,7 @@ function RawLogModal({ msg, onClose, onExport }: { msg: ChatMessage; onClose: ()
                 <span>{t('chat.fullResponseJson')}</span>
                 <span className="mono" style={{ fontSize: 11, color: 'var(--text-faint)' }}>{t('chat.fromSse')}</span>
               </div>
-              <pre className="raw-pre mono">{JSON.stringify(merged, null, 2)}</pre>
+              <pre className={`raw-pre mono ${autoWrap ? '' : 'raw-pre-nowrap'}`}>{JSON.stringify(merged, null, 2)}</pre>
             </div>
           ) : (
             <div className="raw-empty">{t('chat.noRawContent')}</div>

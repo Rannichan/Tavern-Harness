@@ -837,6 +837,17 @@
   color: var(--text);
   box-shadow: var(--shadow);
 }
+.raw-wrap-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+  user-select: none;
+}
+.raw-wrap-toggle input {
+  margin: 0;
+}
 .raw-pre {
   margin: 0;
   padding: 14px 16px;
@@ -847,6 +858,10 @@
   white-space: pre-wrap;
   word-break: break-all;
   background: var(--code-bg);
+}
+.raw-pre-nowrap {
+  white-space: pre;
+  word-break: normal;
 }
 .raw-merged {
   display: flex;
