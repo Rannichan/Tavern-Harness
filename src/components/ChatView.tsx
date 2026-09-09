@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   DndContext,
   PointerSensor,
@@ -36,23 +36,23 @@ function trimEdgeNewlines(text: string): string {
   return text.replace(/^(?:\r?\n)+|(?:\r?\n)+$/g, '');
 }
 
-function renderMentionRichText(text: string, names: string[]): string {
-  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  if (!text) return '';
+function renderMentionRichNodes(text: string, names: string[]): ReactNode[] {
+  if (!text) return [];
   const sorted = [...names].sort((a, b) => b.length - a.length);
-  if (sorted.length === 0) return esc(text).replace(/\n/g, '<br/>');
+  if (sorted.length === 0) return [text];
   const re = new RegExp(`@(?:${sorted.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})(?=\\s|[，。！？,.!?]|$)`, 'g');
-  let out = '';
+  const out: ReactNode[] = [];
   let last = 0;
+  let i = 0;
   for (const m of text.matchAll(re)) {
     const idx = m.index ?? 0;
     const hit = m[0];
-    out += esc(text.slice(last, idx));
-    out += `<span class="mention mention-live">${esc(hit)}</span>`;
+    if (idx > last) out.push(text.slice(last, idx));
+    out.push(<span key={`m-${i++}`} className="mention mention-live">{hit}</span>);
     last = idx + hit.length;
   }
-  out += esc(text.slice(last));
-  return out.replace(/\n/g, '<br/>');
+  if (last < text.length) out.push(text.slice(last));
+  return out;
 }
 
 /** 从 dataUrl / URL 猜测一个可显示的文件名 */
@@ -604,8 +604,8 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
     const q = mentionQuery.trim().toLowerCase();
     return groupMembers.filter((n) => !q || n.toLowerCase().includes(q));
   }, [showMention, mentionQuery, groupMembers, session?.mode]);
-  const mentionRichHtml = useMemo(
-    () => (session?.mode === 'GROUP' ? renderMentionRichText(text, groupMembers) : ''),
+  const mentionRichNodes = useMemo(
+    () => (session?.mode === 'GROUP' ? renderMentionRichNodes(text, groupMembers) : []),
     [session?.mode, text, groupMembers]
   );
   const activeMentionIdx = useRef(0);
@@ -745,8 +745,9 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
               className="composer-rich"
               ref={richRef}
               aria-hidden
-              dangerouslySetInnerHTML={{ __html: mentionRichHtml }}
-            />
+            >
+              {mentionRichNodes}
+            </div>
           )}
           <textarea
             ref={textareaRef}
