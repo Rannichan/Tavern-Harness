@@ -696,71 +696,92 @@ export async function createSession(
     title?: string;
     worldBookId?: number | null;
     userPersonaNpcId?: number | null;
+    turnOrderMode?: TurnOrderMode;
+    participantOrder?: number[];
   }
 ): Promise<number> {
-  let title = opts?.title;
-  if (!title) {
-    title = mode === 'STANDARD' ? translate('nav.newStandardTitle') : mode === 'NPC' ? translate('nav.newNpcTitle') : translate('nav.newGroupTitle');
-  }
-  const now = Date.now();
-  const id = await db.sessions.add({
-    title,
-    mode,
-    associatedId: mode === 'NPC' ? (opts?.associatedId ?? null) : null,
-    worldBookId: opts?.worldBookId ?? null,
-    userPersonaNpcId: opts?.userPersonaNpcId ?? null,
-    turnOrderMode: 'PRESET',
-    turnQueueJson: '[]',
-    turnQueueHistoryJson: '[]',
-    loopIndex: 0,
+ let title = opts?.title;
+ if (!title) {
+   title = mode === 'STANDARD' ? translate('nav.newStandardTitle') : mode === 'NPC' ? translate('nav.newNpcTitle') : translate('nav.newGroupTitle');
+ }
+ const turnOrderMode = opts?.turnOrderMode === 'RANDOM' ? 'RANDOM' : 'PRESET';
+ const requestedNpcIds = mode === 'NPC'
+   ? (opts?.associatedId != null ? [opts.associatedId] : [])
+   : [...new Set((opts?.npcIds ?? []).filter((id) => Number.isFinite(id)).map(Number))].slice(0, 5);
+ const now = Date.now();
+ const id = await db.sessions.add({
+   title,
+   mode,
+   associatedId: mode === 'NPC' ? (requestedNpcIds[0] ?? null) : null,
+   worldBookId: opts?.worldBookId ?? null,
+   userPersonaNpcId: opts?.userPersonaNpcId ?? null,
+   turnOrderMode,
+   turnQueueJson: '[]',
+   turnQueueHistoryJson: '[]',
+   loopIndex: 0,
     lastMessage: '',
     updatedAt: now,
     createdAt: now,
   });
 
   // 参与者
-  const participants: ChatParticipant[] = [];
-  // 玩家始终存在
-  participants.push({
+  const participantsById = new Map<number, ChatParticipant>();
+  participantsById.set(-1, {
     sessionId: id,
     participantId: -1,
     kind: 'PLAYER',
     npcId: null,
-    displayName: '用户',
+    displayName: translate('common.user'),
     seatOrder: 0,
   });
 
-  if (mode === 'NPC' && opts?.associatedId != null) {
-    const npc = await db.npcs.get(opts.associatedId);
+  if (mode === 'NPC' && requestedNpcIds[0] != null) {
+    const npc = await db.npcs.get(requestedNpcIds[0]);
     if (npc) {
-      participants.push({
+      participantsById.set(requestedNpcIds[0], {
         sessionId: id,
-        participantId: opts.associatedId,
+        participantId: requestedNpcIds[0],
         kind: 'NPC',
-        npcId: opts.associatedId,
+        npcId: requestedNpcIds[0],
         displayName: npc.name,
         seatOrder: 1,
       });
     }
-  } else if (mode === 'GROUP' && opts?.npcIds) {
-    const ids = opts.npcIds.slice(0, 5);
-    for (let i = 0; i < ids.length; i++) {
-      const npc = await db.npcs.get(ids[i]);
+  } else if (mode === 'GROUP') {
+    for (const npcId of requestedNpcIds) {
+      const npc = await db.npcs.get(npcId);
       if (!npc) continue;
-      participants.push({
+      participantsById.set(npcId, {
         sessionId: id,
-        participantId: ids[i],
+        participantId: npcId,
         kind: 'NPC',
-        npcId: ids[i],
+        npcId,
         displayName: npc.name,
-        seatOrder: i + 1,
+        seatOrder: participantsById.size,
       });
     }
   }
+  const defaultParticipantOrder = [...participantsById.keys()];
+  const validParticipantIds = new Set(defaultParticipantOrder);
+  const normalizedParticipantOrder: number[] = [];
+  for (const rawId of opts?.participantOrder ?? []) {
+    const participantId = Number(rawId);
+    if (!validParticipantIds.has(participantId) || normalizedParticipantOrder.includes(participantId)) continue;
+    normalizedParticipantOrder.push(participantId);
+  }
+  for (const participantId of defaultParticipantOrder) {
+    if (!normalizedParticipantOrder.includes(participantId)) normalizedParticipantOrder.push(participantId);
+  }
+  const participants = normalizedParticipantOrder
+    .map((participantId, seatOrder) => {
+      const participant = participantsById.get(participantId);
+      return participant ? { ...participant, seatOrder } : null;
+    })
+    .filter(Boolean) as ChatParticipant[];
   await db.participants.bulkAdd(participants);
 
   // 初始化队列（含玩家；玩家默认队首）— 群聊的循环由全体成员组成
-  const queue = initializeTurnQueue(participants, 'PRESET');
+  const queue = initializeTurnQueue(participants, turnOrderMode);
   await db.sessions.update(id, {
     turnQueueJson: queueJson(queue),
     turnQueueHistoryJson: queueHistoryJson([queue]),

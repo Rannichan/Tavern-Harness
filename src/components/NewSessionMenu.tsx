@@ -1,4 +1,21 @@
 import { useState } from 'react';
+import {
+  DndContext,
+  PointerSensor,
+  KeyboardSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { useStore, createSession } from '../store/store';
 import { Avatar, Icon, Modal } from './shared';
 import { useT } from '../core/i18n';
@@ -13,34 +30,42 @@ export function NewSessionMenu({ onClose }: { onClose: () => void }) {
   const addToast = useStore((s) => s.addToast);
   const t = useT();
 
-  // 最多 5 个角色槽位（1 = NPC 对话；2-5 = 群聊）；初始为空，通过「+」添加
-  const [slots, setSlots] = useState<number[]>([]);
+  const [participantOrder, setParticipantOrder] = useState<number[]>([-1]);
   const [title, setTitle] = useState('');
   const [userPersonaNpcId, setUserPersonaNpcId] = useState<number | null>(null);
   const [worldBookId, setWorldBookId] = useState<number | null>(null);
-
-  const modeLabel = slots.length === 0 ? t('newSession.notSelected') : slots.length === 1 ? t('newSession.npcChat') : t('newSession.groupChat', { n: slots.length });
+  const [turnOrderMode, setTurnOrderMode] = useState<'PRESET' | 'RANDOM'>('PRESET');
+  const selectedNpcIds = participantOrder.filter((id) => id !== -1);
+  const modeLabel = selectedNpcIds.length === 0 ? t('newSession.notSelected') : selectedNpcIds.length === 1 ? t('newSession.npcChat') : t('newSession.groupChat', { n: selectedNpcIds.length });
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
 
   const create = async () => {
-    if (slots.length === 0) {
+    if (selectedNpcIds.length === 0) {
       addToast(t('toast.pickOneNpc'), 'error');
       return;
     }
-    const finalTitle = title.trim() || slots.map((id) => npcs.find((n) => n.id === id)?.name).filter(Boolean).join('、');
+    const finalTitle = title.trim() || selectedNpcIds.map((id) => npcs.find((n) => n.id === id)?.name).filter(Boolean).join('、');
     let sid: number;
-    if (slots.length === 1) {
+    if (selectedNpcIds.length === 1) {
       sid = await createSession('NPC', {
-        associatedId: slots[0],
+        associatedId: selectedNpcIds[0],
         title: finalTitle,
         worldBookId,
         userPersonaNpcId,
+        turnOrderMode,
+        participantOrder,
       });
     } else {
       sid = await createSession('GROUP', {
-        npcIds: slots,
+        npcIds: selectedNpcIds,
         title: finalTitle,
         worldBookId,
         userPersonaNpcId,
+        turnOrderMode,
+        participantOrder,
       });
     }
     await useStore.getState().refreshSessions();
@@ -48,28 +73,32 @@ export function NewSessionMenu({ onClose }: { onClose: () => void }) {
     onClose();
   };
 
-  const addSlot = () => {
-    if (slots.length < 5) setSlots([...slots, 0]);
-  };
-  const setSlot = (idx: number, npcId: number) => {
-    // 不允许重复选择
-    const others = slots.filter((_, i) => i !== idx);
-    if (others.includes(npcId)) {
+  const addParticipant = (npcId: number) => {
+    if (selectedNpcIds.includes(npcId)) {
       addToast(t('toast.dupNpc'), 'error');
       return;
     }
-    const next = [...slots];
-    next[idx] = npcId;
-    setSlots(next);
+    if (selectedNpcIds.length >= 5) return;
+    setParticipantOrder((prev) => [...prev, npcId]);
   };
-  const removeSlot = (idx: number) => {
-    setSlots(slots.filter((_, i) => i !== idx));
+  const removeParticipant = (npcId: number) => {
+    setParticipantOrder((prev) => prev.filter((id) => id !== npcId));
+  };
+  const onDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    setParticipantOrder((prev) => {
+      const from = prev.findIndex((id) => id === active.id);
+      const to = prev.findIndex((id) => id === over.id);
+      if (from < 0 || to < 0) return prev;
+      return arrayMove(prev, from, to);
+    });
   };
 
-  const canCreate = slots.length > 0;
+  const canCreate = selectedNpcIds.length > 0;
 
   return (
-    <Modal onClose={onClose} width={460}>
+    <Modal onClose={onClose} width={460} className="new-session-modal">
       <div className="modal-head">
         <span style={{ fontWeight: 800, fontSize: 15 }}>{t('newSession.title')}</span>
         <button className="icon-btn" onClick={onClose}><Icon name="x" /></button>
@@ -82,46 +111,61 @@ export function NewSessionMenu({ onClose }: { onClose: () => void }) {
             className="input"
             value={title}
             onChange={(e) => setTitle(e.target.value.slice(0, 60))}
-            placeholder={slots.length > 0 ? slots.map((id) => npcs.find((n) => n.id === id)?.name).join('、') : t('newSession.unnamed')}
+            placeholder={selectedNpcIds.length > 0 ? selectedNpcIds.map((id) => npcs.find((n) => n.id === id)?.name).join('、') : t('newSession.unnamed')}
           />
         </div>
 
-        {/* 角色槽位：仅展示已选角色 + 加号按钮（缺省选择器由加号替代） */}
+        {/* 参与者与顺序 */}
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-            <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-dim)', letterSpacing: 0.3 }}>{t('newSession.participants')}</label>
+            <label className="new-session-section-label">{t('newSession.participants')}</label>
             <span className="tag">{modeLabel}</span>
           </div>
-          {npcs.length === 0 ? (
-            <div style={{ fontSize: 12.5, color: 'var(--warn)', background: 'var(--warn-soft)', padding: '8px 12px', borderRadius: 9 }}>
-              {t('newSession.noNpcWarn')}
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              {slots.map((id, i) => {
-                const npc = npcs.find((n) => n.id === id);
-                return (
-                  <div key={i} className="npc-slot">
-                    <Avatar name={npc?.name ?? '?'} colorOrdinal={npc?.avatarColorOrdinal ?? 0} imageUrl={npc?.avatarDataUrl} size="sm" />
-                    <span className="npc-slot-name">{npc?.name ?? t('newSession.notSelected')}</span>
-                    <button className="npc-slot-x" onClick={() => removeSlot(i)}><Icon name="x" size={11} /></button>
-                  </div>
-                );
-              })}
-              {slots.length < 5 && (
-                <SlotPicker
-                  excluded={slots}
-                  onPick={(npcId) => {
-                    const idx = slots.indexOf(0);
-                    if (idx >= 0) setSlot(idx, npcId);
-                    else setSlot(slots.length, npcId);
-                  }}
-                />
-              )}
-            </div>
-          )}
-          <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 5 }}>
-            {t('newSession.addHint')}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+              <SortableContext items={participantOrder} strategy={verticalListSortingStrategy}>
+                <div className="sort-list">
+                  {participantOrder.map((id, index) => {
+                    const npc = id === -1 ? null : npcs.find((n) => n.id === id) ?? null;
+                    return (
+                      <ParticipantSortItem
+                        key={id}
+                        participantId={id}
+                        index={index}
+                        name={id === -1 ? t('common.user') : npc?.name ?? t('newSession.notSelected')}
+                        avatarColorOrdinal={npc?.avatarColorOrdinal ?? 0}
+                        avatarDataUrl={npc?.avatarDataUrl ?? null}
+                        removable={id !== -1}
+                        onRemove={() => removeParticipant(id)}
+                      />
+                    );
+                  })}
+                </div>
+              </SortableContext>
+            </DndContext>
+            {npcs.length === 0 ? (
+              <div style={{ fontSize: 12.5, color: 'var(--warn)', background: 'var(--warn-soft)', padding: '8px 12px', borderRadius: 9 }}>
+                {t('newSession.noNpcWarn')}
+              </div>
+            ) : (
+              selectedNpcIds.length < 5 && <SlotPicker excluded={selectedNpcIds} onPick={addParticipant} />
+            )}
+            {selectedNpcIds.length >= 2 && (
+              <div className="new-session-random-row">
+                <div className="field" style={{ gap: 3 }}>
+                  <label>{t('chat.sortRandom')}</label>
+                  <span className="field-hint">{t('newSession.orderHint')}</span>
+                </div>
+                <label className="switch">
+                  <input
+                    type="checkbox"
+                    checked={turnOrderMode === 'RANDOM'}
+                    onChange={(e) => setTurnOrderMode(e.target.checked ? 'RANDOM' : 'PRESET')}
+                  />
+                  <span className="switch-slider" />
+                </label>
+              </div>
+            )}
           </div>
         </div>
 
@@ -130,7 +174,7 @@ export function NewSessionMenu({ onClose }: { onClose: () => void }) {
           <label>{t('newSession.persona')}</label>
           <select className="select" value={userPersonaNpcId ?? ''} onChange={(e) => setUserPersonaNpcId(e.target.value ? Number(e.target.value) : null)}>
             <option value="">{t('newSession.noPersona')}</option>
-            {npcs.filter((n) => n.id != null && !slots.includes(n.id!)).map((n) => (
+            {npcs.filter((n) => n.id != null && !selectedNpcIds.includes(n.id!)).map((n) => (
               <option key={n.id} value={n.id!}>{n.name}</option>
             ))}
           </select>
@@ -155,6 +199,53 @@ export function NewSessionMenu({ onClose }: { onClose: () => void }) {
   );
 }
 
+function ParticipantSortItem({
+  participantId,
+  index,
+  name,
+  avatarColorOrdinal,
+  avatarDataUrl,
+  removable,
+  onRemove,
+}: {
+  participantId: number;
+  index: number;
+  name: string;
+  avatarColorOrdinal: number;
+  avatarDataUrl: string | null;
+  removable: boolean;
+  onRemove: () => void;
+}) {
+  const t = useT();
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: participantId });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Translate.toString(transform),
+        transition,
+        zIndex: isDragging ? 10 : undefined,
+        opacity: isDragging ? 0.85 : undefined,
+        position: 'relative',
+      }}
+      className={`sort-item ${isDragging ? 'dragging' : ''}`}
+      {...attributes}
+      {...listeners}
+    >
+      <span className="sort-grip">⠿</span>
+      <Avatar name={name} colorOrdinal={avatarColorOrdinal} imageUrl={avatarDataUrl} size="xs" />
+      <span className="sort-name">{name}</span>
+      {!removable && <span className="sort-tag">{t('common.you')}</span>}
+      <span className="sort-idx">{index + 1}</span>
+      {removable && (
+        <button className="npc-slot-x" onClick={(e) => { e.stopPropagation(); onRemove(); }}>
+          <Icon name="x" size={11} />
+        </button>
+      )}
+    </div>
+  );
+}
+
 /** 角色的「+」添加按钮：点击后弹出角色选择（内联小列表） */
 function SlotPicker({ excluded, onPick }: { excluded: number[]; onPick: (npcId: number) => void }) {
   const npcs = useStore((s) => s.npcs);
@@ -170,7 +261,7 @@ function SlotPicker({ excluded, onPick }: { excluded: number[]; onPick: (npcId: 
         title={t('newSession.addCharTip')}
         onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
       >
-        ＋
+        + {t('newSession.addCharTip')}
       </button>
       {open && (
         <div className="slot-picker-menu card">
