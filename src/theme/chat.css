@@ -1016,6 +1016,17 @@
   align-items: flex-end;
   min-width: 0;
 }
+.composer-rich {
+  position: absolute;
+  inset: 0;
+  padding: 7px 4px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow: auto;
+  pointer-events: none;
+}
 .composer-input-wrap textarea {
   flex: 1;
   border: none;
@@ -1027,6 +1038,16 @@
   color: var(--text);
   line-height: 1.5;
   min-width: 0;
+}
+.composer-input-wrap textarea.with-rich {
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  caret-color: var(--text);
+  position: relative;
+  z-index: 1;
+}
+.mention.mention-live {
+  font-style: normal;
 }
 .mention-pop {
   position: absolute;

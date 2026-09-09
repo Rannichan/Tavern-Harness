@@ -36,6 +36,25 @@ function trimEdgeNewlines(text: string): string {
   return text.replace(/^(?:\r?\n)+|(?:\r?\n)+$/g, '');
 }
 
+function renderMentionRichText(text: string, names: string[]): string {
+  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  if (!text) return '';
+  const sorted = [...names].sort((a, b) => b.length - a.length);
+  if (sorted.length === 0) return esc(text).replace(/\n/g, '<br/>');
+  const re = new RegExp(`@(?:${sorted.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})(?=\\s|[，。！？,.!?]|$)`, 'g');
+  let out = '';
+  let last = 0;
+  for (const m of text.matchAll(re)) {
+    const idx = m.index ?? 0;
+    const hit = m[0];
+    out += esc(text.slice(last, idx));
+    out += `<span class="mention mention-live">${esc(hit)}</span>`;
+    last = idx + hit.length;
+  }
+  out += esc(text.slice(last));
+  return out.replace(/\n/g, '<br/>');
+}
+
 /** 从 dataUrl / URL 猜测一个可显示的文件名 */
 function attachmentName(a: string): string {
   const attach = translate('common.attachment');
@@ -540,6 +559,7 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
   const [showMention, setShowMention] = useState(false);
   const [mentionQuery, setMentionQuery] = useState('');
   const mentionRef = useRef<HTMLDivElement>(null);
+  const richRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [typing, setTyping] = useState(false);
   const [showModels, setShowModels] = useState(false);
@@ -584,6 +604,10 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
     const q = mentionQuery.trim().toLowerCase();
     return groupMembers.filter((n) => !q || n.toLowerCase().includes(q));
   }, [showMention, mentionQuery, groupMembers, session?.mode]);
+  const mentionRichHtml = useMemo(
+    () => (session?.mode === 'GROUP' ? renderMentionRichText(text, groupMembers) : ''),
+    [session?.mode, text, groupMembers]
+  );
   const activeMentionIdx = useRef(0);
 
   const closeMention = () => {
@@ -716,8 +740,17 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
           }}
         />
         <div className="composer-input-wrap">
+          {session?.mode === 'GROUP' && text && (
+            <div
+              className="composer-rich"
+              ref={richRef}
+              aria-hidden
+              dangerouslySetInnerHTML={{ __html: mentionRichHtml }}
+            />
+          )}
           <textarea
             ref={textareaRef}
+            className={session?.mode === 'GROUP' && text ? 'with-rich' : ''}
             value={text}
             onChange={(e) => {
               const v = e.target.value;
@@ -757,6 +790,12 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
                 setShowCmd(false);
                 setShowMention(false);
               }
+            }}
+            onScroll={(e) => {
+              const rich = richRef.current;
+              if (!rich) return;
+              rich.scrollTop = e.currentTarget.scrollTop;
+              rich.scrollLeft = e.currentTarget.scrollLeft;
             }}
             onClick={(e) => detectMention(text, e.currentTarget.selectionStart ?? text.length)}
             onKeyUp={(e) => detectMention(text, e.currentTarget.selectionStart ?? text.length)}
@@ -1014,10 +1053,13 @@ function RawLogModal({ msg, onClose, onExport }: { msg: ChatMessage; onClose: ()
             <button className={`raw-tab ${tab === 'request' ? 'active' : ''}`} onClick={() => setTab('request')}>{t('chat.requestBody')}</button>
             <button className={`raw-tab ${tab === 'merged' ? 'active' : ''}`} onClick={() => setTab('merged')}>{t('chat.fullResponse')}</button>
           </div>
-          <label className="raw-wrap-toggle">
-            <input type="checkbox" checked={autoWrap} onChange={(e) => setAutoWrap(e.target.checked)} />
-            <span>{t('chat.autoWrap')}</span>
-          </label>
+          <div className="raw-wrap-toggle">
+            <span className="raw-wrap-label">{t('chat.autoWrap')}</span>
+            <label className="switch">
+              <input type="checkbox" checked={autoWrap} onChange={(e) => setAutoWrap(e.target.checked)} />
+              <span className="switch-slider" />
+            </label>
+          </div>
           <button className="btn btn-sm" onClick={onExport} title={t('chat.exportTip')}>
             <Icon name="download" size={12} /> {t('common.export')}
           </button>
@@ -1188,7 +1230,12 @@ export function TurnQueuePanel({
   // 展示历史：多个循环的完整顺序（发言过的角色不移除，新循环追加在历史后面）
   const loops = useMemo(() => {
     if (live) {
-      return live.history.length > 0 ? live.history : [live.queue.length > 0 ? live.queue : initializeTurnQueue(participants, live.turnOrderMode)];
+      const base = live.history.length > 0 ? [...live.history] : [live.queue.length > 0 ? live.queue : initializeTurnQueue(participants, live.turnOrderMode)];
+      const cur = Math.max(0, Math.min(live.loopIndex, base.length - 1));
+      if (live.queue.length > 0) {
+        base[cur] = live.queue;
+      }
+      return base;
     }
     const fallback = effectiveDisplayQueue(session, participants);
     return [fallback];
