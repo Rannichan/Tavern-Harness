@@ -747,6 +747,9 @@
   gap: 12px;
   padding: 4px 2px 0;
 }
+.new-session-modal {
+  overflow: hidden;
+}
 
 /* 「+」添加角色：内联选择小列表 */
 .slot-picker {

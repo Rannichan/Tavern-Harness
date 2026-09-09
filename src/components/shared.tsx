@@ -11,17 +11,19 @@ import { useT } from '../core/i18n';
 export function Modal({
   onClose,
   width,
+  className,
   children,
 }: {
   onClose: () => void;
   width?: string | number;
+  className?: string;
   children: React.ReactNode;
 }) {
   return createPortal(
     <>
       <div className="overlay" onClick={onClose} />
       <div className="modal-root" onClick={(e) => e.stopPropagation()}>
-        <div className="modal card fade-up" style={width != null ? { width } : undefined}>
+        <div className={`modal card fade-up ${className ?? ''}`.trim()} style={width != null ? { width } : undefined}>
           {children}
         </div>
       </div>

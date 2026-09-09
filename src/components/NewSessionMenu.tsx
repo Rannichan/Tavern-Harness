@@ -98,7 +98,7 @@ export function NewSessionMenu({ onClose }: { onClose: () => void }) {
   const canCreate = selectedNpcIds.length > 0;
 
   return (
-    <Modal onClose={onClose} width={460}>
+    <Modal onClose={onClose} width={460} className="new-session-modal">
       <div className="modal-head">
         <span style={{ fontWeight: 800, fontSize: 15 }}>{t('newSession.title')}</span>
         <button className="icon-btn" onClick={onClose}><Icon name="x" /></button>
@@ -166,9 +166,6 @@ export function NewSessionMenu({ onClose }: { onClose: () => void }) {
                 </label>
               </div>
             )}
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 5 }}>
-            {t('newSession.addHint')}
           </div>
         </div>
 
