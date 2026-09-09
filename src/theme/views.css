@@ -663,6 +663,13 @@
   background: var(--primary-soft);
   color: var(--text);
 }
+.msg-menu-item.danger {
+  color: var(--danger);
+}
+.msg-menu-item.danger:hover {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
 
 /* ---------- 创建对话：角色槽位 ---------- */
 .npc-slot {
