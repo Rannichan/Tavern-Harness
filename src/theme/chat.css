@@ -393,7 +393,6 @@
   padding: 8px 14px;
   font-size: 11px;
   line-height: 1.6;
-  font-family: var(--font-mono);
   color: var(--text-dim);
   background: var(--code-bg);
   word-break: break-word;
@@ -493,7 +492,6 @@
   background: var(--surface-2);
   border: 1px solid var(--border-soft);
   color: var(--primary);
-  font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 600;
   transition: background 0.15s, border-color 0.15s;
@@ -589,7 +587,6 @@
   color: var(--primary);
 }
 .model-option-name {
-  font-family: var(--font-mono);
   font-size: 12px;
   white-space: nowrap;
   overflow: hidden;

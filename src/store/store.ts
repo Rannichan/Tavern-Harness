@@ -151,6 +151,9 @@ let initLock: Promise<void> | null = null;
 /** 用户主动停止生成时置位，用于中断群聊循环 */
 let groupLoopStopped = false;
 
+/** 单回合生成结果：ok 成功 / failed 失败（应回退） / stopped 用户主动停止（不回退） */
+type TurnResult = 'ok' | 'failed' | 'stopped';
+
 export const useStore = create<AppState>((set, get) => ({
   initialized: false,
   settings: null,
@@ -417,9 +420,19 @@ export const useStore = create<AppState>((set, get) => ({
     if (!session) return;
     if (get().streaming.sessionId != null) return;
 
+    // ---- 生成前快照：完整保留删除前的消息与队列状态，生成失败时整体回退 ----
+    const snapshotMessages = await db.messages.where('sessionId').equals(sessionId).sortBy('timestamp');
+    const snapshotSessionFields = {
+      turnQueueJson: session.turnQueueJson,
+      turnQueueHistoryJson: session.turnQueueHistoryJson,
+      loopIndex: session.loopIndex,
+      lastMessage: session.lastMessage,
+      updatedAt: session.updatedAt,
+    };
+
     // 以目标消息的时间戳为切断点：删除它及之后的所有消息（通常为其附属 tool 结果），
     // 随后重新生成该条回复（重新生成 = 旧回复连同后续内容一起被新回复替换）
-    const messages = await db.messages.where('sessionId').equals(sessionId).sortBy('timestamp');
+    const messages = snapshotMessages;
     const toDelete = messages.filter((m) => m.timestamp >= message.timestamp);
     await db.messages.bulkDelete(toDelete.map((m) => m.id!));
     await get().loadMessages(sessionId);
@@ -432,6 +445,7 @@ export const useStore = create<AppState>((set, get) => ({
       lastMessage: lastVisible ? sessionPreviewText(lastVisible.content) || '…' : '',
     });
 
+    let result: TurnResult;
     if (session.mode === 'GROUP') {
       // 群聊：把被重生成 assistant 的发言人重新置顶（联动发言队列）。
       // 若该条发言是当前循环某位成员（未知 speakerParticipantId，如收尾回复），
@@ -442,13 +456,23 @@ export const useStore = create<AppState>((set, get) => ({
             .filter((p) => p.participantId === message.speakerParticipantId)
             .first()) ?? null
         : null;
-      await continueRegeneratedGroupLoop(session, message, participant);
-      await get().refreshSessions();
-      return;
+      result = await continueRegeneratedGroupLoop(session, message, participant);
+    } else {
+      result = await runConversationLoop(session);
     }
 
-    await runConversationLoop(session);
+    if (result === 'failed') {
+      // 生成失败（网络 / 超时 / 空回复等）→ 回退到原先的状态：
+      // 恢复全部消息（含被删除的旧回复及其工具结果）与会话队列 / 预览。
+      await db.transaction('rw', db.messages, async () => {
+        await db.messages.where('sessionId').equals(sessionId).delete();
+        await db.messages.bulkPut(snapshotMessages);
+      });
+      await db.sessions.update(sessionId, snapshotSessionFields);
+      await get().loadMessages(sessionId);
+    }
     await get().refreshSessions();
+    await get().refreshLiveQueue(sessionId);
   },
 
   editMessage: async (messageId, newContent, sessionId, newAttachments?: string[], newAttachmentNames?: string[]) => {
@@ -1018,18 +1042,21 @@ async function handleMagicCommand(session: ChatSession, cmd: string): Promise<vo
   }
 }
 
-/** 对话主循环：NPC / STANDARD 直接回复；GROUP 依队列轮转 */
-async function runConversationLoop(session: ChatSession): Promise<void> {
+/** 对话主循环：NPC / STANDARD 直接回复；GROUP 依队列轮转。
+ * 返回该轮生成结果（供「重新生成」失败回退判断）。 */
+async function runConversationLoop(session: ChatSession): Promise<TurnResult> {
   if (session.mode === 'STANDARD') {
-    await streamAssistantTurn(session, null, null);
+    return streamAssistantTurn(session, null, null);
   } else if (session.mode === 'NPC') {
     const npc = session.associatedId ? await db.npcs.get(session.associatedId) : null;
     if (npc) {
-      await streamAssistantTurn(session, npc, session.associatedId);
+      return streamAssistantTurn(session, npc, session.associatedId);
     }
+    return 'failed';
   } else if (session.mode === 'GROUP') {
-    await continueGroupConversation(session.id!);
+    return continueGroupConversation(session.id!);
   }
+  return 'ok';
 }
 
 /**
@@ -1142,7 +1169,9 @@ async function resolveActiveEndpoint(): Promise<{
 }
 
 /**
- * 执行一次 assistant 流式回合（含 ReAct 工具调用链，最多 4 层）
+ * 执行一次 assistant 流式回合（含 ReAct 工具调用链，最多 4 层）。
+ * 返回该回合结果：'ok' 已产出回复 / 'failed' 生成失败（调用方据此回退）
+ * / 'stopped' 用户主动停止（视为成功保留部分内容，不回退）。
  */
 async function streamAssistantTurn(
   session: ChatSession,
@@ -1151,14 +1180,14 @@ async function streamAssistantTurn(
   participant?: ChatParticipant,
   mentionedIds: number[] = [],
   turnLoopIndex: number | null = null
-): Promise<void> {
+): Promise<TurnResult> {
   const settings = useStore.getState().settings;
-  if (!settings) return;
+  if (!settings) return 'failed';
 
   const endpoint = await resolveActiveEndpoint();
   if (!endpoint) {
     useStore.getState().addToast(translate('toast.noEndpoint'), 'error');
-    return;
+    return 'failed';
   }
   const { baseUrl, apiKey, model } = endpoint;
 
@@ -1172,6 +1201,8 @@ async function streamAssistantTurn(
   const activeParticipantId = participantId;
   // 用户点击「停止生成」（stopStreaming → abort.abort()）后置位，用于中断正在进行的流式拉取
   let stopped = false;
+  // 是否已成功持久化一条回复（含工具调用消息）；false 且非停止 → 视为生成失败
+  let produced = false;
 
   // ---- ReAct 深度循环 ----
   let depth = 0;
@@ -1348,7 +1379,7 @@ async function streamAssistantTurn(
       await useStore.getState().loadMessages(sessionId);
       useStore.setState({ streaming: { sessionId: null, abort: null } });
       useStore.getState().addToast(translate('toast.genFailed', { msg: errorMsg }), 'error');
-      return;
+      return 'failed';
     }
 
     // 用户点击「停止」时：中断后续处理（工具调用、ReAct 下一层）
@@ -1375,6 +1406,7 @@ async function streamAssistantTurn(
       await useStore.getState().loadMessages(sessionId);
       continue;
     }
+    produced = true;
 
     await db.messages.update(draftId, {
       content: normalizedContent,
@@ -1499,6 +1531,10 @@ async function streamAssistantTurn(
 
   useStore.setState({ streaming: { sessionId: null, abort: null } });
   await refreshQueueAndSave(sessionId);
+
+  // 用户主动停止 → 保留部分内容（不回退）；未产出任何回复 → 视为失败
+  if (stopped || abortController.signal.aborted) return 'stopped';
+  return produced ? 'ok' : 'failed';
 }
 
 /**
@@ -1558,10 +1594,13 @@ function trimEdgeNewlines(text: string): string {
   return text.replace(/^(?:\r?\n)+|(?:\r?\n)+$/g, '');
 }
 
-/** 群聊主循环：持续从队列取发言者 */
-async function continueGroupConversation(sessionId: number): Promise<void> {
+/** 群聊主循环：持续从队列取发言者。
+ * 返回整段循环的结果：任一回合成败决定整体结果（供「重新生成」失败回退判断）。 */
+async function continueGroupConversation(sessionId: number): Promise<TurnResult> {
   groupLoopStopped = false;
   let guard = 0;
+  let failed = false;
+  let stopped = false;
   while (guard < 20) {
     if (groupLoopStopped) break;
     const session = await db.sessions.get(sessionId);
@@ -1595,14 +1634,21 @@ async function continueGroupConversation(sessionId: number): Promise<void> {
       continue;
     }
     // 先不推进队列：让流式发言期间队列首位 = 正在发言的角色（面板实时高亮）
-    await streamAssistantTurn(session, npc, nextId, next, [], loopIndex);
+    const turnResult = await streamAssistantTurn(session, npc, nextId, next, [], loopIndex);
+    if (turnResult === 'failed') failed = true;
     const mentioned = mentionedParticipantIds(lastAssistantTextBySpeaker(sessionId, nextId), players, nextId);
     // 回合结束：移出该发言者 + 被 @ 点名者插入/移到队首（历史轮次不受影响）
     await persistQueue(sessionId, completeTurn(queue, nextId, mentioned), loopIndex, false);
+    if (turnResult === 'stopped') {
+      stopped = true;
+      break;
+    }
     guard++;
     // 用户主动 stop 时中断
     if (groupLoopStopped) break;
   }
+  if (groupLoopStopped || stopped) return 'stopped';
+  return failed ? 'failed' : 'ok';
 }
 
 /**
@@ -1618,22 +1664,21 @@ async function continueRegeneratedGroupLoop(
   session: ChatSession,
   editedMessage: ChatMessage,
   editedSpeaker: ChatParticipant | null
-): Promise<void> {
+): Promise<TurnResult> {
   const sessionId = session.id!;
   const participants = await db.participants.where('sessionId').equals(sessionId).toArray();
   const speakerParticipantId = editedSpeaker?.participantId ?? editedMessage.speakerParticipantId;
   if (speakerParticipantId == null) {
     // 发言者不可映射 → 仅刷新队列并照常续跑
     await refreshQueueAndSave(sessionId);
-    await continueGroupConversation(sessionId);
-    return;
+    return continueGroupConversation(sessionId);
   }
   const { queue, loopIndex, loopStarted } = refreshQueue(session, participants);
   // 编辑后：该角色“重讲一遍” → 置顶队列，联动发言队列面板与下一轮顺序
   const nextQueue = requeueSpeaker(queue, speakerParticipantId);
   await persistQueue(sessionId, nextQueue, loopIndex, loopStarted);
   await useStore.getState().refreshLiveQueue(sessionId);
-  await continueGroupConversation(sessionId);
+  return continueGroupConversation(sessionId);
 }
 
 /** 请求用户确认（挂起直到 resolveConfirmation） */
