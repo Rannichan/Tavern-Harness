@@ -263,6 +263,8 @@ const ICONS: Record<string, React.ReactNode> = {
   list: <><path d="M8 6h13M8 12h13M8 18h13" /><path d="M3 6h.01M3 12h.01M3 18h.01" /></>,
   pencil: <><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5l-5 1 1-5Z" /><path d="m15 5 4 4" /></>,
   download: <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="m7 10 5 5 5-5M12 15V3" /></>,
+  upload: <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="m17 8-5-5-5 5M12 3v12" /></>,
+  import: <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="m7 10 5 5 5-5M12 15V3" /></>,
 };
 
 export function Icon({ name, size = 15 }: { name: string; size?: number }) {

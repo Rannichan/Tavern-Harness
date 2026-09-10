@@ -154,7 +154,7 @@ function CharacterGrid({ npcs, onEdit, onImportPng }: { npcs: NpcCharacter[]; on
         <span className="group-label" style={{ margin: 0 }}>{t('workshop.charCount', { n: npcs.length })}</span>
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn btn-sm" onClick={onImportPng} title={t('workshop.pngImportTip')}>
-            {t('workshop.pngImport')}
+            <Icon name="import" size={13} /> {t('workshop.pngImport')}
           </button>
           <button
             className="btn btn-primary btn-sm"
@@ -419,7 +419,7 @@ function WorldBookList({ books, onChanged, onImportPng, importDraft, onImportDra
         <span className="group-label" style={{ margin: 0 }}>{t('workshop.wbCount', { n: books.length })}</span>
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn btn-sm" onClick={onImportPng} title={t('workshop.pngImportWbTip')}>
-            {t('workshop.pngImport')}
+            <Icon name="import" size={13} /> {t('workshop.pngImport')}
           </button>
           <button className="btn btn-primary btn-sm" onClick={() => setEditing({ name: '', content: '', imageUri: null, createdAt: Date.now() })}>
             <Icon name="plus" size={13} /> {t('workshop.newWb')}
