@@ -968,31 +968,15 @@
     0 0 8px color-mix(in srgb, var(--glow) 38%, transparent),
     0 0 14px color-mix(in srgb, var(--glow) 16%, transparent);
 }
-.turn-queue-badge {
-  font-size: 10px;
-  font-weight: 800;
-  font-family: var(--font-mono);
-  letter-spacing: 0.3px;
-  flex-shrink: 0;
-  width: 52px;
-  text-align: center;
-  padding: 2px 0;
-  border-radius: 999px;
-}
-/* 轮到玩家：等待你（区别于发言中的 ▶ 闪烁） */
-.turn-queue-item.waiting-user .turn-queue-badge.waiting {
-  color: var(--warn);
-  background: var(--warn-soft);
-}
+/* 轮到玩家：整行警告色高亮 */
 .turn-queue-item.waiting-user {
   border-color: color-mix(in srgb, var(--warn) 40%, transparent);
   background: var(--warn-soft);
 }
-/* 正在发言的角色：整行高亮 + 闪烁 */
+/* 正在发言的角色：整行高亮 + 闪烁（无文字指示器） */
 .turn-queue-item.active.playing {
   animation: queueSpeaking 1.2s ease-in-out infinite;
 }
-.turn-queue-item.active.playing .turn-queue-badge,
 .turn-queue-item.active.playing .turn-queue-name {
   color: var(--primary);
 }

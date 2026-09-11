@@ -1453,9 +1453,7 @@ export function TurnQueuePanel({
                 onClick={() => handleQueueItemClick(loopNum, isPlayer ? 'player' : id)}
                 title={isPlayer ? t('chat.queueLocateSelf') : t('chat.queueLocateNpc', { name: speakerLabel(p) })}
               >
-                {isSpeaking && <span className="turn-queue-badge">{t('chat.speaking')}</span>}
-                {!isSpeaking && isWaitingPlayer && <span className="turn-queue-badge waiting">{t('chat.waitingYou')}</span>}
-                {!isSpeaking && !isWaitingPlayer && <span className="turn-queue-idx">{i + 1}</span>}
+                <span className="turn-queue-idx">{i + 1}</span>
                 <Avatar name={speakerLabel(p)} colorOrdinal={hue} imageUrl={avatarUrl} size="xs" />
                 <span className="turn-queue-name">{speakerLabel(p)}</span>
                 {isPlayer && <span className="turn-queue-seat">{t('common.you')}</span>}
