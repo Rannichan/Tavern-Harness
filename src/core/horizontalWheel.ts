@@ -23,7 +23,46 @@ function findScrollParent(target: EventTarget | null): HTMLElement | null {
   return null;
 }
 
+// 维护横向溢出提示状态（class 由 CSS 的 mask 渐变消费）：
+//   has-overflow — 存在横向溢出（内容确实被遮挡）
+//   hidden-left  — 左侧有内容被遮挡 → 左边缘淡出
+//   hidden-right — 右侧有内容被遮挡 → 右边缘淡出
+function updateOverflowHint(el: HTMLElement): void {
+  const overflowX = el.scrollWidth > el.clientWidth + 1;
+  const atStart = el.scrollLeft <= 1;
+  const atEnd = el.scrollLeft >= el.scrollWidth - el.clientWidth - 1;
+  el.classList.toggle('has-overflow', overflowX);
+  el.classList.toggle('hidden-left', overflowX && !atStart);
+  el.classList.toggle('hidden-right', overflowX && !atEnd);
+}
+
 export function enableHorizontalWheel(): void {
+  // 滚动时刷新溢出提示
+  document.addEventListener(
+    'scroll',
+    (e: Event) => {
+      const target = e.target;
+      if (!(target instanceof Element)) return;
+      const h = target.closest('[data-hscroll]') as HTMLElement | null;
+      if (!h) return;
+      updateOverflowHint(h);
+    },
+    { capture: true, passive: true }
+  );
+
+  // 布局变化（初次渲染 / 窗口尺寸变化 / 字体加载）后重新计算
+  const sweep = () => {
+    document.querySelectorAll<HTMLElement>('[data-hscroll]').forEach(updateOverflowHint);
+  };
+  // 初次渲染可能晚于 enableHorizontalWheel 调用，延后到 React 挂载完成后执行
+  requestAnimationFrame(() => setTimeout(sweep, 0));
+  window.addEventListener('resize', sweep);
+  window.addEventListener('load', sweep);
+  document.fonts?.ready?.then(sweep).catch(() => {});
+  // 动态挂载的 [data-hscroll] 容器（如工坊 tab 切换）出现后立即计算
+  const mo = new MutationObserver(sweep);
+  mo.observe(document.body, { subtree: true, childList: true });
+
   document.addEventListener(
     'wheel',
     (e: WheelEvent) => {

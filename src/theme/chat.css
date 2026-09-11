@@ -260,8 +260,6 @@
 }
 .tool-card-head:hover {
   background: var(--surface-3);
-  box-shadow:
-    inset 0 0 10px color-mix(in srgb, var(--glow) 18%, transparent);
 }
 .tool-card.executing .tool-card-head {
   color: var(--primary);
@@ -386,8 +384,6 @@
 }
 .collp-head:hover {
   background: var(--surface-3);
-  box-shadow:
-    inset 0 0 10px color-mix(in srgb, var(--glow) 18%, transparent);
 }
 .collp-icon {
   font-size: 13px;
@@ -520,7 +516,11 @@
   font-weight: 600;
   transition: background 0.32s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.32s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.32s cubic-bezier(0.16, 1, 0.3, 1);
 }
-.composer-box .composer-model-btn:hover,
+.composer-box .composer-model-btn:hover {
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+  border-color: color-mix(in srgb, var(--primary) 28%, transparent);
+}
+/* 弹层打开（激活态）才显示辉光 */
 .composer-box .composer-model-btn.open {
   background: var(--primary-soft);
   border-color: color-mix(in srgb, var(--primary) 44%, transparent);
@@ -702,7 +702,9 @@
   cursor: pointer;
   text-align: left;
 }
-.cmd-item:hover,
+.cmd-item:hover {
+  background: var(--surface-2);
+}
 .cmd-item.active {
   background: var(--primary-soft);
   box-shadow:
@@ -939,8 +941,6 @@
 .turn-queue-item:hover {
   background: var(--surface-2);
   border-color: var(--border);
-  box-shadow:
-    inset 0 0 8px color-mix(in srgb, var(--glow) 14%, transparent);
 }
 .turn-queue-name {
   flex: 1;
@@ -1146,7 +1146,9 @@
   cursor: pointer;
   text-align: left;
 }
-.mention-item:hover,
+.mention-item:hover {
+  background: var(--surface-2);
+}
 .mention-item.active {
   background: var(--primary-soft);
   color: var(--primary);
@@ -1216,11 +1218,6 @@
 }
 .sort-item:hover {
   border-color: color-mix(in srgb, var(--primary) 28%, transparent);
-  box-shadow:
-    inset 0 0 8px color-mix(in srgb, var(--glow) 14%, transparent),
-    0 0 0 1px color-mix(in srgb, var(--primary) 12%, transparent),
-    0 0 8px color-mix(in srgb, var(--glow) 26%, transparent),
-    0 0 14px color-mix(in srgb, var(--glow) 10%, transparent);
 }
 .sort-item:active {
   cursor: grabbing;

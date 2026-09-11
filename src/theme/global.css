@@ -174,32 +174,32 @@ body.resizing .sidebar-resizer {
 }
 
 .side-nav {
+  position: relative;
   display: flex;
   gap: 8px;
-  padding: 14px 14px 26px;
+  padding: 14px 14px 14px;
   overflow-x: auto;
-  /* 侧边栏较窄、按钮被遮挡时：显示细滚动条以支持横向滚动 */
-  scrollbar-width: thin;
+  /* 不要滚动条：完全隐藏，滚轮由 horizontalWheel.ts 转换为横向滚动 */
+  scrollbar-width: none;
   scrollbar-color: var(--border) transparent;
 }
 .side-nav::-webkit-scrollbar {
-  height: 6px;
+  display: none;
+  height: 0;
   background: transparent;
 }
-.side-nav::-webkit-scrollbar-track {
-  background: transparent;
+/* 有内容被遮挡时：被遮挡侧边缘轻微淡出，提示可横向滚动（不占空间） */
+.side-nav.has-overflow.hidden-left {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 18px);
+  mask-image: linear-gradient(to right, transparent 0, #000 18px);
 }
-.side-nav::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 8px;
-  border: 1px solid transparent;
-  background-clip: content-box;
-  min-width: 24px;
+.side-nav.has-overflow.hidden-right {
+  -webkit-mask-image: linear-gradient(to left, transparent 0, #000 18px);
+  mask-image: linear-gradient(to left, transparent 0, #000 18px);
 }
-.side-nav::-webkit-scrollbar-thumb:hover {
-  background: var(--text-faint);
-  border: 1px solid transparent;
-  background-clip: content-box;
+.side-nav.has-overflow.hidden-left.hidden-right {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 18px, #000 calc(100% - 18px), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 18px, #000 calc(100% - 18px), transparent 100%);
 }
 .nav-chip {
   flex-shrink: 0;
@@ -551,13 +551,9 @@ body.resizing .sidebar-resizer {
 .btn:hover {
   position: relative;
   z-index: 1;
-  border-color: color-mix(in srgb, var(--primary) 40%, transparent);
-  background: var(--primary-soft);
-  color: var(--primary);
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--primary) 20%, transparent),
-    0 0 8px color-mix(in srgb, var(--glow) 34%, transparent),
-    0 0 16px color-mix(in srgb, var(--glow) 14%, transparent);
+  border-color: color-mix(in srgb, var(--primary) 26%, transparent);
+  background: color-mix(in srgb, var(--primary) 7%, transparent);
+  /* 悬停仅轻微高亮；辉光保留给激活/选中状态 */
 }
 .btn:active {
   transform: translateY(0);
@@ -577,13 +573,10 @@ body.resizing .sidebar-resizer {
     0 12px 40px color-mix(in srgb, var(--glow) 28%, transparent);
 }
 .btn-primary:hover {
-  filter: brightness(1.06);
+  /* 主按钮常驻辉光；悬停仅轻微提亮，不再增强辉光 */
+  filter: brightness(1.05);
   background: var(--grad-from);
   color: #fff;
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--primary) 55%, transparent),
-    0 6px 26px color-mix(in srgb, var(--glow) 70%, transparent),
-    0 16px 52px color-mix(in srgb, var(--glow) 34%, transparent);
 }
 .btn-danger {
   color: var(--danger);
@@ -892,8 +885,6 @@ body.resizing .sidebar-resizer {
 }
 .sel-opt:hover {
   background: var(--surface-2);
-  box-shadow:
-    inset 0 0 8px color-mix(in srgb, var(--glow) 14%, transparent);
 }
 .sel-opt.active {
   background: var(--primary-soft);
