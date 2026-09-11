@@ -175,8 +175,8 @@ body.resizing .sidebar-resizer {
 
 .side-nav {
   display: flex;
-  gap: 4px;
-  padding: 7px 10px 17px;
+  gap: 8px;
+  padding: 14px 14px 26px;
   overflow-x: auto;
   /* 侧边栏较窄、按钮被遮挡时：显示细滚动条以支持横向滚动 */
   scrollbar-width: thin;
@@ -213,7 +213,7 @@ body.resizing .sidebar-resizer {
   color: var(--text-dim);
   font-size: 13px;
   font-weight: 600;
-  transition: all 0.18s ease;
+  transition: all 0.32s cubic-bezier(0.16, 1, 0.3, 1);
   white-space: nowrap;
 }
 .nav-chip:hover {
@@ -222,10 +222,18 @@ body.resizing .sidebar-resizer {
   border-color: color-mix(in srgb, var(--primary) 25%, transparent);
 }
 .nav-chip.active {
-  background: var(--primary-soft);
-  border-color: color-mix(in srgb, var(--primary) 55%, transparent);
+  position: relative;
+  z-index: 1;
+  background: color-mix(in srgb, var(--primary) 15%, var(--surface));
+  border-color: color-mix(in srgb, var(--primary) 58%, transparent);
   color: var(--primary);
-  box-shadow: 0 0 0 3px var(--primary-soft), 0 2px 14px var(--glow);
+  /* 柔和感以 inset 内发光 + 1px 高光环为主；外发光半径收在容器 padding 内避免 overflow 断层 */
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--primary) 14%, transparent),
+    inset 0 0 10px color-mix(in srgb, var(--glow) 30%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--primary) 26%, transparent),
+    0 0 8px color-mix(in srgb, var(--glow) 42%, transparent),
+    0 0 14px color-mix(in srgb, var(--glow) 20%, transparent);
 }
 .nav-chip .dot {
   width: 7px;
@@ -238,10 +246,10 @@ body.resizing .sidebar-resizer {
 .session-list {
   flex: 1;
   overflow-y: auto;
-  padding: 4px 10px 10px;
+  padding: 6px 14px 16px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
 }
 .session-item {
   display: flex;
@@ -253,18 +261,24 @@ body.resizing .sidebar-resizer {
   background: transparent;
   color: var(--text);
   text-align: left;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.32s cubic-bezier(0.16, 1, 0.3, 1);
   width: 100%;
 }
 .session-item:hover {
   background: color-mix(in srgb, var(--primary) 6%, transparent);
 }
 .session-item.active {
-  background: var(--primary-soft);
-  border-color: color-mix(in srgb, var(--primary) 32%, transparent);
-}
-.session-item.active {
-  box-shadow: inset 3px 0 0 var(--primary);
+  position: relative;
+  z-index: 1;
+  background: color-mix(in srgb, var(--primary) 12%, var(--surface));
+  border-color: color-mix(in srgb, var(--primary) 36%, transparent);
+  box-shadow:
+    inset 3px 0 0 var(--primary),
+    inset 0 0 0 1px color-mix(in srgb, var(--primary) 10%, transparent),
+    inset 0 0 10px color-mix(in srgb, var(--glow) 22%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--primary) 14%, transparent),
+    0 0 8px color-mix(in srgb, var(--glow) 36%, transparent),
+    0 0 14px color-mix(in srgb, var(--glow) 18%, transparent);
 }
 .session-item .svc {
   width: 34px;
@@ -280,7 +294,10 @@ body.resizing .sidebar-resizer {
 .session-item.active .svc {
   background: var(--grad-from);
   border-color: transparent;
-  box-shadow: 0 0 12px var(--glow);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--primary) 35%, transparent),
+    0 0 8px color-mix(in srgb, var(--glow) 55%, transparent),
+    0 0 14px color-mix(in srgb, var(--glow) 24%, transparent);
 }
 /* 群聊外框保持中性底色，选中（激活）时不变色 */
 .session-item.active .svc.svc-group {
@@ -478,6 +495,22 @@ body.resizing .sidebar-resizer {
   padding: 7px 30px 7px 12px;
   border-radius: 10px;
   font-size: 12.5px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.32s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.search-input:focus {
+  position: relative;
+  z-index: 1;
+  border-color: color-mix(in srgb, var(--primary) 48%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--primary) 10%, transparent),
+    inset 0 0 8px color-mix(in srgb, var(--glow) 16%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--primary) 20%, transparent),
+    0 0 8px color-mix(in srgb, var(--glow) 34%, transparent),
+    0 0 14px color-mix(in srgb, var(--glow) 12%, transparent);
 }
 .search-clear {
   position: absolute;
@@ -512,13 +545,19 @@ body.resizing .sidebar-resizer {
   color: var(--text);
   font-size: 13.2px;
   font-weight: 600;
-  transition: all 0.16s ease;
+  transition: all 0.32s cubic-bezier(0.16, 1, 0.3, 1);
   user-select: none;
 }
 .btn:hover {
-  border-color: color-mix(in srgb, var(--primary) 45%, transparent);
+  position: relative;
+  z-index: 1;
+  border-color: color-mix(in srgb, var(--primary) 40%, transparent);
   background: var(--primary-soft);
   color: var(--primary);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--primary) 20%, transparent),
+    0 0 8px color-mix(in srgb, var(--glow) 34%, transparent),
+    0 0 16px color-mix(in srgb, var(--glow) 14%, transparent);
 }
 .btn:active {
   transform: translateY(0);
@@ -532,13 +571,19 @@ body.resizing .sidebar-resizer {
   background: var(--grad-from);
   border-color: transparent;
   color: #fff;
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 40%, transparent), 0 4px 18px var(--glow);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--primary) 40%, transparent),
+    0 4px 18px color-mix(in srgb, var(--glow) 60%, transparent),
+    0 12px 40px color-mix(in srgb, var(--glow) 28%, transparent);
 }
 .btn-primary:hover {
   filter: brightness(1.06);
   background: var(--grad-from);
   color: #fff;
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 55%, transparent), 0 6px 26px var(--glow);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--primary) 55%, transparent),
+    0 6px 26px color-mix(in srgb, var(--glow) 70%, transparent),
+    0 16px 52px color-mix(in srgb, var(--glow) 34%, transparent);
 }
 .btn-danger {
   color: var(--danger);
@@ -612,14 +657,21 @@ body.resizing .sidebar-resizer {
   background: var(--surface);
   color: var(--text);
   font-size: 13.5px;
-  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+  transition: border-color 0.32s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.32s cubic-bezier(0.16, 1, 0.3, 1);
   outline: none;
 }
 .input:focus,
 .textarea:focus,
 .select:focus {
-  border-color: color-mix(in srgb, var(--primary) 55%, transparent);
-  box-shadow: 0 0 0 3px var(--primary-soft);
+  position: relative;
+  z-index: 1;
+  border-color: color-mix(in srgb, var(--primary) 52%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--primary) 10%, transparent),
+    inset 0 0 8px color-mix(in srgb, var(--glow) 18%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--primary) 22%, transparent),
+    0 0 8px color-mix(in srgb, var(--glow) 36%, transparent),
+    0 0 14px color-mix(in srgb, var(--glow) 14%, transparent);
 }
 .textarea {
   resize: vertical;
@@ -840,11 +892,16 @@ body.resizing .sidebar-resizer {
 }
 .sel-opt:hover {
   background: var(--surface-2);
+  box-shadow:
+    inset 0 0 8px color-mix(in srgb, var(--glow) 14%, transparent);
 }
 .sel-opt.active {
   background: var(--primary-soft);
   color: var(--primary);
   font-weight: 700;
+  box-shadow:
+    inset 0 0 8px color-mix(in srgb, var(--glow) 18%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--primary) 14%, transparent);
 }
 .sel-opt-check {
   color: var(--primary);

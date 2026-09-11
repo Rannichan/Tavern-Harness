@@ -186,8 +186,14 @@
   margin-bottom: 14px; /* 列内纵向间距（column-gap 只管横向） */
 }
 .char-card:hover {
+  z-index: 1;
   border-color: color-mix(in srgb, var(--primary) 42%, transparent);
-  box-shadow: 0 0 0 3px var(--primary-soft), 0 10px 34px color-mix(in srgb, var(--glow) 26%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--primary) 12%, transparent),
+    inset 0 0 12px color-mix(in srgb, var(--glow) 18%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--primary) 26%, transparent),
+    0 0 10px color-mix(in srgb, var(--glow) 38%, transparent),
+    0 0 18px color-mix(in srgb, var(--glow) 16%, transparent);
   background: color-mix(in srgb, var(--primary) 4%, var(--surface));
 }
 .char-card .cname {
@@ -266,10 +272,17 @@
   border: 1px solid var(--border);
   border-radius: 11px;
   background: var(--surface);
-  transition: border-color 0.15s;
+  transition: border-color 0.32s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.32s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .list-item:hover {
-  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+  position: relative;
+  z-index: 1;
+  border-color: color-mix(in srgb, var(--primary) 36%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--primary) 10%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--primary) 18%, transparent),
+    0 0 8px color-mix(in srgb, var(--glow) 32%, transparent),
+    0 0 14px color-mix(in srgb, var(--glow) 14%, transparent);
 }
 .list-item .l-main {
   flex: 1;
@@ -363,6 +376,15 @@
   flex-direction: column;
   gap: 12px;
   box-shadow: var(--shadow);
+  transition: border-color 0.32s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.set-section:hover {
+  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--primary) 6%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--primary) 12%, transparent),
+    0 0 10px color-mix(in srgb, var(--glow) 26%, transparent),
+    0 0 20px color-mix(in srgb, var(--glow) 10%, transparent);
 }
 .set-section h3 {
   margin: 0;
@@ -393,14 +415,25 @@
 }
 .ach-card:hover {
   opacity: 1;
+  z-index: 1;
   border-color: color-mix(in srgb, var(--primary) 35%, transparent);
-  box-shadow: 0 0 0 3px var(--primary-soft);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--primary) 10%, transparent),
+    inset 0 0 10px color-mix(in srgb, var(--glow) 16%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--primary) 18%, transparent),
+    0 0 8px color-mix(in srgb, var(--glow) 30%, transparent),
+    0 0 14px color-mix(in srgb, var(--glow) 14%, transparent);
 }
 .ach-card.unlocked {
   opacity: 1;
   border-color: color-mix(in srgb, var(--primary) 45%, transparent);
   background: color-mix(in srgb, var(--primary-soft) 55%, var(--surface));
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 12%, transparent), 0 6px 24px color-mix(in srgb, var(--glow) 28%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--primary) 14%, transparent),
+    inset 0 0 12px color-mix(in srgb, var(--glow) 22%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--primary) 22%, transparent),
+    0 0 8px color-mix(in srgb, var(--glow) 40%, transparent),
+    0 0 16px color-mix(in srgb, var(--glow) 18%, transparent);
 }
 .ach-card-head {
   display: flex;
@@ -483,6 +516,15 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+  transition: border-color 0.32s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.provider-card:hover {
+  border-color: color-mix(in srgb, var(--primary) 32%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--primary) 8%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--primary) 16%, transparent),
+    0 0 8px color-mix(in srgb, var(--glow) 30%, transparent),
+    0 0 16px color-mix(in srgb, var(--glow) 12%, transparent);
 }
 .provider-card .p-head {
   display: flex;
@@ -586,12 +628,17 @@
   text-align: center;
   color: var(--text-dim);
   cursor: pointer;
-  transition: all 0.18s;
+  transition: border-color 0.32s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.32s cubic-bezier(0.16, 1, 0.3, 1), background 0.32s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .import-drop:hover,
 .import-drop.drag {
-  border-color: var(--primary);
+  border-color: color-mix(in srgb, var(--primary) 62%, transparent);
   background: var(--primary-soft);
+  box-shadow:
+    inset 0 0 10px color-mix(in srgb, var(--glow) 20%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--primary) 16%, transparent),
+    0 0 10px color-mix(in srgb, var(--glow) 34%, transparent),
+    0 0 20px color-mix(in srgb, var(--glow) 14%, transparent);
 }
 
 /* ---------- 群聊设置 ---------- */
@@ -608,6 +655,14 @@
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--surface);
+  transition: border-color 0.32s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.participant-row:hover {
+  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--primary) 14%, transparent),
+    0 0 8px color-mix(in srgb, var(--glow) 28%, transparent),
+    0 0 14px color-mix(in srgb, var(--glow) 12%, transparent);
 }
 
 /* ---------- 消息右键菜单 ---------- */
@@ -646,6 +701,8 @@
 .msg-menu-item:hover {
   background: var(--primary-soft);
   color: var(--text);
+  box-shadow:
+    inset 0 0 8px color-mix(in srgb, var(--glow) 16%, transparent);
 }
 .msg-menu-item.danger {
   color: var(--danger);
@@ -777,6 +834,8 @@
 }
 .slot-picker-item:hover {
   background: var(--primary-soft);
+  box-shadow:
+    inset 0 0 8px color-mix(in srgb, var(--glow) 16%, transparent);
 }
 
 /* ---------- 模型选择器 ---------- */

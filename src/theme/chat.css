@@ -99,7 +99,15 @@
   border-top-right-radius: 4px;
 }
 .msg-row.streaming .bubble {
-  border-color: color-mix(in srgb, var(--primary) 40%, transparent);
+  position: relative;
+  z-index: 1;
+  border-color: color-mix(in srgb, var(--primary) 44%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--primary) 10%, transparent),
+    inset 0 0 8px color-mix(in srgb, var(--glow) 16%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--primary) 20%, transparent),
+    0 0 8px color-mix(in srgb, var(--glow) 34%, transparent),
+    0 0 16px color-mix(in srgb, var(--glow) 12%, transparent);
 }
 .stream-cursor {
   display: inline-block;
@@ -160,8 +168,13 @@
 }
 .bubble-editor textarea {
   width: 100%;
-  border: 1px solid color-mix(in srgb, var(--primary) 45%, transparent);
-  box-shadow: 0 0 0 3px var(--primary-soft);
+  border: 1px solid color-mix(in srgb, var(--primary) 48%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--primary) 10%, transparent),
+    inset 0 0 8px color-mix(in srgb, var(--glow) 18%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--primary) 20%, transparent),
+    0 0 8px color-mix(in srgb, var(--glow) 36%, transparent),
+    0 0 14px color-mix(in srgb, var(--glow) 14%, transparent);
   font-size: 13.5px;
 }
 .bubble-editor-actions {
@@ -247,6 +260,8 @@
 }
 .tool-card-head:hover {
   background: var(--surface-3);
+  box-shadow:
+    inset 0 0 10px color-mix(in srgb, var(--glow) 18%, transparent);
 }
 .tool-card.executing .tool-card-head {
   color: var(--primary);
@@ -371,6 +386,8 @@
 }
 .collp-head:hover {
   background: var(--surface-3);
+  box-shadow:
+    inset 0 0 10px color-mix(in srgb, var(--glow) 18%, transparent);
 }
 .collp-icon {
   font-size: 13px;
@@ -443,6 +460,8 @@
   backdrop-filter: blur(16px);
 }
 .composer-box {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: flex-end;
   gap: 8px;
@@ -453,11 +472,16 @@
   border-radius: 14px;
   padding: 4px 6px 4px 6px;
   box-shadow: 0 0 0 1px transparent, var(--shadow);
-  transition: border-color 0.16s, box-shadow 0.16s;
+  transition: border-color 0.32s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.32s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .composer-box:focus-within {
-  border-color: color-mix(in srgb, var(--primary) 45%, transparent);
-  box-shadow: 0 0 0 3px var(--primary-soft), 0 0 24px color-mix(in srgb, var(--glow) 55%, transparent);
+  border-color: color-mix(in srgb, var(--primary) 48%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--primary) 12%, transparent),
+    inset 0 0 10px color-mix(in srgb, var(--glow) 22%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--primary) 26%, transparent),
+    0 0 10px color-mix(in srgb, var(--glow) 42%, transparent),
+    0 0 20px color-mix(in srgb, var(--glow) 18%, transparent);
 }
 .composer-box textarea {
   flex: 1;
@@ -494,13 +518,16 @@
   color: var(--primary);
   font-size: 12px;
   font-weight: 600;
-  transition: background 0.15s, border-color 0.15s;
+  transition: background 0.32s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.32s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.32s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .composer-box .composer-model-btn:hover,
 .composer-box .composer-model-btn.open {
   background: var(--primary-soft);
-  border-color: color-mix(in srgb, var(--primary) 45%, transparent);
-  box-shadow: 0 0 14px color-mix(in srgb, var(--glow) 40%, transparent);
+  border-color: color-mix(in srgb, var(--primary) 44%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--primary) 22%, transparent),
+    0 0 8px color-mix(in srgb, var(--glow) 38%, transparent),
+    0 0 16px color-mix(in srgb, var(--glow) 16%, transparent);
 }
 .composer-model-label {
   white-space: nowrap;
@@ -575,6 +602,9 @@
 .model-popover .model-option.active {
   background: var(--primary-soft);
   color: var(--primary);
+  box-shadow:
+    inset 0 0 8px color-mix(in srgb, var(--glow) 18%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--primary) 14%, transparent);
 }
 .model-option-dot {
   font-size: 11px;
@@ -675,6 +705,8 @@
 .cmd-item:hover,
 .cmd-item.active {
   background: var(--primary-soft);
+  box-shadow:
+    inset 0 0 8px color-mix(in srgb, var(--glow) 16%, transparent);
 }
 .cmd-item.active .cmd-text,
 .cmd-item.active .cmd-desc {
@@ -907,6 +939,8 @@
 .turn-queue-item:hover {
   background: var(--surface-2);
   border-color: var(--border);
+  box-shadow:
+    inset 0 0 8px color-mix(in srgb, var(--glow) 14%, transparent);
 }
 .turn-queue-name {
   flex: 1;
@@ -924,9 +958,15 @@
   flex-shrink: 0;
 }
 .turn-queue-item.active {
+  position: relative;
+  z-index: 1;
   background: var(--primary-soft);
   border-color: color-mix(in srgb, var(--primary) 38%, transparent);
-  box-shadow: 0 0 0 3px var(--primary-soft);
+  box-shadow:
+    inset 0 0 8px color-mix(in srgb, var(--glow) 20%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--primary) 22%, transparent),
+    0 0 8px color-mix(in srgb, var(--glow) 38%, transparent),
+    0 0 14px color-mix(in srgb, var(--glow) 16%, transparent);
 }
 .turn-queue-badge {
   font-size: 10px;
@@ -960,12 +1000,20 @@
   0%,
   100% {
     background: var(--primary-soft);
-    box-shadow: 0 0 0 3px var(--primary-soft);
+    box-shadow:
+      inset 0 0 8px color-mix(in srgb, var(--glow) 18%, transparent),
+      0 0 0 1px color-mix(in srgb, var(--primary) 22%, transparent),
+      0 0 8px color-mix(in srgb, var(--glow) 36%, transparent),
+      0 0 14px color-mix(in srgb, var(--glow) 14%, transparent);
     opacity: 1;
   }
   50% {
     background: color-mix(in srgb, var(--primary) 22%, transparent);
-    box-shadow: 0 0 0 5px color-mix(in srgb, var(--primary) 18%, transparent);
+    box-shadow:
+      inset 0 0 10px color-mix(in srgb, var(--glow) 26%, transparent),
+      0 0 0 1px color-mix(in srgb, var(--primary) 30%, transparent),
+      0 0 12px color-mix(in srgb, var(--glow) 48%, transparent),
+      0 0 20px color-mix(in srgb, var(--glow) 20%, transparent);
     opacity: 0.55;
   }
 }
@@ -1102,6 +1150,8 @@
 .mention-item.active {
   background: var(--primary-soft);
   color: var(--primary);
+  box-shadow:
+    inset 0 0 8px color-mix(in srgb, var(--glow) 16%, transparent);
 }
 .mention-item-at {
   font-weight: 800;
@@ -1165,14 +1215,23 @@
   transition: box-shadow 0.15s ease, opacity 0.15s ease;
 }
 .sort-item:hover {
-  border-color: color-mix(in srgb, var(--primary) 25%, transparent);
+  border-color: color-mix(in srgb, var(--primary) 28%, transparent);
+  box-shadow:
+    inset 0 0 8px color-mix(in srgb, var(--glow) 14%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--primary) 12%, transparent),
+    0 0 8px color-mix(in srgb, var(--glow) 26%, transparent),
+    0 0 14px color-mix(in srgb, var(--glow) 10%, transparent);
 }
 .sort-item:active {
   cursor: grabbing;
 }
 /* 正在拖拽的卡片：抬升 + 阴影 */
 .sort-item.dragging {
-  box-shadow: var(--shadow-lg);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--primary) 30%, transparent),
+    0 0 10px color-mix(in srgb, var(--glow) 42%, transparent),
+    0 0 24px color-mix(in srgb, var(--glow) 16%, transparent),
+    var(--shadow-lg);
   border-color: color-mix(in srgb, var(--primary) 45%, transparent);
   cursor: grabbing;
 }
