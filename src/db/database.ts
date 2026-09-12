@@ -48,6 +48,36 @@ export class TavernDB extends Dexie {
       workspaceFiles: 'path, updatedAt',
       achievementUnlocks: '++id, achievementId, unlockedAt',
     });
+    // v2：sessions 增加 pinned 索引（置顶会话）；存量记录的 pinned 在打开后归一化
+    this.version(2).stores({
+      settings: 'id',
+      providers: '++id, name, isEnabled',
+      npcs: '++id, name, isBuiltIn',
+      sessions: '++id, mode, updatedAt, associatedId, pinned',
+      participants: '[sessionId+participantId], sessionId, participantId',
+      messages: '++id, [sessionId+timestamp], sessionId, timestamp',
+      tools: '++id, name, isBuiltIn',
+      worldBooks: '++id, name',
+      tasks: 'id, sessionId, status, triggerAtMillis',
+      careerStats: 'id',
+      careerNpcStats: 'npcId',
+      workspaceFiles: 'path, updatedAt',
+      achievementUnlocks: '++id, achievementId, unlockedAt',
+    });
+  }
+
+  /** 打开数据库后立即执行：把 pinned 字段归一化为 0/1（旧记录为 undefined） */
+  normalizePinned(): Promise<void> {
+    return db.transaction('rw', db.sessions, async () => {
+      const sessions = await db.sessions.toArray();
+      for (const s of sessions) {
+        const v = (s as unknown as { pinned?: unknown }).pinned;
+        const pinned = v ? 1 : 0;
+        if ((s as unknown as { pinned?: unknown }).pinned !== pinned) {
+          await db.sessions.update(s.id!, { pinned });
+        }
+      }
+    });
   }
 }
 
@@ -122,6 +152,8 @@ export async function initDatabase(): Promise<void> {
   await migrateLegacyFields();
   // 内置角色「酒馆老板」默认启用所有内置技能（老数据升级）
   await ensureBossDefaultSkills();
+  // v2 升级：把存量会话的 pinned 归一化为 0/1
+  await db.normalizePinned();
 }
 
 /**

@@ -82,6 +82,8 @@ export interface ChatSession {
   turnQueueHistoryJson: string;
   loopIndex: number;
   lastMessage: string;
+  /** 置顶标记：1 = 置顶（侧边栏会话列表置顶区），0 = 未置顶。默认 0（false） */
+  pinned: number;
   updatedAt: number;
   createdAt: number;
 }

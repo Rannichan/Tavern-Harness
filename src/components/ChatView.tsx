@@ -1031,6 +1031,7 @@ export function MessageMenu() {
   const [, force] = useState(0);
   const t = useT();
   const regenerateMessage = useStore((s) => s.regenerateMessage);
+  const forkSession = useStore((s) => s.forkSession);
   const addToast = useStore((s) => s.addToast);
   const [rawLog, setRawLog] = useState<ChatMessage | null>(null);
 
@@ -1095,6 +1096,15 @@ export function MessageMenu() {
       },
     });
   }
+  // 分支 / Fork：从该消息复制出新会话
+  actions.push({
+    label: t('chat.fork'),
+    icon: 'git-branch',
+    onClick: async () => {
+      closeMsgMenu();
+      await forkSession(msg.id!);
+    },
+  });
 
   return (
     <>

@@ -108,6 +108,10 @@ interface AppState {
   saveMessageOnly: (messageId: number, newContent: string, sessionId: number, newAttachments?: string[], newAttachmentNames?: string[]) => Promise<void>;
   stopStreaming: () => void;
   deleteSession: (id: number) => Promise<void>;
+  /** 切换会话置顶状态（置顶会话排列表最前，可跨会话固定） */
+  togglePin: (id: number) => Promise<void>;
+  /** 从指定消息分叉（Fork）：复制该消息及之前的内容到新会话并跳转过去。返回新会话 id */
+  forkSession: (messageId: number) => Promise<number | null>;
   updateSessionSettings: (sessionId: number, opts: {
     title?: string;
     npcIds: number[];
@@ -240,8 +244,11 @@ export const useStore = create<AppState>((set, get) => ({
   setActiveView: (v) => set({ activeView: v }),
 
   refreshSessions: async () => {
+    // 置顶会话排最前（各自按 updatedAt 倒序），其次为普通会话（同样按 updatedAt 倒序）
     const sessions = await db.sessions.orderBy('updatedAt').reverse().toArray();
-    set({ sessions });
+    const pinned = sessions.filter((s) => (s as { pinned?: unknown }).pinned);
+    const rest = sessions.filter((s) => !(s as { pinned?: unknown }).pinned);
+    set({ sessions: [...pinned, ...rest] });
   },
 
   refreshNpcs: async () => {
@@ -586,6 +593,89 @@ export const useStore = create<AppState>((set, get) => ({
     await get().refreshSessions();
   },
 
+  togglePin: async (id) => {
+    const session = await db.sessions.get(id);
+    if (!session) return;
+    const pinned = (session as { pinned?: unknown }).pinned ? 0 : 1;
+    await db.sessions.update(id, { pinned });
+    await get().refreshSessions();
+  },
+
+  /** 从指定消息分叉：复制会话与该消息之前（含）的消息到新会话，并跳转过去 */
+  forkSession: async (messageId: number) => {
+    const message = await db.messages.get(messageId);
+    if (!message) return null;
+    const sessionId = message.sessionId;
+    const session = await db.sessions.get(sessionId);
+    if (!session) return null;
+
+    // 复制会话（保留模式 / 角色 / 世界书 / 人设 / 队列设置；置顶与顺序“未置顶”）
+    const now = Date.now();
+    const newSession: ChatSession = {
+      ...session,
+      id: undefined,
+      title: `${session.title} #fork`,
+      turnQueueJson: '[]',
+      turnQueueHistoryJson: '[]',
+      loopIndex: 0,
+      pinned: 0,
+      lastMessage: '',
+      updatedAt: now,
+      createdAt: now,
+    };
+    const newId = await db.sessions.add(newSession);
+
+    // 复制参与者（PLAYER 保留 -1 编号，NPC 按 npcId 映射；重建 seatOrder 保持一致）
+    const participants = await db.participants.where('sessionId').equals(sessionId).sortBy('seatOrder');
+    const mappedParticipants = participants.map((p, i) => ({
+      sessionId: newId,
+      participantId: p.participantId,
+      kind: p.kind,
+      npcId: p.npcId,
+      displayName: p.displayName,
+      seatOrder: i,
+    }));
+    await db.participants.bulkAdd(mappedParticipants);
+
+    // 复制消息：取该消息及之前的全部消息（按时间戳顺序）
+    // 消息 id 不可复用（自增），重新按时间顺序写库，保持展示顺序一致。
+    // 若分叉点在带工具调用的 assistant 消息上，其 tool 结果消息的时间戳晚于分叉点，
+    // 但属于该回合（缺失会导致模型侧 tool_calls 悬空）→ 一并复制。
+    const allMessages = await db.messages.where('sessionId').equals(sessionId).sortBy('timestamp');
+    const toCopy = allMessages.filter((m) => m.timestamp <= message.timestamp);
+    // 分叉点消息及其之前 assistant 声明的工具调用 id
+    const declaredCallIds = new Set<string>();
+    for (const m of toCopy) {
+      if (m.role !== 'assistant') continue;
+      try {
+        for (const tc of JSON.parse(m.toolCallsJson || '[]') as { id?: string }[]) {
+          if (tc.id) declaredCallIds.add(tc.id);
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    // 追加这些工具调用对应的结果消息（若尚未被时间戳条件覆盖）
+    const toolResultsToInclude = allMessages.filter(
+      (m) => m.role === 'tool' && m.toolCallId != null && declaredCallIds.has(m.toolCallId) && !toCopy.includes(m)
+    );
+    const finalCopy = [...toCopy, ...toolResultsToInclude].sort((a, b) => a.timestamp - b.timestamp);
+    for (const m of finalCopy) {
+      const { id: _oldId, ...rest } = m;
+      await db.messages.add({ ...rest, sessionId: newId });
+    }
+
+    // 新会话预览取最后一条可见消息（工具消息不计入）
+    const lastVisible = [...finalCopy].reverse().find((m) => m.role !== 'tool');
+    const lastMessage = lastVisible ? sessionPreviewText(lastVisible.content) || '…' : '';
+    await db.sessions.update(newId, { lastMessage });
+
+    await get().refreshSessions();
+    await get().loadMessages(newId);
+    await get().setActiveSession(newId);
+    return newId;
+  },
+
   updateSessionSettings: async (sessionId, opts) => {
     const session = await db.sessions.get(sessionId);
     if (!session) return;
@@ -813,9 +903,10 @@ export async function createSession(
    turnQueueJson: '[]',
    turnQueueHistoryJson: '[]',
    loopIndex: 0,
-    lastMessage: '',
-    updatedAt: now,
-    createdAt: now,
+   pinned: 0,
+   lastMessage: '',
+   updatedAt: now,
+   createdAt: now,
   });
 
   // 参与者

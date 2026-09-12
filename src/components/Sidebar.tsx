@@ -19,6 +19,7 @@ export function Sidebar() {
   const setActiveSession = useStore((s) => s.setActiveSession);
   const setActiveView = useStore((s) => s.setActiveView);
   const deleteSession = useStore((s) => s.deleteSession);
+  const togglePin = useStore((s) => s.togglePin);
   const addToast = useStore((s) => s.addToast);
   const t = useT();
 
@@ -233,7 +234,12 @@ export function Sidebar() {
                 <SessionVisual mode={s.mode} members={s.mode === 'GROUP' ? sessionMembers(s) : undefined} />
               )}
               <div className="smeta">
-                <div className="stitle">{s.title}</div>
+                <div className="stitle">
+                  {!!(s as { pinned?: unknown }).pinned && (
+                    <span className="spinned" title={t('nav.pinSession')}><Icon name="pin" size={11} /></span>
+                  )}
+                  <span className="stitle-text">{s.title}</span>
+                </div>
                 <div className="sprev">{s.lastMessage || t('nav.newConversation')}</div>
               </div>
             </button>
@@ -285,6 +291,20 @@ export function Sidebar() {
             >
               <button className="msg-menu-item" onClick={() => openEdit(sessionMenu.session)}>
                 <Icon name="pencil" size={13} /> {t('nav.editSession')}
+              </button>
+              <button
+                className="msg-menu-item"
+                onClick={async () => {
+                  await togglePin(sessionMenu.session.id!);
+                  setSessionMenu(null);
+                  addToast(
+                    (sessionMenu.session as { pinned?: unknown }).pinned
+                      ? t('toast.sessionUnpinned')
+                      : t('toast.sessionPinned')
+                  );
+                }}
+              >
+                <Icon name="pin" size={13} /> {(sessionMenu.session as { pinned?: unknown }).pinned ? t('nav.unpinSession') : t('nav.pinSession')}
               </button>
               <button
                 className="msg-menu-item danger"
