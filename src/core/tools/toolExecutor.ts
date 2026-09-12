@@ -348,7 +348,7 @@ async function handleGetTavernStatus(args: Record<string, unknown>): Promise<str
   }
   if (fields.includes('career_stats')) {
     const stats = (await db.careerStats.get(1)) ?? { inputTokens: 0, outputTokens: 0, totalRounds: 0 };
-    const sessionCount = await db.careerStats.count();
+    const sessionCount = await db.sessions.count();
     const npcStats = await db.careerNpcStats.toArray();
     const mostActive = npcStats.length
       ? npcStats.sort((a, b) => b.rounds - a.rounds)[0]

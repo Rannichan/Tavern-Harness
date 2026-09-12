@@ -1203,6 +1203,8 @@ async function streamAssistantTurn(
   let stopped = false;
   // 是否已成功持久化一条回复（含工具调用消息）；false 且非停止 → 视为生成失败
   let produced = false;
+  // 本回合是否已计入 1 轮对话（ReAct 多层循环只计一次，避免一轮生成被重复统计）
+  let roundCounted = false;
 
   // ---- ReAct 深度循环 ----
   let depth = 0;
@@ -1384,7 +1386,7 @@ async function streamAssistantTurn(
 
     // 用户点击「停止」时：中断后续处理（工具调用、ReAct 下一层）
     if (stopped || abortController.signal.aborted) {
-      await persistPartialDraft(draftId, sessionId, content, thinking, toolCalls, request, rawLines, promptTokens, completionTokens, startTime, model);
+      await persistPartialDraft(draftId, sessionId, content, thinking, toolCalls, request, rawLines, promptTokens, completionTokens, startTime, model, !roundCounted, npc);
       break;
     }
 
@@ -1424,12 +1426,16 @@ async function streamAssistantTurn(
     });
     await useStore.getState().loadMessages(sessionId);
 
-    // 生涯统计
+    // 生涯统计：1 个回复回合 = 1 轮对话（ReAct 多层只计一次）；
+    // 群聊中 NPC 发言会把该轮计入对应角色的 careerNpcStats（最活跃角色统计）
+    const { rounds: assistantRounds, npcRounds } = assistantRoundDelta(!roundCounted, npc);
+    roundCounted = roundCounted || assistantRounds > 0;
     await accumulateStats(
       {
         inputTokens: promptTokens,
         outputTokens: finalTokens,
-        rounds: 0,
+        rounds: assistantRounds,
+        npcRounds,
       },
       sessionId,
       null
@@ -1540,6 +1546,7 @@ async function streamAssistantTurn(
 /**
  * 用户停止生成时，把已流式收到的部分内容持久化为最终消息，
  * 避免中断后内容丢失（停止而非报错：不加 latency/raw 等数据）。
+ * 返回是否真的持久化了一条非空回复（用于轮数统计）。
  */
 async function persistPartialDraft(
   draftId: number,
@@ -1552,7 +1559,9 @@ async function persistPartialDraft(
   promptTokens: number,
   completionTokens: number,
   startTime: number,
-  model: string
+  model: string,
+  countRound: boolean,
+  npc: NpcCharacter | null
 ): Promise<void> {
   const latencyMs = Date.now() - startTime;
   const normalizedContent = trimEdgeNewlines(content);
@@ -1581,8 +1590,14 @@ async function persistPartialDraft(
   });
   await useStore.getState().loadMessages(sessionId);
 
-  // 生涯统计与会话预览仍同步（与正常回合一致）
-  await accumulateStats({ inputTokens: promptTokens, outputTokens: finalTokens, rounds: 0 }, sessionId, null);
+  // 生涯统计与会话预览仍同步（与正常回合一致）；
+  // 用户停止但保留了部分内容 → 仍算 1 轮对话（未停止前产生的内容也计）
+  const { rounds: partialRounds, npcRounds } = assistantRoundDelta(countRound, npc);
+  await accumulateStats(
+    { inputTokens: promptTokens, outputTokens: finalTokens, rounds: partialRounds, npcRounds },
+    sessionId,
+    null
+  );
   const preview = sessionPreviewText(normalizedContent);
   await db.sessions.update(sessionId, {
     updatedAt: Date.now(),
@@ -1592,6 +1607,21 @@ async function persistPartialDraft(
 
 function trimEdgeNewlines(text: string): string {
   return text.replace(/^(?:\r?\n)+|(?:\r?\n)+$/g, '');
+}
+
+/** 当前 assistant 回合产生的「一轮对话」对应到生涯统计的增量 */
+function assistantRoundDelta(
+  round: boolean,
+  npc: NpcCharacter | null
+): { rounds: number; npcRounds?: { npcId: number; npcName: string; rounds: number } } {
+  if (!round) return { rounds: 0 };
+  if (npc) {
+    return {
+      rounds: 1,
+      npcRounds: { npcId: npc.id!, npcName: npc.name, rounds: 1 },
+    };
+  }
+  return { rounds: 1 };
 }
 
 /** 群聊主循环：持续从队列取发言者。
