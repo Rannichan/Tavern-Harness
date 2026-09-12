@@ -1002,6 +1002,98 @@ body.resizing .sidebar-resizer {
   gap: 10px;
   flex-wrap: wrap;
 }
+/* ---------- 与角色继续对话（最近会话列表） ---------- */
+.recent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.recent-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+.recent-item:hover {
+  border-color: color-mix(in srgb, var(--primary) 32%, transparent);
+  background: color-mix(in srgb, var(--primary) 4%, var(--surface));
+  box-shadow: 0 10px 26px color-mix(in srgb, var(--glow) 18%, transparent);
+}
+.recent-item .svc {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+.recent-item .svc.svc-single {
+  padding: 3px;
+}
+.recent-item .svc.svc-single .avatar {
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  box-shadow: none;
+}
+.recent-item .svc .gcollage {
+  padding: 2px;
+}
+.recent-meta {
+  flex: 1;
+  min-width: 0;
+}
+.recent-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.recent-title-text {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.recent-time {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+.recent-preview {
+  font-size: 12px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+.recent-go {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  color: var(--text-faint);
+  background: var(--surface-2);
+  flex-shrink: 0;
+  transition: color 0.18s ease, background 0.18s ease;
+}
+.recent-item:hover .recent-go {
+  color: var(--primary);
+  background: var(--primary-soft);
+}
+
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
