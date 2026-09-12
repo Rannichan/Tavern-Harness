@@ -940,7 +940,30 @@ body.resizing .sidebar-resizer {
   position: relative;
   margin: 0 0 20px;
   color: var(--text-dim);
-  max-width: 620px;
+  max-width: 720px;
+  white-space: pre-line;
+  line-height: 1.7;
+}
+/* 欢迎语中的强调句：衬线 + 琥珀渐变 + 微放大，克制而醒目 */
+.dash-hero-accent {
+  display: block;
+  margin-top: 6px;
+  font-family: var(--font-serif);
+  font-size: 1.22em;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  color: var(--primary);
+  background: linear-gradient(
+    100deg,
+    color-mix(in srgb, var(--primary) 88%, #fff) 0%,
+    var(--primary) 42%,
+    color-mix(in srgb, var(--primary) 70%, #ffd9a8) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: var(--primary);
+  filter: drop-shadow(0 1px 0 color-mix(in srgb, var(--bg) 40%, transparent));
 }
 .dash-hero .actions {
   position: relative;

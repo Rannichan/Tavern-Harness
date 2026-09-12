@@ -39,7 +39,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'nav.characters': '角色工坊',
     'nav.achievements': '成就',
     'nav.settings': '设置',
-    'nav.brandSub': '酒馆 · 本地 AI 助手',
+    'nav.brandSub': '酒馆营业时间 0:00~23:59',
     'nav.sessions': '会话',
     'nav.newChat': '新建',
     'nav.newChatTitle': '新建对话',
@@ -140,7 +140,8 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
 
     // ---- 仪表盘 ----
     'dash.welcome': '欢迎回到酒馆 🫖',
-    'dash.hero': 'Tavern Harness — 本地优先的 AI 助手与角色扮演工作台。支持任意 OpenAI 兼容 API、角色卡（NPC）、世界书、生成式技能、群聊回合制，全部数据存储在你的浏览器中。',
+    'dash.hero': 'Tavern Harness — 更自由、更好玩、更易上手的酒馆！\n支持任意 OpenAI 兼容 API，支持本地模型，全部数据都存储在你的本地；\n支持沙箱技能，接入更多系统权限，解锁更多文本对话无法实现的玩法；\n酒馆已经完成智能体原生装修，有什么想要的，',
+    'dash.heroAccent': '为什么不问问酒馆老板呢~',
     'dash.newChat': '新建对话',
     'dash.goCharacters': '前往角色工坊',
     'dash.continue': '与角色继续对话',
@@ -198,7 +199,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
 
     // ---- 角色工坊 ----
     'workshop.title': '角色工坊',
-    'workshop.sub': '管理 NPC、世界书与技能表，对标 SillyTavern 的角色卡流程',
+    'workshop.sub': '管理 NPC、世界书与技能',
     'workshop.tabCharacters': '👤 角色卡',
     'workshop.tabWorldbooks': '📖 世界书',
     'workshop.tabSkills': '🛠 技能表',
@@ -252,7 +253,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
 
     // ---- 成就 / 统计 ----
     'stats.title': '🏆 成就',
-    'stats.sub': '成就奖杯会陈列在这里；生涯统计为 append-only，删除消息不影响统计',
+    'stats.sub': '你的成就奖杯会陈列在这里',
     'stats.resetBtn': '重置统计',
     'stats.resetConfirm': '确定重置生涯统计？（不会清除已解锁的成就奖杯）',
     'stats.shelfTitle': '🎖️ 奖杯陈列柜',
@@ -416,7 +417,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'nav.characters': '角色工坊',
     'nav.achievements': '成就',
     'nav.settings': '設定',
-    'nav.brandSub': '酒館 · 本地 AI 助手',
+    'nav.brandSub': '酒館營業時間 0:00~23:59',
     'nav.sessions': '會話',
     'nav.newChat': '新增',
     'nav.newChatTitle': '新建對話',
@@ -514,7 +515,8 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'chat.collpMore': '（點擊展開完整內容）',
 
     'dash.welcome': '歡迎回到酒館 🫖',
-    'dash.hero': 'Tavern Harness — 本地優先的 AI 助手與角色扮演工作台。支援任意 OpenAI 相容 API、角色卡（NPC）、世界書、生成式技能、群聊回合制，全部資料儲存在你的瀏覽器中。',
+    'dash.hero': 'Tavern Harness — 更自由、更好玩、更易上手的酒館！\n支援任意 OpenAI 相容 API，支援本地模型，全部資料都儲存在你的本地；\n支援沙箱技能，接入更多系統權限，解鎖更多文字對話無法實現的玩法；\n酒館已經完成智慧體原生裝修，有什麼想要的，',
+    'dash.heroAccent': '為什麼不問問酒館老闆呢~',
     'dash.newChat': '新建對話',
     'dash.goCharacters': '前往角色工坊',
     'dash.continue': '與角色繼續對話',
@@ -570,7 +572,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'settings.save': '儲存',
 
     'workshop.title': '角色工坊',
-    'workshop.sub': '管理 NPC、世界書與技能表，對標 SillyTavern 的角色卡流程',
+    'workshop.sub': '管理 NPC、世界書與技能',
     'workshop.tabCharacters': '👤 角色卡',
     'workshop.tabWorldbooks': '📖 世界書',
     'workshop.tabSkills': '🛠 技能表',
@@ -623,7 +625,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'workshop.skillBadJson': '（JSON 解析失敗）',
 
     'stats.title': '🏆 成就',
-    'stats.sub': '成就獎盃會陳列在這裡；生涯統計為 append-only，刪除訊息不影響統計',
+    'stats.sub': '你的成就獎盃會陳列在這裡',
     'stats.resetBtn': '重置統計',
     'stats.resetConfirm': '確定重置生涯統計？（不會清除已解鎖的成就獎盃）',
     'stats.shelfTitle': '🎖️ 獎盃陳列櫃',
@@ -780,7 +782,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'nav.characters': 'Characters',
     'nav.achievements': 'Achievements',
     'nav.settings': 'Settings',
-    'nav.brandSub': 'Tavern · Local AI Assistant',
+    'nav.brandSub': 'Open daily, 0:00–23:59',
     'nav.sessions': 'Sessions',
     'nav.newChat': 'New',
     'nav.newChatTitle': 'New chat',
@@ -878,7 +880,8 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'chat.collpMore': '(Click to expand full content)',
 
     'dash.welcome': 'Welcome back to the Tavern 🫖',
-    'dash.hero': 'Tavern Harness — a local-first AI assistant and roleplay workbench. Supports any OpenAI-compatible API, character cards (NPCs), Lorebooks, generative skills, and turn-based group chats. All data is stored in your browser.',
+    'dash.hero': 'Tavern Harness — a freer, more fun, easier-to-use tavern!\nSupports any OpenAI-compatible API and local models, with all data staying on your device;\nSandboxed skills unlock more system capabilities and gameplay that plain text chat can\'t achieve;\nThe tavern comes agent-native furnished — want something,',
+    'dash.heroAccent': 'why not ask the tavern keeper~',
     'dash.newChat': 'New conversation',
     'dash.goCharacters': 'Go to Characters',
     'dash.continue': 'Continue character conversations',
@@ -934,7 +937,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'settings.save': 'Save',
 
     'workshop.title': 'Character Workshop',
-    'workshop.sub': 'Manage NPCs, Lorebooks and skills — modeled after SillyTavern\'s character card workflow',
+    'workshop.sub': 'Manage NPCs, Lorebooks and skills',
     'workshop.tabCharacters': '👤 Characters',
     'workshop.tabWorldbooks': '📖 Lorebooks',
     'workshop.tabSkills': '🛠 Skills',
@@ -987,7 +990,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'workshop.skillBadJson': '(Failed to parse JSON)',
 
     'stats.title': '🏆 Achievements',
-    'stats.sub': 'Your achievement trophies are displayed here; career stats are append-only, so deleting messages won\'t affect them',
+    'stats.sub': 'Your achievement trophies are displayed here',
     'stats.resetBtn': 'Reset stats',
     'stats.resetConfirm': 'Reset career stats? (Unlocked trophies won\'t be cleared)',
     'stats.shelfTitle': '🎖️ Trophy Shelf',

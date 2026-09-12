@@ -41,6 +41,7 @@ export function Dashboard() {
           <h1>{t('dash.welcome')}</h1>
           <p>
             {t('dash.hero')}
+            <span className="dash-hero-accent">{t('dash.heroAccent')}</span>
           </p>
           <div className="actions">
             <button className="btn btn-primary" onClick={() => setShowNew(true)}>
