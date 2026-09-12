@@ -11,6 +11,13 @@ import { useT } from '../core/i18n';
 const SIDEBAR_MIN = 240;
 const SIDEBAR_MAX = 520;
 
+/** 触发 App 级全局玩法导出弹窗（会话右键菜单共用） */
+function openGlobalGameplayExport(sessionId: number, includeHistory: boolean) {
+  window.dispatchEvent(
+    new CustomEvent('th-gameplay-export', { detail: { sessionId, includeHistory } })
+  );
+}
+
 export function Sidebar() {
   const sessions = useStore((s) => s.sessions);
   const npcs = useStore((s) => s.npcs);
@@ -212,9 +219,18 @@ export function Sidebar() {
         {/* 会话列表头部：标题 + 新建按钮（固定不滚动） */}
         <div className="session-list-head">
           <span className="section-title" style={{ margin: 0 }}>{t('nav.sessions')}</span>
-          <button className="session-new-btn" onClick={() => setShowNew(true)} title={t('nav.newChatTitle')}>
-            <Icon name="plus" size={13} /> {t('nav.newChat')}
-          </button>
+          <div className="session-head-actions">
+            <button
+              className="session-new-btn"
+              onClick={() => window.dispatchEvent(new CustomEvent('th-gameplay-import'))}
+              title={t('nav.importGameplayTitle')}
+            >
+              <Icon name="upload" size={13} /> {t('nav.importGameplay')}
+            </button>
+            <button className="session-new-btn" onClick={() => setShowNew(true)} title={t('nav.newChatTitle')}>
+              <Icon name="plus" size={13} /> {t('nav.newChat')}
+            </button>
+          </div>
         </div>
         {/* 可滚动的会话列表 */}
         <div className="session-list">
@@ -308,6 +324,16 @@ export function Sidebar() {
                 }}
               >
                 <Icon name="pin" size={13} /> {(sessionMenu.session as { pinned?: unknown }).pinned ? t('nav.unpinSession') : t('nav.pinSession')}
+              </button>
+              <button
+                className="msg-menu-item"
+                onClick={() => {
+                  const target = sessionMenu.session;
+                  setSessionMenu(null);
+                  openGlobalGameplayExport(target.id!, true);
+                }}
+              >
+                <Icon name="share" size={13} /> {t('nav.exportGameplay')}
               </button>
               <button
                 className="msg-menu-item danger"

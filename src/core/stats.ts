@@ -1,6 +1,5 @@
 import { db } from '../db/database';
 import type { ChatMessage } from '../types/models';
-import { saveJsonFile, type SaveResult } from './fileDownload';
 import { checkAchievementUnlocks } from './achievements';
 
 // ============================================================
@@ -70,25 +69,6 @@ export function stripThinking(content: string): string {
 export function sessionPreviewText(content: string, maxLength = 60): string {
   const stripped = stripThinking(content).replace(/\s+/g, ' ').trim();
   return stripped.length > maxLength ? stripped.slice(0, maxLength) + '…' : stripped;
-}
-
-/** 另存会话为 JSON 文件（弹出保存对话框，支持选择位置与文件名） */
-export async function exportSessionJson(sessionId: number, suggestedName?: string): Promise<SaveResult> {
-  const session = await db.sessions.get(sessionId);
-  if (!session) throw new Error('会话不存在');
-  const messages = await db.messages.where('sessionId').equals(sessionId).sortBy('timestamp');
-  const mapped = messages.map((m) => ({
-    role: m.role,
-    content: m.content,
-  }));
-  const payload = {
-    sessionId,
-    sessionTitle: session.title,
-    mode: session.mode,
-    exportedAt: Date.now(),
-    messages: mapped,
-  };
-  return saveJsonFile(payload, suggestedName ?? `session-${sessionId}-${Date.now()}.json`);
 }
 
 // ============================================================

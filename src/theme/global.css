@@ -514,6 +514,12 @@ body.resizing .sidebar-resizer {
   background: var(--surface-2);
   color: var(--primary);
 }
+/* 会话列表头部的按钮组（导入 + 新建） */
+.session-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
 
 /* ---------- 侧边栏底部搜索框 ---------- */
 .sidebar-search {

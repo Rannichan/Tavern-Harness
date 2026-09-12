@@ -685,6 +685,32 @@
   color: var(--danger);
 }
 
+/* ---------- 玩法导出/导入弹窗 ---------- */
+.gameplay-summary {
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--text-dim);
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.gameplay-file-btn {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+  color: var(--text);
+  background: var(--surface);
+  font-weight: 700;
+  min-height: 44px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gameplay-file-btn:hover {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 7%, transparent);
+}
+
 /* ---------- 创建对话：角色槽位 ---------- */
 .npc-slot {
   position: relative;

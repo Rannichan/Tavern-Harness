@@ -10,6 +10,7 @@ import { NewSessionMenu } from './components/NewSessionMenu';
 import { ConfirmationDialog } from './components/ConfirmationDialog';
 import { Toasts } from './components/Toasts';
 import { AchievementModal } from './components/AchievementModal';
+import { GameplayExportModal, GameplayImportModal } from './components/GameplayDialogs';
 import { Icon, SessionVisual, Modal } from './components/shared';
 import type { NpcCharacter } from './types/models';
 import { useT } from './core/i18n';
@@ -82,6 +83,44 @@ export default function App() {
       <MessageMenu />
       <Toasts />
       <AchievementModal />
+      {/* 玩法导出 / 导入的全局入口（会话右键菜单 / 侧边栏导入按钮共用） */}
+      <GameplayEntryDialogs />
+    </>
+  );
+}
+
+/** 全局注册的玩法导出/导入弹窗（供 Sidebar 与 SessionHeader 之外的入口使用） */
+function GameplayEntryDialogs() {
+  const [exportTarget, setExportTarget] = useState<{ sessionId: number; includeHistory: boolean } | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+
+  useEffect(() => {
+    const onExport = (e: CustomEvent<{ sessionId: number; includeHistory: boolean }>) => {
+      setImportOpen(false);
+      setExportTarget(e.detail);
+    };
+    const onImport = (e: CustomEvent) => {
+      setExportTarget(null);
+      setImportOpen(true);
+    };
+    window.addEventListener('th-gameplay-export', onExport as EventListener);
+    window.addEventListener('th-gameplay-import', onImport as EventListener);
+    return () => {
+      window.removeEventListener('th-gameplay-export', onExport as EventListener);
+      window.removeEventListener('th-gameplay-import', onImport as EventListener);
+    };
+  }, []);
+
+  return (
+    <>
+      {exportTarget && (
+        <GameplayExportModal
+          sessionId={exportTarget.sessionId}
+          defaultIncludeHistory={exportTarget.includeHistory}
+          onClose={() => setExportTarget(null)}
+        />
+      )}
+      {importOpen && <GameplayImportModal onClose={() => setImportOpen(false)} />}
     </>
   );
 }
@@ -101,6 +140,7 @@ function SessionHeader({
   const [showEdit, setShowEdit] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
 
   const modeLabel = session.mode === 'STANDARD' ? t('header.modeStandard') : session.mode === 'NPC' ? t('header.modeNpc') : t('header.modeGroup');
   const npcRef = session.associatedId ? npcs.find((n) => n.id === session.associatedId) : null;
@@ -110,21 +150,6 @@ function SessionHeader({
     colorOrdinal: n.avatarColorOrdinal,
     imageUrl: n.avatarDataUrl,
   }));
-
-  const share = async () => {
-    const { exportSessionJson } = await import('./core/stats');
-    try {
-      const safe = session.title.replace(/[\\/:*?"<>|\s]+/g, '_').slice(0, 40) || 'session';
-      const result = await exportSessionJson(session.id!, `${safe}-${Date.now()}.json`);
-      if (result === 'canceled') {
-        addToast(t('toast.exportCanceled'));
-      } else {
-        addToast(t('toast.exported'));
-      }
-    } catch (e) {
-      addToast(t('toast.exportFailed', { msg: (e as Error).message }), 'error');
-    }
-  };
 
   return (
     <div className="chat-header">
@@ -147,7 +172,7 @@ function SessionHeader({
         <button className="btn-ghost icon-tooltip" title={t('header.resetSessionTip')} onClick={() => setConfirmReset(true)}>
           <Icon name="refresh" size={17} />
         </button>
-        <button className="btn-ghost icon-tooltip" title={t('header.shareTip')} onClick={share}>
+        <button className="btn-ghost icon-tooltip" title={t('header.exportGameplayTip')} onClick={() => setExportOpen(true)}>
           <Icon name="share" size={17} />
         </button>
         <button className="btn-ghost icon-tooltip danger" title={t('header.deleteTip')} onClick={() => setConfirmDelete(true)}>
@@ -156,6 +181,14 @@ function SessionHeader({
       </div>
 
       {showEdit && <NewSessionMenu editingSession={session} onClose={() => setShowEdit(false)} />}
+
+      {exportOpen && (
+        <GameplayExportModal
+          sessionId={session.id!}
+          defaultIncludeHistory={true}
+          onClose={() => setExportOpen(false)}
+        />
+      )}
 
       {confirmReset && (
         <Modal onClose={() => setConfirmReset(false)} width="min(400px, calc(100vw - 32px))">
