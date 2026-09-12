@@ -155,6 +155,14 @@ let initLock: Promise<void> | null = null;
 /** 用户主动停止生成时置位，用于中断群聊循环 */
 let groupLoopStopped = false;
 
+/** 会话排序：置顶在前、其余在后，组内按 updatedAt 倒序（最新在前） */
+function sortSessionsPinnedFirst(sessions: ChatSession[]): ChatSession[] {
+  const sorted = [...sessions].sort((a, b) => b.updatedAt - a.updatedAt);
+  const pinned = sorted.filter((s) => (s as { pinned?: unknown }).pinned);
+  const rest = sorted.filter((s) => !(s as { pinned?: unknown }).pinned);
+  return [...pinned, ...rest];
+}
+
 /** 单回合生成结果：ok 成功 / failed 失败（应回退） / stopped 用户主动停止（不回退） */
 type TurnResult = 'ok' | 'failed' | 'stopped';
 
@@ -191,7 +199,7 @@ export const useStore = create<AppState>((set, get) => ({
       // 内置角色「酒馆老板」按当前语言本地化（未编辑过的字段才会更新）
       await localizeBuiltinNpc();
       const npcs = await db.npcs.toArray();
-      const sessions = await db.sessions.orderBy('updatedAt').reverse().toArray();
+      const sessions = sortSessionsPinnedFirst(await db.sessions.toArray());
       const worldBooks = await db.worldBooks.toArray();
       const tools = await db.tools.toArray();
       set({ initialized: true, settings, npcs, sessions, worldBooks, tools });
@@ -245,10 +253,7 @@ export const useStore = create<AppState>((set, get) => ({
 
   refreshSessions: async () => {
     // 置顶会话排最前（各自按 updatedAt 倒序），其次为普通会话（同样按 updatedAt 倒序）
-    const sessions = await db.sessions.orderBy('updatedAt').reverse().toArray();
-    const pinned = sessions.filter((s) => (s as { pinned?: unknown }).pinned);
-    const rest = sessions.filter((s) => !(s as { pinned?: unknown }).pinned);
-    set({ sessions: [...pinned, ...rest] });
+    set({ sessions: sortSessionsPinnedFirst(await db.sessions.toArray()) });
   },
 
   refreshNpcs: async () => {

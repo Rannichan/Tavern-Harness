@@ -101,6 +101,10 @@ select {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  /* grid 子项默认 min-height:auto：内容（会话列表）再多也不会收缩，
+     会把整个侧边栏撑高、把底部搜索框挤出屏幕；必须显式允许收缩 */
+  min-height: 0;
+  overflow: hidden;
   border-right: 1px solid var(--border);
   background: color-mix(in srgb, var(--surface) 55%, transparent);
   backdrop-filter: blur(18px);
@@ -245,6 +249,9 @@ body.resizing .sidebar-resizer {
 
 .session-list {
   flex: 1;
+  /* flex 子项默认 min-height:auto，内容再多也不会收缩，
+     导致列表整体撑高、把搜索框挤出屏幕而自身不出现滚动条 */
+  min-height: 0;
   overflow-y: auto;
   padding: 6px 14px 16px;
   display: flex;
@@ -466,18 +473,26 @@ body.resizing .sidebar-resizer {
   margin-left: auto;
 }
 
+/* ---------- 会话区域（头部 + 滚动列表） ---------- */
+.session-section {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 /* ---------- 会话列表头部（标题 + 新建按钮） ---------- */
 .session-list-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 2px 6px 8px;
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  /* 透明背景，仅保留下方细分隔线，与侧边栏融为一体 */
-  background: transparent;
+  /* 左边与列表项头像对齐：session-list padding-left 14 + session-item padding-left 10 */
+  /* 右边与列表项右边缘对齐：session-list padding-right 14 + session-item padding-right 10 */
+  padding: 4px 24px 8px 24px;
+  /* 与侧边栏同色背景，彻底挡住下方滚动的列表项 */
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+  backdrop-filter: blur(18px);
   border-bottom: 1px solid var(--border-soft);
 }
 /* 新建按钮：粗体文字 + 加号，不高亮 */

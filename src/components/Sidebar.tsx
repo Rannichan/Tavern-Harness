@@ -208,14 +208,16 @@ export function Sidebar() {
         </div>
       </div>
 
-      <div className="session-list">
-        {/* 会话列表头部：标题 + 新建对话按钮 */}
+<div className="session-section">
+        {/* 会话列表头部：标题 + 新建按钮（固定不滚动） */}
         <div className="session-list-head">
           <span className="section-title" style={{ margin: 0 }}>{t('nav.sessions')}</span>
           <button className="session-new-btn" onClick={() => setShowNew(true)} title={t('nav.newChatTitle')}>
             <Icon name="plus" size={13} /> {t('nav.newChat')}
           </button>
         </div>
+        {/* 可滚动的会话列表 */}
+        <div className="session-list">
         {visibleSessions.map((s) => {
           const npc = npcById(s.associatedId);
           return (
@@ -257,6 +259,7 @@ export function Sidebar() {
             <span>{t('nav.noMatch')}</span>
           </div>
         )}
+      </div>
       </div>
 
       {/* 底部：搜索框 */}
