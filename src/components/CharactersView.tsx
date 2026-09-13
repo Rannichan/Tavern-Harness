@@ -512,6 +512,11 @@ function WorldBookForm({ initial, onSave, onCancel }: { initial: WorldBook | { n
 
 // ---------------- 技能表 ----------------
 
+/** 技能来源排序：内置 → 自定义 → 导入（组内保持 DB 顺序） */
+function toolOrigin(t: McpTool): 'builtin' | 'custom' | 'imported' {
+  return t.origin ?? (t.isBuiltIn ? 'builtin' : 'custom');
+}
+
 function SkillList({ onChanged }: { onChanged: () => void }) {
   const tools = useStore((s) => s.tools);
   const addToast = useStore((s) => s.addToast);
@@ -530,43 +535,58 @@ function SkillList({ onChanged }: { onChanged: () => void }) {
     addToast(t('toast.skillDeleted'));
   };
 
-  return (
-    <div>
-      <span className="group-label">{t('workshop.skillCount', { n: tools.length })}</span>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {tools.map((tt) => {
-          let desc = '';
-          try {
-            desc = (JSON.parse(tt.jsonContent) as { function?: { description?: string } }).function?.description ?? '';
-          } catch { /* ignore */ }
-          let impl = 'native';
-          if (tt.executionJson) {
-            try {
-              impl = (JSON.parse(tt.executionJson) as { type?: string }).type ?? 'invalid';
-            } catch { impl = 'invalid'; }
-          }
-          return (
-            <div key={tt.id} className="list-item">
-              <div style={{ fontSize: 18 }}>{tt.isBuiltIn ? '🧰' : '⚙️'}</div>
-              <div className="l-main">
-                <div className="l-title">
-                  {tt.name}
-                  {tt.isBuiltIn && <span className="tag" style={{ marginLeft: 8 }}>{t('common.builtin')}</span>}
-                </div>
-                <div className="l-sub">{desc}</div>
-                {impl !== 'native' && <div style={{ fontSize: 10.5, marginTop: 2, color: 'var(--warn)' }}>{t('workshop.implType', { t: impl })}</div>}
-              </div>
-              <button className="btn btn-sm" onClick={() => setDetail(tt)} title={t('workshop.viewDetails')}>
-                <Icon name="file" size={12} /> {t('workshop.viewDetails')}
-              </button>
-              <button className="btn btn-sm btn-danger" onClick={() => setPendingDelete(tt)} disabled={tt.isBuiltIn}>
-                <Icon name="trash" size={12} />
-              </button>
-            </div>
-          );
-        })}
-        {tools.length === 0 && <div className="empty-state"><div className="big">🛠</div>{t('workshop.noSkills')}</div>}
+  const renderRow = (tt: McpTool) => {
+    let desc = '';
+    try {
+      desc = (JSON.parse(tt.jsonContent) as { function?: { description?: string } }).function?.description ?? '';
+    } catch { /* ignore */ }
+    let impl = 'native';
+    if (tt.executionJson) {
+      try {
+        impl = (JSON.parse(tt.executionJson) as { type?: string }).type ?? 'invalid';
+      } catch { impl = 'invalid'; }
+    }
+    return (
+      <div key={tt.id} className="list-item">
+        <div style={{ fontSize: 18 }}>{tt.isBuiltIn ? '🧰' : '⚙️'}</div>
+        <div className="l-main">
+          <div className="l-title">
+            {tt.name}
+            {tt.isBuiltIn && <span className="tag" style={{ marginLeft: 8 }}>{t('common.builtin')}</span>}
+          </div>
+          <div className="l-sub">{desc}</div>
+          {impl !== 'native' && <div style={{ fontSize: 10.5, marginTop: 2, color: 'var(--warn)' }}>{t('workshop.implType', { t: impl })}</div>}
+        </div>
+        <button className="btn btn-sm" onClick={() => setDetail(tt)} title={t('workshop.viewDetails')}>
+          <Icon name="file" size={12} /> {t('workshop.viewDetails')}
+        </button>
+        <button className="btn btn-sm btn-danger" onClick={() => setPendingDelete(tt)} disabled={tt.isBuiltIn}>
+          <Icon name="trash" size={12} />
+        </button>
       </div>
+    );
+  };
+
+  // 顺序：自定义 → 导入 → 内置（自上而下）
+  const groups: { key: 'builtin' | 'custom' | 'imported'; labelKey: string; items: McpTool[] }[] = [
+    { key: 'custom', labelKey: 'workshop.skillGroupCustom', items: [] },
+    { key: 'imported', labelKey: 'workshop.skillGroupImported', items: [] },
+    { key: 'builtin', labelKey: 'workshop.skillGroupBuiltin', items: [] },
+  ];
+  for (const tt of tools) {
+    const g = groups.find((g) => g.key === toolOrigin(tt));
+    if (!g) continue;
+    g.items.push(tt);
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {groups.map((g) => (
+        <div key={g.key} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <span className="group-label">{t(g.labelKey, { n: g.items.length })}</span>
+          {g.items.map(renderRow)}
+        </div>
+      ))}
       {detail && <SkillDetailModal tool={detail} onClose={() => setDetail(null)} />}
       {pendingDelete && (
         <DeleteConfirmDialog

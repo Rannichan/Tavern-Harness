@@ -292,6 +292,7 @@ export async function importGameplay(payload: unknown): Promise<ImportGameplayRe
       jsonContent: tool.jsonContent,
       executionJson: tool.executionJson ?? null,
       isBuiltIn: false,
+      origin: 'imported',
       createdAt: Date.now(),
       displayOrder: (await db.tools.count()) + 1,
     });

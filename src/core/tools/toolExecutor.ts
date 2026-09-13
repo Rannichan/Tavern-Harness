@@ -389,6 +389,7 @@ async function createSkillTool(name: string, description: string, parameters: Re
     jsonContent: JSON.stringify(tool),
     executionJson: execution ? JSON.stringify(execution) : null,
     isBuiltIn: false,
+    origin: 'custom',
     createdAt: Date.now(),
     displayOrder: (await db.tools.count()) + 1,
   };

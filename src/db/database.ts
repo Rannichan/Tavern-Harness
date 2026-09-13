@@ -150,6 +150,8 @@ export async function initDatabase(): Promise<void> {
   await seedBuiltinTools();
   // 旧数据兼容：enabledToolNames 可能是 CSV 字符串
   await migrateLegacyFields();
+  // 补全技能 origin 字段（旧记录：内置 → builtin，其余 → custom）
+  await backfillToolOrigins();
   // 内置角色「酒馆老板」默认启用所有内置技能（老数据升级）
   await ensureBossDefaultSkills();
   // v2 升级：把存量会话的 pinned 归一化为 0/1
@@ -244,6 +246,7 @@ export async function seedBuiltinTools(): Promise<void> {
       jsonContent: JSON.stringify(tool),
       executionJson: null,
       isBuiltIn: true,
+      origin: 'builtin',
       createdAt: now,
       displayOrder: await db.tools.count(),
     });
@@ -276,5 +279,17 @@ async function migrateLegacyFields(): Promise<void> {
         enabledToolNames: String(v.enabledToolNames).split(',').filter(Boolean),
       });
     }
+  }
+}
+
+/**
+ * 补全历史技能的 origin 字段（origin 加入前创建的工具没有该字段）：
+ * 内置技能 → 'builtin'；其余旧工具无法追溯来源，一律归为 'custom'。
+ */
+async function backfillToolOrigins(): Promise<void> {
+  const tools = await db.tools.toArray();
+  for (const t of tools) {
+    if (t.origin) continue;
+    await db.tools.update(t.id!, { origin: t.isBuiltIn ? 'builtin' : 'custom' });
   }
 }

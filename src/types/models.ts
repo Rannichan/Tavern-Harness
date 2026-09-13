@@ -164,6 +164,8 @@ export interface McpTool {
   jsonContent: string; // 标准 OpenAI tool JSON
   executionJson: string | null; // 生成式技能的声明式实现
   isBuiltIn: boolean;
+  /** 来源：builtin 内置（读写受保护）/ custom 自定义（create_skill 创建）/ imported 导入（玩法导入） */
+  origin?: 'builtin' | 'custom' | 'imported';
   createdAt: number;
   displayOrder: number;
 }

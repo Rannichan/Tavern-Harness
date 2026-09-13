@@ -359,7 +359,6 @@ function ProviderForm({ initial, onSave }: { initial: ApiProvider; onSave: (p: A
   const [name, setName] = useState(initial.name);
   const [baseUrl, setBaseUrl] = useState(initial.baseUrl);
   const [apiKey, setApiKey] = useState(initial.apiKey);
-  const [isEnabled, setIsEnabled] = useState(initial.isEnabled);
 
   return (
     <>
@@ -376,10 +375,6 @@ function ProviderForm({ initial, onSave }: { initial: ApiProvider; onSave: (p: A
           <label>{t('settings.apiKey')}</label>
           <input className="input mono" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder={t('settings.apiKeyPh')} />
         </div>
-        <label className="check">
-          <input type="checkbox" checked={isEnabled} onChange={(e) => setIsEnabled(e.target.checked)} />
-          {t('settings.enableProvider')}
-        </label>
         <div style={{ fontSize: 11.5, color: 'var(--text-faint)', lineHeight: 1.6 }}>
           {t('settings.corsTip')}
           <span className="mono" style={{ color: 'var(--text-dim)' }}>{t('settings.corsTipPath')}</span>
@@ -388,7 +383,7 @@ function ProviderForm({ initial, onSave }: { initial: ApiProvider; onSave: (p: A
       </div>
       <div className="modal-foot">
         <button className="btn" onClick={() => {}} style={{ visibility: 'hidden' }}>{t('common.cancel')}</button>
-        <button className="btn btn-primary" disabled={!name.trim() || !baseUrl.trim()} onClick={() => onSave({ ...initial, name: name.trim(), baseUrl: baseUrl.trim(), apiKey, isEnabled })}>{t('common.save')}</button>
+        <button className="btn btn-primary" disabled={!name.trim() || !baseUrl.trim()} onClick={() => onSave({ ...initial, name: name.trim(), baseUrl: baseUrl.trim(), apiKey })}>{t('common.save')}</button>
       </div>
     </>
   );
