@@ -8,6 +8,7 @@ import { StatsView } from './components/StatsView';
 import { Dashboard } from './components/Dashboard';
 import { NewSessionMenu } from './components/NewSessionMenu';
 import { ConfirmationDialog } from './components/ConfirmationDialog';
+import { FileDisplayModal } from './components/FileDisplayModal';
 import { Toasts } from './components/Toasts';
 import { AchievementModal } from './components/AchievementModal';
 import { GameplayExportModal, GameplayImportModal } from './components/GameplayDialogs';
@@ -83,6 +84,7 @@ export default function App() {
       <MessageMenu />
       <Toasts />
       <AchievementModal />
+      <FileDisplayModal />
       {/* 游戏导出 / 导入的全局入口（会话右键菜单 / 侧边栏导入按钮共用） */}
       <GameplayEntryDialogs />
     </>

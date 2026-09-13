@@ -977,3 +977,152 @@
   color: var(--text-faint);
   font-size: 13px;
 }
+/* ---------- 文件展示弹窗（display_file） ---------- */
+.display-modal {
+  width: min(880px, calc(100vw - 32px));
+  height: min(82dvh, 720px);
+}
+.display-modal-head {
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.display-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-weight: 800;
+  font-size: 13.5px;
+}
+.display-title-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.display-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+.display-zoom-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  border-radius: 9px;
+  padding: 2px;
+}
+.display-zoom-group .icon-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+}
+.display-modal-body {
+  flex: 1;
+  min-height: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.display-loading,
+.display-error {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  gap: 10px;
+  color: var(--text-dim);
+  font-size: 13px;
+  flex-direction: column;
+}
+.display-error {
+  color: var(--danger);
+}
+
+/* 图片 */
+.display-image-viewport {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--border) 55%, transparent) 1px, transparent 0) 0 0 / 22px 22px,
+    var(--surface-2);
+  user-select: none;
+  touch-action: none;
+}
+.display-image {
+  max-width: none;
+  max-height: none;
+  object-fit: contain;
+  transition: transform 0.12s ease-out;
+  will-change: transform;
+}
+
+/* HTML 沙箱 */
+.display-html-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.display-iframe {
+  flex: 1;
+  width: 100%;
+  border: none;
+  background: #fff;
+  border-radius: 0 0 14px 14px;
+}
+.display-html-note {
+  padding: 7px 14px;
+  font-size: 11.5px;
+  color: var(--text-faint);
+  border-top: 1px solid var(--border-soft);
+}
+
+/* 文本 / 代码 / 纯文本 */
+.display-md-scroll,
+.display-code-scroll,
+.display-plain-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.display-md-scroll .md {
+  padding: 16px 20px;
+}
+.display-code,
+.display-plain {
+  margin: 0;
+  padding: 14px 16px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  white-space: pre;
+  overflow-x: auto;
+  min-height: 100%;
+  background: var(--code-bg);
+}
+.display-code code {
+  font-family: inherit;
+  font-size: inherit;
+  background: none;
+  padding: 0;
+  color: var(--text);
+}
+
+/* 工具结果「查看」按钮 */
+.display-view-btn {
+  margin-top: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.tool-card-result-line .display-view-btn {
+  margin-top: 0;
+  margin-left: 8px;
+}
+.tool-card-body .display-view-btn {
+  margin-top: 8px;
+}

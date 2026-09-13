@@ -4,6 +4,7 @@ import {
   getWorkspaceFile,
   listWorkspaceFiles,
   sanitizeRelativePath,
+  readFileContent,
 } from './generatedWorkspace';
 import { translate } from '../i18n';
 
@@ -346,19 +347,38 @@ async function diskFileList(): Promise<string[] | null> {
 }
 
 // ---------- file_read ----------
+/**
+ * 读取工作区文件文本。
+ * 磁盘沙箱可用时优先读 sandbox_workspace/；磁盘模式读不到（文件写在
+ * 虚拟工作区 / 模式切换过）时回退虚拟工作区。两处都无 → null。
+ * 供 file_read 技能、display_file 展示以及弹窗回看共用。
+ */
+export async function readWorkspaceFileText(path: string): Promise<string | null> {
+  const safe = sanitizeRelativePath(path);
+  const onDisk = await resolveFsMode();
+  if (onDisk) {
+    const text = await diskFileRead(safe);
+    if (text !== null) return text;
+    // 磁盘上不存在（可能写到虚拟工作区）→ 回退虚拟工作区
+    try {
+      return await readFileContent(safe);
+    } catch {
+      return null;
+    }
+  }
+  try {
+    return await readFileContent(safe);
+  } catch {
+    return null;
+  }
+}
+
 async function execFileRead(execution: GeneratedSkillExecution, args: Record<string, unknown>): Promise<string> {
   try {
     const path = sanitizeRelativePath(interpolate(execution.path ?? '', args));
-    const onDisk = await resolveFsMode();
-    if (onDisk) {
-      const text = await diskFileRead(path);
-      if (text !== null) return truncate(text);
-      // 磁盘服务可用但文件不存在 → 明确报错
-      return `ERROR: 文件不存在: ${path}`;
-    }
-    const f = await getWorkspaceFile(path);
-    if (!f) return `ERROR: 文件不存在: ${path}`;
-    return truncate(f.content);
+    const text = await readWorkspaceFileText(path);
+    if (text === null) return `ERROR: 文件不存在: ${path}`;
+    return truncate(text);
   } catch (e) {
     return `ERROR: ${(e as Error).message}`;
   }

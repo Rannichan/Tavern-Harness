@@ -8,7 +8,8 @@ import type {
 } from '../../types/models';
 import { BUILTIN_TOOLS, BUILTIN_TOOL_NAMES } from '../toolDefinitions';
 import { rollDice, webSearch } from './builtinTools';
-import { executeGeneratedSkill } from './generatedSkillExecutor';
+import { executeGeneratedSkill, readWorkspaceFileText } from './generatedSkillExecutor';
+import { sanitizeRelativePath } from './generatedWorkspace';
 import { uuid } from '../turnLoop';
 import { translate } from '../i18n';
 
@@ -94,11 +95,20 @@ async function runNativeTool(
       if (!expr) return 'ERROR: 缺少 expression';
       return rollDice(expr);
     }
+    case 'file_read':
+      return await handleFileRead(args);
+    case 'file_write':
+      return await handleFileWrite(args);
+    case 'run_shell_script':
+      return await handleRunShellScript(args, ctx);
     case 'manage_timer':
       return await handleManageTimer(args, ctx);
 
     case 'get_tavern_status':
       return await handleGetTavernStatus(args);
+
+    case 'display_file':
+      return await handleDisplayFile(args);
 
     case 'create_skill':
       return await handleCreateSkill(args);
@@ -280,6 +290,7 @@ export function scheduleTask(id: string, triggerAtMillis: number): void {
       modelUsed: `scheduled:${task.id}`,
       attachments: [],
       attachmentInfos: [],
+      displayRef: null,
       rawRequestBody: null,
       rawResponseBody: null,
     });
@@ -365,6 +376,80 @@ async function handleGetTavernStatus(args: Record<string, unknown>): Promise<str
     };
   }
   return JSON.stringify(out, null, 2);
+}
+
+// ---------- display_file（弹窗展示工作区文件，只读） ----------
+
+/**
+ * 结果中携带的展示引用标记前缀。store 在落库工具结果时会解析它，
+ * 把 JSON 部分写入消息的 displayRef 字段，并自动打开展示弹窗。
+ * 对模型返回的仍是可读文本（不暴露内部标记）。
+ */
+export const DISPLAY_REF_PREFIX = 'DISPLAY_REF: ';
+
+export interface DisplayPayload {
+  path: string;
+  kind: 'text' | 'image' | 'html';
+  title?: string;
+}
+
+/** 解析工具结果中的展示引用（无标记返回 null） */
+export function parseDisplayRef(result: string): DisplayPayload | null {
+  if (!result.startsWith(DISPLAY_REF_PREFIX)) return null;
+  // DISPLAY_REF 是结果的第一行，JSON 后可能还有换行和摘要文本
+  const firstLine = result.slice(DISPLAY_REF_PREFIX.length).split('\n')[0]!;
+  try {
+    const obj = JSON.parse(firstLine) as DisplayPayload;
+    if (!obj || typeof obj.path !== 'string' || !['text', 'image', 'html'].includes(obj.kind)) return null;
+    return { path: obj.path, kind: obj.kind, title: typeof obj.title === 'string' ? obj.title : undefined };
+  } catch {
+    return null;
+  }
+}
+
+/** 读取工作区文件（磁盘沙箱 + 虚拟工作区双模式）并生成展示结果 */
+async function handleDisplayFile(args: Record<string, unknown>): Promise<string> {
+  const rawPath = sanitizeRelativePath(String(args.path ?? ''));
+  const title = typeof args.title === 'string' && args.title.trim() ? args.title.trim() : undefined;
+
+  // 从文件后缀推断展示方式
+  const ext = /\.([A-Za-z0-9]+)$/.exec(rawPath);
+  const extLower = ext ? ext[1].toLowerCase() : '';
+  const kind: DisplayPayload['kind'] =
+    /^(html?)$/i.test(extLower) ? 'html' :
+    /^(png|jpe?g|gif|webp|svg|bmp|ico)$/i.test(extLower) ? 'image' :
+    'text';
+
+  const content = await readWorkspaceFileText(rawPath);
+  if (content === null) {
+    return `ERROR: 文件不存在: ${rawPath}`;
+  }
+  const payload: DisplayPayload = { path: rawPath, kind, title };
+  const preview =
+    kind === 'image'
+      ? `（图片，${content.length} 字符）`
+      : content.replace(/\s+/g, ' ').trim().slice(0, 200) || '（空文件）';
+  // 第一行携带展示引用（store 解析并写入 displayRef / 自动弹窗），随后是可读摘要供模型理解
+  return `${DISPLAY_REF_PREFIX}${JSON.stringify(payload)}\nOK: 已在弹窗中展示 ${rawPath}（kind=${kind}）\n内容预览: ${preview}`;
+}
+
+// ---------- file_read / file_write / run_shell_script（内置技能，复用生成式执行引擎的沙箱能力） ----------
+
+async function handleFileRead(args: Record<string, unknown>): Promise<string> {
+  const path = sanitizeRelativePath(String(args.path ?? ''));
+  const content = await readWorkspaceFileText(path);
+  if (content === null) {
+    return `ERROR: 文件不存在: ${path}`;
+  }
+  return content.length > 20_000 ? content.slice(0, 20_000) + '…(已截断)' : content;
+}
+
+async function handleFileWrite(args: Record<string, unknown>): Promise<string> {
+  return executeGeneratedSkill({ type: 'file_write', path: String(args.path ?? ''), content: String(args.content ?? ''), append: args.append === true }, args);
+}
+
+async function handleRunShellScript(args: Record<string, unknown>, ctx: ToolExecutionContext): Promise<string> {
+  return executeGeneratedSkill({ type: 'shell', script: String(args.script ?? '') }, args, ctx.requestConfirmation);
 }
 
 // ---------- 技能 CRUD ----------

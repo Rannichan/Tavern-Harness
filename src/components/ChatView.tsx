@@ -19,6 +19,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { useStore } from '../store/store';
 import type { ChatMessage, ChatParticipant, ChatSession, ToolCallRecord } from '../types/models';
 import { Avatar, Icon, Markdown, Collapse, Modal, AttachCard } from './shared';
+import { FileDisplayViewButton, parseStoredDisplayRef } from './FileDisplayModal';
 import { formatMetrics } from '../core/stats';
 import { saveTextFile } from '../core/fileDownload';
 import { effectiveDisplayQueue, initializeTurnQueue, speakerLabel, suggestMagicCommands } from '../core/turnLoop';
@@ -230,13 +231,20 @@ function MessageBubble({
     // 该结果已并入发起它的工具调用卡片内部 → 不再独立渲染
     if (msg.toolCallId && suppressedResultIds.has(msg.toolCallId)) return null;
     const isError = msg.content.startsWith('ERROR:') || msg.content.startsWith('CANCELLED:');
+    // 展示类工具：结果里带有 DISPLAY_REF 前缀，收起前缀展示干净的摘要
+    const displayPayload = msg.displayRef ? parseStoredDisplayRef(msg.displayRef) : null;
+    const displayContent = displayPayload
+      ? (msg.content.replace(/^DISPLAY_REF: [^\n]*\n?/, '').replace(/^OK: 已在弹窗中展示 [^\n]*\n?/, '') || t('display.view'))
+      : msg.content;
     return (
       <div className="msg-row tool-row fade-up" data-loop={loopIndex ?? undefined} data-speaker={msg.speakerParticipantId != null ? String(msg.speakerParticipantId) : undefined}>
         <div className="msg-body">
           <div className={`tool-result ${isError ? 'err' : ''}`}>
             <Icon name={isError ? 'cancel' : 'check'} size={13} />
-            <span className="mono">{msg.content.slice(0, 200)}{msg.content.length > 200 ? '…' : ''}</span>
+            <span className="mono">{displayContent.slice(0, 200)}{displayContent.length > 200 ? '…' : ''}</span>
           </div>
+          {/* 展示类工具（display_file）：保留「查看」按钮，随时重开已展示的文件 */}
+          {msg.displayRef && <FileDisplayViewButton displayRef={msg.displayRef} />}
         </div>
       </div>
     );
@@ -530,7 +538,18 @@ function ToolCallCard({ tc, executing, results }: { tc: ToolCallRecord; executin
   }
   const hasResult = results.length > 0;
   const isError = results.some((r) => r.content.startsWith('ERROR:') || r.content.startsWith('CANCELLED:'));
-  const resultText = results.map((r) => r.content).join('\n');
+  // 展示类工具（display_file）结果：去掉 DISPLAY_REF / OK 前缀再拼展示文本
+  const displayRef = results.find((r) => r.displayRef)?.displayRef ?? null;
+  const resultText = results
+    .map((r) => {
+      if (r.displayRef && parseStoredDisplayRef(r.displayRef)) {
+        return r.content
+          .replace(/^DISPLAY_REF: [^\n]*\n?/, '')
+          .replace(/^OK: 已在弹窗中展示 [^\n]*\n?/, '');
+      }
+      return r.content;
+    })
+    .join('\n');
   return (
     <div className={`tool-card ${executing ? 'executing' : ''} ${hasResult ? (isError ? 'has-error' : 'has-result') : ''}`}>
       <button className="tool-card-head" onClick={() => setOpen(!open)}>
@@ -545,6 +564,7 @@ function ToolCallCard({ tc, executing, results }: { tc: ToolCallRecord; executin
         <div className={`tool-card-result-line ${isError ? 'err' : ''}`}>
           <Icon name={isError ? 'cancel' : 'check'} size={12} />
           <span className="mono">{resultText.trim().split('\n').filter(Boolean).slice(0, 2).join(' · ') || resultText.replace(/\s+/g, ' ').slice(0, 160)}{resultText.length > 160 ? '…' : ''}</span>
+          {displayRef && <FileDisplayViewButton displayRef={displayRef} />}
         </div>
       )}
       {open && (
@@ -556,6 +576,7 @@ function ToolCallCard({ tc, executing, results }: { tc: ToolCallRecord; executin
               <span className="mono">{resultText.length > 2000 ? resultText.slice(0, 2000) + '…' : resultText}</span>
             </div>
           )}
+          {displayRef && <FileDisplayViewButton displayRef={displayRef} />}
         </div>
       )}
     </div>

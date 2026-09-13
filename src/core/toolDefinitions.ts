@@ -6,11 +6,15 @@ export const NEW_TOPIC_MARKER = '开始新话题';
 export const BUILTIN_TOOL_NAMES = [
   'web_search',
   'roll_dice',
+  'file_read',
+  'file_write',
+  'run_shell_script',
   'create_skill',
   'update_skill',
   'delete_skill',
   'manage_timer',
   'get_tavern_status',
+  'display_file',
   'create_character',
   'update_character',
   'delete_character',
@@ -51,6 +55,60 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
         },
       },
       required: ['expression'],
+      additionalProperties: false,
+    }
+  ),
+  fn(
+    'file_read',
+    'Read a text file from the skill workspace.',
+    {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          description: 'Relative path inside the skill workspace, e.g. "notes.md", "data/records.jsonl". Must exist.',
+        },
+      },
+      required: ['path'],
+      additionalProperties: false,
+    }
+  ),
+  fn(
+    'file_write',
+    'Write or append to a file in the skill workspace.',
+    {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          description: 'Relative path inside the skill workspace, e.g. "reports/summary.html", "log.jsonl".',
+        },
+        content: {
+          type: 'string',
+          description: 'File content as a string.',
+        },
+        append: {
+          type: 'boolean',
+          description: 'Append to existing file instead of overwriting.',
+        },
+      },
+      required: ['path', 'content'],
+      additionalProperties: false,
+    }
+  ),
+  fn(
+    'run_shell_script',
+    'Execute a shell script in the local sandbox to process files, run code, or perform system operations on the user\'s machine.',
+    {
+      type: 'object',
+      properties: {
+        script: {
+          type: 'string',
+          maxLength: 8000,
+          description: 'Shell script, one command per line (max 20 lines). Lines starting with # are ignored. Non-interactive only.',
+        },
+      },
+      required: ['script'],
       additionalProperties: false,
     }
   ),
@@ -149,6 +207,25 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
         },
       },
       required: ['fields'],
+      additionalProperties: false,
+    }
+  ),
+  fn(
+    'display_file',
+    'Display any file from the skill workspace to the user. Useful for inspecting existing files, reviewing generated output (reports, dashboards, images, HTML pages), or browsing the workspace content.',
+    {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          description: 'Relative path inside the skill workspace, e.g. "reports/map.html", "art/portrait.png", "notes.md" or a code file. Must exist.',
+        },
+        title: {
+          type: 'string',
+          description: 'Optional popup title. Defaults to the file name.',
+        },
+      },
+      required: ['path'],
       additionalProperties: false,
     }
   ),

@@ -11,6 +11,21 @@ export type ReasoningEffort = 'auto' | 'off' | 'low' | 'medium' | 'xhigh';
 /** 界面语言：null = 跟随浏览器语言 */
 export type AppLanguage = 'zh-CN' | 'zh-TW' | 'en' | null;
 
+/**
+ * 工具结果展示引用（display_file 等内置展示工具的回看锚点）。
+ * 持久化在 ChatMessage.displayRef，供对话流里的「查看」按钮随时重开弹窗。
+ */
+export interface DisplayFileRef {
+  /** 工作区相对路径（与 file_read / file_write 同一沙箱工作区） */
+  path: string;
+  /** 展示方式：text（按扩展名智能渲染）/ image / html */
+  kind: 'text' | 'image' | 'html';
+  /** 展示标题（默认取文件名） */
+  title?: string;
+  /** 提示附带的展示结果文本（工具结果的持久化，回看时无需重读文件） */
+  cachedContent?: string;
+}
+
 export interface AppSettings {
   id: number;
   baseUrl: string;
@@ -134,6 +149,11 @@ export interface ChatMessage {
   /** dataUrl 或 URL 的附件列表 */
   attachments: string[];
   attachmentInfos: ChatAttachmentInfo[];
+  /**
+   * 展示类工具（display_file）的结果锚点：JSON 字符串化的 DisplayFileRef。
+   * 工具结果消息携带它，UI 据此渲染「查看」按钮并提供弹窗回看。
+   */
+  displayRef: string | null;
   rawRequestBody: string | null;
   rawResponseBody: string | null;
 }

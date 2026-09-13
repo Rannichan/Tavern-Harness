@@ -415,6 +415,16 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'tool.truncated': '\n…(已截断)',
     'tool.noResult': '(无结果)',
 
+    // ---- 文件展示弹窗（display_file） ----
+    'display.view': '查看',
+    'display.loading': '正在加载文件…',
+    'display.fileError': '无法读取文件：{path}',
+    'display.imageLoadError': '图片加载失败',
+    'display.zoomIn': '放大',
+    'display.zoomOut': '缩小',
+    'display.resetView': '重置视图（双击图片也可）',
+    'display.htmlSandboxNote': 'HTML 已在沙箱中渲染（脚本可运行，但与外部隔离）',
+
     // ---- 系统提示词 ----
     'prompt.worldBook': '=== 世界书 ===',
     'prompt.userInfo': '=== USER INFO (用户扮演的角色) ===',
@@ -808,6 +818,16 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'tool.truncated': '\n…(已截斷)',
     'tool.noResult': '(無結果)',
 
+    // ---- 檔案展示彈窗（display_file） ----
+    'display.view': '查看',
+    'display.loading': '正在載入檔案…',
+    'display.fileError': '無法讀取檔案：{path}',
+    'display.imageLoadError': '圖片載入失敗',
+    'display.zoomIn': '放大',
+    'display.zoomOut': '縮小',
+    'display.resetView': '重設檢視（雙擊圖片也可）',
+    'display.htmlSandboxNote': 'HTML 已在沙箱中渲染（腳本可執行，但與外部隔離）',
+
     'prompt.worldBook': '=== 世界書 ===',
     'prompt.userInfo': '=== USER INFO (用戶扮演的角色) ===',
     'prompt.roleTag': '角色名',
@@ -1199,6 +1219,16 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'tool.shellDenied': 'CANCELLED: user rejected {name}',
     'tool.truncated': '\n…(truncated)',
     'tool.noResult': '(no result)',
+
+    // ---- File display modal (display_file) ----
+    'display.view': 'View',
+    'display.loading': 'Loading file…',
+    'display.fileError': 'Cannot read file: {path}',
+    'display.imageLoadError': 'Failed to load image',
+    'display.zoomIn': 'Zoom in',
+    'display.zoomOut': 'Zoom out',
+    'display.resetView': 'Reset view (double-click image also works)',
+    'display.htmlSandboxNote': 'HTML rendered in a sandbox (scripts run, isolated from the outside)',
 
     'prompt.worldBook': '=== LOREBOOK ===',
     'prompt.userInfo': '=== USER INFO (role played by the user) ===',

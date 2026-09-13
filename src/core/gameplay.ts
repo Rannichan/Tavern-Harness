@@ -433,6 +433,7 @@ export async function importGameplay(payload: unknown): Promise<ImportGameplayRe
         modelUsed: null,
         attachments: m.attachments ?? [],
         attachmentInfos: [],
+        displayRef: m.displayRef ?? null,
         rawRequestBody: null,
         rawResponseBody: null,
       };

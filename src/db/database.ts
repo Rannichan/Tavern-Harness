@@ -235,14 +235,29 @@ export async function localizeBuiltinNpc(): Promise<void> {
 /** 内置角色本地化标记：记录上次写入内置角色文本时使用的语言 */
 const LOCALIZE_LANG_KEY = 'th-builtin-npc-lang';
 
-/** 内置技能（只读保护）第一次使用时写库 */
+/** 内置技能（只读保护）第一次使用时写库，已存在的同步更新 schema */
 export async function seedBuiltinTools(): Promise<void> {
   const now = Date.now();
   for (const tool of BUILTIN_TOOLS) {
-    const exists = await db.tools.where('name').equals(tool.function.name).first();
-    if (exists) continue;
+    const name = tool.function.name;
+    const exists = await db.tools.where('name').equals(name).first();
+    if (exists) {
+      if (exists.isBuiltIn) {
+        // 已存在的内置技能：同步最新定义
+        await db.tools.update(exists.id!, { jsonContent: JSON.stringify(tool) });
+      } else {
+        // 同名自定义技能 → 升级为内置（新增内置技能覆盖旧自定义记录）
+        await db.tools.update(exists.id!, {
+          jsonContent: JSON.stringify(tool),
+          executionJson: null,
+          isBuiltIn: true,
+          origin: 'builtin',
+        });
+      }
+      continue;
+    }
     await db.tools.add({
-      name: tool.function.name,
+      name,
       jsonContent: JSON.stringify(tool),
       executionJson: null,
       isBuiltIn: true,

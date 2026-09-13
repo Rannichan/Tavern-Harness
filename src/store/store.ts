@@ -33,7 +33,7 @@ import {
 } from '../core/turnLoop';
 import type { ChatCompletionRequest, SessionMode, TurnOrderMode } from '../types/models';
 import { NEW_TOPIC_MARKER, MAX_TOOL_CALL_DEPTH } from '../core/toolDefinitions';
-import { getEnabledToolsForSession, executeToolCall } from '../core/tools/toolExecutor';
+import { getEnabledToolsForSession, executeToolCall, parseDisplayRef } from '../core/tools/toolExecutor';
 import { scheduleRestoredTasks } from '../core/tools/toolExecutor';
 import { applyTheme as applyThemeManual, watchSystemTheme } from '../theme/theme';
 import { setLanguage, translate } from '../core/i18n';
@@ -63,6 +63,13 @@ export interface AchievementState {
   unlockedAt: number | null;
 }
 
+/** 展示类工具（display_file）当前打开的弹窗载荷 */
+export interface ActiveDisplay {
+  path: string;
+  kind: 'text' | 'image' | 'html';
+  title?: string;
+}
+
 interface AppState {
   initialized: boolean;
   settings: AppSettings | null;
@@ -82,6 +89,11 @@ interface AppState {
 
   streaming: StreamingState;
   pendingConfirmation: ToolConfirmationRequest | null;
+
+  /** 当前打开的展示弹窗（display_file），null = 无 */
+  activeDisplay: ActiveDisplay | null;
+  /** 打开 / 关闭展示弹窗 */
+  setActiveDisplay: (d: ActiveDisplay | null) => void;
 
   /** 群聊实时队列快照（与 DB 同步更新，面板订阅此值实现实时指示） */
   liveQueueBySession: Record<number, {
@@ -185,6 +197,7 @@ export const useStore = create<AppState>((set, get) => ({
 
   streaming: { sessionId: null, abort: null },
   pendingConfirmation: null,
+  activeDisplay: null,
 
   liveQueueBySession: {},
 
@@ -381,6 +394,7 @@ export const useStore = create<AppState>((set, get) => ({
       modelUsed: null,
       attachments,
       attachmentInfos: attachInfos,
+      displayRef: null,
       rawRequestBody: null,
       rawResponseBody: null,
     };
@@ -747,6 +761,8 @@ export const useStore = create<AppState>((set, get) => ({
     set({ pendingConfirmation: null });
   },
 
+  setActiveDisplay: (d) => set({ activeDisplay: d }),
+
   /** 切换群聊发言顺序模式（PRESET 固定座位 / RANDOM 每循环洗牌）。
    * 只更新模式本身：不重置当前队列、不动循环历史、不改 loopIndex，
    * 因此不影响当前循环与队列面板的历史展示；新顺序在进入下一轮循环
@@ -1068,6 +1084,7 @@ async function seedOpeningGreeting(
     modelUsed: null,
     attachments: [],
     attachmentInfos: [],
+    displayRef: null,
     rawRequestBody: null,
     rawResponseBody: null,
   });
@@ -1110,6 +1127,7 @@ async function handleMagicCommand(session: ChatSession, cmd: string): Promise<vo
       modelUsed: null,
       attachments: [],
       attachmentInfos: [],
+      displayRef: null,
       rawRequestBody: null,
       rawResponseBody: null,
     };
@@ -1397,6 +1415,7 @@ async function streamAssistantTurn(
       modelUsed: model,
       attachments: [],
       attachmentInfos: [],
+      displayRef: null,
       rawRequestBody: null,
       rawResponseBody: null,
     });
@@ -1600,9 +1619,20 @@ async function streamAssistantTurn(
           modelUsed: null,
           attachments: [],
           attachmentInfos: [],
+          displayRef: displayRefForToolName(tc.name, result),
           rawRequestBody: null,
           rawResponseBody: null,
         });
+
+        // 展示类工具（display_file）：执行成功后自动打开展示弹窗
+        const displayPayload = tc.name === 'display_file' ? parseDisplayRef(result) : null;
+        if (displayPayload) {
+          useStore.getState().setActiveDisplay({
+            path: displayPayload.path,
+            kind: displayPayload.kind,
+            title: displayPayload.title,
+          });
+        }
 
         // 工具调用失败 / 被取消 / 无结果 → 立即提示，避免用户误以为还在执行中。
         // 失败判定沿用 UI 的惯例：ERROR: / CANCELLED: 前缀（部分工具成功时返回非 OK: 文本，
@@ -1831,4 +1861,22 @@ function formatArgs(argsJson: string): string {
   } catch {
     return argsJson;
   }
+}
+
+/**
+ * 展示类工具（display_file）的结果会携带展示引用（DISPLAY_REF 前缀）。
+ * 解析成功 → 返回序列化后的 DisplayFileRef（写入工具结果消息的 displayRef 字段，
+ * 供对话流中的「查看」按钮回看）；其他工具一律返回 null。
+ */
+function displayRefForToolName(toolName: string, result: string): string | null {
+  if (toolName !== 'display_file') return null;
+  const payload = parseDisplayRef(result);
+  if (!payload) return null;
+  // path 前面去展示前缀的剩余文本是给模型看的（留在 content 中）。
+  // displayRef 只保存展示所需的最小信息。
+  return JSON.stringify({
+    path: payload.path,
+    kind: payload.kind,
+    title: payload.title,
+  });
 }
