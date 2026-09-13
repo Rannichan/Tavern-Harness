@@ -11,7 +11,7 @@ import { useT } from '../core/i18n';
 const SIDEBAR_MIN = 240;
 const SIDEBAR_MAX = 520;
 
-/** 触发 App 级全局玩法导出弹窗（会话右键菜单共用） */
+/** 触发 App 级全局游戏导出弹窗（会话右键菜单共用） */
 function openGlobalGameplayExport(sessionId: number, includeHistory: boolean) {
   window.dispatchEvent(
     new CustomEvent('th-gameplay-export', { detail: { sessionId, includeHistory } })
@@ -225,7 +225,7 @@ export function Sidebar() {
               onClick={() => window.dispatchEvent(new CustomEvent('th-gameplay-import'))}
               title={t('nav.importGameplayTitle')}
             >
-              <Icon name="upload" size={13} /> {t('nav.importGameplay')}
+              <Icon name="import" size={13} /> {t('nav.importGameplay')}
             </button>
             <button className="session-new-btn" onClick={() => setShowNew(true)} title={t('nav.newChatTitle')}>
               <Icon name="plus" size={13} /> {t('nav.newChat')}

@@ -5,13 +5,13 @@ import { useT } from '../core/i18n';
 import { exportGameplay, importGameplay } from '../core/gameplay';
 
 // ============================================================
-// 玩法导出 / 导入
+// 游戏导出 / 导入
 // 三种打开方式：
 //  - <GameplayExportModal sessionId onClose includeHistory defaultIncludeHistory>
-//      导出玩法（含「是否包含对话历史」开关）
+//      导出游戏（含「是否包含对话历史」开关）
 //  - <GameplayImportModal onClose onImported>
-//      从玩法 JSON 文件完全重建
-//  - 从会话右键菜单「导出玩法」：走 App 级全局弹窗（ExportSessionDialog）
+//      从游戏 JSON 文件完全重建
+//  - 从会话右键菜单「导出游戏」：走 App 级全局弹窗（ExportSessionDialog）
 // ============================================================
 
 export function GameplayExportModal({
@@ -54,18 +54,20 @@ export function GameplayExportModal({
         <button className="icon-btn" onClick={onClose}><Icon name="x" /></button>
       </div>
       <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <label className="check" style={{ alignItems: 'flex-start' }}>
-          <input
-            type="checkbox"
-            checked={includeHistory}
-            onChange={(e) => setIncludeHistory(e.target.checked)}
-            style={{ marginTop: 2 }}
-          />
-          <span>
-            <span style={{ fontWeight: 700 }}>{t('gameplay.includeHistory')}</span>
-            <span className="field-hint" style={{ display: 'block' }}>{t('gameplay.includeHistoryHint')}</span>
-          </span>
-        </label>
+        <div className="gameplay-history-row">
+          <div className="field" style={{ gap: 3 }}>
+            <label>{t('gameplay.includeHistory')}</label>
+            <span className="field-hint">{t('gameplay.includeHistoryHint')}</span>
+          </div>
+          <label className="switch">
+            <input
+              type="checkbox"
+              checked={includeHistory}
+              onChange={(e) => setIncludeHistory(e.target.checked)}
+            />
+            <span className="switch-slider" />
+          </label>
+        </div>
         <div className="gameplay-summary">
           {t('gameplay.exportSummary')}
         </div>
@@ -73,7 +75,7 @@ export function GameplayExportModal({
       <div className="modal-foot">
         <button className="btn" onClick={onClose}>{t('common.cancel')}</button>
         <button className="btn btn-primary" disabled={busy} onClick={doExport}>
-          <Icon name="download" size={13} /> {busy ? t('gameplay.busy') : t('gameplay.exportAction')}
+          <Icon name="upload" size={13} /> {busy ? t('gameplay.busy') : t('gameplay.exportAction')}
         </button>
       </div>
     </Modal>
@@ -148,7 +150,7 @@ export function GameplayImportModal({
     <Modal onClose={onClose} width={420}>
       <div className="modal-head">
         <span style={{ fontWeight: 800, fontSize: 15, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Icon name="upload" size={15} /> {t('gameplay.importTitle')}
+          <Icon name="import" size={15} /> {t('gameplay.importTitle')}
         </span>
         <button className="icon-btn" onClick={onClose}><Icon name="x" /></button>
       </div>

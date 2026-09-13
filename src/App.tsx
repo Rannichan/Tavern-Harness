@@ -83,13 +83,13 @@ export default function App() {
       <MessageMenu />
       <Toasts />
       <AchievementModal />
-      {/* 玩法导出 / 导入的全局入口（会话右键菜单 / 侧边栏导入按钮共用） */}
+      {/* 游戏导出 / 导入的全局入口（会话右键菜单 / 侧边栏导入按钮共用） */}
       <GameplayEntryDialogs />
     </>
   );
 }
 
-/** 全局注册的玩法导出/导入弹窗（供 Sidebar 与 SessionHeader 之外的入口使用） */
+/** 全局注册的游戏导出/导入弹窗（供 Sidebar 与 SessionHeader 之外的入口使用） */
 function GameplayEntryDialogs() {
   const [exportTarget, setExportTarget] = useState<{ sessionId: number; includeHistory: boolean } | null>(null);
   const [importOpen, setImportOpen] = useState(false);

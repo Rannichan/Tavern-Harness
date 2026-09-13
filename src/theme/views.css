@@ -685,7 +685,18 @@
   color: var(--danger);
 }
 
-/* ---------- 玩法导出/导入弹窗 ---------- */
+/* ---------- 游戏导出/导入弹窗 ---------- */
+.gameplay-history-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 2px 0;
+}
+.gameplay-history-row .field {
+  flex: 1;
+  min-width: 0;
+}
 .gameplay-summary {
   font-size: 12.5px;
   line-height: 1.65;

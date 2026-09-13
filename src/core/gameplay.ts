@@ -1,14 +1,15 @@
 // ============================================================
-// 玩法导出 / 导入（完全重建）
+// 游戏导出 / 导入（完全重建）
 // ============================================================
-// 把一次「会话玩法」完整导出为独立 JSON 文件：
+// 把一次「游戏局」完整导出为独立 JSON 文件：
 // - 会话设置（模式 / 标题 / 世界书关联 / 用户人设 / 发言顺序 / 开场白开关 / 队列&循环历史）
 // - 全部参与 NPC（角色卡：人设 / 开场白 / 头像 / 启用的技能）
 // - 全部涉及的工具（生成式技能：OpenAI tool JSON + 声明式实现）
 // - 对话历史（可选）：消息 / 参与者 / 队列与循环索引完全复原
 // 导入时反向重建：先建工具 → 再建角色与回调映射 → 再建世界书（会话引用其新 id）→
 // 再建会话与参与者 → 最后批量写入消息（保留顺序与相对间隔）。
-// 幂等：技能 / 角色 / 世界书 / 用户人设按名称去重（存在则复用，不覆盖已有对象）；会话始终新建。
+// 幂等：技能 / 角色 / 世界书 / 用户人设不与现有对象合并——名称冲突时创建「 (2)」副本，
+// 绝不覆盖用户已有数据；会话始终新建。
 // 格式版本号：1
 // ============================================================
 
@@ -20,7 +21,6 @@ import type {
   McpTool,
   NpcCharacter,
   WorldBook,
-  AppSettings,
 } from '../types/models';
 import { saveJsonFile, type SaveResult } from './fileDownload';
 
@@ -34,7 +34,7 @@ export interface GameplayNpc {
   sessionDisplayName: string;
 }
 
-/** 玩法导出文件结构 */
+/** 游戏导出文件结构 */
 export interface GameplayExportPayload {
   format: typeof GAMEPLAY_FORMAT;
   version: number;
@@ -48,26 +48,14 @@ export interface GameplayExportPayload {
   sessionParticipants: ChatParticipant[];
   /** 参与会话的角色卡快照（含会话内显示名） */
   npcs: GameplayNpc[];
-  /** 对话历史消息（保留全部字段，id 在导入时重建） */
-  messages: ChatMessage[];
+  /** 对话历史消息（仅重建所需字段，id 在导入时重建） */
+  messages: ReturnType<typeof sanitizeMessage>[];
   /** 会话引用的世界书（worldBookId 关联） */
   worldBook?: WorldBook;
   /** 会话引用的用户人设（userPersonaNpcId 关联） */
   userPersona?: NpcCharacter;
   /** 会话涉及的生成式技能（NPC 启用列表 ∪ 历史消息工具记录；不含内置技能） */
   tools: McpTool[];
-  /** 当前生效的生成参数快照（可选） */
-  settings?: {
-    temperature: number;
-    topP: number;
-    maxTokens: number;
-    topK: number;
-    frequencyPenalty: number;
-    presencePenalty: number;
-    repetitionPenalty: number;
-    reasoningEffort: AppSettings['reasoningEffort'];
-    isThinkingModeEnabled: boolean;
-  };
 }
 
 // ---------------------------------------------------------------------------
@@ -98,6 +86,35 @@ export function isDataUrl(s: string | null | undefined): boolean {
   return Boolean(s && s.startsWith('data:'));
 }
 
+/** 不影响重建对话的字段：性能 / 调试 / 运行时细节，导出时直接移除
+ *  （toolCallsJson 必须保留：工具调用卡片与工具结果关联都依赖它） */
+function sanitizeMessage(m: ChatMessage) {
+  const {
+    sessionId: _sessionId,
+    latencyMs: _latencyMs,
+    promptTokens: _promptTokens,
+    completionTokens: _completionTokens,
+    totalTokens: _totalTokens,
+    tokensPerSec: _tokensPerSec,
+    modelUsed: _modelUsed,
+    attachmentInfos: _attachmentInfos,
+    rawRequestBody: _rawRequestBody,
+    rawResponseBody: _rawResponseBody,
+    ...rest
+  } = m;
+  void _sessionId;
+  void _latencyMs;
+  void _promptTokens;
+  void _completionTokens;
+  void _totalTokens;
+  void _tokensPerSec;
+  void _modelUsed;
+  void _attachmentInfos;
+  void _rawRequestBody;
+  void _rawResponseBody;
+  return rest;
+}
+
 function sanitizeSession(session: ChatSession): Omit<ChatSession, 'id' | 'lastMessage'> {
   const { id: _id, lastMessage: _last, ...rest } = session;
   void _id;
@@ -106,7 +123,7 @@ function sanitizeSession(session: ChatSession): Omit<ChatSession, 'id' | 'lastMe
 }
 
 function safeFileName(title: string): string {
-  return (title.replace(/[\\/:*?"<>|\s]+/g, '_').slice(0, 40) || 'playthrough') + '-玩法.json';
+  return (title.replace(/[\\/:*?"<>|\s]+/g, '_').slice(0, 40) || 'gameplay') + '-gameplay.json';
 }
 
 /** 队列 JSON 里的参与者 id 是字符串（'-1' = 玩家，其余为 NPC 的 participantId）。
@@ -123,6 +140,22 @@ function remapQueueJson(value: string, map: Map<number, number>): string {
   });
 }
 
+/** 生成一个不与现有条目重名的名称：重名时追加「 (2)」「 (3)」… */
+async function uniqueName(
+  table: 'npcs' | 'worldBooks' | 'tools',
+  name: string
+): Promise<string> {
+  const count = (n: string) =>
+    db[table].where('name').equals(n).count();
+  if ((await count(name)) === 0) return name;
+  let i = 2;
+  for (;;) {
+    const candidate = `${name} (${i})`;
+    if ((await count(candidate)) === 0) return candidate;
+    i += 1;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // 导出
 // ---------------------------------------------------------------------------
@@ -133,7 +166,7 @@ export interface ExportGameplayOptions {
 }
 
 /**
- * 导出会话玩法为 JSON 文件（弹出保存对话框）。
+ * 导出会话游戏为 JSON 文件（弹出保存对话框）。
  * 返回：'saved' 保存成功 / 'downloaded' 已下载到默认目录 / 'canceled' 用户取消
  */
 export async function exportGameplay({ sessionId, includeHistory }: ExportGameplayOptions): Promise<SaveResult> {
@@ -177,28 +210,6 @@ export async function exportGameplay({ sessionId, includeHistory }: ExportGamepl
     .filter((t) => !t.isBuiltIn && toolNames.has(t.name))
     .map((t) => stripToolId(t));
 
-  // 当前参数快照：通过 store 读取（延迟 import 避免循环依赖）
-  let settings: GameplayExportPayload['settings'] | undefined;
-  try {
-    const { useStore } = await import('../store/store');
-    const s = useStore.getState().settings;
-    if (s) {
-      settings = {
-        temperature: s.temperature,
-        topP: s.topP,
-        maxTokens: s.maxTokens,
-        topK: s.topK,
-        frequencyPenalty: s.frequencyPenalty,
-        presencePenalty: s.presencePenalty,
-        repetitionPenalty: s.repetitionPenalty,
-        reasoningEffort: s.reasoningEffort,
-        isThinkingModeEnabled: s.isThinkingModeEnabled,
-      };
-    }
-  } catch {
-    /* store 尚未初始化时忽略 */
-  }
-
   const payload: GameplayExportPayload = {
     format: GAMEPLAY_FORMAT,
     version: GAMEPLAY_EXPORT_VERSION,
@@ -208,12 +219,11 @@ export async function exportGameplay({ sessionId, includeHistory }: ExportGamepl
     includeHistory,
     session: sanitizeSession(session),
     sessionParticipants: participants,
-    messages,
+    messages: messages.map(sanitizeMessage),
     npcs,
     worldBook,
     userPersona,
     tools,
-    settings,
   };
 
   return saveJsonFile(payload, safeFileName(session.title));
@@ -224,6 +234,28 @@ function stripToolId(tool: McpTool): Omit<McpTool, 'id'> {
   const { id: _id, ...rest } = tool;
   void _id;
   return rest;
+}
+
+/** 把消息的 toolCallsJson 中的工具调用名重映射到副本名（工具重名被改为「 (2)」时） */
+function remapToolCallsJson(value: string | undefined, map: Map<string, string>): string {
+  if (!value || map.size === 0) return value || '[]';
+  try {
+    const calls = JSON.parse(value) as Array<{ name?: string }>;
+    if (!Array.isArray(calls)) return value;
+    let changed = false;
+    for (const c of calls) {
+      if (c && typeof c.name === 'string') {
+        const mapped = map.get(c.name);
+        if (mapped && mapped !== c.name) {
+          c.name = mapped;
+          changed = true;
+        }
+      }
+    }
+    return changed ? JSON.stringify(calls) : value;
+  } catch {
+    return value;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -241,20 +273,22 @@ export interface ImportGameplayResult {
 }
 
 /**
- * 把玩法导出 JSON 完全重建为可游玩的会话。
+ * 把游戏导出 JSON 完全重建为可游玩的会话。
  * 返回统计信息；失败抛出带信息的 Error。
  */
 export async function importGameplay(payload: unknown): Promise<ImportGameplayResult> {
   const data = parseGameplayPayload(payload);
 
-  // ---- 1. 工具（生成式技能）：按名称复用已有（含内置） ----
+  // ---- 1. 工具（生成式技能）：重名不覆盖，创建独立副本 ----
+  // toolNameMap：源工具名 → 副本最终名，供 NPC enabledToolNames / 消息记录重映射
   let importedTools = 0;
+  const toolNameMap = new Map<string, string>();
   for (const tool of data.tools) {
     if (!tool.name) continue;
-    const existing = await db.tools.where('name').equals(tool.name).first();
-    if (existing) continue;
+    const finalName = await uniqueName('tools', tool.name);
+    toolNameMap.set(tool.name, finalName);
     await db.tools.add({
-      name: tool.name,
+      name: finalName,
       jsonContent: tool.jsonContent,
       executionJson: tool.executionJson ?? null,
       isBuiltIn: false,
@@ -264,25 +298,21 @@ export async function importGameplay(payload: unknown): Promise<ImportGameplayRe
     importedTools += 1;
   }
 
-  // ---- 2. 角色（NPC）与用户人设：按名称去重，保留源 id → 新 id 映射 ----
+  // ---- 2. 角色（NPC）与用户人设：重名不覆盖，创建副本；保留源 id → 新 id 映射 ----
   const sourceNpcIdToNew = new Map<number, number>();
   let createdNpcs = 0;
-  const createNpcIfNeeded = async (source: NpcCharacter): Promise<number | null> => {
+  const createNpcCopy = async (source: NpcCharacter): Promise<number | null> => {
     if (!source || !source.name) return null;
     if (source.id != null && sourceNpcIdToNew.has(source.id)) return sourceNpcIdToNew.get(source.id)!;
-    const existing = await db.npcs.where('name').equals(source.name).first();
-    if (existing) {
-      if (source.id != null) sourceNpcIdToNew.set(source.id, existing.id!);
-      return existing.id!;
-    }
+    const finalName = await uniqueName('npcs', source.name);
     const id = await db.npcs.add({
-      name: source.name,
+      name: finalName,
       prompt: source.prompt ?? '',
       greeting: source.greeting ?? '',
       alternateGreetings: source.alternateGreetings ?? [],
       avatarColorOrdinal: source.avatarColorOrdinal ?? 0,
       avatarDataUrl: source.avatarDataUrl ?? null,
-      enabledToolNames: [...(source.enabledToolNames ?? [])],
+      enabledToolNames: (source.enabledToolNames ?? []).map((n) => toolNameMap.get(n) ?? n),
       isBuiltIn: false,
       createdAt: Date.now(),
     });
@@ -293,36 +323,32 @@ export async function importGameplay(payload: unknown): Promise<ImportGameplayRe
 
   // 参与角色按导出顺序登记
   for (const entry of data.npcs) {
-    await createNpcIfNeeded(entry.npc);
+    await createNpcCopy(entry.npc);
   }
 
   // 用户人设角色
   let personaNpcId: number | null = null;
   if (data.userPersona) {
-    personaNpcId = await createNpcIfNeeded(data.userPersona);
+    personaNpcId = await createNpcCopy(data.userPersona);
   }
 
-  // ---- 3. 世界书：按名称去重 ----
+  // ---- 3. 世界书：重名不覆盖，创建副本 ----
   let importedWorldBook = false;
   let worldBookId: number | null = null;
   if (data.worldBook && data.worldBook.name) {
-    const existingWb = await db.worldBooks.where('name').equals(data.worldBook.name).first();
-    if (existingWb) {
-      worldBookId = existingWb.id!;
-    } else {
-      worldBookId = await db.worldBooks.add({
-        name: data.worldBook.name,
-        content: data.worldBook.content ?? '',
-        imageUri: null,
-        createdAt: Date.now(),
-      });
-      importedWorldBook = true;
-    }
+    const finalName = await uniqueName('worldBooks', data.worldBook.name);
+    worldBookId = await db.worldBooks.add({
+      name: finalName,
+      content: data.worldBook.content ?? '',
+      imageUri: null,
+      createdAt: Date.now(),
+    });
+    importedWorldBook = true;
   }
 
   // ---- 4. 会话 ----
   const src = data.session;
-  const title = data.title?.trim() || src.title || '导入的玩法';
+  const title = data.title?.trim() || src.title || '导入的游戏';
   const sessionId = await db.sessions.add({
     title,
     mode: src.mode === 'NPC' || src.mode === 'GROUP' ? src.mode : 'STANDARD',
@@ -374,6 +400,8 @@ export async function importGameplay(payload: unknown): Promise<ImportGameplayRe
   });
 
   // ---- 6. 消息（保留顺序与相对间隔，id 重建） ----
+  // 注意：导出时已剔除性能/调试字段（tokens、latency、model、raw body、attachmentInfos），
+  // 此处为所有非导出字段补齐默认值，兼容旧版导出文件。
   let importedMessages = 0;
   if (data.messages.length > 0) {
     const sorted = [...data.messages].sort((a, b) => a.timestamp - b.timestamp);
@@ -389,23 +417,23 @@ export async function importGameplay(payload: unknown): Promise<ImportGameplayRe
         sessionId,
         role: m.role,
         speakerParticipantId: speaker,
-        speakerName: m.speakerName,
+        speakerName: m.speakerName ?? null,
         content: m.content ?? '',
-        toolCallsJson: m.toolCallsJson || '[]',
+        toolCallsJson: remapToolCallsJson(m.toolCallsJson || '[]', toolNameMap),
         toolCallId: m.toolCallId ?? null,
         thinkingContent: m.thinkingContent ?? null,
         loopIndex: m.loopIndex ?? null,
         timestamp: baseTime + Math.max(0, (m.timestamp ?? firstTs) - firstTs),
-        latencyMs: m.latencyMs ?? null,
-        promptTokens: m.promptTokens || 0,
-        completionTokens: m.completionTokens || 0,
-        totalTokens: m.totalTokens || 0,
-        tokensPerSec: m.tokensPerSec ?? null,
-        modelUsed: m.modelUsed ?? null,
+        latencyMs: null,
+        promptTokens: 0,
+        completionTokens: 0,
+        totalTokens: 0,
+        tokensPerSec: null,
+        modelUsed: null,
         attachments: m.attachments ?? [],
-        attachmentInfos: m.attachmentInfos ?? [],
-        rawRequestBody: m.rawRequestBody ?? null,
-        rawResponseBody: m.rawResponseBody ?? null,
+        attachmentInfos: [],
+        rawRequestBody: null,
+        rawResponseBody: null,
       };
       await db.messages.add(row);
       importedMessages += 1;
@@ -435,16 +463,16 @@ export async function importGameplay(payload: unknown): Promise<ImportGameplayRe
   };
 }
 
-/** 校验并规范化玩法导出结构；失败抛出带信息的 Error */
+/** 校验并规范化游戏导出结构；失败抛出带信息的 Error */
 function parseGameplayPayload(payload: unknown): GameplayExportPayload {
-  if (!payload || typeof payload !== 'object') throw new Error('无效的玩法文件');
+  if (!payload || typeof payload !== 'object') throw new Error('无效的游戏文件');
   const p = payload as Partial<GameplayExportPayload> & { participants?: ChatParticipant[] };
   if (p.format !== GAMEPLAY_FORMAT) {
-    throw new Error('不是 Tavern Harness 玩法导出文件');
+    throw new Error('不是 Tavern Harness 游戏导出文件');
   }
   const session = p.session as Partial<ChatSession> | undefined;
   if (!session || typeof session !== 'object' || !session.mode) {
-    throw new Error('玩法文件缺少会话信息');
+    throw new Error('游戏文件缺少会话信息');
   }
   return {
     format: GAMEPLAY_FORMAT,
@@ -464,6 +492,5 @@ function parseGameplayPayload(payload: unknown): GameplayExportPayload {
     worldBook: p.worldBook,
     userPersona: p.userPersona,
     tools: Array.isArray(p.tools) ? p.tools : [],
-    settings: p.settings,
   };
 }
