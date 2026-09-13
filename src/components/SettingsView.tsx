@@ -375,11 +375,6 @@ function ProviderForm({ initial, onSave }: { initial: ApiProvider; onSave: (p: A
           <label>{t('settings.apiKey')}</label>
           <input className="input mono" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder={t('settings.apiKeyPh')} />
         </div>
-        <div style={{ fontSize: 11.5, color: 'var(--text-faint)', lineHeight: 1.6 }}>
-          {t('settings.corsTip')}
-          <span className="mono" style={{ color: 'var(--text-dim)' }}>{t('settings.corsTipPath')}</span>
-          {t('settings.corsTipEnd')}
-        </div>
       </div>
       <div className="modal-foot">
         <button className="btn" onClick={() => {}} style={{ visibility: 'hidden' }}>{t('common.cancel')}</button>
