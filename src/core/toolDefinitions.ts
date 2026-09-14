@@ -61,13 +61,13 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
   ),
   fn(
     'file_read',
-    'Read a text file from the skill workspace.',
+    'Read a text file from the current workspace.',
     {
       type: 'object',
       properties: {
         path: {
           type: 'string',
-          description: 'Relative path inside the skill workspace, e.g. "notes.md", "data/records.jsonl". Must exist.',
+          description: 'Relative path inside the current workspace. Must exist.',
         },
       },
       required: ['path'],
@@ -76,13 +76,13 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
   ),
   fn(
     'file_write',
-    'Write or append to a file in the skill workspace.',
+    'Write or append to a file in the current workspace.',
     {
       type: 'object',
       properties: {
         path: {
           type: 'string',
-          description: 'Relative path inside the skill workspace, e.g. "reports/summary.html", "log.jsonl".',
+          description: 'Relative path inside the current workspace.',
         },
         content: {
           type: 'string',
@@ -178,13 +178,13 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
   ),
   fn(
     'file_display',
-    'Display any file from the skill workspace to the user. Useful for inspecting existing files, reviewing generated output (reports, dashboards, images, HTML pages), or browsing the workspace content.',
+    'Display any file from the current workspace to the user in a popup. Useful for inspecting existing files, reviewing generated output (reports, dashboards, images, HTML pages), or browsing the workspace content. Only shows the file in the UI — it does NOT return the file content; use file_read to actually read the content.',
     {
       type: 'object',
       properties: {
         path: {
           type: 'string',
-          description: 'Relative path inside the skill workspace, e.g. "reports/map.html", "art/portrait.png", "notes.md" or a code file. Must exist.',
+          description: 'Relative path inside the current workspace. Must exist.',
         },
         title: {
           type: 'string',
@@ -316,7 +316,7 @@ function executionProperties(): Record<string, unknown> {
     type: { type: 'string', enum: ['template', 'http_get', 'javascript', 'file_read', 'file_write', 'shell', 'device_action'] },
     template: { type: 'string', description: 'template type: result template with {{param}} placeholders' },
     url: { type: 'string', description: "http_get type: public https URL with {{param}} placeholders" },
-    code: { type: 'string', maxLength: 20000, description: "javascript type: JS code. Reads 'input' (args object), assigns JSON-safe 'result'. Supports async/await. Injected helpers: await $read(path)->string, $write(path, content), $append(path, content), $list()->[paths] — these read/write the skill workspace (sandboxed to sandbox_workspace/ or virtual workspace) with the same path & size limits as file_read/file_write" },
+    code: { type: 'string', maxLength: 20000, description: "javascript type: JS code. Reads 'input' (args object), assigns JSON-safe 'result'. Supports async/await. Injected helpers: await $read(path)->string, $write(path, content), $append(path, content), $list()->[paths] — these read/write the current workspace (sandboxed to sandbox_workspace/ or virtual workspace) with the same path & size limits as file_read/file_write" },
     path: { type: 'string', description: 'file_read/file_write: relative path inside the private generated_skill_workspace' },
     content: { type: 'string', description: 'file_write: text content with {{param}} placeholders' },
     json_content: { type: 'object', description: 'file_write: JSON content, interpolated recursively' },
@@ -345,7 +345,7 @@ function getExecutionDescription(): string {
     'Declarative implementation of the skill. One of:',
     '- template: `{template: "As of {{date}}, the price is {{price}}"}`, placeholders interpolated from args',
     '- http_get: `{url: "https://public.example.com/api?q={{q}}"}`, public HTTPS hostname required',
-    '- javascript: `{code: "result = { sum: input.a + input.b }"}`, reads `input`, assigns JSON-safe `result`; supports async/await, and can persist game state via `await $read/$write/$append/$list` (sandboxed skill workspace, same limits as file_read/file_write)',
+    '- javascript: `{code: "result = { sum: input.a + input.b }"}`, reads `input`, assigns JSON-safe `result`; supports async/await, and can persist game state via `await $read/$write/$append/$list` (sandboxed current workspace, same limits as file_read/file_write)',
     '- file_read: `{path: "notes.md"}` — read file in workspace (real disk sandbox_workspace/ when local sandbox running, else in-browser virtual workspace; 100KB cap)',
     '- file_write: `{path: "notes.jsonl", json_content: {...}, append: true, append_newline: true}` — writes to real sandbox_workspace/ folder in project dir when local sandbox running, else virtual workspace',
     '- shell: one allow-listed command per line, executed as REAL local commands via an optional local sandbox service (node sandbox-server.mjs). Whitelisted commands (pwd, ls, cat, grep, sed, tar, unzip, jq, awk, python3, node, git, ...) run directly without confirmation. High-risk commands (sudo, curl, wget, dd, shutdown, docker, ssh, ...) require a user confirmation dialog first; everything else is rejected',

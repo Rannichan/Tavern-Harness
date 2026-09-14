@@ -280,12 +280,9 @@ async function handleFileDisplay(args: Record<string, unknown>, ctx: ToolExecuti
     return `ERROR: 文件不存在: ${rawPath}`;
   }
   const payload: DisplayPayload = { path: rawPath, kind, title };
-  const preview =
-    kind === 'image'
-      ? `（图片，${content.length} 字符）`
-      : content.replace(/\s+/g, ' ').trim().slice(0, 200) || '（空文件）';
-  // 第一行携带展示引用（store 解析并写入 displayRef / 自动弹窗），随后是可读摘要供模型理解
-  return `${DISPLAY_REF_PREFIX}${JSON.stringify(payload)}\nOK: 已在弹窗中展示 ${rawPath}（kind=${kind}）\n内容预览: ${preview}`;
+  // 第一行携带展示引用（store 解析并写入 displayRef / 自动弹窗）。
+  // 不做内容摘要：完整内容在展示弹窗里，模型如需阅读应改用 file_read。
+  return `${DISPLAY_REF_PREFIX}${JSON.stringify(payload)}\nOK: 已在弹窗中展示 ${rawPath}（kind=${kind}）`;
 }
 
 // ---------- file_read / file_write / run_shell_script（内置技能，复用生成式执行引擎的沙箱能力） ----------

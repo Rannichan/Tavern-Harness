@@ -234,7 +234,7 @@ function MessageBubble({
     // 展示类工具：结果里带有 DISPLAY_REF 前缀，收起前缀展示干净的摘要
     const displayPayload = msg.displayRef ? parseStoredDisplayRef(msg.displayRef) : null;
     const displayContent = displayPayload
-      ? (msg.content.replace(/^DISPLAY_REF: [^\n]*\n?/, '').replace(/^OK: 已在弹窗中展示 [^\n]*\n?/, '') || t('display.view'))
+      ? (msg.content.replace(/^DISPLAY_REF: [^\n]*\n?/, '') || t('display.view'))
       : msg.content;
     return (
       <div className="msg-row tool-row fade-up" data-loop={loopIndex ?? undefined} data-speaker={msg.speakerParticipantId != null ? String(msg.speakerParticipantId) : undefined}>
@@ -543,9 +543,7 @@ function ToolCallCard({ tc, executing, results }: { tc: ToolCallRecord; executin
   const resultText = results
     .map((r) => {
       if (r.displayRef && parseStoredDisplayRef(r.displayRef)) {
-        return r.content
-          .replace(/^DISPLAY_REF: [^\n]*\n?/, '')
-          .replace(/^OK: 已在弹窗中展示 [^\n]*\n?/, '');
+        return r.content.replace(/^DISPLAY_REF: [^\n]*\n?/, '');
       }
       return r.content;
     })
