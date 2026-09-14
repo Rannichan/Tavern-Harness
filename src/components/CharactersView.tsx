@@ -1,4 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
+import {
+  DndContext,
+  PointerSensor,
+  KeyboardSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { useStore } from '../store/store';
 import { db } from '../db/database';
 import type { NpcCharacter, WorldBook, McpTool } from '../types/models';
@@ -517,6 +534,7 @@ function toolOrigin(t: McpTool): 'builtin' | 'custom' | 'imported' {
   return t.origin ?? (t.isBuiltIn ? 'builtin' : 'custom');
 }
 
+/** 保留在分组内的横向（拖动过程中，卡片实际拖动时不会离开组） */
 function SkillList({ onChanged }: { onChanged: () => void }) {
   const tools = useStore((s) => s.tools);
   const addToast = useStore((s) => s.addToast);
@@ -524,9 +542,31 @@ function SkillList({ onChanged }: { onChanged: () => void }) {
   const refresh = useStore((s) => s.refreshTools);
   const [pendingDelete, setPendingDelete] = useState<McpTool | null>(null);
   const [detail, setDetail] = useState<McpTool | null>(null);
+
+  const [custom, setCustom] = useState<McpTool[]>([]);
+  const [imported, setImported] = useState<McpTool[]>([]);
+  const [builtin, setBuiltin] = useState<McpTool[]>([]);
+
+  // 从 store 同步分组（store 中 tools 已按 displayOrder 排序）
+  useEffect(() => {
+    const groups: Record<'custom' | 'imported' | 'builtin', McpTool[]> = { custom: [], imported: [], builtin: [] };
+    for (const tt of tools) {
+      const g = toolOrigin(tt);
+      if (groups[g]) groups[g].push(tt);
+    }
+    setCustom(groups.custom);
+    setImported(groups.imported);
+    setBuiltin(groups.builtin);
+  }, [tools]);
+
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
 
   const deleteTool = async (tt: McpTool) => {
     await db.tools.delete(tt.id!);
@@ -534,6 +574,41 @@ function SkillList({ onChanged }: { onChanged: () => void }) {
     onChanged();
     addToast(t('toast.skillDeleted'));
   };
+
+  /** 拖拽结束：仅在同一分组内重排（各组用独立的 SortableContext），随后持久化 */
+  const onDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const fromId = active.id as string;
+    const toId = over.id as string;
+
+    /** 在指定分组内搬移并持久化 displayOrder（0..n-1） */
+    const apply = (group: McpTool[], setter: React.Dispatch<React.SetStateAction<McpTool[]>>): boolean => {
+      const from = group.findIndex((x) => x.name === fromId);
+      const to = group.findIndex((x) => x.name === toId);
+      if (from < 0 || to < 0) return false;
+      const next = arrayMove(group, from, to);
+      setter(next);
+      for (let i = 0; i < next.length; i++) {
+        const item = next[i];
+        if (item.id != null) db.tools.update(item.id, { displayOrder: i });
+      }
+      refresh();
+      return true;
+    };
+
+    if (!apply(custom, setCustom)) {
+      if (!apply(imported, setImported)) {
+        if (builtin.some((x) => x.name === fromId)) apply(builtin, setBuiltin);
+      }
+    }
+  };
+
+  const groupConfig: { key: 'builtin' | 'custom' | 'imported'; labelKey: string; items: McpTool[]; setter: React.Dispatch<React.SetStateAction<McpTool[]>> }[] = [
+    { key: 'custom', labelKey: 'workshop.skillGroupCustom', items: custom, setter: setCustom },
+    { key: 'imported', labelKey: 'workshop.skillGroupImported', items: imported, setter: setImported },
+    { key: 'builtin', labelKey: 'workshop.skillGroupBuiltin', items: builtin, setter: setBuiltin },
+  ];
 
   const renderRow = (tt: McpTool) => {
     let desc = '';
@@ -547,44 +622,25 @@ function SkillList({ onChanged }: { onChanged: () => void }) {
       } catch { impl = 'invalid'; }
     }
     return (
-      <div key={tt.id} className="list-item">
-        <div style={{ fontSize: 18 }}>{tt.isBuiltIn ? '🧰' : '⚙️'}</div>
-        <div className="l-main">
-          <div className="l-title">
-            {tt.name}
-            {tt.isBuiltIn && <span className="tag" style={{ marginLeft: 8 }}>{t('common.builtin')}</span>}
-          </div>
-          <div className="l-sub">{desc}</div>
-          {impl !== 'native' && <div style={{ fontSize: 10.5, marginTop: 2, color: 'var(--warn)' }}>{t('workshop.implType', { t: impl })}</div>}
-        </div>
-        <button className="btn btn-sm" onClick={() => setDetail(tt)} title={t('workshop.viewDetails')}>
-          <Icon name="file" size={12} /> {t('workshop.viewDetails')}
-        </button>
-        <button className="btn btn-sm btn-danger" onClick={() => setPendingDelete(tt)} disabled={tt.isBuiltIn}>
-          <Icon name="trash" size={12} />
-        </button>
-      </div>
+      <SkillSortItem key={tt.name} tool={tt} desc={desc} impl={impl} onDetail={() => setDetail(tt)} onDelete={() => setPendingDelete(tt)} />
     );
   };
 
-  // 顺序：自定义 → 导入 → 内置（自上而下）
-  const groups: { key: 'builtin' | 'custom' | 'imported'; labelKey: string; items: McpTool[] }[] = [
-    { key: 'custom', labelKey: 'workshop.skillGroupCustom', items: [] },
-    { key: 'imported', labelKey: 'workshop.skillGroupImported', items: [] },
-    { key: 'builtin', labelKey: 'workshop.skillGroupBuiltin', items: [] },
-  ];
-  for (const tt of tools) {
-    const g = groups.find((g) => g.key === toolOrigin(tt));
-    if (!g) continue;
-    g.items.push(tt);
-  }
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {groups.map((g) => (
+      <div className="skill-sort-hint">
+        <Icon name="sort" size={12} /> {t('workshop.sortHint')}
+      </div>
+      {groupConfig.map((g) => (
         <div key={g.key} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <span className="group-label">{t(g.labelKey, { n: g.items.length })}</span>
-          {g.items.map(renderRow)}
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+            <SortableContext items={g.items.map((x) => x.name)} strategy={verticalListSortingStrategy}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {g.items.map(renderRow)}
+              </div>
+            </SortableContext>
+          </DndContext>
         </div>
       ))}
       {detail && <SkillDetailModal tool={detail} onClose={() => setDetail(null)} />}
@@ -596,6 +652,57 @@ function SkillList({ onChanged }: { onChanged: () => void }) {
           onConfirm={() => deleteTool(pendingDelete)}
         />
       )}
+    </div>
+  );
+}
+
+/** 单个技能卡片：复用 .list-item 样式，整卡可拖拽排序（无手柄） */
+function SkillSortItem({
+  tool,
+  desc,
+  impl,
+  onDetail,
+  onDelete,
+}: {
+  tool: McpTool;
+  desc: string;
+  impl: string;
+  onDetail: () => void;
+  onDelete: () => void;
+}) {
+  const t = useT();
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: tool.name });
+  const style: React.CSSProperties = {
+    transform: CSS.Translate.toString(transform),
+    transition,
+    zIndex: isDragging ? 10 : undefined,
+    opacity: isDragging ? 0.85 : undefined,
+  };
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`list-item sortable-skill ${isDragging ? 'dragging' : ''}`}
+      {...attributes}
+      {...listeners}
+    >
+      <div style={{ fontSize: 18 }}>{tool.isBuiltIn ? '🧰' : '⚙️'}</div>
+      <div className="l-main">
+        <div className="l-title">
+          {tool.name}
+          {tool.isBuiltIn && <span className="tag" style={{ marginLeft: 8 }}>{t('common.builtin')}</span>}
+        </div>
+        <div className="l-sub">{desc}</div>
+        {impl !== 'native' && <div style={{ fontSize: 10.5, marginTop: 2, color: 'var(--warn)' }}>{t('workshop.implType', { t: impl })}</div>}
+      </div>
+      <div className="skill-item-actions">
+        <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); onDetail(); }} title={t('workshop.viewDetails')}>
+          <Icon name="file" size={12} /> {t('workshop.viewDetails')}
+        </button>
+        <button className="btn btn-sm btn-danger" onClick={(e) => { e.stopPropagation(); onDelete(); }} disabled={tool.isBuiltIn}>
+          <Icon name="trash" size={12} />
+        </button>
+      </div>
     </div>
   );
 }

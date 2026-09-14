@@ -288,6 +288,50 @@
   font-family: var(--font-mono);
 }
 
+/* ---------- 技能表：拖拽排序 ---------- */
+.skill-sort-hint {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  color: var(--text-faint);
+  line-height: 1.5;
+  padding: 0 2px;
+}
+/* 技能卡片 = 现有 .list-item 样式 + 拖拽能力（无手柄，整卡可拖） */
+.list-item.sortable-skill {
+  cursor: grab;
+  user-select: none;
+  touch-action: none; /* dnd-kit：允许触摸设备拖拽 */
+}
+.list-item.sortable-skill:active {
+  cursor: grabbing;
+}
+.list-item.sortable-skill.dragging {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--primary) 30%, transparent),
+    0 0 10px color-mix(in srgb, var(--glow) 42%, transparent),
+    0 0 24px color-mix(in srgb, var(--glow) 16%, transparent),
+    var(--shadow-lg);
+  border-color: color-mix(in srgb, var(--primary) 45%, transparent);
+  cursor: grabbing;
+}
+/* 右侧按钮区：右对齐；宽度自适应内容，但禁止被文字挤压变形 */
+.skill-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+.skill-item-actions .btn {
+  min-height: 26px;
+  justify-content: center;
+  box-sizing: border-box;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 .file-row {
   display: flex;
   align-items: center;
@@ -977,7 +1021,7 @@
   color: var(--text-faint);
   font-size: 13px;
 }
-/* ---------- 文件展示弹窗（display_file） ---------- */
+/* ---------- 文件展示弹窗（file_display） ---------- */
 .display-modal {
   width: min(880px, calc(100vw - 32px));
   height: min(82dvh, 720px);

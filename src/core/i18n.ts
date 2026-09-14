@@ -263,6 +263,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'workshop.skillGroupCustom': '自定义技能（{n}）',
     'workshop.skillGroupImported': '导入技能（{n}）',
     'workshop.implType': '实现类型: {t}',
+    'workshop.sortHint': '上下拖动卡片即可调整排序',
     'workshop.deleteSkillTitle': '删除技能',
     'workshop.skillDetails': '技能详情',
     'workshop.viewDetails': '详情',
@@ -415,7 +416,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'tool.truncated': '\n…(已截断)',
     'tool.noResult': '(无结果)',
 
-    // ---- 文件展示弹窗（display_file） ----
+    // ---- 文件展示弹窗（file_display） ----
     'display.view': '查看',
     'display.loading': '正在加载文件…',
     'display.fileError': '无法读取文件：{path}',
@@ -673,6 +674,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'workshop.skillGroupCustom': '自定義技能（{n}）',
     'workshop.skillGroupImported': '匯入技能（{n}）',
     'workshop.implType': '實作類型: {t}',
+    'workshop.sortHint': '上下拖動卡片即可調整排序',
     'workshop.deleteSkillTitle': '刪除技能',
     'workshop.skillDetails': '技能詳情',
     'workshop.viewDetails': '詳情',
@@ -818,7 +820,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'tool.truncated': '\n…(已截斷)',
     'tool.noResult': '(無結果)',
 
-    // ---- 檔案展示彈窗（display_file） ----
+    // ---- 檔案展示彈窗（file_display） ----
     'display.view': '查看',
     'display.loading': '正在載入檔案…',
     'display.fileError': '無法讀取檔案：{path}',
@@ -1075,6 +1077,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'workshop.skillGroupCustom': 'Custom skills ({n})',
     'workshop.skillGroupImported': 'Imported skills ({n})',
     'workshop.implType': 'Implementation type: {t}',
+    'workshop.sortHint': 'Drag cards vertically to reorder',
     'workshop.deleteSkillTitle': 'Delete skill',
     'workshop.skillDetails': 'Skill details',
     'workshop.viewDetails': 'Details',
@@ -1220,7 +1223,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'tool.truncated': '\n…(truncated)',
     'tool.noResult': '(no result)',
 
-    // ---- File display modal (display_file) ----
+    // ---- File display modal (file_display) ----
     'display.view': 'View',
     'display.loading': 'Loading file…',
     'display.fileError': 'Cannot read file: {path}',

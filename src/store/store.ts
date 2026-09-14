@@ -63,7 +63,7 @@ export interface AchievementState {
   unlockedAt: number | null;
 }
 
-/** 展示类工具（display_file）当前打开的弹窗载荷 */
+/** 展示类工具（file_display）当前打开的弹窗载荷 */
 export interface ActiveDisplay {
   path: string;
   kind: 'text' | 'image' | 'html';
@@ -90,7 +90,7 @@ interface AppState {
   streaming: StreamingState;
   pendingConfirmation: ToolConfirmationRequest | null;
 
-  /** 当前打开的展示弹窗（display_file），null = 无 */
+  /** 当前打开的展示弹窗（file_display），null = 无 */
   activeDisplay: ActiveDisplay | null;
   /** 打开 / 关闭展示弹窗 */
   setActiveDisplay: (d: ActiveDisplay | null) => void;
@@ -214,7 +214,7 @@ export const useStore = create<AppState>((set, get) => ({
       const npcs = await db.npcs.toArray();
       const sessions = sortSessionsPinnedFirst(await db.sessions.toArray());
       const worldBooks = await db.worldBooks.toArray();
-      const tools = await db.tools.toArray();
+      const tools = [...(await db.tools.toArray())].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
       set({ initialized: true, settings, npcs, sessions, worldBooks, tools });
       await get().refreshProviders();
       applyThemeManual(settings.themeMode);
@@ -278,7 +278,9 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   refreshTools: async () => {
-    set({ tools: await db.tools.toArray() });
+    // 按 displayOrder 排序：技能表拖拽调整的顺序跨刷新保持
+    const tools = [...(await db.tools.toArray())].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
+    set({ tools });
   },
 
   refreshAchievements: async () => {
@@ -1624,8 +1626,8 @@ async function streamAssistantTurn(
           rawResponseBody: null,
         });
 
-        // 展示类工具（display_file）：执行成功后自动打开展示弹窗
-        const displayPayload = tc.name === 'display_file' ? parseDisplayRef(result) : null;
+        // 展示类工具（file_display）：执行成功后自动打开展示弹窗
+        const displayPayload = tc.name === 'file_display' ? parseDisplayRef(result) : null;
         if (displayPayload) {
           useStore.getState().setActiveDisplay({
             path: displayPayload.path,
@@ -1864,12 +1866,12 @@ function formatArgs(argsJson: string): string {
 }
 
 /**
- * 展示类工具（display_file）的结果会携带展示引用（DISPLAY_REF 前缀）。
+ * 展示类工具（file_display）的结果会携带展示引用（DISPLAY_REF 前缀）。
  * 解析成功 → 返回序列化后的 DisplayFileRef（写入工具结果消息的 displayRef 字段，
  * 供对话流中的「查看」按钮回看）；其他工具一律返回 null。
  */
 function displayRefForToolName(toolName: string, result: string): string | null {
-  if (toolName !== 'display_file') return null;
+  if (toolName !== 'file_display') return null;
   const payload = parseDisplayRef(result);
   if (!payload) return null;
   // path 前面去展示前缀的剩余文本是给模型看的（留在 content 中）。
