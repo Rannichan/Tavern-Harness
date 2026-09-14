@@ -367,8 +367,8 @@ export async function importGameplay(payload: unknown): Promise<ImportGameplayRe
     updatedAt: Date.now(),
     createdAt: Date.now(),
   });
-  // 会话专属工作目录（sessions/<id>）
-  await db.sessions.update(sessionId, { workspaceDir: `sessions/${sessionId}` });
+  // 会话专属工作目录（session-<id>，单层目录、不嵌套）
+  await db.sessions.update(sessionId, { workspaceDir: `session-${sessionId}` });
 
   // ---- 5. 参与者（玩家恒定 -1；NPC participantId = 新 npc id，保持座位顺序） ----
   const participants: ChatParticipant[] = [];

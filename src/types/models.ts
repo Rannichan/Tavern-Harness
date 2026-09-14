@@ -95,7 +95,7 @@ export interface ChatSession {
   enableGreeting?: boolean;
   turnOrderMode: TurnOrderMode;
   /**
-   * 会话专属沙箱工作目录名（以会话 id 为名，如 "sessions/12"）。
+   * 会话专属沙箱工作目录名（以会话 id 为名，如 "session-12"）。
    * 该会话的所有工具调用（shell / file_read / file_write / 脚本执行等）
    * 都在这个独立目录下进行，会话之间相互隔离。
    * 旧会话（未设置）在本工作区实现前的记录默认为共享根工作区。

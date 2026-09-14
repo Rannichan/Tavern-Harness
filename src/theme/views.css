@@ -1198,3 +1198,112 @@
 .tool-card-body .display-view-btn {
   margin-top: 8px;
 }
+
+/* ---------- 会话工作区文件管理器（只读） ---------- */
+.ws-fm-modal {
+  width: min(640px, calc(100vw - 32px));
+  height: min(70dvh, 560px);
+}
+.ws-fm-head {
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.ws-fm-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-weight: 800;
+  font-size: 13.5px;
+}
+.ws-fm-title .ws-fm-crumb {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+.ws-fm-crumb-link {
+  cursor: pointer;
+  color: var(--primary);
+}
+.ws-fm-crumb-link:hover {
+  text-decoration: underline;
+}
+.ws-fm-crumb-sep {
+  margin: 0 3px;
+  color: var(--text-faint);
+}
+.ws-fm-crumb-cur {
+  color: var(--text);
+}
+.ws-fm-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 18px;
+}
+.ws-fm-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+.ws-fm-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: var(--surface-2);
+  padding: 4px;
+}
+.ws-fm-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  color: var(--text-dim);
+  font-size: 13px;
+  user-select: none;
+}
+.ws-fm-row:hover {
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  color: var(--text);
+}
+.ws-fm-arrow {
+  width: 10px;
+  flex-shrink: 0;
+}
+.ws-fm-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ws-fm-open {
+  display: inline-flex;
+  align-items: center;
+  opacity: 0.55;
+}
+.ws-fm-row:hover .ws-fm-open {
+  opacity: 1;
+}
+.ws-fm-empty {
+  padding: 22px;
+  text-align: center;
+  color: var(--text-faint);
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex: 1;
+}

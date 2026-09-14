@@ -82,7 +82,7 @@ export async function executeToolCall(
 
 /**
  * 把一个会话的工具调用工作目录切到该会话专属沙箱目录。
- * 会话记录上的 workspaceDir（如 "sessions/12"）由创建会话时生成；
+ * 会话记录上的 workspaceDir（如 "session-12"）由创建会话时生成；
  * 旧会话没有该字段 → 回退共享根工作区（旧行为）。
  */
 export async function applySessionWorkspace(sessionId: number): Promise<void> {

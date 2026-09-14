@@ -174,14 +174,14 @@ const MAX_CMD_CHARS = 2000;
 
 // ---- 真实文件工作区（generate_skill 的 file_read / file_write 落盘区） ----
 // 项目根目录下 sandbox_workspace/，仅允许读写该目录内文件（虚拟磁盘）。
-// 会话隔离：每次请求可携带会话工作目录（session 字段，如 "sessions/12"），
+// 会话隔离：每次请求可携带会话工作目录（session 字段，如 "session-12"），
 // 所有读写/执行都锁定在该目录内；不带 session 时沿用旧行为——共享根工作区。
 const WORKSPACE_ROOT = resolve(__dirname, 'sandbox_workspace');
 const MAX_FILE_READ_CHARS = 100_000;   // 单文件读取上限（与前端虚拟工作区一致）
 const MAX_FILE_WRITE_BYTES = 400 * 1024; // 单文件写入上限 400KB
 const MAX_LIST_ENTRIES = 500;
 // 会话工作目录的安全字符集：仅允许小写字母数字、下划线、斜杠、点、连字符，
-// 防止路径穿越/注入（由前端按会话 id 生成，如 "sessions/12"）
+// 防止路径穿越/注入（由前端按会话 id 生成，如 "session-12"）
 const SESSION_DIR_RE = /^[a-z0-9_./-]+$/;
 
 /**

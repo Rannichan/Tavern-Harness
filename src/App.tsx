@@ -9,6 +9,7 @@ import { Dashboard } from './components/Dashboard';
 import { NewSessionMenu } from './components/NewSessionMenu';
 import { ConfirmationDialog } from './components/ConfirmationDialog';
 import { FileDisplayModal } from './components/FileDisplayModal';
+import { WorkspaceFileManagerModal } from './components/WorkspaceFileManagerModal';
 import { Toasts } from './components/Toasts';
 import { AchievementModal } from './components/AchievementModal';
 import { GameplayExportModal, GameplayImportModal } from './components/GameplayDialogs';
@@ -143,6 +144,7 @@ function SessionHeader({
   const [confirmReset, setConfirmReset] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [showWorkspace, setShowWorkspace] = useState(false);
 
   const modeLabel = session.mode === 'STANDARD' ? t('header.modeStandard') : session.mode === 'NPC' ? t('header.modeNpc') : t('header.modeGroup');
   const npcRef = session.associatedId ? npcs.find((n) => n.id === session.associatedId) : null;
@@ -159,17 +161,21 @@ function SessionHeader({
       <div className="tinfo">
         <div className="ttitle">{session.title}</div>
         <div className="tsub">
-          {modeLabel}
+          <span className="tsub-mode">{modeLabel}</span>
           {session.mode === 'GROUP' && (
-            <span style={{ marginLeft: 8 }}>
+            <span className="tsub-members">
               {groupNpcs.map((n) => n!.name).join(' · ')}
             </span>
           )}
-          {/* 会话专属沙箱工作目录指示：工具调用都在该目录下进行，与会话相互隔离 */}
+          {/* 会话专属沙箱工作目录标签：与模式标签同一行对齐，点击打开只读文件管理器 */}
           {session.workspaceDir && (
-            <span className="workspace-chip mono" title={t('header.workspaceHint')}>
+            <button
+              className="workspace-chip mono"
+              title={t('header.workspaceHint')}
+              onClick={() => setShowWorkspace(true)}
+            >
               <Icon name="folder" size={11} /> {session.workspaceDir}
-            </span>
+            </button>
           )}
         </div>
       </div>
@@ -189,6 +195,10 @@ function SessionHeader({
       </div>
 
       {showEdit && <NewSessionMenu editingSession={session} onClose={() => setShowEdit(false)} />}
+
+      {showWorkspace && (
+        <WorkspaceFileManagerModal sessionId={session.id!} onClose={() => setShowWorkspace(false)} />
+      )}
 
       {exportOpen && (
         <GameplayExportModal

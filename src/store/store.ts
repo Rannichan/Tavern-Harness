@@ -631,7 +631,7 @@ export const useStore = create<AppState>((set, get) => ({
     if (!session) return null;
 
     // 复制会话（保留模式 / 角色 / 世界书 / 人设 / 队列设置；置顶与顺序“未置顶”）
-    // 新 Fork 会话分配独立工作目录（sessions/<newId>），与原会话互不影响
+    // 新 Fork 会话分配独立工作目录（session-<newId>），与原会话互不影响
     const now = Date.now();
     const newSession: ChatSession = {
       ...session,
@@ -646,7 +646,7 @@ export const useStore = create<AppState>((set, get) => ({
       createdAt: now,
     };
     const newId = await db.sessions.add(newSession);
-    await db.sessions.update(newId, { workspaceDir: `sessions/${newId}` });
+    await db.sessions.update(newId, { workspaceDir: `session-${newId}` });
 
     // 复制参与者（PLAYER 保留 -1 编号，NPC 按 npcId 映射；重建 seatOrder 保持一致）
     const participants = await db.participants.where('sessionId').equals(sessionId).sortBy('seatOrder');
@@ -936,8 +936,8 @@ export async function createSession(
    updatedAt: now,
    createdAt: now,
   });
- // 用会话 id 作为专属工作目录名（sessions/<id>），确保唯一且会话间互不影响
- const workspaceDir = `sessions/${id}`;
+ // 用会话 id 作为专属工作目录名（session-<id>），单层目录、不嵌套，确保唯一且会话间互不影响
+ const workspaceDir = `session-${id}`;
  await db.sessions.update(id, { workspaceDir });
 
   // 参与者

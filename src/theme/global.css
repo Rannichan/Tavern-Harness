@@ -871,24 +871,34 @@ body.resizing .sidebar-resizer {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
-/* 会话专属沙箱工作目录指示（头部副标题内的小标签） */
+.chat-header .tsub-members {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 会话专属沙箱工作目录标签（副标题行内按钮）：与「Character chat」等模式标签对齐，
+   点击打开只读文件管理器 */
 .chat-header .workspace-chip {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  margin-left: 8px;
-  padding: 1px 7px;
-  border-radius: 6px;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 8px;
   border: 1px solid var(--border-soft);
   background: var(--surface-2);
   color: var(--text-dim);
-  font-size: 10.5px;
-  vertical-align: 1px;
-  cursor: help;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s, color 0.15s;
+  flex-shrink: 0;
 }
 .chat-header .workspace-chip:hover {
-  border-color: color-mix(in srgb, var(--primary) 40%, transparent);
+  border-color: color-mix(in srgb, var(--primary) 45%, transparent);
   color: var(--text);
 }
 

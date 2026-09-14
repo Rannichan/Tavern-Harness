@@ -78,14 +78,14 @@ node sandbox-server.mjs            # 默认端口 17891
 
 ### 会话隔离的工作目录
 
-每个对话（会话）在创建时都会分配一个**以会话 id 命名的专属工作目录**：`sandbox_workspace/sessions/<会话id>/`。该会话下所有工具调用——`run_shell_script`、`file_read` / `file_write`、生成式技能的 `shell` 与 `javascript`（`$read` / `$write` / `$append` / `$list`）——都**只在这一个目录内进行**：
+每个对话（会话）在创建时都会分配一个**以会话 id 命名的专属工作目录**：`sandbox_workspace/session-<会话id>/`（单层目录，直接位于工作区根下，不再嵌套）。该会话下所有工具调用——`run_shell_script`、`file_read` / `file_write`、生成式技能的 `shell` 与 `javascript`（`$read` / `$write` / `$append` / `$list`）——都**只在这一个目录内进行**：
 
 - shell 命令以该目录为 `cwd` 执行；
 - 文件读写 / 文件列表只对该目录可见（无法访问其它会话的工作目录）；
-- 浏览器虚拟工作区（沙箱未启动时的回退）同样按会话隔离：`generated_skill_workspace/sessions/<会话id>/…`；
+- 浏览器虚拟工作区（沙箱未启动时的回退）同样按会话隔离：`generated_skill_workspace/sessions/session-<会话id>/…`；
 - 不同会话之间的文件互不可见、互不影响，游戏状态（血量 / 好感度等）天然按会话隔离。
 
-旧会话（在本功能上线前创建）没有工作目录字段，沿用共享根工作区 `sandbox_workspace/`，行为与之前一致。会话头部副标题会显示当前会话的工作目录名（如 `sessions/12`）。
+旧会话（在本功能上线前创建）没有工作目录字段，沿用共享根工作区 `sandbox_workspace/`，行为与之前一致。会话头部副标题会显示当前会话的工作目录名（如 `session-12`）。
 
 ### 生成式技能 `file_read` / `file_write` 的真实磁盘工作区
 

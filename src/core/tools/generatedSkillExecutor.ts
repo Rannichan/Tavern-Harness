@@ -17,7 +17,7 @@ const MAX_OUTPUT_CHARS = 20_000;
 const MAX_READ_CHARS = 100_000;
 /** 虚拟工作区 IndexedDB 键前缀 */
 const WORKSPACE_KEY = 'generated_skill_workspace';
-/** 会话专属工作目录前缀（真实磁盘工作区下的子目录，如 sandbox_workspace/sessions/12） */
+/** 会话专属工作区在虚拟键空间下的根前缀（键空间前缀，与磁盘工作区目录无关） */
 const SESSION_DIR_PREFIX = 'sessions';
 
 /** 当前会话专属工作目录（null = 共享根工作区，用于旧会话/未设置 workspaceDir 的记录） */
@@ -26,7 +26,7 @@ let currentWorkspaceDir: string | null = null;
 /**
  * 设置当前会话工作目录。每次工具调用前由调用方（store / 执行器）按会话设置，
  * 保证该会话内所有工具调用（shell / file_read / file_write / 脚本执行）都只在该目录下进行。
- * dir 为会话记录上的 workspaceDir（如 "sessions/12"），不合规时按 null（共享根）处理。
+ * dir 为会话记录上的 workspaceDir（如 "session-12"），不合规时按 null（共享根）处理。
  */
 export function setWorkspaceDir(dir: string | null | undefined): void {
   if (!dir || typeof dir !== 'string') {
@@ -56,6 +56,15 @@ function keyForSession(path: string): string {
   const safe = sanitizeRelativePath(path);
   if (currentWorkspaceDir) return `${WORKSPACE_KEY}/${SESSION_DIR_PREFIX}/${currentWorkspaceDir}/${safe}`;
   return `${WORKSPACE_KEY}/${safe}`;
+}
+
+/**
+ * 会话专属虚拟键空间前缀（含尾部斜杠）。
+ * 用于按当前会话枚举其专属工作区文件（虚拟工作区回退模式）。
+ */
+function sessionKeyspacePrefix(): string {
+  if (currentWorkspaceDir) return `${WORKSPACE_KEY}/${SESSION_DIR_PREFIX}/${currentWorkspaceDir}/`;
+  return `${WORKSPACE_KEY}/`;
 }
 
 /** shell 确认请求回调（由调用方注入，走统一确认弹窗链路） */
@@ -297,9 +306,7 @@ async function handleBridgeCall(req: { method: string; payload: Record<string, u
         const files = (await diskFileList()) ?? [];
         return { ok: true, files: files.slice(0, 500) };
       }
-      const prefix = currentWorkspaceDir
-        ? `${WORKSPACE_KEY}/${SESSION_DIR_PREFIX}/${currentWorkspaceDir}/`
-        : `${WORKSPACE_KEY}/`;
+      const prefix = sessionKeyspacePrefix();
       const files = await listWorkspaceFiles();
       return { ok: true, files: files.filter((f) => f.path.startsWith(prefix)).map((f) => f.path.slice(prefix.length)) };
     }
@@ -414,6 +421,25 @@ export async function readWorkspaceFileText(path: string): Promise<string | null
   } catch {
     return null;
   }
+}
+
+// ---------- 会话工作区枚举（文件管理器只读浏览共用） ----------
+/**
+ * 列出当前会话专属工作区内的全部文件相对路径。
+ * 磁盘沙箱可用时走 /file_list；否则回退虚拟工作区并前缀过滤。
+ * 返回 null 表示服务不可用且虚拟工作区也无数据（此时 UI 显示空/错误态）。
+ */
+export async function listSessionWorkspaceFiles(): Promise<string[] | null> {
+  const onDisk = await resolveFsMode();
+  if (onDisk) {
+    const files = await diskFileList();
+    if (files !== null) return files.slice(0, 500);
+    return null;
+  }
+  const prefix = sessionKeyspacePrefix();
+  const all = await listWorkspaceFiles();
+  const rels = all.filter((f) => f.path.startsWith(prefix)).map((f) => f.path.slice(prefix.length));
+  return rels.length > 0 ? rels : null;
 }
 
 async function execFileRead(execution: GeneratedSkillExecution, args: Record<string, unknown>): Promise<string> {
