@@ -190,23 +190,6 @@ export interface McpTool {
   displayOrder: number;
 }
 
-export type ScheduledTaskStatus = 'pending' | 'completed' | 'cancelled' | 'failed';
-
-export interface ScheduledTask {
-  id: string;
-  sessionId: number;
-  sourceTurnMessageId: number | null;
-  label: string;
-  triggerAtMillis: number;
-  messageContent: string;
-  showNotification: boolean;
-  characterNameSnapshot: string;
-  status: ScheduledTaskStatus;
-  resultMessage: string | null;
-  createdAt: number;
-  completedAt: number | null;
-}
-
 export interface WorldBook {
   id?: number;
   name: string;
@@ -332,10 +315,4 @@ export interface FileEntry {
   isDir: boolean;
   size: number;
   modifiedAt: number;
-}
-
-export interface SearchResultItem {
-  title: string;
-  snippet: string;
-  url: string;
 }

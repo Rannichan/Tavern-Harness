@@ -34,7 +34,6 @@ import {
 import type { ChatCompletionRequest, SessionMode, TurnOrderMode } from '../types/models';
 import { NEW_TOPIC_MARKER, MAX_TOOL_CALL_DEPTH } from '../core/toolDefinitions';
 import { getEnabledToolsForSession, executeToolCall, parseDisplayRef } from '../core/tools/toolExecutor';
-import { scheduleRestoredTasks } from '../core/tools/toolExecutor';
 import { applyTheme as applyThemeManual, watchSystemTheme } from '../theme/theme';
 import { setLanguage, translate } from '../core/i18n';
 import { localizeBuiltinNpc } from '../db/database';
@@ -223,7 +222,6 @@ export const useStore = create<AppState>((set, get) => ({
         const s = useStore.getState().settings;
         if (s) applyThemeManual(s.themeMode);
       });
-      await scheduleRestoredTasks();
       await get().refreshAchievements();
       // 不自动创建会话：由用户通过左下角「新建」或仪表盘入口创建
       if (sessions.length > 0) {

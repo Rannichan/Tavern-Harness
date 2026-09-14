@@ -4,15 +4,13 @@ export const MAX_TOOL_CALL_DEPTH = 4;
 export const NEW_TOPIC_MARKER = '开始新话题';
 
 export const BUILTIN_TOOL_NAMES = [
-  'web_search',
+  'run_shell_script',
   'roll_dice',
   'file_read',
   'file_write',
-  'run_shell_script',
   'create_skill',
   'update_skill',
   'delete_skill',
-  'manage_timer',
   'get_tavern_status',
   'file_display',
   'create_character',
@@ -31,15 +29,18 @@ const fn = (name: string, description: string, parameters: Record<string, unknow
 
 export const BUILTIN_TOOLS: ChatCompletionTool[] = [
   fn(
-    'web_search',
-    'Search the web using Bing (no API key required, works well in China). Returns ranked results with title, snippet and URL. Use it when you need up-to-date or factual information.',
+    'run_shell_script',
+    'Execute a shell script in the local sandbox to process files, run code, or perform system operations on the user\'s machine.',
     {
       type: 'object',
       properties: {
-        q: { type: 'string', description: 'Search query' },
-        max_results: { type: 'integer', minimum: 1, maximum: 10, default: 5, description: 'Max results 1-10' },
+        script: {
+          type: 'string',
+          maxLength: 8000,
+          description: 'Shell script, one command per line (max 20 lines). Lines starting with # are ignored. Non-interactive only.',
+        },
       },
-      required: ['q'],
+      required: ['script'],
       additionalProperties: false,
     }
   ),
@@ -93,22 +94,6 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
         },
       },
       required: ['path', 'content'],
-      additionalProperties: false,
-    }
-  ),
-  fn(
-    'run_shell_script',
-    'Execute a shell script in the local sandbox to process files, run code, or perform system operations on the user\'s machine.',
-    {
-      type: 'object',
-      properties: {
-        script: {
-          type: 'string',
-          maxLength: 8000,
-          description: 'Shell script, one command per line (max 20 lines). Lines starting with # are ignored. Non-interactive only.',
-        },
-      },
-      required: ['script'],
       additionalProperties: false,
     }
   ),
@@ -170,25 +155,6 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
       type: 'object',
       properties: { name: { type: 'string' } },
       required: ['name'],
-      additionalProperties: false,
-    }
-  ),
-  fn(
-    'manage_timer',
-    'Create, list or cancel scheduled messages (timers) that will be delivered back to this conversation when the time comes. NPC sessions only; max 5 pending timers per session; delay 1 minute to 30 days. At fire time the pre-written content is delivered as a message — no model call happens.',
-    {
-      type: 'object',
-      properties: {
-        operation: { type: 'string', enum: ['create', 'list', 'cancel'] },
-        label: { type: 'string', maxLength: 80, description: 'Timer label' },
-        delay_seconds: { type: 'integer', minimum: 60, maximum: 2592000, description: 'Delay from now in seconds (mutually exclusive with trigger_at)' },
-        trigger_at: { type: 'string', description: 'ISO 8601 timestamp with explicit offset, e.g. 2026-08-18T22:00:00+08:00' },
-        content: { type: 'string', maxLength: 500, description: 'Pre-written message content delivered at fire time' },
-        show_notification: { type: 'boolean', default: true },
-        timer_id: { type: 'string' },
-        status: { type: 'string', enum: ['pending', 'completed', 'cancelled', 'failed', 'all'], description: 'Filter for list' },
-      },
-      required: ['operation'],
       additionalProperties: false,
     }
   ),

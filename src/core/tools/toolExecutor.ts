@@ -7,10 +7,9 @@ import type {
   ToolConfirmationRequest,
 } from '../../types/models';
 import { BUILTIN_TOOLS, BUILTIN_TOOL_NAMES } from '../toolDefinitions';
-import { rollDice, webSearch } from './builtinTools';
+import { rollDice } from './builtinTools';
 import { executeGeneratedSkill, readWorkspaceFileText } from './generatedSkillExecutor';
 import { sanitizeRelativePath } from './generatedWorkspace';
-import { uuid } from '../turnLoop';
 import { translate } from '../i18n';
 
 // ============================================================
@@ -84,12 +83,6 @@ async function runNativeTool(
   ctx: ToolExecutionContext
 ): Promise<string> {
   switch (toolName) {
-    case 'web_search': {
-      const q = String(args.q ?? '');
-      if (!q) return 'ERROR: 缺少搜索词 q';
-      const max = Math.max(1, Math.min(10, Number(args.max_results) || 5));
-      return await webSearch(q, max);
-    }
     case 'roll_dice': {
       const expr = String(args.expression ?? '');
       if (!expr) return 'ERROR: 缺少 expression';
@@ -101,8 +94,6 @@ async function runNativeTool(
       return await handleFileWrite(args);
     case 'run_shell_script':
       return await handleRunShellScript(args, ctx);
-    case 'manage_timer':
-      return await handleManageTimer(args, ctx);
 
     case 'get_tavern_status':
       return await handleGetTavernStatus(args);
@@ -162,169 +153,6 @@ async function gate(
 // ============================================================
 // 原生工具实现
 // ============================================================
-
-async function handleManageTimer(args: Record<string, unknown>, ctx: ToolExecutionContext): Promise<string> {
-  const op = String(args.operation ?? 'list');
-  if (op === 'list') {
-    const tasks = await db.tasks.where('sessionId').equals(ctx.sessionId).toArray();
-    const filtered = args.status && args.status !== 'all' ? tasks.filter((t) => t.status === args.status) : tasks;
-    if (filtered.length === 0) {
-      return '定时消息: (无)';
-    }
-    return (
-      '定时消息列表:\n' +
-      filtered
-        .map(
-          (t) =>
-            `- ${t.status === 'pending' ? '⏳' : t.status === 'completed' ? '✅' : '❌'} ${t.id} ${t.label} ` +
-            `触发于 ${new Date(t.triggerAtMillis).toLocaleString()} › 「${t.messageContent.slice(0, 30)}${t.messageContent.length > 30 ? '…' : ''}」`
-        )
-        .join('\n')
-    );
-  }
-  if (op === 'cancel') {
-    const id = String(args.timer_id ?? '');
-    if (!id) return 'ERROR: 缺少 timer_id';
-    const task = await db.tasks.get(id);
-    if (!task) return 'ERROR: 定时任务不存在';
-    await db.tasks.update(id, { status: 'cancelled' as const, completedAt: Date.now() });
-    return `OK: 已取消定时任务 ${id}`;
-  }
-  if (op === 'create') {
-    const session = await db.sessions.get(ctx.sessionId);
-    if (session?.mode !== 'NPC') return 'ERROR: 定时消息仅支持 NPC 会话';
-    const pending = await db.tasks.where('sessionId').equals(ctx.sessionId).filter((t) => t.status === 'pending').count();
-    if (pending >= 5) return 'ERROR: 该会话最多 5 个待触发定时消息';
-
-    const label = String(args.label ?? '').slice(0, 80);
-    const content = String(args.content ?? '').slice(0, 500);
-    if (!content) return 'ERROR: 缺少定时消息内容 content';
-    const showNotification = args.show_notification !== false;
-
-    let triggerAt: number;
-    if (args.delay_seconds != null) {
-      const delay = Number(args.delay_seconds);
-      if (delay < 60 || delay > 2_592_000) return 'ERROR: delay_seconds 需在 60~2592000 之间';
-      triggerAt = Date.now() + delay * 1000;
-    } else if (args.trigger_at) {
-      const t = Date.parse(String(args.trigger_at));
-      if (Number.isNaN(t)) return 'ERROR: trigger_at 必须是带时区的 ISO 8601 时间';
-      triggerAt = t;
-    } else {
-      return 'ERROR: 需要 delay_seconds 或 trigger_at';
-    }
-
-    // 5 分钟内重复内容拦截
-    const dup = await db.tasks
-      .where('sessionId')
-      .equals(ctx.sessionId)
-      .filter((t) => t.messageContent === content && t.status === 'pending' && Date.now() - t.createdAt < 5 * 60_000)
-      .first();
-    if (dup) return 'ERROR: 5 分钟内已有相同内容的定时消息';
-
-    const session2 = await db.sessions.get(ctx.sessionId);
-    const character = session2?.associatedId ? await db.npcs.get(session2.associatedId) : null;
-
-    const id = uuid();
-    await db.tasks.add({
-      id,
-      sessionId: ctx.sessionId,
-      sourceTurnMessageId: null,
-      label: label || '定时消息',
-      triggerAtMillis: triggerAt,
-      messageContent: content,
-      showNotification,
-      characterNameSnapshot: character?.name ?? '',
-      status: 'pending',
-      resultMessage: null,
-      createdAt: Date.now(),
-      completedAt: null,
-    });
-    // 启动倒计时（Web 定时器）
-    scheduleTask(id, triggerAt);
-
-    return JSON.stringify(
-      {
-        timer_id: id,
-        status: 'pending',
-        label: label || '定时消息',
-        trigger_at_epoch_ms: triggerAt,
-        content,
-        scheduling: 'exact',
-      },
-      null,
-      2
-    );
-  }
-  return 'ERROR: 未知操作';
-}
-
-const scheduledTimers = new Map<string, number>();
-
-export function scheduleTask(id: string, triggerAtMillis: number): void {
-  const existing = scheduledTimers.get(id);
-  if (existing) clearTimeout(existing);
-  const delay = Math.max(0, triggerAtMillis - Date.now());
-  const timer = window.setTimeout(async () => {
-    scheduledTimers.delete(id);
-    const task = await db.tasks.get(id);
-    if (!task || task.status !== 'pending') return;
-    await db.tasks.update(id, { status: 'completed', completedAt: Date.now() });
-    // 投递为 assistant 消息（modelUsed 作去重标记）
-    await db.messages.add({
-      sessionId: task.sessionId,
-      role: 'assistant',
-      speakerParticipantId: null,
-      speakerName: task.characterNameSnapshot || null,
-      content: task.messageContent,
-      toolCallsJson: '[]',
-      toolCallId: null,
-      thinkingContent: null,
-      loopIndex: null,
-      timestamp: Date.now(),
-      latencyMs: null,
-      promptTokens: 0,
-      completionTokens: 0,
-      totalTokens: 0,
-      tokensPerSec: null,
-      modelUsed: `scheduled:${task.id}`,
-      attachments: [],
-      attachmentInfos: [],
-      displayRef: null,
-      rawRequestBody: null,
-      rawResponseBody: null,
-    });
-    if (task.showNotification && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-      try {
-        new Notification('⏰ Tavern Harness 定时消息', {
-          body: `${task.characterNameSnapshot ? `[${task.characterNameSnapshot}] ` : ''}${task.messageContent.slice(0, 80)}`,
-        });
-      } catch {
-        /* ignore */
-      }
-    }
-    // 刷新会话预览
-    const session = await db.sessions.get(task.sessionId);
-    if (session) {
-      await db.sessions.update(task.sessionId, { updatedAt: Date.now(), lastMessage: task.messageContent.slice(0, 60) });
-    }
-  }, delay);
-  // 超长延迟（>24.8 天）用远端持久化兜底，由 app 启动时恢复
-  if (delay > 2_147_483_647) {
-    // IndexedDB 已存任务，下次打开页面时 scheduleRestoredTasks 会重新安排
-    scheduledTimers.delete(id);
-  } else {
-    scheduledTimers.set(id, timer);
-  }
-}
-
-/** 页面启动时恢复未触发的定时任务 */
-export async function scheduleRestoredTasks(): Promise<void> {
-  const tasks = await db.tasks.where('status').equals('pending').toArray();
-  for (const t of tasks) {
-    scheduleTask(t.id, t.triggerAtMillis);
-  }
-}
 
 async function handleGetTavernStatus(args: Record<string, unknown>): Promise<string> {
   const fields = Array.isArray(args.fields) ? (args.fields as string[]) : [];

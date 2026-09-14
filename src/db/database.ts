@@ -10,7 +10,6 @@ import type {
   ChatSession,
   McpTool,
   NpcCharacter,
-  ScheduledTask,
   WorldBook,
   AppLanguage,
 } from '../types/models';
@@ -26,7 +25,6 @@ export class TavernDB extends Dexie {
   messages!: Table<ChatMessage, number>;
   tools!: Table<McpTool, number>;
   worldBooks!: Table<WorldBook, number>;
-  tasks!: Table<ScheduledTask, string>;
   careerStats!: Table<CareerStatsTotal, number>;
   careerNpcStats!: Table<CareerNpcStat, number>;
   achievementUnlocks!: Table<AchievementUnlock, number>;
@@ -42,7 +40,6 @@ export class TavernDB extends Dexie {
       messages: '++id, [sessionId+timestamp], sessionId, timestamp',
       tools: '++id, name, isBuiltIn',
       worldBooks: '++id, name',
-      tasks: 'id, sessionId, status, triggerAtMillis',
       careerStats: 'id',
       careerNpcStats: 'npcId',
       workspaceFiles: 'path, updatedAt',
@@ -58,7 +55,21 @@ export class TavernDB extends Dexie {
       messages: '++id, [sessionId+timestamp], sessionId, timestamp',
       tools: '++id, name, isBuiltIn',
       worldBooks: '++id, name',
-      tasks: 'id, sessionId, status, triggerAtMillis',
+      careerStats: 'id',
+      careerNpcStats: 'npcId',
+      workspaceFiles: 'path, updatedAt',
+      achievementUnlocks: '++id, achievementId, unlockedAt',
+    });
+    // v3：移除已退役的定时消息表 tasks（升级时 Dexie 自动 deleteObjectStore('tasks')，物理清理旧库残留）
+    this.version(3).stores({
+      settings: 'id',
+      providers: '++id, name, isEnabled',
+      npcs: '++id, name, isBuiltIn',
+      sessions: '++id, mode, updatedAt, associatedId, pinned',
+      participants: '[sessionId+participantId], sessionId, participantId',
+      messages: '++id, [sessionId+timestamp], sessionId, timestamp',
+      tools: '++id, name, isBuiltIn',
+      worldBooks: '++id, name',
       careerStats: 'id',
       careerNpcStats: 'npcId',
       workspaceFiles: 'path, updatedAt',
@@ -149,6 +160,8 @@ export async function initDatabase(): Promise<void> {
   // 内置技能改名迁移：display_file → file_display（须在 seedBuiltinTools 之前，
   // 否则种子先写入 file_display、迁移再把旧 display_file 改同名，会产生重复记录）
   await migrateDisplayFileRename();
+  // 退役内置技能（web_search / manage_timer）已从默认工具列表移除：清理旧库残留
+  await retireRemovedBuiltinTools();
   // 预载内置技能表
   await seedBuiltinTools();
   // 旧数据兼容：enabledToolNames 可能是 CSV 字符串
@@ -238,6 +251,29 @@ export async function localizeBuiltinNpc(): Promise<void> {
 /** 内置角色本地化标记：记录上次写入内置角色文本时使用的语言 */
 const LOCALIZE_LANG_KEY = 'th-builtin-npc-lang';
 
+/** 已退役的内置技能：从默认工具列表中移除后，旧库里的记录不再被 seed 覆盖同步。
+ *  迁移时删除工具记录，并从 NPC 启用列表里剔除（历史消息中的工具调用保留原文，仅作展示）。 */
+const RETIRED_BUILTIN_TOOL_NAMES = ['web_search', 'manage_timer'];
+
+async function retireRemovedBuiltinTools(): Promise<void> {
+  for (const name of RETIRED_BUILTIN_TOOL_NAMES) {
+    // 删除内置工具记录（仅限 isBuiltIn 的内置记录，同名自定义技能不删）
+    const existing = await db.tools.where('name').equals(name).toArray();
+    for (const t of existing) {
+      if (t.isBuiltIn) await db.tools.delete(t.id!);
+    }
+    // 从 NPC 启用列表剔除
+    const npcs = await db.npcs.toArray();
+    for (const n of npcs) {
+      if (Array.isArray(n.enabledToolNames) && n.enabledToolNames.includes(name)) {
+        await db.npcs.update(n.id!, {
+          enabledToolNames: n.enabledToolNames.filter((s) => s !== name),
+        });
+      }
+    }
+  }
+}
+
 /** 内置技能（只读保护）第一次使用时写库，已存在的同步更新 schema */
 export async function seedBuiltinTools(): Promise<void> {
   const now = Date.now();
@@ -271,7 +307,7 @@ export async function seedBuiltinTools(): Promise<void> {
   }
 }
 
-/** 内置角色「酒馆老板」默认启用全部内置技能（老数据只启用了 web_search / roll_dice） */
+/** 内置角色「酒馆老板」默认启用全部内置技能（老数据只启用了 roll_dice 等） */
 async function ensureBossDefaultSkills(): Promise<void> {
   const boss = await db.npcs.filter((n) => n.isBuiltIn).first();
   if (!boss) return;
