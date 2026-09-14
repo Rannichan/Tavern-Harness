@@ -197,6 +197,21 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  /* 行内不换行：标签固定在右侧（flex-wrap:nowrap），名称在剩余宽度内完整显示、可换行 */
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+.char-card .cname .cname-text {
+  min-width: 0;
+  flex: 1 1 auto;
+  /* 名称完整显示，允许换行，长词强制断行 */
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  line-height: 1.35;
+}
+.char-card .cname .tag {
+  flex-shrink: 0;
 }
 .char-card .cgreet {
   font-size: 12.5px;
@@ -229,6 +244,19 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+.wb-card .cname .cname-text {
+  min-width: 0;
+  flex: 1 1 auto;
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  line-height: 1.35;
+}
+.wb-card .cname .tag {
+  flex-shrink: 0;
 }
 .wb-card .wcontent {
   font-size: 12.5px;

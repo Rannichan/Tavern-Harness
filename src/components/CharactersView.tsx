@@ -201,7 +201,7 @@ function CharacterGrid({ npcs, onEdit, onImportPng }: { npcs: NpcCharacter[]; on
           <div key={n.id} className="char-card fade-up">
             <div className="cname">
               <Avatar name={n.name} colorOrdinal={n.avatarColorOrdinal} imageUrl={n.avatarDataUrl} size="xs" />
-              {n.name}
+              <span className="cname-text">{n.name}</span>
               {n.isBuiltIn && <span className="tag">{t('common.builtin')}</span>}
             </div>
             <div className="cgreet">{n.greeting || t('workshop.noGreeting')}</div>
@@ -449,7 +449,7 @@ function WorldBookList({ books, onChanged, onImportPng, importDraft, onImportDra
           <div key={b.id} className="char-card wb-card fade-up">
             <div className="cname">
               <span style={{ fontSize: 16 }}>📖</span>
-              {b.name}
+              <span className="cname-text">{b.name}</span>
             </div>
             <div className="wcontent">{b.content}</div>
             <div className="cmeta">{t('workshop.wbChars', { n: b.content.length })}</div>
