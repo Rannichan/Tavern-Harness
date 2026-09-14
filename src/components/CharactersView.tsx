@@ -443,8 +443,13 @@ function WorldBookList({ books, onChanged, onImportPng, importDraft, onImportDra
           </button>
         </div>
       </div>
+      {books.length === 0 && (
+        <div className="empty-state">
+          <div className="big">📖</div>
+          {t('workshop.wbEmpty')}
+        </div>
+      )}
       <div className="char-grid">
-        {books.length === 0 && <div className="empty-state"><div className="big">📖</div>{t('workshop.wbEmpty')}</div>}
         {books.map((b) => (
           <div key={b.id} className="char-card wb-card fade-up">
             <div className="cname">
