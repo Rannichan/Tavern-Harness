@@ -107,8 +107,8 @@ async function runNativeTool(
     case 'get_tavern_status':
       return await handleGetTavernStatus(args);
 
-    case 'display_file':
-      return await handleDisplayFile(args);
+    case 'file_display':
+      return await handleFileDisplay(args);
 
     case 'create_skill':
       return await handleCreateSkill(args);
@@ -378,7 +378,7 @@ async function handleGetTavernStatus(args: Record<string, unknown>): Promise<str
   return JSON.stringify(out, null, 2);
 }
 
-// ---------- display_file（弹窗展示工作区文件，只读） ----------
+// ---------- file_display（弹窗展示工作区文件，只读） ----------
 
 /**
  * 结果中携带的展示引用标记前缀。store 在落库工具结果时会解析它，
@@ -408,7 +408,7 @@ export function parseDisplayRef(result: string): DisplayPayload | null {
 }
 
 /** 读取工作区文件（磁盘沙箱 + 虚拟工作区双模式）并生成展示结果 */
-async function handleDisplayFile(args: Record<string, unknown>): Promise<string> {
+async function handleFileDisplay(args: Record<string, unknown>): Promise<string> {
   const rawPath = sanitizeRelativePath(String(args.path ?? ''));
   const title = typeof args.title === 'string' && args.title.trim() ? args.title.trim() : undefined;
 

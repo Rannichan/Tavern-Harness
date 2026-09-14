@@ -12,7 +12,7 @@ export type ReasoningEffort = 'auto' | 'off' | 'low' | 'medium' | 'xhigh';
 export type AppLanguage = 'zh-CN' | 'zh-TW' | 'en' | null;
 
 /**
- * 工具结果展示引用（display_file 等内置展示工具的回看锚点）。
+ * 工具结果展示引用（file_display 等内置展示工具的回看锚点）。
  * 持久化在 ChatMessage.displayRef，供对话流里的「查看」按钮随时重开弹窗。
  */
 export interface DisplayFileRef {
@@ -150,7 +150,7 @@ export interface ChatMessage {
   attachments: string[];
   attachmentInfos: ChatAttachmentInfo[];
   /**
-   * 展示类工具（display_file）的结果锚点：JSON 字符串化的 DisplayFileRef。
+   * 展示类工具（file_display）的结果锚点：JSON 字符串化的 DisplayFileRef。
    * 工具结果消息携带它，UI 据此渲染「查看」按钮并提供弹窗回看。
    */
   displayRef: string | null;

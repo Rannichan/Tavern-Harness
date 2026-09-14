@@ -243,7 +243,7 @@ function MessageBubble({
             <Icon name={isError ? 'cancel' : 'check'} size={13} />
             <span className="mono">{displayContent.slice(0, 200)}{displayContent.length > 200 ? '…' : ''}</span>
           </div>
-          {/* 展示类工具（display_file）：保留「查看」按钮，随时重开已展示的文件 */}
+          {/* 展示类工具（file_display）：保留「查看」按钮，随时重开已展示的文件 */}
           {msg.displayRef && <FileDisplayViewButton displayRef={msg.displayRef} />}
         </div>
       </div>
@@ -538,7 +538,7 @@ function ToolCallCard({ tc, executing, results }: { tc: ToolCallRecord; executin
   }
   const hasResult = results.length > 0;
   const isError = results.some((r) => r.content.startsWith('ERROR:') || r.content.startsWith('CANCELLED:'));
-  // 展示类工具（display_file）结果：去掉 DISPLAY_REF / OK 前缀再拼展示文本
+  // 展示类工具（file_display）结果：去掉 DISPLAY_REF / OK 前缀再拼展示文本
   const displayRef = results.find((r) => r.displayRef)?.displayRef ?? null;
   const resultText = results
     .map((r) => {

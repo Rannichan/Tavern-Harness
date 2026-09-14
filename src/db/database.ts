@@ -146,6 +146,9 @@ export async function initDatabase(): Promise<void> {
   if (boss && !boss.isBuiltIn) {
     await db.npcs.update(boss.id!, { isBuiltIn: true });
   }
+  // 内置技能改名迁移：display_file → file_display（须在 seedBuiltinTools 之前，
+  // 否则种子先写入 file_display、迁移再把旧 display_file 改同名，会产生重复记录）
+  await migrateDisplayFileRename();
   // 预载内置技能表
   await seedBuiltinTools();
   // 旧数据兼容：enabledToolNames 可能是 CSV 字符串
@@ -306,5 +309,80 @@ async function backfillToolOrigins(): Promise<void> {
   for (const t of tools) {
     if (t.origin) continue;
     await db.tools.update(t.id!, { origin: t.isBuiltIn ? 'builtin' : 'custom' });
+  }
+}
+
+/**
+ * 内置技能改名/去重迁移：display_file → file_display。
+ * 处理两种历史遗留：
+ * A. 旧内置 display_file 尚未改名 → 改名（若 file_display 已存在则直接删除旧记录）。
+ * B. 库中已有重复的 file_display（改名迁移曾被中断/重复执行，或旧版与新代码
+ *    各播种过一次）→ 保留一条（displayOrder 最小者），删除其余内置重复项。
+ * 同时更新 npcs.enabledToolNames 与 messages.toolCallsJson 里的技能名引用，
+ * 保证老数据升级后新名字下的路由/展示/回看全部生效。
+ */
+async function migrateDisplayFileRename(): Promise<void> {
+  const OLD = 'display_file';
+  const NEW = 'file_display';
+
+  // A. display_file → file_display（幂等：绝不产生两条 file_display）
+  const oldTool = await db.tools.where('name').equals(OLD).first();
+  if (oldTool && oldTool.isBuiltIn) {
+    const newTool = await db.tools.where('name').equals(NEW).first();
+    if (newTool && newTool.isBuiltIn) {
+      await db.tools.delete(oldTool.id!);
+    } else {
+      let jsonContent = oldTool.jsonContent;
+      try {
+        const parsed = JSON.parse(jsonContent) as { function?: { name?: string } };
+        if (parsed?.function?.name === OLD) {
+          parsed.function.name = NEW;
+          jsonContent = JSON.stringify(parsed);
+        }
+      } catch {
+        /* 保持原样，seedBuiltinTools 会重写 */
+      }
+      await db.tools.update(oldTool.id!, { name: NEW, jsonContent });
+    }
+  }
+
+  // B. 已污染的库：多条内置 file_display → 保留 displayOrder 最小的一条，删除其余
+  const newTools = await db.tools.where('name').equals(NEW).toArray();
+  if (newTools.length > 1) {
+    const builtins = newTools.filter((t) => t.isBuiltIn);
+    const keep = [...builtins].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0))[0];
+    for (const dup of builtins) {
+      if (dup.id !== keep.id) await db.tools.delete(dup.id!);
+    }
+    // 非内置的重复项（用户自定义同名）不删，避免误删用户数据
+  }
+
+  // 2. NPC 启用的技能名
+  const npcs = await db.npcs.toArray();
+  for (const n of npcs) {
+    if (Array.isArray(n.enabledToolNames) && n.enabledToolNames.includes(OLD)) {
+      await db.npcs.update(n.id!, {
+        enabledToolNames: n.enabledToolNames.map((s) => (s === OLD ? NEW : s)),
+      });
+    }
+  }
+
+  // 3. 历史消息中的工具调用名
+  const messages = await db.messages.toArray();
+  for (const m of messages) {
+    if (!m.toolCallsJson || !m.toolCallsJson.includes(`"${OLD}"`)) continue;
+    try {
+      const calls = JSON.parse(m.toolCallsJson) as Array<{ name?: string }>;
+      let changed = false;
+      for (const c of calls) {
+        if (c && c.name === OLD) {
+          c.name = NEW;
+          changed = true;
+        }
+      }
+      if (changed) await db.messages.update(m.id!, { toolCallsJson: JSON.stringify(calls) });
+    } catch {
+      /* 坏 JSON 不处理 */
+    }
   }
 }

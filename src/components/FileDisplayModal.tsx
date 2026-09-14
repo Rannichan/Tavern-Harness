@@ -7,7 +7,7 @@ import { readWorkspaceFileText } from '../core/tools/generatedSkillExecutor';
 import type { DisplayFileRef } from '../types/models';
 
 // ============================================================
-// 文件展示弹窗（display_file 内置工具）
+// 文件展示弹窗（file_display 内置工具）
 //  - image: 图片直接展示，支持滚轮/按钮缩放与拖拽平移
 //  - html : 在隔离 iframe（sandbox）中渲染，可运行动画/交互脚本
 //  - text : 按扩展名智能渲染：markdown → MD 渲染（含代码高亮与公式），

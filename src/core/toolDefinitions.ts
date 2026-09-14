@@ -14,7 +14,7 @@ export const BUILTIN_TOOL_NAMES = [
   'delete_skill',
   'manage_timer',
   'get_tavern_status',
-  'display_file',
+  'file_display',
   'create_character',
   'update_character',
   'delete_character',
@@ -211,7 +211,7 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
     }
   ),
   fn(
-    'display_file',
+    'file_display',
     'Display any file from the skill workspace to the user. Useful for inspecting existing files, reviewing generated output (reports, dashboards, images, HTML pages), or browsing the workspace content.',
     {
       type: 'object',

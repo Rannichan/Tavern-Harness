@@ -351,7 +351,7 @@ async function diskFileList(): Promise<string[] | null> {
  * 读取工作区文件文本。
  * 磁盘沙箱可用时优先读 sandbox_workspace/；磁盘模式读不到（文件写在
  * 虚拟工作区 / 模式切换过）时回退虚拟工作区。两处都无 → null。
- * 供 file_read 技能、display_file 展示以及弹窗回看共用。
+ * 供 file_read 技能、file_display 展示以及弹窗回看共用。
  */
 export async function readWorkspaceFileText(path: string): Promise<string | null> {
   const safe = sanitizeRelativePath(path);
