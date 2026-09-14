@@ -3,7 +3,8 @@ import { Modal, Icon, Markdown } from './shared';
 import { useStore } from '../store/store';
 import { useT } from '../core/i18n';
 import { highlightCode } from '../core/markdown';
-import { readWorkspaceFileText } from '../core/tools/generatedSkillExecutor';
+import { readWorkspaceFileText, setWorkspaceDir } from '../core/tools/generatedSkillExecutor';
+import { applySessionWorkspace } from '../core/tools/toolExecutor';
 import type { DisplayFileRef } from '../types/models';
 
 // ============================================================
@@ -61,7 +62,19 @@ export function FileDisplayModal() {
     setImgError(false);
     setZoom(1);
     setPan({ x: 0, y: 0 });
-    void readWorkspaceFileText(active.path).then((text) => {
+    // 按产生该展示的会话设置工作目录：普通弹窗（active.sessionId = 当前会话）读当前会话工作区；
+    // 回看历史消息（sessionId 持久化）读该会话自己的工作区
+    const read = async () => {
+      if (active.sessionId != null) {
+        try {
+          await applySessionWorkspace(active.sessionId);
+        } catch {
+          setWorkspaceDir(null);
+        }
+      } else {
+        setWorkspaceDir(null);
+      }
+      const text = await readWorkspaceFileText(active.path);
       if (cancelled) return;
       if (text === null) {
         setLoadState('error');
@@ -69,7 +82,8 @@ export function FileDisplayModal() {
       }
       setContent(text);
       setLoadState('ok');
-    });
+    };
+    void read();
     return () => {
       cancelled = true;
     };
@@ -235,7 +249,12 @@ export function parseStoredDisplayRef(json: string | null): DisplayFileRef | nul
   try {
     const obj = JSON.parse(json) as Partial<DisplayFileRef>;
     if (!obj || typeof obj.path !== 'string' || !['text', 'image', 'html'].includes(obj.kind ?? '')) return null;
-    return { path: obj.path, kind: obj.kind as DisplayFileRef['kind'], title: obj.title };
+    return {
+      path: obj.path,
+      kind: obj.kind as DisplayFileRef['kind'],
+      title: obj.title,
+      sessionId: typeof obj.sessionId === 'number' ? obj.sessionId : null,
+    };
   } catch {
     return null;
   }
@@ -252,7 +271,7 @@ export function FileDisplayViewButton({ displayRef }: { displayRef: string | nul
       onClick={() => {
         const ref = parseStoredDisplayRef(displayRef);
         if (ref) {
-          setActiveDisplay({ path: ref.path, kind: ref.kind, title: ref.title });
+          setActiveDisplay({ path: ref.path, kind: ref.kind, title: ref.title, sessionId: ref.sessionId ?? null });
         }
       }}
     >

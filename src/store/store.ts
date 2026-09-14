@@ -33,7 +33,7 @@ import {
 } from '../core/turnLoop';
 import type { ChatCompletionRequest, SessionMode, TurnOrderMode } from '../types/models';
 import { NEW_TOPIC_MARKER, MAX_TOOL_CALL_DEPTH } from '../core/toolDefinitions';
-import { getEnabledToolsForSession, executeToolCall, parseDisplayRef } from '../core/tools/toolExecutor';
+import { getEnabledToolsForSession, executeToolCall, parseDisplayRef, applySessionWorkspace } from '../core/tools/toolExecutor';
 import { applyTheme as applyThemeManual, watchSystemTheme } from '../theme/theme';
 import { setLanguage, translate } from '../core/i18n';
 import { localizeBuiltinNpc } from '../db/database';
@@ -67,6 +67,8 @@ export interface ActiveDisplay {
   path: string;
   kind: 'text' | 'image' | 'html';
   title?: string;
+  /** 产生该展示的会话 id（读取文件时按其专属工作目录解析，null = 共享工作区） */
+  sessionId: number | null;
 }
 
 interface AppState {
@@ -629,6 +631,7 @@ export const useStore = create<AppState>((set, get) => ({
     if (!session) return null;
 
     // 复制会话（保留模式 / 角色 / 世界书 / 人设 / 队列设置；置顶与顺序“未置顶”）
+    // 新 Fork 会话分配独立工作目录（sessions/<newId>），与原会话互不影响
     const now = Date.now();
     const newSession: ChatSession = {
       ...session,
@@ -643,6 +646,7 @@ export const useStore = create<AppState>((set, get) => ({
       createdAt: now,
     };
     const newId = await db.sessions.add(newSession);
+    await db.sessions.update(newId, { workspaceDir: `sessions/${newId}` });
 
     // 复制参与者（PLAYER 保留 -1 编号，NPC 按 npcId 映射；重建 seatOrder 保持一致）
     const participants = await db.participants.where('sessionId').equals(sessionId).sortBy('seatOrder');
@@ -913,6 +917,8 @@ export async function createSession(
    ? (opts?.associatedId != null ? [opts.associatedId] : [])
    : [...new Set((opts?.npcIds ?? []).filter((id) => Number.isFinite(id)).map(Number))].slice(0, 5);
  const now = Date.now();
+ // 会话专属工作目录：先写入会话拿自增 id，再用 id 生成目录并回填。
+ // 该会话的所有工具调用（shell / 文件读写 / 脚本执行等）都在此目录下进行，会话间互相隔离。
  const id = await db.sessions.add({
    title,
    mode,
@@ -921,6 +927,7 @@ export async function createSession(
    userPersonaNpcId: opts?.userPersonaNpcId ?? null,
    enableGreeting: opts?.enableGreeting !== false,
    turnOrderMode,
+   workspaceDir: null,
    turnQueueJson: '[]',
    turnQueueHistoryJson: '[]',
    loopIndex: 0,
@@ -929,6 +936,9 @@ export async function createSession(
    updatedAt: now,
    createdAt: now,
   });
+ // 用会话 id 作为专属工作目录名（sessions/<id>），确保唯一且会话间互不影响
+ const workspaceDir = `sessions/${id}`;
+ await db.sessions.update(id, { workspaceDir });
 
   // 参与者
   const participantsById = new Map<number, ChatParticipant>();
@@ -1572,6 +1582,8 @@ async function streamAssistantTurn(
       for (const tc of finalToolCalls) {
         let result: string;
         try {
+          // 会话隔离：每个工具调用前把工作目录切到当前会话（shell / 文件读写都在该会话目录内）
+          await applySessionWorkspace(sessionId);
           const needsConfirm = ['update_skill', 'delete_skill', 'update_character', 'delete_character', 'update_world_book', 'delete_world_book'].includes(tc.name);
           if (needsConfirm) {
             const approved = await requestToolConfirmation(sessionId, tc);
@@ -1631,6 +1643,7 @@ async function streamAssistantTurn(
             path: displayPayload.path,
             kind: displayPayload.kind,
             title: displayPayload.title,
+            sessionId,
           });
         }
 
@@ -1873,10 +1886,12 @@ function displayRefForToolName(toolName: string, result: string): string | null 
   const payload = parseDisplayRef(result);
   if (!payload) return null;
   // path 前面去展示前缀的剩余文本是给模型看的（留在 content 中）。
-  // displayRef 只保存展示所需的最小信息。
+  // displayRef 只保存展示所需的最小信息；sessionId 用于回看时定位会话工作目录。
+  const sessionId = useStore.getState().activeSessionId;
   return JSON.stringify({
     path: payload.path,
     kind: payload.kind,
     title: payload.title,
+    sessionId,
   });
 }

@@ -2,13 +2,14 @@ import { db } from '../../db/database';
 import { createSession } from '../../store/store';
 import type {
   ChatCompletionTool,
+  ChatSession,
   GeneratedSkillExecution,
   McpTool,
   ToolConfirmationRequest,
 } from '../../types/models';
 import { BUILTIN_TOOLS, BUILTIN_TOOL_NAMES } from '../toolDefinitions';
 import { rollDice } from './builtinTools';
-import { executeGeneratedSkill, readWorkspaceFileText } from './generatedSkillExecutor';
+import { executeGeneratedSkill, readWorkspaceFileText, setWorkspaceDir, sessionWorkspaceDir } from './generatedSkillExecutor';
 import { sanitizeRelativePath } from './generatedWorkspace';
 import { translate } from '../i18n';
 
@@ -69,12 +70,37 @@ export async function executeToolCall(
   if (mcpTool && mcpTool.executionJson) {
     try {
       const execution = JSON.parse(mcpTool.executionJson) as GeneratedSkillExecution;
+      // 会话隔离：先把工作目录切换到当前会话
+      await applySessionWorkspace(ctx.sessionId);
       return await executeGeneratedSkill(execution, args, ctx.requestConfirmation);
     } catch (e) {
       return `ERROR: 技能实现无效 ${(e as Error).message}`;
     }
   }
   return `ERROR: 技能 '${toolName}' 没有实现`;
+}
+
+/**
+ * 把一个会话的工具调用工作目录切到该会话专属沙箱目录。
+ * 会话记录上的 workspaceDir（如 "sessions/12"）由创建会话时生成；
+ * 旧会话没有该字段 → 回退共享根工作区（旧行为）。
+ */
+export async function applySessionWorkspace(sessionId: number): Promise<void> {
+  let dir: string | null = null;
+  try {
+    const session = await db.sessions.get(sessionId);
+    if (session && typeof (session as ChatSession).workspaceDir === 'string') {
+      dir = (session as ChatSession).workspaceDir!;
+    }
+  } catch {
+    dir = null;
+  }
+  setWorkspaceDir(dir);
+}
+
+/** 仅供内部调试/校验：当前已应用的工作目录 */
+export function currentSessionWorkspace(): string | null {
+  return sessionWorkspaceDir();
 }
 
 async function runNativeTool(
@@ -89,9 +115,9 @@ async function runNativeTool(
       return rollDice(expr);
     }
     case 'file_read':
-      return await handleFileRead(args);
+      return await handleFileRead(args, ctx);
     case 'file_write':
-      return await handleFileWrite(args);
+      return await handleFileWrite(args, ctx);
     case 'run_shell_script':
       return await handleRunShellScript(args, ctx);
 
@@ -99,7 +125,7 @@ async function runNativeTool(
       return await handleGetTavernStatus(args);
 
     case 'file_display':
-      return await handleFileDisplay(args);
+      return await handleFileDisplay(args, ctx);
 
     case 'create_skill':
       return await handleCreateSkill(args);
@@ -236,7 +262,8 @@ export function parseDisplayRef(result: string): DisplayPayload | null {
 }
 
 /** 读取工作区文件（磁盘沙箱 + 虚拟工作区双模式）并生成展示结果 */
-async function handleFileDisplay(args: Record<string, unknown>): Promise<string> {
+async function handleFileDisplay(args: Record<string, unknown>, ctx: ToolExecutionContext): Promise<string> {
+  await applySessionWorkspace(ctx.sessionId);
   const rawPath = sanitizeRelativePath(String(args.path ?? ''));
   const title = typeof args.title === 'string' && args.title.trim() ? args.title.trim() : undefined;
 
@@ -263,7 +290,8 @@ async function handleFileDisplay(args: Record<string, unknown>): Promise<string>
 
 // ---------- file_read / file_write / run_shell_script（内置技能，复用生成式执行引擎的沙箱能力） ----------
 
-async function handleFileRead(args: Record<string, unknown>): Promise<string> {
+async function handleFileRead(args: Record<string, unknown>, ctx: ToolExecutionContext): Promise<string> {
+  await applySessionWorkspace(ctx.sessionId);
   const path = sanitizeRelativePath(String(args.path ?? ''));
   const content = await readWorkspaceFileText(path);
   if (content === null) {
@@ -272,11 +300,13 @@ async function handleFileRead(args: Record<string, unknown>): Promise<string> {
   return content.length > 20_000 ? content.slice(0, 20_000) + '…(已截断)' : content;
 }
 
-async function handleFileWrite(args: Record<string, unknown>): Promise<string> {
+async function handleFileWrite(args: Record<string, unknown>, ctx: ToolExecutionContext): Promise<string> {
+  await applySessionWorkspace(ctx.sessionId);
   return executeGeneratedSkill({ type: 'file_write', path: String(args.path ?? ''), content: String(args.content ?? ''), append: args.append === true }, args);
 }
 
 async function handleRunShellScript(args: Record<string, unknown>, ctx: ToolExecutionContext): Promise<string> {
+  await applySessionWorkspace(ctx.sessionId);
   return executeGeneratedSkill({ type: 'shell', script: String(args.script ?? '') }, args, ctx.requestConfirmation);
 }
 

@@ -22,6 +22,8 @@ export interface DisplayFileRef {
   kind: 'text' | 'image' | 'html';
   /** 展示标题（默认取文件名） */
   title?: string;
+  /** 产生该展示的会话 id（回看时按其专属工作目录解析；null = 共享工作区） */
+  sessionId?: number | null;
   /** 提示附带的展示结果文本（工具结果的持久化，回看时无需重读文件） */
   cachedContent?: string;
 }
@@ -92,6 +94,13 @@ export interface ChatSession {
   userPersonaNpcId: number | null;
   enableGreeting?: boolean;
   turnOrderMode: TurnOrderMode;
+  /**
+   * 会话专属沙箱工作目录名（以会话 id 为名，如 "sessions/12"）。
+   * 该会话的所有工具调用（shell / file_read / file_write / 脚本执行等）
+   * 都在这个独立目录下进行，会话之间相互隔离。
+   * 旧会话（未设置）在本工作区实现前的记录默认为共享根工作区。
+   */
+  workspaceDir?: string | null;
   turnQueueJson: string;
   /** 各循环的完整初始顺序历史（JSON 二维数组），用于群聊发言队列面板展示完整历史 */
   turnQueueHistoryJson: string;

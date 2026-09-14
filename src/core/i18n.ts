@@ -82,6 +82,8 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'header.noPersona': '不使用用户人设',
     'header.changeWorldbook': '更换世界书',
     'header.noWorldbook': '不使用世界书',
+    'header.workspace': '工作目录',
+    'header.workspaceHint': '本对话的专属沙箱工作目录。所有工具调用（脚本执行 / 文件读写等）都在该目录下进行，与其他对话相互隔离。',
 
     'gameplay.exportTitle': '导出游戏',
     'gameplay.importTitle': '导入游戏',
@@ -497,6 +499,8 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'header.noPersona': '不使用用戶人設',
     'header.changeWorldbook': '更換世界書',
     'header.noWorldbook': '不使用世界書',
+    'header.workspace': '工作目錄',
+    'header.workspaceHint': '本對話的專屬沙箱工作目錄。所有工具呼叫（腳本執行 / 檔案讀寫等）都在該目錄下進行，與其他對話相互隔離。',
 
     'gameplay.exportTitle': '匯出遊戲',
     'gameplay.importTitle': '匯入遊戲',
@@ -900,6 +904,8 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'header.noPersona': 'No user persona',
     'header.changeWorldbook': 'Change Lorebook',
     'header.noWorldbook': 'No Lorebook',
+    'header.workspace': 'Workspace',
+    'header.workspaceHint': 'This conversation\'s private sandbox workspace directory. All tool calls (script execution, file read/write, etc.) run inside it, isolated from other conversations.',
 
     'gameplay.exportTitle': 'Export gameplay',
     'gameplay.importTitle': 'Import gameplay',

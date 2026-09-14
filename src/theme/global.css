@@ -872,6 +872,25 @@ body.resizing .sidebar-resizer {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* 会话专属沙箱工作目录指示（头部副标题内的小标签） */
+.chat-header .workspace-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 6px;
+  border: 1px solid var(--border-soft);
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font-size: 10.5px;
+  vertical-align: 1px;
+  cursor: help;
+}
+.chat-header .workspace-chip:hover {
+  border-color: color-mix(in srgb, var(--primary) 40%, transparent);
+  color: var(--text);
+}
 
 /* ---------- 聊天头部右侧动作按钮 ---------- */
 .chat-actions {

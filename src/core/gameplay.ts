@@ -358,6 +358,7 @@ export async function importGameplay(payload: unknown): Promise<ImportGameplayRe
     userPersonaNpcId: personaNpcId,
     enableGreeting: src.enableGreeting !== false,
     turnOrderMode: src.turnOrderMode === 'RANDOM' ? 'RANDOM' : 'PRESET',
+    workspaceDir: null, // 导入的会话分配全新的独立工作目录，不继承源导出文件
     turnQueueJson: remapQueueJson(src.turnQueueJson || '[]', sourceNpcIdToNew),
     turnQueueHistoryJson: remapQueueJson(src.turnQueueHistoryJson || '[]', sourceNpcIdToNew),
     loopIndex: Number.isFinite(src.loopIndex) ? src.loopIndex : 0,
@@ -366,6 +367,8 @@ export async function importGameplay(payload: unknown): Promise<ImportGameplayRe
     updatedAt: Date.now(),
     createdAt: Date.now(),
   });
+  // 会话专属工作目录（sessions/<id>）
+  await db.sessions.update(sessionId, { workspaceDir: `sessions/${sessionId}` });
 
   // ---- 5. 参与者（玩家恒定 -1；NPC participantId = 新 npc id，保持座位顺序） ----
   const participants: ChatParticipant[] = [];

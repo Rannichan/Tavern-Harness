@@ -270,6 +270,7 @@ const ICONS: Record<string, React.ReactNode> = {
   'zoom-in': <><circle cx="11" cy="11" r="7" /><path d="m21 21-4.35-4.35M11 8v6M8 11h6" /></>,
   'zoom-out': <><circle cx="11" cy="11" r="7" /><path d="m21 21-4.35-4.35M8 11h6" /></>,
   eye: <><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" /></>,
+  folder: <><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></>,
 };
 
 export function Icon({ name, size = 15 }: { name: string; size?: number }) {

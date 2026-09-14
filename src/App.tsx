@@ -165,6 +165,12 @@ function SessionHeader({
               {groupNpcs.map((n) => n!.name).join(' · ')}
             </span>
           )}
+          {/* 会话专属沙箱工作目录指示：工具调用都在该目录下进行，与会话相互隔离 */}
+          {session.workspaceDir && (
+            <span className="workspace-chip mono" title={t('header.workspaceHint')}>
+              <Icon name="folder" size={11} /> {session.workspaceDir}
+            </span>
+          )}
         </div>
       </div>
       <div className="chat-actions">

@@ -174,12 +174,34 @@ const MAX_CMD_CHARS = 2000;
 
 // ---- 真实文件工作区（generate_skill 的 file_read / file_write 落盘区） ----
 // 项目根目录下 sandbox_workspace/，仅允许读写该目录内文件（虚拟磁盘）。
+// 会话隔离：每次请求可携带会话工作目录（session 字段，如 "sessions/12"），
+// 所有读写/执行都锁定在该目录内；不带 session 时沿用旧行为——共享根工作区。
 const WORKSPACE_ROOT = resolve(__dirname, 'sandbox_workspace');
 const MAX_FILE_READ_CHARS = 100_000;   // 单文件读取上限（与前端虚拟工作区一致）
 const MAX_FILE_WRITE_BYTES = 400 * 1024; // 单文件写入上限 400KB
 const MAX_LIST_ENTRIES = 500;
+// 会话工作目录的安全字符集：仅允许小写字母数字、下划线、斜杠、点、连字符，
+// 防止路径穿越/注入（由前端按会话 id 生成，如 "sessions/12"）
+const SESSION_DIR_RE = /^[a-z0-9_./-]+$/;
 
-/** 相对路径校验：禁止绝对路径、.. 等，锁定在 sandbox_workspace 内 */
+/**
+ * 解析会话工作目录：null = 共享根工作区（旧行为）。
+ * 校验会话目录是纯相对路径、不含 .. 与绝对路径，且必须位于工作区内。
+ */
+function resolveSessionBase(session) {
+  if (session === undefined || session === null) return null;
+  const raw = String(session).replace(/\\/g, '/').trim();
+  if (!raw) return null;
+  if (raw.startsWith('/')) throw new Error('simba.sess.abs: 会话工作目录不能是绝对路径');
+  const parts = raw.split('/').filter((s) => s && s !== '.');
+  if (parts.length === 0) return null;
+  if (parts.some((s) => s === '..' || !SESSION_DIR_RE.test(s))) {
+    throw new Error('会话工作目录不合法（含 .. 或非法字符）');
+  }
+  return join(WORKSPACE_ROOT, ...parts);
+}
+
+/** 相对路径校验：禁止绝对路径、.. 等，锁定在会话工作目录（或共享根）内 */
 function sanitizeWorkspaceRelativePath(p) {
   const normalized = String(p).replace(/\\/g, '/').trim();
   if (!normalized || normalized.startsWith('/')) throw new Error('非法路径');
@@ -189,12 +211,13 @@ function sanitizeWorkspaceRelativePath(p) {
   return parts.join('/');
 }
 
-function workspacePathFor(rel) {
+function workspacePathFor(rel, base) {
   const safe = sanitizeWorkspaceRelativePath(rel);
-  return join(WORKSPACE_ROOT, ...safe.split('/'));
+  const root = base ?? WORKSPACE_ROOT;
+  return join(root, ...safe.split('/'));
 }
 
-/** 校验最终解析路径仍在工作区内（防符号链接逃逸） */
+/** 校验最终解析路径仍在会话工作目录（或共享根）内（防符号链接逃逸） */
 function assertInside(root, p) {
   const rp = resolve(p);
   if (rp !== root && !rp.startsWith(root + sep)) throw new Error('路径超出工作区');
@@ -233,18 +256,21 @@ const server = createServer(async (req, res) => {
       return;
     }
     try {
+      // 会话隔离：同一端点按会话工作目录读写文件（互不影响）
+      const base = resolveSessionBase(payload?.session);
       if (req.url === '/file_read') {
         const rel = sanitizeWorkspaceRelativePath(String(payload?.path ?? ''));
-        const fp = workspacePathFor(rel);
+        const fp = workspacePathFor(rel, base);
         const text = await readFileAsync(fp);
         res.end(JSON.stringify({ ok: true, path: rel, content: text.slice(0, MAX_FILE_READ_CHARS) }));
       } else if (req.url === '/file_write') {
         const rel = sanitizeWorkspaceRelativePath(String(payload?.path ?? ''));
-        const fp = workspacePathFor(rel);
+        const fp = workspacePathFor(rel, base);
         const mode = payload?.mode === 'append' ? 'append' : 'write';
         mkdirSync(dirname(fp), { recursive: true });
-        assertInside(WORKSPACE_ROOT, realpathSync(dirname(fp)));
-        if (existsSync(fp)) assertInside(WORKSPACE_ROOT, realpathSync(fp)); // 已有实体文件防符号链接
+        const baseRoot = base ?? WORKSPACE_ROOT;
+        assertInside(baseRoot, realpathSync(dirname(fp)));
+        if (existsSync(fp)) assertInside(baseRoot, realpathSync(fp)); // 已有实体文件防符号链接
         const content = String(payload?.content ?? '');
         if (Buffer.byteLength(content, 'utf8') > MAX_FILE_WRITE_BYTES) {
           throw new Error(`文件超过 ${MAX_FILE_WRITE_BYTES / 1024}KB 上限`);
@@ -257,9 +283,9 @@ const server = createServer(async (req, res) => {
         }
         res.end(JSON.stringify({ ok: true, path: rel, mode, bytes: Buffer.byteLength(content, 'utf8') }));
       } else {
-        // file_list：返回工作区相对路径（分组目录）
+        // file_list：返回会话工作目录（或共享根）内的相对路径（分组目录）
         const files = [];
-        await walkWorkspace(WORKSPACE_ROOT, '', files);
+        await walkWorkspace(base ?? WORKSPACE_ROOT, '', files);
         files.sort();
         const sliced = files.slice(0, MAX_LIST_ENTRIES);
         res.end(JSON.stringify({ ok: true, files: sliced, truncated: files.length > MAX_LIST_ENTRIES }));
@@ -295,6 +321,15 @@ const server = createServer(async (req, res) => {
   }
   const script = String(payload?.script ?? '');
   const confirmed = payload?.confirmed === true;
+  // 会话隔离：shell 命令在会话工作目录（cwd）下执行；自动创建目录
+  let sessionBase = null;
+  try {
+    sessionBase = resolveSessionBase(payload?.session);
+  } catch (e) {
+    res.end(JSON.stringify({ ok: false, message: String((e && e.message) || e) }));
+    return;
+  }
+  if (sessionBase) mkdirSync(sessionBase, { recursive: true });
 
   // 校验：黑名单命令需客户端已确认（前端弹窗批准后带 confirmed:true 重发）
   const check = validateScript(script, confirmed);
@@ -311,7 +346,7 @@ const server = createServer(async (req, res) => {
   const outputs = [];
   for (const line of lines) {
     try {
-      const out = await runOne(line.trim());
+      const out = await runOne(line.trim(), sessionBase);
       if (typeof out === 'string') outputs.push(out.trimEnd());
     } catch (e) {
       res.end(JSON.stringify({ ok: false, message: `${line.trim()}:\n${(e).message}` }));
@@ -349,7 +384,7 @@ function validateScript(script, confirmed) {
   return needConfirm && !confirmed ? 'NEED_CONFIRM' : null;
 }
 
-function runOne(line) {
+function runOne(line, sessionBase) {
   const tokens = tokenize(line);
   let cmd = tokens[0];
   let args = tokens.slice(1);
@@ -357,8 +392,10 @@ function runOne(line) {
   cmd = adapted.cmd;
   args = adapted.args;
   return new Promise((resolve, reject) => {
+    // cwd：会话隔离工作目录（无 session 时为共享根工作区，沿用旧行为）
+    const cwd = sessionBase ?? WORKSPACE_ROOT;
     const child = spawn(cmd, args, {
-      cwd: process.cwd(),
+      cwd,
       shell: false,
       stdio: ['ignore', 'pipe', 'pipe'],
       env: SPAWN_ENV,

@@ -75,6 +75,21 @@ export class TavernDB extends Dexie {
       workspaceFiles: 'path, updatedAt',
       achievementUnlocks: '++id, achievementId, unlockedAt',
     });
+    // v4：sessions 增加 workspaceDir 索引（会话专属沙箱工作目录，以会话 id 为名）
+    this.version(4).stores({
+      settings: 'id',
+      providers: '++id, name, isEnabled',
+      npcs: '++id, name, isBuiltIn',
+      sessions: '++id, mode, updatedAt, associatedId, pinned, workspaceDir',
+      participants: '[sessionId+participantId], sessionId, participantId',
+      messages: '++id, [sessionId+timestamp], sessionId, timestamp',
+      tools: '++id, name, isBuiltIn',
+      worldBooks: '++id, name',
+      careerStats: 'id',
+      careerNpcStats: 'npcId',
+      workspaceFiles: 'path, updatedAt',
+      achievementUnlocks: '++id, achievementId, unlockedAt',
+    });
   }
 
   /** 打开数据库后立即执行：把 pinned 字段归一化为 0/1（旧记录为 undefined） */

@@ -17,6 +17,46 @@ const MAX_OUTPUT_CHARS = 20_000;
 const MAX_READ_CHARS = 100_000;
 /** 虚拟工作区 IndexedDB 键前缀 */
 const WORKSPACE_KEY = 'generated_skill_workspace';
+/** 会话专属工作目录前缀（真实磁盘工作区下的子目录，如 sandbox_workspace/sessions/12） */
+const SESSION_DIR_PREFIX = 'sessions';
+
+/** 当前会话专属工作目录（null = 共享根工作区，用于旧会话/未设置 workspaceDir 的记录） */
+let currentWorkspaceDir: string | null = null;
+
+/**
+ * 设置当前会话工作目录。每次工具调用前由调用方（store / 执行器）按会话设置，
+ * 保证该会话内所有工具调用（shell / file_read / file_write / 脚本执行）都只在该目录下进行。
+ * dir 为会话记录上的 workspaceDir（如 "sessions/12"），不合规时按 null（共享根）处理。
+ */
+export function setWorkspaceDir(dir: string | null | undefined): void {
+  if (!dir || typeof dir !== 'string') {
+    currentWorkspaceDir = null;
+    return;
+  }
+  const s = dir.replace(/\\/g, '/').trim();
+  // 安全校验：仅允许相对目录（不允许绝对路径 / .. / 危险字符）
+  if (s.startsWith('/') || s.split('/').some((part) => part === '..' || part === '' || !/^[a-z0-9_.-]+$/i.test(part))) {
+    currentWorkspaceDir = null;
+    return;
+  }
+  currentWorkspaceDir = s;
+}
+
+/** 当前会话工作目录（供文件系统 / shell 端点组装请求） */
+export function sessionWorkspaceDir(): string | null {
+  return currentWorkspaceDir;
+}
+
+/**
+ * 把「虚拟工作区文件路径」映射为「会话专属前缀」：
+ * - 会话模式：虚拟工作区路径落在 SESSION_DIR_PREFIX/<会话工作目录>/ 之下
+ * - 共享模式：保持原 WORKSPACE_KEY 前缀
+ */
+function keyForSession(path: string): string {
+  const safe = sanitizeRelativePath(path);
+  if (currentWorkspaceDir) return `${WORKSPACE_KEY}/${SESSION_DIR_PREFIX}/${currentWorkspaceDir}/${safe}`;
+  return `${WORKSPACE_KEY}/${safe}`;
+}
 
 /** shell 确认请求回调（由调用方注入，走统一确认弹窗链路） */
 export type SkillConfirmFn = (req: ToolConfirmationRequest) => Promise<boolean>;
@@ -223,7 +263,7 @@ async function handleBridgeCall(req: { method: string; payload: Record<string, u
         if (text !== null) return { ok: true, content: text.slice(0, MAX_READ_CHARS) };
         return { ok: false, error: `文件不存在: ${path}` };
       }
-      const f = await getWorkspaceFile(path);
+      const f = await getWorkspaceFile(keyForSession(path));
       if (!f) return { ok: false, error: `文件不存在: ${path}` };
       return { ok: true, content: f.content.slice(0, MAX_READ_CHARS) };
     }
@@ -235,7 +275,7 @@ async function handleBridgeCall(req: { method: string; payload: Record<string, u
         return { ok: true, result: await diskFileWrite(path, content, false) };
       }
       if (content.length > MAX_READ_CHARS) return { ok: false, error: '文件超过可写大小上限' };
-      await createWorkspaceFile(path, content);
+      await createWorkspaceFile(keyForSession(path), content);
       return { ok: true, result: `OK: 已写入 ${path} (${content.length} 字符)` };
     }
     case 'append': {
@@ -245,10 +285,10 @@ async function handleBridgeCall(req: { method: string; payload: Record<string, u
       if (onDisk) {
         return { ok: true, result: await diskFileWrite(path, content, true) };
       }
-      const existing = await getWorkspaceFile(path);
+      const existing = await getWorkspaceFile(keyForSession(path));
       const newContent = (existing ? existing.content : '') + content;
       if (newContent.length > MAX_READ_CHARS) return { ok: false, error: '文件超过可写大小上限' };
-      await createWorkspaceFile(path, newContent);
+      await createWorkspaceFile(keyForSession(path), newContent);
       return { ok: true, result: `OK: 已追加 ${path}` };
     }
     case 'list': {
@@ -257,8 +297,11 @@ async function handleBridgeCall(req: { method: string; payload: Record<string, u
         const files = (await diskFileList()) ?? [];
         return { ok: true, files: files.slice(0, 500) };
       }
+      const prefix = currentWorkspaceDir
+        ? `${WORKSPACE_KEY}/${SESSION_DIR_PREFIX}/${currentWorkspaceDir}/`
+        : `${WORKSPACE_KEY}/`;
       const files = await listWorkspaceFiles();
-      return { ok: true, files: files.map((f) => f.path.slice(WORKSPACE_KEY.length + 1)) };
+      return { ok: true, files: files.filter((f) => f.path.startsWith(prefix)).map((f) => f.path.slice(prefix.length)) };
     }
     default:
       return { ok: false, error: `未知桥接方法 ${method}` };
@@ -306,7 +349,7 @@ async function diskFileRead(path: string): Promise<string | null> {
     const resp = await fetch('/api-v2/file_read', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path }),
+      body: JSON.stringify({ path, session: currentWorkspaceDir ?? undefined }),
     });
     const data = (await resp.json()) as { ok?: boolean; message?: string; content?: string };
     if (resp.ok && data.ok) return data.content ?? '';
@@ -321,7 +364,7 @@ async function diskFileWrite(path: string, content: string, append: boolean): Pr
     const resp = await fetch('/api-v2/file_write', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path, content, mode: append ? 'append' : 'write' }),
+      body: JSON.stringify({ path, content, mode: append ? 'append' : 'write', session: currentWorkspaceDir ?? undefined }),
     });
     const data = (await resp.json()) as { ok?: boolean; message?: string };
     if (!resp.ok || !data.ok) throw new Error(data?.message || `HTTP ${resp.status}`);
@@ -336,7 +379,7 @@ async function diskFileList(): Promise<string[] | null> {
     const resp = await fetch('/api-v2/file_list', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({}),
+      body: JSON.stringify({ session: currentWorkspaceDir ?? undefined }),
     });
     const data = (await resp.json()) as { ok?: boolean; files?: string[]; message?: string };
     if (resp.ok && data.ok) return data.files ?? [];
@@ -361,13 +404,13 @@ export async function readWorkspaceFileText(path: string): Promise<string | null
     if (text !== null) return text;
     // 磁盘上不存在（可能写到虚拟工作区）→ 回退虚拟工作区
     try {
-      return await readFileContent(safe);
+      return await readFileContent(keyForSession(safe));
     } catch {
       return null;
     }
   }
   try {
-    return await readFileContent(safe);
+    return await readFileContent(keyForSession(safe));
   } catch {
     return null;
   }
@@ -405,13 +448,13 @@ async function execFileWrite(execution: GeneratedSkillExecution, args: Record<st
       }
       return await diskFileWrite(path, diskContent, execution.append ?? false);
     }
-    const existing = await getWorkspaceFile(path);
+    const existing = await getWorkspaceFile(keyForSession(path));
     if (execution.append && existing) {
       const sep = execution.append_newline ? '\n' : '';
       content = existing.content + (existing.content.endsWith('\n') || !existing.content ? '' : sep) + content;
       if (execution.append_newline) content += '\n';
     }
-    await createWorkspaceFile(path, content);
+    await createWorkspaceFile(keyForSession(path), content);
     return `OK: 已写入 ${path} (${content.length} 字符)`;
   } catch (e) {
     return `ERROR: ${(e as Error).message}`;
@@ -529,7 +572,7 @@ async function sendToSandbox(script: string): Promise<SandboxResult | string> {
     const resp = await fetch('/api-v2/exec', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ script: script.slice(0, 8000) }),
+      body: JSON.stringify({ script: script.slice(0, 8000), session: currentWorkspaceDir ?? undefined }),
     });
     const data = (await resp.json()) as { ok?: boolean; message?: string; output?: string; needConfirm?: boolean };
     if (resp.ok && data.ok) return { needConfirm: false, output: data.output ?? '' };
@@ -545,7 +588,7 @@ async function execSandboxScript(script: string): Promise<string> {
   const resp = await fetch('/api-v2/exec', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ script: script.slice(0, 8000), confirmed: true }),
+    body: JSON.stringify({ script: script.slice(0, 8000), confirmed: true, session: currentWorkspaceDir ?? undefined }),
   });
   const data = (await resp.json()) as { ok?: boolean; message?: string; output?: string };
   if (resp.ok && data.ok) return truncate(data.output ?? '');
