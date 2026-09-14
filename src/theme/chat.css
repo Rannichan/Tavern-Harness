@@ -297,6 +297,8 @@
   border: none;
   border-radius: 0;
   padding: 7px 14px;
+  /* 让结果行右侧的「查看」按钮垂直居中（距离上下边缘等距） */
+  align-items: center;
 }
 /* 未展开时展示的工具调用结果摘要行 */
 .tool-card-result-line {

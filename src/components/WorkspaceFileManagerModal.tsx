@@ -49,6 +49,9 @@ function buildNodes(files: string[]): Node[] {
 export function WorkspaceFileManagerModal({ sessionId, onClose }: { sessionId: number; onClose: () => void }) {
   const t = useT();
   const setActiveDisplay = useStore((s) => s.setActiveDisplay);
+  const session = useStore((s) => s.sessions.find((x) => x.id === sessionId));
+  // 根目录标签：显示会话实际工作目录名（如 session-9）；旧会话无该字段时回退翻译文案
+  const rootLabel = session?.workspaceDir?.trim() || t('header.workspaceRoot');
   const [files, setFiles] = useState<string[] | null>(null);
   const [loadState, setLoadState] = useState<'loading' | 'ok' | 'empty' | 'error'>('loading');
   // 当前浏览目录（'' = 根；否则为以 / 结尾的会话内相对路径）
@@ -116,9 +119,9 @@ export function WorkspaceFileManagerModal({ sessionId, onClose }: { sessionId: n
           <Icon name="folder" size={15} />
           {t('header.fileManagerTitle')}
           <span className="mono ws-fm-crumb">
-            {crumbs.length === 0 ? t('header.workspaceRoot') : (
+            {crumbs.length === 0 ? rootLabel : (
               <>
-                <span className="ws-fm-crumb-link" onClick={() => setDir('')}>{t('header.workspaceRoot')}</span>
+                <span className="ws-fm-crumb-link" onClick={() => setDir('')}>{rootLabel}</span>
                 {crumbs.map((c, i) => (
                   <span key={i}>
                     <span className="ws-fm-crumb-sep">/</span>

@@ -1195,8 +1195,11 @@
   margin-top: 0;
   margin-left: 8px;
 }
-.tool-card-body .display-view-btn {
-  margin-top: 8px;
+/* 展开态工具结果：查看按钮固定在结果行右侧、垂直居中 */
+.tool-card-body .tool-result .display-view-btn {
+  margin-top: 0;
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 /* ---------- 会话工作区文件管理器（只读） ---------- */

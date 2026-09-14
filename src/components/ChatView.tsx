@@ -574,9 +574,9 @@ function ToolCallCard({ tc, executing, results }: { tc: ToolCallRecord; executin
             <div className={`tool-result ${isError ? 'err' : ''}`}>
               <Icon name={isError ? 'cancel' : 'check'} size={13} />
               <span className="mono">{resultText.length > 2000 ? resultText.slice(0, 2000) + '…' : resultText}</span>
+              {displayRef && <FileDisplayViewButton displayRef={displayRef} />}
             </div>
           )}
-          {displayRef && <FileDisplayViewButton displayRef={displayRef} />}
         </div>
       )}
     </div>
