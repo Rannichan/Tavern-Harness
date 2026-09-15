@@ -347,8 +347,21 @@ export const useStore = create<AppState>((set, get) => ({
     const messages = await db.messages.where('sessionId').equals(sessionId).sortBy('timestamp');
     const participants = await db.participants.where('sessionId').equals(sessionId).toArray();
     set((s) => {
+      // 流式过程中 publishDraft 已把最新内容写入内存与 DB；重新加载时以 DB 记录为基准、
+      // 叠加内存中的流式字段（content / thinkingContent / toolCallsJson），避免文本回跳。
+      // 这样 DB 里已落库的 raw 字段（生成完成后才写入）不会被内存中的旧草稿对象覆盖，
+      // —— 否则右键「查看原始日志」要等刷新页面（streaming 清空后从 DB 重载）才会出现。
       const loadedMessages = s.streaming.sessionId === sessionId
-        ? messages.map((message) => s.messages[sessionId]?.find((current) => current.id === message.id) ?? message)
+        ? messages.map((message) => {
+            const current = s.messages[sessionId]?.find((c) => c.id === message.id);
+            if (!current) return message;
+            return {
+              ...message,
+              content: current.content,
+              thinkingContent: current.thinkingContent,
+              toolCallsJson: current.toolCallsJson,
+            };
+          })
         : messages;
       return {
         messages: { ...s.messages, [sessionId]: loadedMessages },
