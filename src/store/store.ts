@@ -1456,6 +1456,38 @@ async function streamAssistantTurn(
     const toolCalls: Array<{ id: string; name: string; argumentsJson: string; contentOffset: number }> = [];
     let errorMsg = '';
 
+    // Large file_write arguments arrive as a growing JSON string. Publishing every token
+    // repeatedly parses/reconciles the whole value and can monopolize the browser main thread.
+    // Persist the same snapshots so a reload can recover an in-progress draft.
+    const DRAFT_PUBLISH_INTERVAL_MS = 100;
+    let publishTimer: ReturnType<typeof setTimeout> | null = null;
+    let lastPublishedAt = 0;
+    let draftWrite = Promise.resolve();
+    const publishDraft = () => {
+      publishTimer = null;
+      lastPublishedAt = Date.now();
+      const contentSnapshot = content;
+      const thinkingContent = thinking || null;
+      const toolCallsJson = JSON.stringify(
+        toolCalls.map((tc) => ({ id: tc.id, name: tc.name, argumentsJson: tc.argumentsJson, contentOffset: tc.contentOffset }))
+      );
+      useStore.setState((s) => {
+        const list = [...(s.messages[sessionId] ?? [])];
+        const idx = list.findIndex((m) => m.id === draftId);
+        if (idx < 0) return {};
+        list[idx] = { ...list[idx], content: contentSnapshot, thinkingContent, toolCallsJson };
+        return { messages: { ...s.messages, [sessionId]: list } };
+      });
+      draftWrite = draftWrite
+        .then(() => db.messages.update(draftId, { content: contentSnapshot, thinkingContent, toolCallsJson }))
+        .then(() => undefined);
+    };
+    const scheduleDraftPublish = () => {
+      if (publishTimer) return;
+      const delay = Math.max(0, DRAFT_PUBLISH_INTERVAL_MS - (Date.now() - lastPublishedAt));
+      publishTimer = setTimeout(publishDraft, delay);
+    };
+
     await streamChatCompletions(baseUrl, apiKey, request, (chunk) => {
       switch (chunk.type) {
         case 'raw':
@@ -1499,22 +1531,12 @@ async function streamAssistantTurn(
           if (abortController.signal.aborted) stopped = true;
           break;
       }
-      // 流式更新草稿
-      useStore.setState((s) => {
-        const list = [...(s.messages[sessionId] ?? [])];
-        const idx = list.findIndex((m) => m.id === draftId);
-        if (idx < 0) return {};
-        list[idx] = {
-          ...list[idx],
-          content,
-          thinkingContent: thinking,
-          toolCallsJson: JSON.stringify(
-            toolCalls.map((tc) => ({ id: tc.id, name: tc.name, argumentsJson: tc.argumentsJson, contentOffset: tc.contentOffset }))
-          ),
-        };
-        return { messages: { ...s.messages, [sessionId]: list } };
-      });
+      scheduleDraftPublish();
     }, abortController.signal);
+
+    if (publishTimer) clearTimeout(publishTimer);
+    publishDraft();
+    await draftWrite;
 
     // 出错时：撤销草稿消息并提示
     if (errorMsg) {

@@ -135,6 +135,8 @@ export function ChatView({
     const el = scrollRef.current;
     if (!el) return;
     if (positionedSessionRef.current?.id !== session.id) return;
+    const selection = document.getSelection();
+    if (selection && !selection.isCollapsed) return;
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
     // 群聊：仅在已处于底部或正在流式生成时自动吸附（流式画布增长时继续跟随），
     // 用户主动向上回看时不打断
@@ -544,12 +546,14 @@ function UserBubble({ msg, session, editing, loopIndex }: { msg: ChatMessage; se
 function ToolCallCard({ tc, executing, results }: { tc: ToolCallRecord; executing: boolean; results: ChatMessage[] }) {
   const t = useT();
   const [open, setOpen] = useState(false);
-  let args: unknown;
-  try {
-    args = JSON.parse(tc.argumentsJson);
-  } catch {
-    args = tc.argumentsJson;
-  }
+  const formattedArgs = useMemo(() => {
+    if (!open) return '';
+    try {
+      return JSON.stringify(JSON.parse(tc.argumentsJson), null, 2);
+    } catch {
+      return tc.argumentsJson;
+    }
+  }, [open, tc.argumentsJson]);
   const hasResult = results.length > 0;
   const isError = results.some((r) => r.content.startsWith('ERROR:') || r.content.startsWith('CANCELLED:'));
   // 展示类工具（file_display）结果：去掉 DISPLAY_REF / OK 前缀再拼展示文本
@@ -581,7 +585,7 @@ function ToolCallCard({ tc, executing, results }: { tc: ToolCallRecord; executin
       )}
       {open && (
         <div className="tool-card-body">
-          <pre className="tool-args mono">{JSON.stringify(args, null, 2)}</pre>
+          <pre className="tool-args mono">{formattedArgs}</pre>
           {hasResult && (
             <div className={`tool-result ${isError ? 'err' : ''}`}>
               <Icon name={isError ? 'cancel' : 'check'} size={13} />

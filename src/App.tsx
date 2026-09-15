@@ -27,11 +27,22 @@ export default function App() {
   const sessions = useStore((s) => s.sessions);
   const messages = useStore((s) => s.messages);
   const participants = useStore((s) => s.participants);
+  const isStreaming = useStore((s) => s.streaming.sessionId != null);
   const t = useT();
 
   useEffect(() => {
     init();
   }, [init]);
+
+  useEffect(() => {
+    if (!isStreaming) return;
+    const confirmLeave = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', confirmLeave);
+    return () => window.removeEventListener('beforeunload', confirmLeave);
+  }, [isStreaming]);
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) ?? null;
   const sessionMessages = activeSessionId != null ? (messages[activeSessionId] ?? []) : [];
