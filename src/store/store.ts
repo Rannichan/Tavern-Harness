@@ -340,10 +340,15 @@ export const useStore = create<AppState>((set, get) => ({
   loadMessages: async (sessionId) => {
     const messages = await db.messages.where('sessionId').equals(sessionId).sortBy('timestamp');
     const participants = await db.participants.where('sessionId').equals(sessionId).toArray();
-    set((s) => ({
-      messages: { ...s.messages, [sessionId]: messages },
-      participants: { ...s.participants, [sessionId]: participants },
-    }));
+    set((s) => {
+      const loadedMessages = s.streaming.sessionId === sessionId
+        ? messages.map((message) => s.messages[sessionId]?.find((current) => current.id === message.id) ?? message)
+        : messages;
+      return {
+        messages: { ...s.messages, [sessionId]: loadedMessages },
+        participants: { ...s.participants, [sessionId]: participants },
+      };
+    });
   },
 
   /** 重新加载当前活动会话的参与者列表（语言切换本地化内置角色后调用） */
@@ -1496,7 +1501,6 @@ async function streamAssistantTurn(
       }
       // 流式更新草稿
       useStore.setState((s) => {
-        if (s.activeSessionId !== sessionId) return {};
         const list = [...(s.messages[sessionId] ?? [])];
         const idx = list.findIndex((m) => m.id === draftId);
         if (idx < 0) return {};

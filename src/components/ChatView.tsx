@@ -613,7 +613,7 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
   const [showModels, setShowModels] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const sendMessage = useStore((s) => s.sendMessage);
-  const streaming = useStore((s) => s.streaming.sessionId === sessionId);
+  const streaming = useStore((s) => s.streaming.sessionId != null);
   const stopStreaming = useStore((s) => s.stopStreaming);
   const session = useStore((s) => s.sessions.find((x) => x.id === sessionId));
   const defaultModel = useStore((s) => s.settings?.defaultModel?.trim() || '');
@@ -712,6 +712,7 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
   // 拖放 / 粘贴附件
   useEffect(() => {
     const onPaste = (e: ClipboardEvent) => {
+      if (streaming) return;
       const files = e.clipboardData?.files;
       if (files && files.length > 0 && files[0].type.startsWith('image')) {
         e.preventDefault();
@@ -721,7 +722,14 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
     };
     window.addEventListener('paste', onPaste);
     return () => window.removeEventListener('paste', onPaste);
-  }, []);
+  }, [streaming]);
+
+  useEffect(() => {
+    if (!streaming) return;
+    setShowCmd(false);
+    setShowMention(false);
+    setShowModels(false);
+  }, [streaming]);
 
   // 点击自动补全面板外部时关闭
   useEffect(() => {
@@ -798,6 +806,7 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
           <button
             className={`composer-model-btn ${showModels ? 'open' : ''}`}
             title={t('chat.selectModel')}
+            disabled={streaming}
             onClick={() => setShowModels(!showModels)}
           >
             <span className="composer-model-label">{defaultModel || t('chat.chooseModel')}</span>
@@ -809,6 +818,7 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
         <button
           className="icon-btn composer-attach"
           title={t('chat.attachTip')}
+          disabled={streaming}
           onClick={() => fileRef.current?.click()}
         >
           <Icon name="image" size={18} />
@@ -819,6 +829,7 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
           accept="image/*,video/*"
           multiple
           hidden
+          disabled={streaming}
           onChange={(e) => {
             const files = e.target.files;
             if (files) {
@@ -841,6 +852,7 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
             ref={textareaRef}
             className={composerRichNodes.length > 0 ? 'with-rich' : ''}
             value={text}
+            disabled={streaming}
             onChange={(e) => {
               const v = e.target.value;
               setText(v);
