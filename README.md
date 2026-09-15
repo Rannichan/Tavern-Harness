@@ -80,6 +80,8 @@ node sandbox-server.mjs            # 默认端口 17891
 
 每个对话（会话）在创建时都会分配一个**以会话 id 命名的专属工作目录**：`sandbox_workspace/session-<会话id>/`（单层目录，直接位于工作区根下，不再嵌套）。该会话下所有工具调用——`run_shell_script`、`file_read` / `file_write`、生成式技能的 `shell` 与 `javascript`（`$read` / `$write` / `$append` / `$list`）——都**只在这一个目录内进行**：
 
+- **创建对话时即预建其工作目录**（沙箱服务运行时真实建目录；未启动则静默跳过，首次工具调用时自动补建）；
+- 删除对话时会**一并删除其专属工作目录**（磁盘目录 + 沙箱未启动时写入浏览器虚拟工作区 IndexedDB 的数据一并清理）；
 - shell 命令以该目录为 `cwd` 执行；
 - 文件读写 / 文件列表只对该目录可见（无法访问其它会话的工作目录）；
 - 浏览器虚拟工作区（沙箱未启动时的回退）同样按会话隔离：`generated_skill_workspace/sessions/session-<会话id>/…`；

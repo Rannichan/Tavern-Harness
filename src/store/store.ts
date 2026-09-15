@@ -34,6 +34,7 @@ import {
 import type { ChatCompletionRequest, SessionMode, TurnOrderMode } from '../types/models';
 import { NEW_TOPIC_MARKER, MAX_TOOL_CALL_DEPTH } from '../core/toolDefinitions';
 import { getEnabledToolsForSession, executeToolCall, parseDisplayRef, applySessionWorkspace } from '../core/tools/toolExecutor';
+import { ensureSessionWorkspaceDir, deleteSessionWorkspace } from '../core/tools/generatedSkillExecutor';
 import { applyTheme as applyThemeManual, watchSystemTheme } from '../theme/theme';
 import { setLanguage, translate } from '../core/i18n';
 import { localizeBuiltinNpc } from '../db/database';
@@ -606,9 +607,15 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   deleteSession: async (id) => {
+    // 先取会话记录（工作目录在删除后不可查），再清理目录与数据
+    const session = await db.sessions.get(id);
     await db.messages.where('sessionId').equals(id).delete();
     await db.participants.where('sessionId').equals(id).delete();
     await db.sessions.delete(id);
+    // 删除会话的专属工作目录（磁盘 + 虚拟工作区）；沙箱不可用时静默跳过
+    if (session?.workspaceDir) {
+      await deleteSessionWorkspace(session.workspaceDir);
+    }
     if (get().activeSessionId === id) set({ activeSessionId: null });
     get().clearLiveQueue(id);
     await get().refreshSessions();
@@ -647,6 +654,8 @@ export const useStore = create<AppState>((set, get) => ({
     };
     const newId = await db.sessions.add(newSession);
     await db.sessions.update(newId, { workspaceDir: `session-${newId}` });
+    // 创建对话的同时预建其专属工作目录（会话间隔离，Fork 后互不影响）
+    await ensureSessionWorkspaceDir(`session-${newId}`);
 
     // 复制参与者（PLAYER 保留 -1 编号，NPC 按 npcId 映射；重建 seatOrder 保持一致）
     const participants = await db.participants.where('sessionId').equals(sessionId).sortBy('seatOrder');
@@ -939,6 +948,9 @@ export async function createSession(
  // 用会话 id 作为专属工作目录名（session-<id>），单层目录、不嵌套，确保唯一且会话间互不影响
  const workspaceDir = `session-${id}`;
  await db.sessions.update(id, { workspaceDir });
+ // 创建对话的同时预建其专属工作目录（磁盘沙箱启动时会真实创建；
+ // 未启动/失败时静默跳过，首次工具调用时仍会自动补建）
+ await ensureSessionWorkspaceDir(workspaceDir);
 
   // 参与者
   const participantsById = new Map<number, ChatParticipant>();

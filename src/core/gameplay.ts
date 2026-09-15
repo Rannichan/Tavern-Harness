@@ -23,6 +23,7 @@ import type {
   WorldBook,
 } from '../types/models';
 import { saveJsonFile, type SaveResult } from './fileDownload';
+import { ensureSessionWorkspaceDir } from './tools/generatedSkillExecutor';
 
 export const GAMEPLAY_EXPORT_VERSION = 1;
 const GAMEPLAY_FORMAT = 'tavern-harness-gameplay';
@@ -369,6 +370,8 @@ export async function importGameplay(payload: unknown): Promise<ImportGameplayRe
   });
   // 会话专属工作目录（session-<id>，单层目录、不嵌套）
   await db.sessions.update(sessionId, { workspaceDir: `session-${sessionId}` });
+  // 创建对话的同时预建其专属工作目录
+  await ensureSessionWorkspaceDir(`session-${sessionId}`);
 
   // ---- 5. 参与者（玩家恒定 -1；NPC participantId = 新 npc id，保持座位顺序） ----
   const participants: ChatParticipant[] = [];

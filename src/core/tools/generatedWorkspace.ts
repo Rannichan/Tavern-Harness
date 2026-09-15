@@ -73,6 +73,22 @@ export async function removeWorkspaceFile(path: string): Promise<void> {
   await deleteFile(path);
 }
 
+/**
+ * 按键前缀批量删除虚拟工作区文件（会话删除时清理 session-<id> 的前缀子树）。
+ * 仅接受 WORKSPACE_ROOT 下的前缀，防止误删无关数据。
+ */
+export async function removeWorkspaceFilesByPrefix(prefix: string): Promise<void> {
+  const root = `${WORKSPACE_ROOT}/`;
+  let normalized = prefix;
+  if (!normalized.startsWith(root)) normalized = root + normalized.replace(/^\/+/, '');
+  if (!normalized.endsWith('/')) normalized += '/';
+  if (!normalized.startsWith(root)) return; // 校验：只能删工作区内的前缀
+  const all = (await db.table('workspaceFiles').toArray()) as WorkspaceFile[];
+  const targets = all.filter((f) => f.path.startsWith(normalized)).map((f) => f.path);
+  if (targets.length === 0) return;
+  await db.table('workspaceFiles').bulkDelete(targets);
+}
+
 export async function renameWorkspaceFile(oldPath: string, newPath: string): Promise<void> {
   const oldKey = keyFor(oldPath);
   const f = (await db.table('workspaceFiles').get(oldKey)) as WorkspaceFile | undefined;

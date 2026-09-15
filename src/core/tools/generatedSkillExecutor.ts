@@ -5,6 +5,7 @@ import {
   listWorkspaceFiles,
   sanitizeRelativePath,
   readFileContent,
+  removeWorkspaceFilesByPrefix,
 } from './generatedWorkspace';
 import { translate } from '../i18n';
 
@@ -22,6 +23,55 @@ const SESSION_DIR_PREFIX = 'sessions';
 
 /** 当前会话专属工作目录（null = 共享根工作区，用于旧会话/未设置 workspaceDir 的记录） */
 let currentWorkspaceDir: string | null = null;
+
+/** 会话工作目录名是否合规（仅允许相对目录、不允许 .. / 绝对路径 / 危险字符） */
+function isValidWorkspaceDirName(dir: string): boolean {
+  const s = dir.replace(/\\/g, '/').trim();
+  if (!s || s.startsWith('/')) return false;
+  return !s.split('/').some((part) => part === '..' || part === '' || !/^[a-z0-9_.-]+$/i.test(part));
+}
+
+/**
+ * 创建会话时预建其专属工作目录（磁盘沙箱可用时）。
+ * 幂等、尽量不抛错：沙箱未启动 / 请求失败时静默跳过，目录会在首次工具调用时再建。
+ */
+export async function ensureSessionWorkspaceDir(dir: string | null | undefined): Promise<void> {
+  if (!dir || typeof dir !== 'string' || !isValidWorkspaceDirName(dir)) return;
+  try {
+    await fetch('/api-v2/session_create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session: dir }),
+    });
+  } catch {
+    /* 沙箱未启动等：静默忽略 */
+  }
+}
+
+/**
+ * 删除会话时清理其专属工作目录（磁盘 + 虚拟工作区）。
+ * 磁盘删除失败（沙箱不可用等）不阻塞会话删除；虚拟工作区为幂等清理。
+ */
+export async function deleteSessionWorkspace(dir: string | null | undefined): Promise<void> {
+  // 1) 磁盘工作区
+  if (dir && typeof dir === 'string' && isValidWorkspaceDirName(dir)) {
+    try {
+      await fetch('/api-v2/session_delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session: dir }),
+      });
+    } catch {
+      /* 沙箱不可用：磁盘目录无法删除，忽略 */
+    }
+    // 2) 虚拟工作区（沙箱未启动 / 模式切换回退时写入的 IndexedDB 数据）
+    try {
+      await removeWorkspaceFilesByPrefix(`generated_skill_workspace/sessions/${dir}`);
+    } catch {
+      /* ignore */
+    }
+  }
+}
 
 /**
  * 设置当前会话工作目录。每次工具调用前由调用方（store / 执行器）按会话设置，

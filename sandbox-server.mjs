@@ -23,7 +23,7 @@
 import { createServer } from 'node:http';
 import { spawn, spawnSync } from 'node:child_process';
 import {
-  writeFileSync, existsSync, readFileSync, readFile, writeFile, mkdirSync, readdir, stat, unlink, realpathSync,
+  writeFileSync, existsSync, readFileSync, readFile, writeFile, mkdirSync, readdir, stat, unlink, realpathSync, rmSync,
 } from 'node:fs';
 import { join, dirname, resolve, sep, delimiter } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -290,6 +290,43 @@ const server = createServer(async (req, res) => {
         const sliced = files.slice(0, MAX_LIST_ENTRIES);
         res.end(JSON.stringify({ ok: true, files: sliced, truncated: files.length > MAX_LIST_ENTRIES }));
       }
+    } catch (e) {
+      res.writeHead(400);
+      res.end(JSON.stringify({ ok: false, message: String((e && e.message) || e) }));
+    }
+    return;
+  }
+
+  // ---- 会话工作目录生命周期：对话创建时预建目录、删除对话时清理目录 ----
+  // session_create：幂等，目录已存在则无操作；session_delete：递归删除并忽略不存在。
+  // 必须带合法会话工作目录（resolveSessionBase 已拦截 .. / 绝对路径 / 非法字符）。
+  if (req.url === '/session_create' || req.url === '/session_delete') {
+    let body = '';
+    for await (const chunk of req) body += chunk;
+    if (body.length > 64 * 1024) {
+      res.writeHead(413);
+      res.end(JSON.stringify({ ok: false, message: 'body too large' }));
+      return;
+    }
+    let payload;
+    try {
+      payload = JSON.parse(body);
+    } catch {
+      res.writeHead(400);
+      res.end(JSON.stringify({ ok: false, message: 'invalid json' }));
+      return;
+    }
+    try {
+      const base = resolveSessionBase(payload?.session);
+      if (!base || base === WORKSPACE_ROOT) {
+        throw new Error('缺少合法的会话工作目录');
+      }
+      if (req.url === '/session_create') {
+        mkdirSync(base, { recursive: true });
+      } else {
+        rmSync(base, { recursive: true, force: true });
+      }
+      res.end(JSON.stringify({ ok: true }));
     } catch (e) {
       res.writeHead(400);
       res.end(JSON.stringify({ ok: false, message: String((e && e.message) || e) }));
