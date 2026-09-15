@@ -11,8 +11,8 @@
 //       * 白名单（宽松）→ 直接执行，无需确认
 //       * 高危黑名单 → 需客户端带 confirmed:true（用户已弹窗批准）才执行
 //       * 其余命令 → 一律拒绝
-//   - 每行一条命令、整段脚本解析；无 shell 解释器（spawn shell:false），
-//     因此 & | ; > 等字符仅为普通参数，不构成拼接/注入
+//   - 支持受控的 &&、||、; 连接符；无 shell 解释器（spawn shell:false），
+//     不支持管道、重定向、变量展开或命令替换
 //   - 单条命令 5s 超时，超时即 kill 进程树
 //   - 输出截断 64KB，合并 stderr
 //
@@ -140,6 +140,47 @@ function tokenize(line) {
   return tokens;
 }
 
+/** 在引号与转义之外拆分受控连接符，不解释任何其它 shell 语法。 */
+function parseCommandLine(line) {
+  const commands = [];
+  const operators = [];
+  let start = 0;
+  let quote = null;
+  let escaped = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (ch === '\\') {
+      escaped = true;
+      continue;
+    }
+    if (quote) {
+      if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === "'" || ch === '"') {
+      quote = ch;
+      continue;
+    }
+    const operator = line.startsWith('&&', i) ? '&&' : line.startsWith('||', i) ? '||' : ch === ';' ? ';' : null;
+    if (!operator) continue;
+    const command = line.slice(start, i).trim();
+    if (!command) throw new Error(`连接符 ${operator} 前缺少命令`);
+    commands.push(command);
+    operators.push(operator);
+    i += operator.length - 1;
+    start = i + 1;
+  }
+  if (quote) throw new Error('命令包含未闭合的引号');
+  const command = line.slice(start).trim();
+  if (!command) throw new Error('连接符后缺少命令');
+  commands.push(command);
+  return { commands, operators };
+}
+
 // ---- 白名单：可直接执行（黑名单优先于本名单判断） ----
 const SHELL_ALLOWED_REAL = new Set([
   'pwd','date','echo','printf','ls','cat','touch','mkdir','rm','cp','mv','head','tail',
@@ -147,7 +188,7 @@ const SHELL_ALLOWED_REAL = new Set([
   'diff','find','stat','cmp','sed','tar','gzip','gunzip','xz','unzip','zip','jq',
   'env','which','type','localectl','timedatectl','uptime','whoami','uname','hostname',
   'true','false','seq','factor','od','xxd','hexdump','strings','file','cksum','sum',
-  'tee','xargs','awk','python3','node','npm','npx','git','ffprobe','openssl','calc','bc',
+  'tee','xargs','awk','node','npm','npx','git','ffprobe','openssl','calc','bc',
 ]);
 
 // ---- 高危黑名单：需要用户明确批准（前端弹窗二次确认）才执行 ----
@@ -383,8 +424,19 @@ const server = createServer(async (req, res) => {
   const outputs = [];
   for (const line of lines) {
     try {
-      const out = await runOne(line.trim(), sessionBase);
-      if (typeof out === 'string') outputs.push(out.trimEnd());
+      const { commands, operators } = parseCommandLine(line.trim());
+      let lastCode = 0;
+      let lastError = '';
+      for (let i = 0; i < commands.length; i++) {
+        const previousOperator = operators[i - 1];
+        if ((previousOperator === '&&' && lastCode !== 0) || (previousOperator === '||' && lastCode === 0)) continue;
+        const result = await runOne(commands[i], sessionBase);
+        lastCode = result.code;
+        lastError = result.stderr || (lastCode !== 0 ? `退出码 ${lastCode}` : '');
+        if (result.stdout) outputs.push(result.stdout.trimEnd());
+        if (result.stderr) outputs.push(result.stderr.trimEnd());
+      }
+      if (lastCode !== 0) throw new Error(lastError);
     } catch (e) {
       res.end(JSON.stringify({ ok: false, message: `${line.trim()}:\n${(e).message}` }));
       return;
@@ -402,19 +454,28 @@ function validateScript(script, confirmed) {
   if (script.length > MAX_CMD_CHARS) return '脚本过长';
   const lines = script.split('\n').filter((l) => l.trim() && !l.trim().startsWith('#'));
   if (lines.length === 0) return '空脚本';
-  if (lines.length > MAX_LINES) return '脚本行数超过 20';
+  let commandCount = 0;
   let needConfirm = false;
   for (const line of lines) {
-    const trimmed = line.trim();
-    const cmd = trimmed.split(/\s+/)[0];
-    if (SHELL_BLOCKED.has(cmd)) {
-      needConfirm = true;
-      continue; // 记录后继续检查其它行的语法/白名单
+    let commands;
+    try {
+      commands = parseCommandLine(line.trim()).commands;
+    } catch (e) {
+      return e.message;
     }
-    if (!SHELL_ALLOWED_REAL.has(cmd)) return `命令 ${cmd} 不在白名单`;
-    for (const p of DANGEROUS_PATHS) {
-      if (trimmed.includes(p + sep) || trimmed === p || trimmed.startsWith(p + '/')) {
-        return `脚本引用了危险路径 ${p}`;
+    commandCount += commands.length;
+    if (commandCount > MAX_LINES) return '脚本命令数超过 20';
+    for (const command of commands) {
+      const cmd = tokenize(command)[0];
+      if (SHELL_BLOCKED.has(cmd)) {
+        needConfirm = true;
+      } else if (!SHELL_ALLOWED_REAL.has(cmd)) {
+        return `命令 ${cmd} 不在支持名单`;
+      }
+      for (const p of DANGEROUS_PATHS) {
+        if (command.includes(p + sep) || command === p || command.startsWith(p + '/')) {
+          return `脚本引用了危险路径 ${p}`;
+        }
       }
     }
   }
@@ -466,12 +527,7 @@ function runOne(line, sessionBase) {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      const err = stderr.trim();
-      if (code !== 0 || err) {
-        reject(new Error(err || `退出码 ${code}`));
-      } else {
-        resolve(stdout);
-      }
+      resolve({ code: code ?? 1, stdout, stderr: stderr.trim() });
     });
   });
 }

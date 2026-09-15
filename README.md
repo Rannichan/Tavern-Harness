@@ -70,7 +70,7 @@ node sandbox-server.mjs            # 默认端口 17891
 
 - 开发服务器（`npm run dev`）会自动把 `/api-v2/exec` 转发给该服务；已编译产物（`npm run preview` / 静态部署）需在同一站点额外部署该服务（或手动代理）。
 - **权限模型（命令分级）**：
-  - **白名单命令 → 直接执行，不需确认**：`pwd`、`ls`、`cat`、`touch`、`mkdir`、`rm`、`cp`、`mv`、`grep`、`sed`、`tar`、`gzip`、`unzip`、`zip`、`jq`、`awk`、`xargs`、`tee`、`whoami`、`uname`、`uptime`、`python3`、`node`、`git` …
+  - **直接执行命令 → 不需确认**：`pwd`、`ls`、`cat`、`touch`、`mkdir`、`cp`、`grep`、`sed`、`tar`、`gzip`、`unzip`、`zip`、`jq`、`awk`、`xargs`、`tee`、`whoami`、`uname`、`uptime`、`node`、`git` …
   - **高危黑名单命令 → 弹窗确认后执行**：`sudo`、`su`、`dd`、`mkfs`、`fdisk`、`mount`、`chmod`、`chown`、`kill`、`curl`、`wget`、`nc`、`ssh`、`scp`、`shutdown`、`reboot`、`systemctl`、`docker`、`kubectl` …（前端先弹窗展示整段脚本，用户批准后带 `confirmed` 标记重发，服务端才放行；拒绝返回 `CANCELLED`）
   - **其余命令 → 一律拒绝**（前后端双重检查，无弹窗）
 - 其余规范：仅允许 `https://`（见 `http_get` 内网封锁）、单条命令 5s 超时、输出截断、脚本 ≤ 8000 字符 / ≤ 20 行、每行一条命令（无 shell 解释器，`&` `|` `;` `>` 等仅为普通参数，不构成拼接/注入）。

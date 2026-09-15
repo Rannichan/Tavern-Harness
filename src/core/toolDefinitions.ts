@@ -37,7 +37,7 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
         script: {
           type: 'string',
           maxLength: 8000,
-          description: 'Shell script, one command per line (max 20 lines). Lines starting with # are ignored. Non-interactive only.',
+          description: 'Sandboxed command script (max 20 commands). Supports newlines, &&, ||, and ;. Only supported commands are available; some high-risk commands require user confirmation. Pipes, redirects, and expansion are unsupported. Lines starting with # are ignored. Non-interactive only.',
         },
       },
       required: ['script'],
@@ -322,7 +322,7 @@ function executionProperties(): Record<string, unknown> {
     json_content: { type: 'object', description: 'file_write: JSON content, interpolated recursively' },
     append: { type: 'boolean', description: 'file_write: append instead of overwrite' },
     append_newline: { type: 'boolean', description: 'file_write: insert newline between appended records (JSONL)' },
-    script: { type: 'string', maxLength: 8000, description: 'shell type: one allow-listed command per line' },
+    script: { type: 'string', maxLength: 8000, description: 'shell type: supported sandbox commands only' },
     action: { type: 'string', enum: ['flashlight', 'vibrate', 'notification', 'sequence'], description: 'device_action type' },
     state: { type: 'string', enum: ['on', 'off', 'blink'] },
     flashes: { type: 'integer', minimum: 1, maximum: 10 },
@@ -348,7 +348,7 @@ function getExecutionDescription(): string {
     '- javascript: `{code: "result = { sum: input.a + input.b }"}`, reads `input`, assigns JSON-safe `result`; supports async/await, and can persist game state via `await $read/$write/$append/$list` (sandboxed current workspace, same limits as file_read/file_write)',
     '- file_read: `{path: "notes.md"}` — read file in workspace (real disk sandbox_workspace/ when local sandbox running, else in-browser virtual workspace; 100KB cap)',
     '- file_write: `{path: "notes.jsonl", json_content: {...}, append: true, append_newline: true}` — writes to real sandbox_workspace/ folder in project dir when local sandbox running, else virtual workspace',
-    '- shell: one allow-listed command per line, executed as REAL local commands via an optional local sandbox service (node sandbox-server.mjs). Whitelisted commands (pwd, ls, cat, grep, sed, tar, unzip, jq, awk, python3, node, git, ...) run directly without confirmation. High-risk commands (sudo, curl, wget, dd, shutdown, docker, ssh, ...) require a user confirmation dialog first; everything else is rejected',
+    '- shell: sandboxed commands executed as REAL local commands via an optional local service (node sandbox-server.mjs). Supports newlines, &&, ||, and ; (max 20 commands), but not pipes, redirects, or expansion. Supported commands such as pwd, ls, cat, grep, sed, tar, unzip, jq, awk, node, and git run directly; supported high-risk commands such as sudo, curl, wget, dd, shutdown, docker, and ssh require user confirmation; everything else is rejected',
     '- device_action: `{action: "vibrate", duration_ms: 300}` | notification | flashlight | sequence (1-6 steps)',
   ].join(' ');
 }
