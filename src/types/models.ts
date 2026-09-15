@@ -279,6 +279,7 @@ export interface ToolConfirmationRequest {
   title: string;
   message: string;
   argsJson: string;
+  kind?: 'tool' | 'limit';
 }
 
 export interface GeneratedSkillExecution {

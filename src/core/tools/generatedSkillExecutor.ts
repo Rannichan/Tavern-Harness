@@ -473,6 +473,15 @@ export async function readWorkspaceFileText(path: string): Promise<string | null
   }
 }
 
+/** Write a complete text value through the same disk/virtual workspace routing as file_write. */
+export async function writeWorkspaceFileText(path: string, content: string): Promise<string> {
+  const safe = sanitizeRelativePath(path);
+  const onDisk = await resolveFsMode();
+  if (onDisk) return diskFileWrite(safe, content, false);
+  await createWorkspaceFile(keyForSession(safe), content);
+  return `OK: 已写入 ${safe} (${content.length} 字符)`;
+}
+
 // ---------- 会话工作区枚举（文件管理器只读浏览共用） ----------
 /**
  * 列出当前会话专属工作区内的全部文件相对路径。

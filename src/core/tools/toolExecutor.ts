@@ -9,7 +9,13 @@ import type {
 } from '../../types/models';
 import { BUILTIN_TOOLS, BUILTIN_TOOL_NAMES } from '../toolDefinitions';
 import { rollDice } from './builtinTools';
-import { executeGeneratedSkill, readWorkspaceFileText, setWorkspaceDir, sessionWorkspaceDir } from './generatedSkillExecutor';
+import {
+  executeGeneratedSkill,
+  readWorkspaceFileText,
+  setWorkspaceDir,
+  sessionWorkspaceDir,
+  writeWorkspaceFileText,
+} from './generatedSkillExecutor';
 import { sanitizeRelativePath } from './generatedWorkspace';
 import { translate } from '../i18n';
 
@@ -118,6 +124,8 @@ async function runNativeTool(
       return await handleFileRead(args, ctx);
     case 'file_write':
       return await handleFileWrite(args, ctx);
+    case 'file_edit':
+      return await handleFileEdit(args, ctx);
     case 'run_shell_script':
       return await handleRunShellScript(args, ctx);
 
@@ -300,6 +308,32 @@ async function handleFileRead(args: Record<string, unknown>, ctx: ToolExecutionC
 async function handleFileWrite(args: Record<string, unknown>, ctx: ToolExecutionContext): Promise<string> {
   await applySessionWorkspace(ctx.sessionId);
   return executeGeneratedSkill({ type: 'file_write', path: String(args.path ?? ''), content: String(args.content ?? ''), append: args.append === true }, args);
+}
+
+async function handleFileEdit(args: Record<string, unknown>, ctx: ToolExecutionContext): Promise<string> {
+  await applySessionWorkspace(ctx.sessionId);
+  try {
+    const path = sanitizeRelativePath(String(args.path ?? ''));
+    const oldText = String(args.old_text ?? '');
+    const newText = String(args.new_text ?? '');
+    const expected = args.expected_replacements == null ? 1 : Number(args.expected_replacements);
+    if (!oldText) return 'ERROR: old_text 不能为空';
+    if (!Number.isInteger(expected) || expected < 1 || expected > 100) {
+      return 'ERROR: expected_replacements 必须是 1-100 的整数';
+    }
+
+    const content = await readWorkspaceFileText(path);
+    if (content === null) return `ERROR: 文件不存在: ${path}`;
+    const matches = content.split(oldText).length - 1;
+    if (matches !== expected) {
+      return `ERROR: 未修改 ${path}：old_text 实际匹配 ${matches} 次，预期 ${expected} 次`;
+    }
+
+    await writeWorkspaceFileText(path, content.split(oldText).join(newText));
+    return `OK: 已编辑 ${path}，替换 ${matches} 处`;
+  } catch (e) {
+    return `ERROR: ${(e as Error).message}`;
+  }
 }
 
 async function handleRunShellScript(args: Record<string, unknown>, ctx: ToolExecutionContext): Promise<string> {

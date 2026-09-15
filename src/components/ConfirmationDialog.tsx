@@ -12,6 +12,7 @@ export function ConfirmationDialog() {
   const t = useT();
 
   if (!pending) return null;
+  const isLimit = pending.kind === 'limit';
 
   let argsText = pending.argsJson;
   try {
@@ -31,10 +32,10 @@ export function ConfirmationDialog() {
             </span>
           </div>
           <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.6 }}>
-              {t('confirm.modify')}
+            <div style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.6, whiteSpace: 'pre-line' }}>
+              {isLimit ? pending.message : t('confirm.modify')}
             </div>
-            <div style={{ fontSize: 13, fontWeight: 700 }}>{t('confirm.tool')}<span className="mono" style={{ color: 'var(--primary)' }}>{pending.toolName}</span></div>
+            {!isLimit && <div style={{ fontSize: 13, fontWeight: 700 }}>{t('confirm.tool')}<span className="mono" style={{ color: 'var(--primary)' }}>{pending.toolName}</span></div>}
             <pre className="confirm-args mono">{argsText}</pre>
           </div>
           <div className="modal-foot">
@@ -42,10 +43,10 @@ export function ConfirmationDialog() {
               className="btn"
               onClick={() => resolve(false)}
             >
-              {t('confirm.reject')}
+              {isLimit ? t('confirm.stop') : t('confirm.reject')}
             </button>
             <button className="btn btn-primary" onClick={() => resolve(true)}>
-              {t('confirm.allow')}
+              {isLimit ? t('confirm.continue') : t('confirm.allow')}
             </button>
           </div>
         </div>

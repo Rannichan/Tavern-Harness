@@ -32,7 +32,13 @@ import {
   safeParseQueueHistory,
 } from '../core/turnLoop';
 import type { ChatCompletionRequest, SessionMode, TurnOrderMode } from '../types/models';
-import { NEW_TOPIC_MARKER, MAX_TOOL_CALL_DEPTH } from '../core/toolDefinitions';
+import {
+  MAX_CONSECUTIVE_TOOL_FAILURES,
+  MAX_IDENTICAL_TOOL_CALLS,
+  MAX_TOOL_CALL_DEPTH,
+  MAX_TOOL_CALLS_PER_TURN,
+  NEW_TOPIC_MARKER,
+} from '../core/toolDefinitions';
 import { getEnabledToolsForSession, executeToolCall, parseDisplayRef, applySessionWorkspace } from '../core/tools/toolExecutor';
 import { ensureSessionWorkspaceDir, deleteSessionWorkspace } from '../core/tools/generatedSkillExecutor';
 import { applyTheme as applyThemeManual, watchSystemTheme } from '../theme/theme';
@@ -775,7 +781,10 @@ export const useStore = create<AppState>((set, get) => ({
     const req = get().pendingConfirmation;
     if (!req) return;
     const d = confirmationDeferreds.get(req);
-    if (d) d.resolve(approved);
+    if (d) {
+      confirmationDeferreds.delete(req);
+      d.resolve(approved);
+    }
     set({ pendingConfirmation: null });
   },
 
@@ -1346,10 +1355,39 @@ async function streamAssistantTurn(
   let produced = false;
   // 本回合是否已计入 1 轮对话（ReAct 多层循环只计一次，避免一轮生成被重复统计）
   let roundCounted = false;
+  let toolCallCount = 0;
+  let consecutiveToolFailures = 0;
+  let lastToolCallSignature = '';
+  let identicalToolCallCount = 0;
+  let limitDeclined = false;
+  const resetToolBudgets = () => {
+    depth = 0;
+    toolCallCount = 0;
+    consecutiveToolFailures = 0;
+    lastToolCallSignature = '';
+    identicalToolCallCount = 0;
+  };
+  const confirmLimitContinuation = async (reason: string): Promise<boolean> => {
+    const approved = await requestLimitConfirmation(sessionId, reason, {
+      depth,
+      toolCallCount,
+      identicalToolCallCount,
+      consecutiveToolFailures,
+    });
+    if (approved) resetToolBudgets();
+    else limitDeclined = true;
+    return approved;
+  };
 
   // ---- ReAct 深度循环 ----
   let depth = 0;
-  while (depth <= MAX_TOOL_CALL_DEPTH) {
+  while (true) {
+    if (depth >= MAX_TOOL_CALL_DEPTH) {
+      const continued = await confirmLimitContinuation(
+        translate('confirm.depthLimit', { limit: MAX_TOOL_CALL_DEPTH })
+      );
+      if (!continued) break;
+    }
     const allMessages = await db.messages.where('sessionId').equals(sessionId).sortBy('timestamp');
     const nmessages = buildNetworkMessagesForSession({
       session,
@@ -1619,7 +1657,29 @@ async function streamAssistantTurn(
     if (finalToolCalls.length > 0) {
       for (const tc of finalToolCalls) {
         let result: string;
-        try {
+        const signature = toolCallSignature(tc.name, tc.argumentsJson);
+        const nextIdenticalCount = signature === lastToolCallSignature ? identicalToolCallCount + 1 : 1;
+
+        let allowed = !limitDeclined;
+        let limitReason = '';
+        if (allowed && toolCallCount >= MAX_TOOL_CALLS_PER_TURN) {
+          limitReason = translate('confirm.callLimit', { limit: MAX_TOOL_CALLS_PER_TURN });
+        } else if (allowed && nextIdenticalCount >= MAX_IDENTICAL_TOOL_CALLS) {
+          limitReason = translate('confirm.identicalLimit', {
+            name: tc.name,
+            limit: MAX_IDENTICAL_TOOL_CALLS,
+          });
+        } else if (allowed && consecutiveToolFailures >= MAX_CONSECUTIVE_TOOL_FAILURES) {
+          limitReason = translate('confirm.failureLimit', { limit: MAX_CONSECUTIVE_TOOL_FAILURES });
+        }
+        if (limitReason) allowed = await confirmLimitContinuation(limitReason);
+
+        if (!allowed) {
+          result = translate('confirm.limitCanceled');
+        } else try {
+          identicalToolCallCount = signature === lastToolCallSignature ? identicalToolCallCount + 1 : 1;
+          lastToolCallSignature = signature;
+          toolCallCount++;
           // 会话隔离：每个工具调用前把工作目录切到当前会话（shell / 文件读写都在该会话目录内）
           await applySessionWorkspace(sessionId);
           const needsConfirm = ['update_skill', 'delete_skill', 'update_character', 'delete_character', 'update_world_book', 'delete_world_book'].includes(tc.name);
@@ -1690,12 +1750,27 @@ async function streamAssistantTurn(
         // 如掷骰结果、JSON 快照、模板输出，不能简单用「非 OK:」判定失败）；
         // 用户主动取消（CANCELLED + 取消文案）不算失败，不弹错误提示。
         const canceledResult = translate('toast.canceled', { name: tc.name });
+        const limitCanceled = limitDeclined && result.startsWith('CANCELLED:');
         const isToolError =
-          result.startsWith('ERROR:') || (result.startsWith('CANCELLED:') && result !== canceledResult);
+          !limitCanceled &&
+          (result.startsWith('ERROR:') || (result.startsWith('CANCELLED:') && result !== canceledResult));
         if (isToolError) {
+          consecutiveToolFailures++;
           useStore
             .getState()
             .addToast(translate('toast.toolFailed', { name: tc.name, detail: result.slice(0, 120) }), 'error');
+        } else {
+          consecutiveToolFailures = 0;
+        }
+
+        if (
+          !limitDeclined &&
+          consecutiveToolFailures >= MAX_CONSECUTIVE_TOOL_FAILURES &&
+          !(await confirmLimitContinuation(
+            translate('confirm.failureLimit', { limit: MAX_CONSECUTIVE_TOOL_FAILURES })
+          ))
+        ) {
+          limitDeclined = true;
         }
       }
 
@@ -1703,9 +1778,10 @@ async function streamAssistantTurn(
       // 保证「失败 / 无结果」在工具执行完成时立即可见，而不是等用户下一条消息
       await useStore.getState().loadMessages(sessionId);
 
+      if (limitDeclined) break;
+
       // 有工具结果 → 下一层 ReAct
       depth++;
-      if (depth > MAX_TOOL_CALL_DEPTH) break;
       continue;
     }
 
@@ -1718,6 +1794,26 @@ async function streamAssistantTurn(
   // 用户主动停止 → 保留部分内容（不回退）；未产出任何回复 → 视为失败
   if (stopped || abortController.signal.aborted) return 'stopped';
   return produced ? 'ok' : 'failed';
+}
+
+function toolCallSignature(name: string, argumentsJson: string): string {
+  try {
+    return `${name}:${JSON.stringify(sortJsonValue(JSON.parse(argumentsJson || '{}')))}`;
+  } catch {
+    return `${name}:${argumentsJson.trim()}`;
+  }
+}
+
+function sortJsonValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortJsonValue);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, child]) => [key, sortJsonValue(child)])
+    );
+  }
+  return value;
 }
 
 /**
@@ -1900,6 +1996,35 @@ function requestToolConfirmation(
       title: `确认 ${tc.name}`,
       message: `模型请求执行修改操作「${tc.name}」。\n\n参数:\n${formatArgs(tc.argumentsJson)}`,
       argsJson: tc.argumentsJson,
+    };
+    confirmationDeferreds.set(req, { resolve });
+    useStore.setState({ pendingConfirmation: req });
+  });
+}
+
+function requestLimitConfirmation(
+  sessionId: number,
+  reason: string,
+  counters: {
+    depth: number;
+    toolCallCount: number;
+    identicalToolCallCount: number;
+    consecutiveToolFailures: number;
+  }
+): Promise<boolean> {
+  return new Promise((resolve) => {
+    const req: ToolConfirmationRequest = {
+      sessionId,
+      toolName: 'agent_limit',
+      title: translate('confirm.limitTitle'),
+      message: translate('confirm.limitMessage', { reason }),
+      argsJson: JSON.stringify({
+        depth: counters.depth,
+        tool_calls: counters.toolCallCount,
+        identical_calls: counters.identicalToolCallCount,
+        consecutive_failures: counters.consecutiveToolFailures,
+      }),
+      kind: 'limit',
     };
     confirmationDeferreds.set(req, { resolve });
     useStore.setState({ pendingConfirmation: req });

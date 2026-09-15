@@ -219,7 +219,9 @@ function handleDataLine(
               cur.name = incomingName;
             }
           }
-          if (tc.function?.arguments) cur.args += tc.function.arguments;
+          if (tc.function?.arguments) {
+            cur.args = mergeToolArguments(cur.args, tc.function.arguments);
+          }
           toolDeltas.set(idx, cur);
           if (cur.name) {
             const nextEmit = `${cur.id}\n${cur.name}\n${cur.args}`;
@@ -257,6 +259,14 @@ function handleDataLine(
   } catch {
     // 非 JSON 行（如注释），忽略
   }
+}
+
+export function mergeToolArguments(current: string, incoming: string): string {
+  if (!current) return incoming;
+  if (!incoming || incoming === current) return current;
+  if (incoming.startsWith(current)) return incoming;
+  if (current.startsWith(incoming)) return current;
+  return current + incoming;
 }
 
 /** 拆分 deepseek / kimi 风格的 思考→回答 标记 */

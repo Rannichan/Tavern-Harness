@@ -1,6 +1,9 @@
 import type { ChatCompletionTool } from '../types/models';
 
-export const MAX_TOOL_CALL_DEPTH = 4;
+export const MAX_TOOL_CALL_DEPTH = 10;
+export const MAX_TOOL_CALLS_PER_TURN = 20;
+export const MAX_IDENTICAL_TOOL_CALLS = 3;
+export const MAX_CONSECUTIVE_TOOL_FAILURES = 3;
 export const NEW_TOPIC_MARKER = '开始新话题';
 
 export const BUILTIN_TOOL_NAMES = [
@@ -8,6 +11,7 @@ export const BUILTIN_TOOL_NAMES = [
   'roll_dice',
   'file_read',
   'file_write',
+  'file_edit',
   'create_skill',
   'update_skill',
   'delete_skill',
@@ -94,6 +98,37 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
         },
       },
       required: ['path', 'content'],
+      additionalProperties: false,
+    }
+  ),
+  fn(
+    'file_edit',
+    'Edit an existing text file by replacing exact text. Prefer this over file_write for small code changes. The edit is rejected unless old_text occurs exactly expected_replacements times, which protects against stale or ambiguous edits.',
+    {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          description: 'Relative path inside the current workspace. Must exist.',
+        },
+        old_text: {
+          type: 'string',
+          minLength: 1,
+          description: 'Exact text to replace, including whitespace and indentation.',
+        },
+        new_text: {
+          type: 'string',
+          description: 'Replacement text. Use an empty string to delete old_text.',
+        },
+        expected_replacements: {
+          type: 'integer',
+          minimum: 1,
+          maximum: 100,
+          default: 1,
+          description: 'Required number of exact matches. Defaults to 1.',
+        },
+      },
+      required: ['path', 'old_text', 'new_text'],
       additionalProperties: false,
     }
   ),
