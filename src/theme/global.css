@@ -880,27 +880,6 @@ body.resizing .sidebar-resizer {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* 会话专属沙箱工作目录标签（副标题行内按钮）：与「Character chat」等模式标签对齐，
-   点击打开只读文件管理器 */
-.chat-header .workspace-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 9px;
-  border-radius: 8px;
-  border: 1px solid var(--border-soft);
-  background: var(--surface-2);
-  color: var(--text-dim);
-  font-size: 11px;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: border-color 0.15s, color 0.15s;
-  flex-shrink: 0;
-}
-.chat-header .workspace-chip:hover {
-  border-color: color-mix(in srgb, var(--primary) 45%, transparent);
-  color: var(--text);
-}
 
 /* ---------- 聊天头部右侧动作按钮 ---------- */
 .chat-actions {

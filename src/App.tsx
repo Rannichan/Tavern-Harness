@@ -178,19 +178,12 @@ function SessionHeader({
               {groupNpcs.map((n) => n!.name).join(' · ')}
             </span>
           )}
-          {/* 会话专属沙箱工作目录标签：与模式标签同一行对齐，点击打开只读文件管理器 */}
-          {session.workspaceDir && (
-            <button
-              className="workspace-chip mono"
-              title={t('header.workspaceHint')}
-              onClick={() => setShowWorkspace(true)}
-            >
-              <Icon name="folder" size={11} /> {session.workspaceDir}
-            </button>
-          )}
         </div>
       </div>
       <div className="chat-actions">
+        <button className="btn-ghost icon-tooltip" title={t('header.workspaceHint')} onClick={() => setShowWorkspace(true)}>
+          <Icon name="folder" size={17} />
+        </button>
         <button className="btn-ghost icon-tooltip" title={t('header.editSessionTip')} onClick={() => setShowEdit(true)}>
           <Icon name="pencil" size={17} />
         </button>
