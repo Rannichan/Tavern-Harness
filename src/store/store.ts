@@ -1622,8 +1622,8 @@ async function streamAssistantTurn(
       completionTokens: finalTokens,
       totalTokens: promptTokens + finalTokens,
       tokensPerSec,
-      rawRequestBody: JSON.stringify(request).slice(0, 64_000),
-      rawResponseBody: rawLines.join('\n').slice(0, 64_000),
+      rawRequestBody: JSON.stringify(request),
+      rawResponseBody: rawLines.join('\n'),
     });
     await useStore.getState().loadMessages(sessionId);
 
@@ -1858,8 +1858,8 @@ async function persistPartialDraft(
     totalTokens: promptTokens + finalTokens,
     tokensPerSec: latencyMs > 0 ? finalTokens / (latencyMs / 1000) : null,
     modelUsed: model,
-    rawRequestBody: JSON.stringify(request).slice(0, 64_000),
-    rawResponseBody: rawLines.join('\n').slice(0, 64_000),
+    rawRequestBody: JSON.stringify(request),
+    rawResponseBody: rawLines.join('\n'),
   });
   await useStore.getState().loadMessages(sessionId);
 
