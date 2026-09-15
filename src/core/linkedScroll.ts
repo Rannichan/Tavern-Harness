@@ -18,6 +18,7 @@ let queueEl: HTMLElement | null = null;
 // 程序化写入产生的滚动事件在窗口内被忽略（防死循环）
 let chatSuppressUntil = 0;
 let queueSuppressUntil = 0;
+let queueUserControlUntil = 0;
 
 export function registerChatEl(el: HTMLElement | null): void {
   chatEl = el;
@@ -26,6 +27,7 @@ export function registerChatEl(el: HTMLElement | null): void {
 export function registerQueueEl(el: HTMLElement | null): void {
   queueEl = el;
   queueSuppressUntil = 0;
+  queueUserControlUntil = 0;
 }
 
 function clamp01(v: number): number {
@@ -173,6 +175,12 @@ function animateTo(el: HTMLElement, target: number, dur = 240): void {
   if (!rafId) rafId = requestAnimationFrame(tick);
 }
 
+function cancelProgrammaticScroll(el: HTMLElement): void {
+  clampSet.delete(el);
+  chaseWanted.delete(el);
+  if (anim?.el === el) anim = null;
+}
+
 function isChatSuppressed(): boolean {
   return performance.now() < chatSuppressUntil;
 }
@@ -185,16 +193,25 @@ function isQueueSuppressed(): boolean {
 /** 对话区滚动 → 联动队列（连续跟随，平滑） */
 export function onChatScroll(): void {
   if (!chatEl || !queueEl) return;
-  if (isChatSuppressed()) return;
+  if (isChatSuppressed() || performance.now() < queueUserControlUntil) return;
   const cursor = chatEl.scrollTop + chatEl.clientHeight / 2;
   const { loop, progress } = cursorLoopOf(chatEl, cursor);
   chaseScroll(queueEl, targetForLoop(queueEl, loop, progress));
+}
+
+/** 用户开始操作队列时，立即停止可能把队列拉回原位的程序化滚动。 */
+export function onQueueScrollIntent(): void {
+  if (!queueEl) return;
+  cancelProgrammaticScroll(queueEl);
+  queueSuppressUntil = 0;
+  queueUserControlUntil = performance.now() + 600;
 }
 
 /** 队列滚动 → 联动对话（连续跟随，平滑） */
 export function onQueueScroll(): void {
   if (!chatEl || !queueEl) return;
   if (isQueueSuppressed()) return;
+  queueUserControlUntil = performance.now() + 600;
   const cursor = queueEl.scrollTop + queueEl.clientHeight / 2;
   const { loop, progress } = cursorLoopOf(queueEl, cursor);
   chaseScroll(chatEl, targetForLoop(chatEl, loop, progress));

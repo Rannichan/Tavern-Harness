@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   DndContext,
   PointerSensor,
@@ -23,7 +23,7 @@ import { FileDisplayViewButton, parseStoredDisplayRef } from './FileDisplayModal
 import { formatMetrics } from '../core/stats';
 import { saveTextFile } from '../core/fileDownload';
 import { effectiveDisplayQueue, initializeTurnQueue, speakerLabel, suggestMagicCommands } from '../core/turnLoop';
-import { onChatScroll, registerChatEl, onQueueScroll, registerQueueEl, scrollChatTo, scrollQueueToLoop } from '../core/linkedScroll';
+import { onChatScroll, onQueueScroll, onQueueScrollIntent, registerChatEl, registerQueueEl, scrollChatTo, scrollQueueToLoop } from '../core/linkedScroll';
 import { useT, translate } from '../core/i18n';
 
 function fmtTime(ts: number): string {
@@ -106,6 +106,7 @@ export function ChatView({
   streaming: boolean;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const positionedSessionRef = useRef<{ id: number | undefined; messageCount: number } | null>(null);
   const updateStreaming = useStore((s) => s.streaming.sessionId === session.id);
   const t = useT();
 
@@ -116,11 +117,24 @@ export function ChatView({
     return () => registerChatEl(null); // 卸载时解除引用，避免跨会话联动到已卸载的容器
   }, []);
 
+  // 进入或切换会话时直接定位到最新消息，不播放滚动动画。
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const positioned = positionedSessionRef.current;
+    const enteringSession = positioned?.id !== session.id;
+    const historyJustLoaded = positioned != null && positioned.id === session.id && positioned.messageCount === 0 && messages.length > 0;
+    if (!enteringSession && !historyJustLoaded) return;
+    el.scrollTop = el.scrollHeight;
+    positionedSessionRef.current = { id: session.id, messageCount: messages.length };
+  }, [session.id, messages.length]);
+
   // 自动滚动到底（新消息 / 流式更新时）：群聊流式生成时同样跟随最新内容
   const isGroup = session.mode === 'GROUP';
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
+    if (positionedSessionRef.current?.id !== session.id) return;
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
     // 群聊：仅在已处于底部或正在流式生成时自动吸附（流式画布增长时继续跟随），
     // 用户主动向上回看时不打断
@@ -1500,7 +1514,14 @@ export function TurnQueuePanel({
         <span>{t('chat.queueTitle')}</span>
         <span className="turn-queue-loop">{t('chat.queueLoops', { n: loops.length })}</span>
       </div>
-      <div className="turn-queue-body" ref={bodyRef} onScroll={onQueueScroll}>
+      <div
+        className="turn-queue-body"
+        ref={bodyRef}
+        onPointerDown={onQueueScrollIntent}
+        onTouchStart={onQueueScrollIntent}
+        onWheel={onQueueScrollIntent}
+        onScroll={onQueueScroll}
+      >
         {loops.map((loopQueue, idx) => renderLoop(loopQueue, idx + 1))}
       </div>
       <div className="turn-queue-foot">
