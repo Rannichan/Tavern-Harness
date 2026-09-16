@@ -41,7 +41,7 @@ import {
 } from '../core/toolDefinitions';
 import { getEnabledToolsForSession, executeToolCall, parseDisplayRef, applySessionWorkspace } from '../core/tools/toolExecutor';
 import { ensureSessionWorkspaceDir, deleteSessionWorkspace } from '../core/tools/generatedSkillExecutor';
-import { applyTheme as applyThemeManual, watchSystemTheme } from '../theme/theme';
+import { applyTheme as applyThemeManual, cacheThemeMode, watchSystemTheme } from '../theme/theme';
 import { setLanguage, translate } from '../core/i18n';
 import { localizeBuiltinNpc } from '../db/database';
 import { estimateTokensFromChars, accumulateStats, sessionPreviewText } from '../core/stats';
@@ -225,6 +225,7 @@ export const useStore = create<AppState>((set, get) => ({
       const tools = [...(await db.tools.toArray())].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
       set({ initialized: true, settings, npcs, sessions, worldBooks, tools });
       await get().refreshProviders();
+      cacheThemeMode(settings.themeMode);
       applyThemeManual(settings.themeMode);
       // 跟随系统模式下，系统切换深浅色时自动重新应用主题
       watchSystemTheme(() => {
@@ -232,14 +233,8 @@ export const useStore = create<AppState>((set, get) => ({
         if (s) applyThemeManual(s.themeMode);
       });
       await get().refreshAchievements();
-      // 不自动创建会话：由用户通过左下角「新建」或仪表盘入口创建
-      if (sessions.length > 0) {
-        set({ activeSessionId: sessions[0].id! });
-        await get().loadMessages(sessions[0].id!);
-        await get().refreshLiveQueue(sessions[0].id!);
-      } else {
-        set({ activeSessionId: null, activeView: 'chat' });
-      }
+      // 每次刷新固定回到开始页，会话仅在用户主动选择后加载。
+      set({ activeSessionId: null, activeView: 'chat' });
     })();
     return initLock;
   },
@@ -258,6 +253,7 @@ export const useStore = create<AppState>((set, get) => ({
       await get().refreshSessions();
       await get().refreshParticipants();
     }
+    cacheThemeMode(next.themeMode);
     applyThemeManual(next.themeMode);
   },
 

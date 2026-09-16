@@ -47,6 +47,27 @@ export function watchSystemTheme(onChange: () => void): void {
   }
 }
 
+const THEME_CACHE_KEY = 'tav-theme-mode';
+
+/** 同步写出主题模式缓存，供下次页面加载首帧直接取用（消除刷新闪动） */
+export function cacheThemeMode(mode: ThemeMode): void {
+  try {
+    localStorage.setItem(THEME_CACHE_KEY, mode);
+  } catch {
+    // 隐私模式等环境下忽略
+  }
+}
+
+/** 读取缓存的主题模式（可能为 null） */
+export function cachedThemeMode(): ThemeMode | null {
+  try {
+    const v = localStorage.getItem(THEME_CACHE_KEY);
+    return v === 'light' || v === 'dark' || v === 'system' ? v : null;
+  } catch {
+    return null;
+  }
+}
+
 /** 应用主题 CSS 变量到 :root（固定使用琥珀色主题） */
 export function applyTheme(mode: ThemeMode): void {
   const dark = isDarkMode(mode);
@@ -105,4 +126,25 @@ export function applyTheme(mode: ThemeMode): void {
     root.style.setProperty('--bg', '#20160E');
     root.style.setProperty('--surface', '#211A10');
   }
+}
+
+/** 首帧同步应用主题（无缓存时按系统偏好），避免刷新出现主题闪动 */
+export function applyThemeFromCache(): void {
+  const cached = cachedThemeMode();
+  const mode: ThemeMode =
+    cached ??
+    (typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches
+      ? 'dark'
+      : 'light');
+  const dark = mode === 'dark' || (mode === 'system' && isDarkMode('system'));
+  const root = document.documentElement;
+  root.dataset.theme = dark ? 'dark' : 'light';
+  // 设置最小必要变量，让首帧立即呈现正确的底色与文字色
+  root.style.setProperty('--bg', dark ? '#20160E' : '#F7F2E9');
+  root.style.setProperty('--surface', dark ? '#211A10' : '#FDFBF5');
+  root.style.setProperty('--text', dark ? '#F2EADC' : '#241c10');
+  root.style.setProperty('--text-dim', dark ? '#AA9C86' : '#7a6a50');
+  root.style.setProperty('--border', dark ? 'rgba(255,214,160,0.13)' : 'rgba(60,40,10,0.14)');
+  // 背景在 body 上，确保首帧背景色一致
+  root.style.backgroundColor = dark ? '#20160E' : '#F7F2E9';
 }
