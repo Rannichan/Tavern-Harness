@@ -110,6 +110,7 @@ export function WorkspaceFileManagerModal({ sessionId, onClose }: { sessionId: n
       title: node.name,
       sessionId,
     });
+    onClose();
   };
 
   return (

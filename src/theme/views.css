@@ -968,40 +968,80 @@
 }
 
 /* ---------- 原始日志弹窗 ---------- */
+.raw-modal-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 12px;
+}
+.raw-modal-title {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 800;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.raw-head-actions {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.raw-head-actions > .icon-btn.active {
+  color: var(--primary);
+  background: var(--surface-2);
+}
 .raw-tabs {
   display: flex;
-  gap: 2px;
+  justify-self: center;
+  gap: 3px;
   background: var(--surface-2);
+  border: 1px solid var(--border-soft);
   border-radius: 9px;
-  padding: 2px;
+  padding: 3px;
 }
 .raw-tab {
-  padding: 4px 10px;
-  border: none;
-  border-radius: 7px;
+  padding: 5px 12px;
+  border: 1px solid transparent;
+  border-radius: 6px;
   background: none;
   color: var(--text-dim);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: all 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.raw-tab:hover {
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+  border-color: color-mix(in srgb, var(--primary) 25%, transparent);
+  color: var(--text);
 }
 .raw-tab.active {
-  background: var(--surface);
-  color: var(--text);
-  box-shadow: var(--shadow);
+  position: relative;
+  z-index: 1;
+  border-color: color-mix(in srgb, var(--primary) 58%, transparent);
+  background: color-mix(in srgb, var(--primary) 15%, var(--surface));
+  color: var(--primary);
+  font-weight: 800;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--primary) 14%, transparent),
+    inset 0 0 10px color-mix(in srgb, var(--glow) 30%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--primary) 26%, transparent),
+    0 0 8px color-mix(in srgb, var(--glow) 42%, transparent),
+    0 0 14px color-mix(in srgb, var(--glow) 20%, transparent);
 }
-.raw-wrap-toggle {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--text-dim);
-}
-.raw-wrap-label {
-  font-size: 12px;
-  color: var(--text-faint);
-  font-weight: 600;
+@media (max-width: 680px) {
+  .raw-modal-head {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .raw-tabs {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
 }
 .raw-pre {
   margin: 0;
@@ -1054,6 +1094,52 @@
   width: min(880px, calc(100vw - 32px));
   height: min(82dvh, 720px);
 }
+.display-pip {
+  position: fixed;
+  z-index: 950;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+}
+.display-pip-drag-layer {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.display-pip .display-modal-head {
+  padding: 9px 10px;
+  flex-wrap: nowrap;
+  cursor: move;
+  touch-action: none;
+  user-select: none;
+}
+.display-pip .display-modal-title > .mono {
+  display: none;
+}
+.display-pip .display-title-text {
+  font-size: 12.5px;
+}
+.display-pip .display-html-note {
+  display: none;
+}
+.display-pip-resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: nwse-resize;
+  touch-action: none;
+}
 .display-modal-head {
   gap: 12px;
   flex-wrap: wrap;
@@ -1090,6 +1176,10 @@
   width: 26px;
   height: 26px;
   border-radius: 7px;
+}
+.display-head-actions > .icon-btn.active {
+  color: var(--primary);
+  background: var(--surface-2);
 }
 .display-modal-body {
   flex: 1;
@@ -1140,12 +1230,17 @@
   display: flex;
   flex-direction: column;
 }
-.display-iframe {
+.display-html-viewport {
   flex: 1;
-  width: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+.display-iframe {
+  display: block;
   border: none;
   background: #fff;
   border-radius: 0 0 14px 14px;
+  transform-origin: top left;
 }
 .display-html-note {
   padding: 7px 14px;
@@ -1175,6 +1270,11 @@
   overflow-x: auto;
   min-height: 100%;
   background: var(--code-bg);
+}
+.display-code.wrapped,
+.display-plain.wrapped {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .display-code code {
   font-family: inherit;

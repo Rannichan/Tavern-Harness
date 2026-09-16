@@ -1188,24 +1188,31 @@ function RawLogModal({ msg, onClose, onExport }: { msg: ChatMessage; onClose: ()
 
   return (
     <Modal onClose={onClose} width="min(760px, calc(100vw - 40px))">
-      <div className="modal-head">
-        <span style={{ fontWeight: 800, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div className="modal-head raw-modal-head">
+        <span className="raw-modal-title">
           <Icon name="file" size={15} /> {t('chat.rawLogTitle', { id: msg.id ?? '' })}
         </span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div className="raw-tabs">
-            <button className={`raw-tab ${tab === 'request' ? 'active' : ''}`} onClick={() => setTab('request')}>{t('chat.requestBody')}</button>
-            <button className={`raw-tab ${tab === 'merged' ? 'active' : ''}`} onClick={() => setTab('merged')}>{t('chat.fullResponse')}</button>
-          </div>
-          <div className="raw-wrap-toggle">
-            <span className="raw-wrap-label">{t('chat.autoWrap')}</span>
-            <label className="switch">
-              <input type="checkbox" checked={autoWrap} onChange={(e) => setAutoWrap(e.target.checked)} />
-              <span className="switch-slider" />
-            </label>
-          </div>
-          <button className="btn btn-sm" onClick={onExport} title={t('chat.exportTip')}>
-            <Icon name="download" size={12} /> {t('common.export')}
+        <div className="raw-tabs">
+          <button className={`raw-tab ${tab === 'request' ? 'active' : ''}`} onClick={() => setTab('request')}>{t('chat.requestBody')}</button>
+          <button className={`raw-tab ${tab === 'merged' ? 'active' : ''}`} onClick={() => setTab('merged')}>{t('chat.fullResponse')}</button>
+        </div>
+        <div className="raw-head-actions">
+          <button
+            className={`icon-btn ${autoWrap ? 'active' : ''}`}
+            title={t(autoWrap ? 'display.disableWrap' : 'display.enableWrap')}
+            aria-label={t(autoWrap ? 'display.disableWrap' : 'display.enableWrap')}
+            aria-pressed={autoWrap}
+            onClick={() => setAutoWrap((wrapped) => !wrapped)}
+          >
+            <Icon name="text-wrap" size={17} />
+          </button>
+          <button
+            className="icon-btn"
+            onClick={onExport}
+            title={t('chat.exportTip')}
+            aria-label={t('chat.exportTip')}
+          >
+            <Icon name="download" size={17} />
           </button>
           <button className="icon-btn" onClick={onClose}><Icon name="x" /></button>
         </div>

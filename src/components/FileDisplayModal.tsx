@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Modal, Icon, Markdown } from './shared';
 import { useStore } from '../store/store';
 import { useT } from '../core/i18n';
@@ -25,6 +26,18 @@ const CODE_EXTS = new Set([
 ]);
 // .txt 是纯文本原样展示；markdown 才走 MD 渲染
 const MD_EXTS = new Set(['md', 'markdown', 'mdx']);
+const PIP_ASPECT_RATIO = 11 / 9;
+const PIP_EDGE_GAP = 12;
+const PIP_MIN_WIDTH = 280;
+const PIP_MIN_HEIGHT = 180;
+const PIP_REFRESH_INTERVAL = 1000;
+
+interface PipRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 
 function extensionOf(path: string): string {
   const m = /\.([A-Za-z0-9]+)$/.exec(path);
@@ -43,6 +56,15 @@ export function FileDisplayModal() {
   const [content, setContent] = useState<string | null>(null);
   const [loadState, setLoadState] = useState<'loading' | 'ok' | 'error'>('loading');
   const [imgError, setImgError] = useState(false);
+  const [htmlZoom, setHtmlZoom] = useState(1);
+  const [textWrap, setTextWrap] = useState(true);
+  const [isPictureInPicture, setIsPictureInPicture] = useState(false);
+  const [pipRect, setPipRect] = useState<PipRect>({ x: 0, y: 0, width: 440, height: 360 });
+  const pipGestureRef = useRef<
+    | { type: 'move'; pointerX: number; pointerY: number; startX: number; startY: number }
+    | { type: 'resize'; pointerX: number; pointerY: number; startWidth: number; startHeight: number }
+    | null
+  >(null);
   // 图片缩放 / 平移
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -55,6 +77,39 @@ export function FileDisplayModal() {
   }, [active]);
 
   useEffect(() => {
+    if (!active || !isPictureInPicture) return;
+    let cancelled = false;
+    let reading = false;
+    const refresh = async () => {
+      if (reading) return;
+      reading = true;
+      try {
+        if (active.sessionId != null) {
+          try {
+            await applySessionWorkspace(active.sessionId);
+          } catch {
+            setWorkspaceDir(null);
+          }
+        } else {
+          setWorkspaceDir(null);
+        }
+        const text = await readWorkspaceFileText(active.path);
+        if (cancelled || text === null) return;
+        setContent((current) => current === text ? current : text);
+        setLoadState('ok');
+        setImgError(false);
+      } finally {
+        reading = false;
+      }
+    };
+    const timer = window.setInterval(() => void refresh(), PIP_REFRESH_INTERVAL);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [active, isPictureInPicture]);
+
+  useEffect(() => {
     if (!active) return;
     let cancelled = false;
     setLoadState('loading');
@@ -62,6 +117,9 @@ export function FileDisplayModal() {
     setImgError(false);
     setZoom(1);
     setPan({ x: 0, y: 0 });
+    setHtmlZoom(1);
+    setTextWrap(true);
+    setIsPictureInPicture(false);
     // 按产生该展示的会话设置工作目录：普通弹窗（active.sessionId = 当前会话）读当前会话工作区；
     // 回看历史消息（sessionId 持久化）读该会话自己的工作区
     const read = async () => {
@@ -89,10 +147,70 @@ export function FileDisplayModal() {
     };
   }, [active]);
 
+  useEffect(() => {
+    if (!isPictureInPicture) return;
+    const handlePointerMove = (e: PointerEvent) => {
+      const gesture = pipGestureRef.current;
+      if (!gesture) return;
+      if (e.buttons === 0) {
+        pipGestureRef.current = null;
+        return;
+      }
+      if (gesture.type === 'move') {
+        setPipRect((rect) => ({
+          ...rect,
+          x: Math.min(
+            Math.max(PIP_EDGE_GAP, window.innerWidth - rect.width - PIP_EDGE_GAP),
+            Math.max(PIP_EDGE_GAP, gesture.startX + e.clientX - gesture.pointerX),
+          ),
+          y: Math.min(
+            Math.max(PIP_EDGE_GAP, window.innerHeight - rect.height - PIP_EDGE_GAP),
+            Math.max(PIP_EDGE_GAP, gesture.startY + e.clientY - gesture.pointerY),
+          ),
+        }));
+        return;
+      }
+      setPipRect((rect) => {
+        const availableWidth = window.innerWidth - rect.x - PIP_EDGE_GAP;
+        const availableHeight = window.innerHeight - rect.y - PIP_EDGE_GAP;
+        return {
+          ...rect,
+          width: Math.min(availableWidth, Math.max(Math.min(PIP_MIN_WIDTH, availableWidth), gesture.startWidth + e.clientX - gesture.pointerX)),
+          height: Math.min(availableHeight, Math.max(Math.min(PIP_MIN_HEIGHT, availableHeight), gesture.startHeight + e.clientY - gesture.pointerY)),
+        };
+      });
+    };
+    const stopGesture = () => (pipGestureRef.current = null);
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', stopGesture);
+    window.addEventListener('pointercancel', stopGesture);
+    window.addEventListener('blur', stopGesture);
+    return () => {
+      pipGestureRef.current = null;
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', stopGesture);
+      window.removeEventListener('pointercancel', stopGesture);
+      window.removeEventListener('blur', stopGesture);
+    };
+  }, [isPictureInPicture]);
+
   const title = active?.title?.trim() || (active ? basenameOf(active.path) : '');
   const ext = active ? extensionOf(active.path) : '';
 
   const close = () => setActiveDisplay(null);
+
+  const enterPictureInPicture = () => {
+    const maxWidth = Math.max(260, Math.min(560, window.innerWidth - PIP_EDGE_GAP * 2, (window.innerHeight - PIP_EDGE_GAP * 2) * PIP_ASPECT_RATIO));
+    const width = Math.min(440, maxWidth);
+    const height = width / PIP_ASPECT_RATIO;
+    setPipRect({
+      x: window.innerWidth - width - PIP_EDGE_GAP,
+      y: window.innerHeight - height - PIP_EDGE_GAP,
+      width,
+      height,
+    });
+    setIsPictureInPicture(true);
+  };
 
   /** 图片数据：优先 data: URI；否则按扩展名拼 data URI（SVG 直接内联，位图按 base64 文本） */
   const imageSrc = useMemo(() => {
@@ -115,6 +233,8 @@ export function FileDisplayModal() {
 
   const zoomIn = () => setZoom((z) => Math.min(8, +(z * 1.3).toFixed(2)));
   const zoomOut = () => setZoom((z) => Math.max(0.1, +(z / 1.3).toFixed(2)));
+  const htmlZoomIn = () => setHtmlZoom((z) => Math.min(2, +(z + 0.1).toFixed(1)));
+  const htmlZoomOut = () => setHtmlZoom((z) => Math.max(0.5, +(z - 0.1).toFixed(1)));
   const resetView = () => {
     setZoom(1);
     setPan({ x: 0, y: 0 });
@@ -180,12 +300,19 @@ export function FileDisplayModal() {
     if (active.kind === 'html') {
       return (
         <div className="display-html-wrap">
-          <iframe
-            className="display-iframe"
-            sandbox="allow-scripts"
-            title={title}
-            srcDoc={content}
-          />
+          <div className="display-html-viewport">
+            <iframe
+              className="display-iframe"
+              sandbox="allow-scripts"
+              title={title}
+              srcDoc={content}
+              style={{
+                width: `${100 / htmlZoom}%`,
+                height: `${100 / htmlZoom}%`,
+                transform: `scale(${htmlZoom})`,
+              }}
+            />
+          </div>
           <div className="display-html-note">{t('display.htmlSandboxNote')}</div>
         </div>
       );
@@ -205,7 +332,7 @@ export function FileDisplayModal() {
       const lang = ext === 'tsx' || ext === 'jsx' || ext === 'ts' || ext === 'js' || ext === 'mjs' || ext === 'cjs' || ext === 'mts' ? 'tsx' : ext;
       return (
         <div className="display-code-scroll">
-          <pre className="display-code mono">
+          <pre className={`display-code mono ${textWrap ? 'wrapped' : ''}`}>
             <code dangerouslySetInnerHTML={{ __html: highlightCode(content, lang) }} />
           </pre>
         </div>
@@ -214,13 +341,13 @@ export function FileDisplayModal() {
     // 纯文本（含未知扩展名）
     return (
       <div className="display-plain-scroll">
-        <pre className="display-plain mono">{content}</pre>
+        <pre className={`display-plain mono ${textWrap ? 'wrapped' : ''}`}>{content}</pre>
       </div>
     );
   };
 
-  return (
-    <Modal onClose={close} width="min(880px, calc(100vw - 32px))" className="display-modal">
+  const preview = (
+    <>
       <div className="modal-head display-modal-head">
         <span className="display-modal-title">
           <Icon name="file" size={15} />
@@ -235,10 +362,82 @@ export function FileDisplayModal() {
               <button className="icon-btn" title={t('display.zoomIn')} onClick={zoomIn}><Icon name="zoom-in" size={15} /></button>
             </span>
           )}
+          {active.kind === 'html' && loadState === 'ok' && (
+            <span className="display-zoom-group">
+              <button className="icon-btn" title={t('display.htmlZoomOut')} onClick={htmlZoomOut}><Icon name="zoom-out" size={15} /></button>
+              <button className="icon-btn" title={t('display.resetHtmlZoom')} onClick={() => setHtmlZoom(1)}>{Math.round(htmlZoom * 100)}%</button>
+              <button className="icon-btn" title={t('display.htmlZoomIn')} onClick={htmlZoomIn}><Icon name="zoom-in" size={15} /></button>
+            </span>
+          )}
+          {active.kind === 'text' && !MD_EXTS.has(ext) && loadState === 'ok' && (
+            <button
+              className={`icon-btn ${textWrap ? 'active' : ''}`}
+              title={t(textWrap ? 'display.disableWrap' : 'display.enableWrap')}
+              aria-label={t(textWrap ? 'display.disableWrap' : 'display.enableWrap')}
+              aria-pressed={textWrap}
+              onClick={() => setTextWrap((wrapped) => !wrapped)}
+            >
+              <Icon name="text-wrap" size={17} />
+            </button>
+          )}
+          <button
+            className="icon-btn"
+            title={t(isPictureInPicture ? 'display.exitPictureInPicture' : 'display.pictureInPicture')}
+            aria-label={t(isPictureInPicture ? 'display.exitPictureInPicture' : 'display.pictureInPicture')}
+            onClick={() => isPictureInPicture ? setIsPictureInPicture(false) : enterPictureInPicture()}
+          >
+            <Icon name={isPictureInPicture ? 'pip-exit' : 'pip'} size={17} />
+          </button>
           <button className="icon-btn" title={t('common.close')} onClick={close}><Icon name="x" size={17} /></button>
         </div>
       </div>
       <div className="modal-body display-modal-body">{renderBody()}</div>
+    </>
+  );
+
+  if (isPictureInPicture) {
+    return createPortal(
+      <div
+        className="display-pip card"
+        style={{ left: pipRect.x, top: pipRect.y, width: pipRect.width, height: pipRect.height }}
+      >
+        <div
+          className="display-pip-drag-layer"
+          onPointerDown={(e) => {
+            if ((e.target as HTMLElement).closest('button')) return;
+            pipGestureRef.current = { type: 'move', pointerX: e.clientX, pointerY: e.clientY, startX: pipRect.x, startY: pipRect.y };
+            e.currentTarget.setPointerCapture(e.pointerId);
+            e.preventDefault();
+          }}
+          onLostPointerCapture={() => (pipGestureRef.current = null)}
+        >
+          {preview}
+        </div>
+        <button
+          className="display-pip-resize"
+          title={t('display.resizePictureInPicture')}
+          aria-label={t('display.resizePictureInPicture')}
+          onPointerDown={(e) => {
+            pipGestureRef.current = {
+              type: 'resize',
+              pointerX: e.clientX,
+              pointerY: e.clientY,
+              startWidth: pipRect.width,
+              startHeight: pipRect.height,
+            };
+            e.currentTarget.setPointerCapture(e.pointerId);
+            e.preventDefault();
+          }}
+          onLostPointerCapture={() => (pipGestureRef.current = null)}
+        />
+      </div>,
+      document.body,
+    );
+  }
+
+  return (
+    <Modal onClose={close} width="min(880px, calc(100vw - 32px))" className="display-modal">
+      {preview}
     </Modal>
   );
 }
