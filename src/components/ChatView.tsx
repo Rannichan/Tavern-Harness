@@ -1212,7 +1212,7 @@ function RawLogModal({ msg, onClose, onExport }: { msg: ChatMessage; onClose: ()
             title={t('chat.exportTip')}
             aria-label={t('chat.exportTip')}
           >
-            <Icon name="download" size={17} />
+            <Icon name="share" size={17} />
           </button>
           <button className="icon-btn" onClick={onClose}><Icon name="x" /></button>
         </div>
