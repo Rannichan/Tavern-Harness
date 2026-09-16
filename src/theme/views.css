@@ -1231,16 +1231,44 @@
   flex-direction: column;
 }
 .display-html-viewport {
+  position: relative;
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  background: var(--surface-2);
+}
+.display-html-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--text-dim);
+  font-size: 13px;
+  background: var(--surface-2);
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.12s ease, visibility 0s linear 0s;
+}
+.display-html-loading.hidden {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.12s ease, visibility 0s linear 0.12s;
 }
 .display-iframe {
+  position: absolute;
+  inset: 0 auto auto 0;
   display: block;
   border: none;
-  background: #fff;
-  border-radius: 0 0 14px 14px;
+  background: transparent;
   transform-origin: top left;
+  opacity: 0;
+}
+.display-iframe.ready {
+  opacity: 1;
 }
 .display-html-note {
   padding: 7px 14px;

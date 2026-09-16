@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Modal, Icon, Markdown } from './shared';
 import { useStore } from '../store/store';
@@ -31,6 +31,8 @@ const PIP_EDGE_GAP = 12;
 const PIP_MIN_WIDTH = 280;
 const PIP_MIN_HEIGHT = 180;
 const PIP_REFRESH_INTERVAL = 1000;
+const HTML_READY_MESSAGE = 'tavern-html-preview-ready';
+const HTML_READY_FALLBACK_MS = 3500;
 
 interface PipRect {
   x: number;
@@ -49,6 +51,21 @@ function basenameOf(path: string): string {
   return parts[parts.length - 1] || path;
 }
 
+function createHtmlPreviewDocument(content: string, token: string): string {
+  const probe = `<script>(()=>{const token=${JSON.stringify(token)};const pause=(ms)=>new Promise(resolve=>setTimeout(resolve,ms));const settledImage=(image)=>image.complete?Promise.resolve():new Promise(resolve=>{image.addEventListener('load',resolve,{once:true});image.addEventListener('error',resolve,{once:true})});addEventListener('load',async()=>{const resources=Promise.all([document.fonts?.ready?.catch(()=>{})??Promise.resolve(),...Array.from(document.images,settledImage)]);await Promise.race([resources,pause(2500)]);await pause(180);requestAnimationFrame(()=>requestAnimationFrame(()=>parent.postMessage({type:${JSON.stringify(HTML_READY_MESSAGE)},token},'*')))},{once:true})})()<\/script>`;
+  const head = /<head(?:\s[^>]*)?>/i.exec(content);
+  if (head?.index !== undefined) {
+    const insertion = head.index + head[0].length;
+    return `${content.slice(0, insertion)}${probe}${content.slice(insertion)}`;
+  }
+  const html = /<html(?:\s[^>]*)?>/i.exec(content);
+  if (html?.index !== undefined) {
+    const insertion = html.index + html[0].length;
+    return `${content.slice(0, insertion)}<head>${probe}</head>${content.slice(insertion)}`;
+  }
+  return `<head>${probe}</head>${content}`;
+}
+
 export function FileDisplayModal() {
   const t = useT();
   const active = useStore((s) => s.activeDisplay);
@@ -57,9 +74,13 @@ export function FileDisplayModal() {
   const [loadState, setLoadState] = useState<'loading' | 'ok' | 'error'>('loading');
   const [imgError, setImgError] = useState(false);
   const [htmlZoom, setHtmlZoom] = useState(1);
+  const [htmlReady, setHtmlReady] = useState(false);
   const [textWrap, setTextWrap] = useState(true);
   const [isPictureInPicture, setIsPictureInPicture] = useState(false);
   const [pipRect, setPipRect] = useState<PipRect>({ x: 0, y: 0, width: 440, height: 360 });
+  const contentRef = useRef<string | null>(null);
+  const htmlRevealGenerationRef = useRef(0);
+  const htmlIframeRef = useRef<HTMLIFrameElement>(null);
   const pipGestureRef = useRef<
     | { type: 'move'; pointerX: number; pointerY: number; startX: number; startY: number }
     | { type: 'resize'; pointerX: number; pointerY: number; startWidth: number; startHeight: number }
@@ -71,9 +92,54 @@ export function FileDisplayModal() {
   const dragRef = useRef<{ startX: number; startY: number; panX: number; panY: number } | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
 
+  const hideHtml = () => {
+    htmlRevealGenerationRef.current += 1;
+    setHtmlReady(false);
+  };
+
   const ref: DisplayFileRef | null = useMemo(() => {
     if (!active) return null;
     return { path: active.path, kind: active.kind, title: active.title };
+  }, [active]);
+
+  const htmlPreview = useMemo(() => {
+    if (active?.kind !== 'html' || content === null) return null;
+    const token = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    return { token, srcDoc: createHtmlPreviewDocument(content, token) };
+  }, [active?.kind, content, isPictureInPicture]);
+
+  useEffect(() => {
+    if (!htmlPreview) return;
+    const generation = htmlRevealGenerationRef.current;
+    const reveal = () => {
+      if (htmlRevealGenerationRef.current === generation) setHtmlReady(true);
+    };
+    const handleMessage = (event: MessageEvent) => {
+      if (
+        event.source === htmlIframeRef.current?.contentWindow
+        && event.data?.type === HTML_READY_MESSAGE
+        && event.data?.token === htmlPreview.token
+      ) reveal();
+    };
+    const fallback = window.setTimeout(reveal, HTML_READY_FALLBACK_MS);
+    window.addEventListener('message', handleMessage);
+    return () => {
+      window.clearTimeout(fallback);
+      window.removeEventListener('message', handleMessage);
+    };
+  }, [htmlPreview]);
+
+  useLayoutEffect(() => {
+    setLoadState('loading');
+    contentRef.current = null;
+    setContent(null);
+    setImgError(false);
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+    setHtmlZoom(1);
+    hideHtml();
+    setTextWrap(true);
+    setIsPictureInPicture(false);
   }, [active]);
 
   useEffect(() => {
@@ -95,7 +161,11 @@ export function FileDisplayModal() {
         }
         const text = await readWorkspaceFileText(active.path);
         if (cancelled || text === null) return;
-        setContent((current) => current === text ? current : text);
+        if (contentRef.current !== text) {
+          hideHtml();
+          contentRef.current = text;
+          setContent(text);
+        }
         setLoadState('ok');
         setImgError(false);
       } finally {
@@ -112,14 +182,6 @@ export function FileDisplayModal() {
   useEffect(() => {
     if (!active) return;
     let cancelled = false;
-    setLoadState('loading');
-    setContent(null);
-    setImgError(false);
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
-    setHtmlZoom(1);
-    setTextWrap(true);
-    setIsPictureInPicture(false);
     // 按产生该展示的会话设置工作目录：普通弹窗（active.sessionId = 当前会话）读当前会话工作区；
     // 回看历史消息（sessionId 持久化）读该会话自己的工作区
     const read = async () => {
@@ -138,6 +200,7 @@ export function FileDisplayModal() {
         setLoadState('error');
         return;
       }
+      contentRef.current = text;
       setContent(text);
       setLoadState('ok');
     };
@@ -209,7 +272,13 @@ export function FileDisplayModal() {
       width,
       height,
     });
+    hideHtml();
     setIsPictureInPicture(true);
+  };
+
+  const exitPictureInPicture = () => {
+    hideHtml();
+    setIsPictureInPicture(false);
   };
 
   /** 图片数据：优先 data: URI；否则按扩展名拼 data URI（SVG 直接内联，位图按 base64 文本） */
@@ -300,15 +369,20 @@ export function FileDisplayModal() {
     if (active.kind === 'html') {
       return (
         <div className="display-html-wrap">
-          <div className="display-html-viewport">
+          <div className="display-html-viewport" aria-busy={!htmlReady}>
+            <div className={`display-html-loading ${htmlReady ? 'hidden' : ''}`}>
+              <span className="spinner" style={{ width: 22, height: 22 }} />
+              <span>{t('display.loading')}</span>
+            </div>
             <iframe
-              className="display-iframe"
+              ref={htmlIframeRef}
+              className={`display-iframe ${htmlReady ? 'ready' : ''}`}
               sandbox="allow-scripts"
               title={title}
-              srcDoc={content}
+              srcDoc={htmlPreview?.srcDoc}
               style={{
-                width: `${100 / htmlZoom}%`,
-                height: `${100 / htmlZoom}%`,
+                width: `calc(${100 / htmlZoom}% + ${2 / htmlZoom}px)`,
+                height: `calc(${100 / htmlZoom}% + ${2 / htmlZoom}px)`,
                 transform: `scale(${htmlZoom})`,
               }}
             />
@@ -384,7 +458,7 @@ export function FileDisplayModal() {
             className="icon-btn"
             title={t(isPictureInPicture ? 'display.exitPictureInPicture' : 'display.pictureInPicture')}
             aria-label={t(isPictureInPicture ? 'display.exitPictureInPicture' : 'display.pictureInPicture')}
-            onClick={() => isPictureInPicture ? setIsPictureInPicture(false) : enterPictureInPicture()}
+            onClick={() => isPictureInPicture ? exitPictureInPicture() : enterPictureInPicture()}
           >
             <Icon name={isPictureInPicture ? 'pip-exit' : 'pip'} size={17} />
           </button>
