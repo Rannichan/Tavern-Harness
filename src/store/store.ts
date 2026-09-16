@@ -1718,18 +1718,18 @@ async function streamAssistantTurn(
           identicalToolCallCount = signature === lastToolCallSignature ? identicalToolCallCount + 1 : 1;
           lastToolCallSignature = signature;
           toolCallCount++;
-          // 会话隔离：每个工具调用前把工作目录切到当前会话（shell / 文件读写都在该会话目录内）
-          await applySessionWorkspace(sessionId);
+          // 普通角色限制在会话目录；内置酒馆老板可访问整个沙箱工作区
+          await applySessionWorkspace(sessionId, npc?.id ?? null);
           const needsConfirm = ['update_skill', 'delete_skill', 'update_character', 'delete_character', 'update_world_book', 'delete_world_book'].includes(tc.name);
           if (needsConfirm) {
             const approved = await requestToolConfirmation(sessionId, tc);
             if (!approved) {
               result = translate('toast.canceled', { name: tc.name });
             } else {
-              result = await executeToolCall(tc.name, tc.argumentsJson, { sessionId, requestConfirmation: async () => true });
+              result = await executeToolCall(tc.name, tc.argumentsJson, { sessionId, npcId: npc?.id ?? null, requestConfirmation: async () => true });
             }
           } else {
-            result = await executeToolCall(tc.name, tc.argumentsJson, { sessionId, requestConfirmation: async () => true });
+            result = await executeToolCall(tc.name, tc.argumentsJson, { sessionId, npcId: npc?.id ?? null, requestConfirmation: async () => true });
           }
         } catch (e) {
           // 工具执行本身抛异常（网络 / 沙箱 / 安全拦截等）→ 立即落库为失败结果，
