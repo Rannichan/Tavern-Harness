@@ -96,6 +96,8 @@ interface AppState {
   activeView: ActiveView;
 
   streaming: StreamingState;
+  /** 正在生成或生成结束后尚未进入查看的会话 */
+  activitySessionIds: Record<number, true>;
   pendingConfirmation: ToolConfirmationRequest | null;
 
   /** 当前打开的展示弹窗（file_display），null = 无 */
@@ -204,6 +206,7 @@ export const useStore = create<AppState>((set, get) => ({
   modelsList: [],
 
   streaming: { sessionId: null, abort: null },
+  activitySessionIds: {},
   pendingConfirmation: null,
   activeDisplay: null,
 
@@ -258,14 +261,29 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   setActiveSession: (id) => {
-    set({ activeSessionId: id, activeView: 'chat' });
+    set((state) => {
+      if (id == null || !state.activitySessionIds[id]) {
+        return { activeSessionId: id, activeView: 'chat' };
+      }
+      const activitySessionIds = { ...state.activitySessionIds };
+      delete activitySessionIds[id];
+      return { activeSessionId: id, activeView: 'chat', activitySessionIds };
+    });
     if (id != null) {
       get().loadMessages(id);
       get().refreshLiveQueue(id);
     }
   },
 
-  setActiveView: (v) => set({ activeView: v }),
+  setActiveView: (v) => set((state) => {
+    const sessionId = state.activeSessionId;
+    if (v !== 'chat' || sessionId == null || !state.activitySessionIds[sessionId]) {
+      return { activeView: v };
+    }
+    const activitySessionIds = { ...state.activitySessionIds };
+    delete activitySessionIds[sessionId];
+    return { activeView: v, activitySessionIds };
+  }),
 
   refreshSessions: async () => {
     // 置顶会话排最前（各自按 updatedAt 倒序），其次为普通会话（同样按 updatedAt 倒序）
@@ -636,7 +654,13 @@ export const useStore = create<AppState>((set, get) => ({
     if (session?.workspaceDir) {
       await deleteSessionWorkspace(session.workspaceDir);
     }
-    if (get().activeSessionId === id) set({ activeSessionId: null });
+    set((state) => {
+      const activitySessionIds = { ...state.activitySessionIds };
+      delete activitySessionIds[id];
+      return state.activeSessionId === id
+        ? { activeSessionId: null, activitySessionIds }
+        : { activitySessionIds };
+    });
     get().clearLiveQueue(id);
     await get().refreshSessions();
   },
@@ -1352,7 +1376,10 @@ async function streamAssistantTurn(
 
   const sessionId = session.id!;
   const abortController = new AbortController();
-  useStore.setState({ streaming: { sessionId, abort: abortController } });
+  useStore.setState((state) => ({
+    streaming: { sessionId, abort: abortController },
+    activitySessionIds: { ...state.activitySessionIds, [sessionId]: true },
+  }));
   // 面板实时指示：该角色开始发言（队列首位高亮）
   await useStore.getState().refreshLiveQueue(sessionId);
 
@@ -1589,7 +1616,7 @@ async function streamAssistantTurn(
     if (errorMsg) {
       await db.messages.delete(draftId);
       await useStore.getState().loadMessages(sessionId);
-      useStore.setState({ streaming: { sessionId: null, abort: null } });
+      finishSessionActivity(sessionId);
       useStore.getState().addToast(translate('toast.genFailed', { msg: errorMsg }), 'error');
       return 'failed';
     }
@@ -1797,12 +1824,29 @@ async function streamAssistantTurn(
     break; // 无工具调用则结束
   }
 
-  useStore.setState({ streaming: { sessionId: null, abort: null } });
+  finishSessionActivity(sessionId);
   await refreshQueueAndSave(sessionId);
 
   // 用户主动停止 → 保留部分内容（不回退）；未产出任何回复 → 视为失败
   if (stopped || abortController.signal.aborted) return 'stopped';
   return produced ? 'ok' : 'failed';
+}
+
+function finishSessionActivity(sessionId: number) {
+  useStore.setState((state) => {
+    if (state.activeView !== 'chat' || state.activeSessionId !== sessionId) {
+      return {
+        streaming: { sessionId: null, abort: null },
+        activitySessionIds: { ...state.activitySessionIds, [sessionId]: true },
+      };
+    }
+    const activitySessionIds = { ...state.activitySessionIds };
+    delete activitySessionIds[sessionId];
+    return {
+      streaming: { sessionId: null, abort: null },
+      activitySessionIds,
+    };
+  });
 }
 
 function toolCallSignature(name: string, argumentsJson: string): string {

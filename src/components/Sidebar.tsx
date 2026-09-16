@@ -23,6 +23,8 @@ export function Sidebar() {
   const npcs = useStore((s) => s.npcs);
   const activeSessionId = useStore((s) => s.activeSessionId);
   const activeView = useStore((s) => s.activeView);
+  const streamingSessionId = useStore((s) => s.streaming.sessionId);
+  const activitySessionIds = useStore((s) => s.activitySessionIds);
   const setActiveSession = useStore((s) => s.setActiveSession);
   const setActiveView = useStore((s) => s.setActiveView);
   const deleteSession = useStore((s) => s.deleteSession);
@@ -236,6 +238,7 @@ export function Sidebar() {
         <div className="session-list">
         {visibleSessions.map((s) => {
           const npc = npcById(s.associatedId);
+          const hasActivity = streamingSessionId === s.id || Boolean(activitySessionIds[s.id!]);
           return (
             <button
               key={s.id}
@@ -257,6 +260,7 @@ export function Sidebar() {
                     <span className="spinned" title={t('nav.pinSession')}><Icon name="pin" size={11} /></span>
                   )}
                   <span className="stitle-text">{s.title}</span>
+                  {hasActivity && <span className="session-activity-dot" aria-label={t('nav.sessionActive')} />}
                 </div>
                 <div className="sprev">{s.lastMessage || t('nav.newConversation')}</div>
               </div>
