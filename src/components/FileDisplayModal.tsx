@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Modal, Icon, Markdown } from './shared';
+import { Icon, Markdown } from './shared';
 import { useStore } from '../store/store';
 import { useT } from '../core/i18n';
 import { highlightCode } from '../core/markdown';
@@ -41,6 +41,18 @@ interface PipRect {
   height: number;
 }
 
+function createPipRect(): PipRect {
+  const maxWidth = Math.max(260, Math.min(560, window.innerWidth - PIP_EDGE_GAP * 2, (window.innerHeight - PIP_EDGE_GAP * 2) * PIP_ASPECT_RATIO));
+  const width = Math.min(440, maxWidth);
+  const height = width / PIP_ASPECT_RATIO;
+  return {
+    x: PIP_EDGE_GAP,
+    y: window.innerHeight - height - PIP_EDGE_GAP,
+    width,
+    height,
+  };
+}
+
 function extensionOf(path: string): string {
   const m = /\.([A-Za-z0-9]+)$/.exec(path);
   return m ? m[1].toLowerCase() : '';
@@ -76,8 +88,8 @@ export function FileDisplayModal() {
   const [htmlZoom, setHtmlZoom] = useState(1);
   const [htmlReady, setHtmlReady] = useState(false);
   const [textWrap, setTextWrap] = useState(true);
-  const [isPictureInPicture, setIsPictureInPicture] = useState(false);
-  const [pipRect, setPipRect] = useState<PipRect>({ x: 0, y: 0, width: 440, height: 360 });
+  const [isPictureInPicture, setIsPictureInPicture] = useState(true);
+  const [pipRect, setPipRect] = useState<PipRect>(createPipRect);
   const contentRef = useRef<string | null>(null);
   const htmlRevealGenerationRef = useRef(0);
   const htmlIframeRef = useRef<HTMLIFrameElement>(null);
@@ -106,7 +118,7 @@ export function FileDisplayModal() {
     if (active?.kind !== 'html' || content === null) return null;
     const token = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     return { token, srcDoc: createHtmlPreviewDocument(content, token) };
-  }, [active?.kind, content, isPictureInPicture]);
+  }, [active?.kind, content]);
 
   useEffect(() => {
     if (!htmlPreview) return;
@@ -139,7 +151,8 @@ export function FileDisplayModal() {
     setHtmlZoom(1);
     hideHtml();
     setTextWrap(true);
-    setIsPictureInPicture(false);
+    setPipRect(createPipRect());
+    setIsPictureInPicture(active?.presentation !== 'modal');
   }, [active]);
 
   useEffect(() => {
@@ -263,21 +276,11 @@ export function FileDisplayModal() {
   const close = () => setActiveDisplay(null);
 
   const enterPictureInPicture = () => {
-    const maxWidth = Math.max(260, Math.min(560, window.innerWidth - PIP_EDGE_GAP * 2, (window.innerHeight - PIP_EDGE_GAP * 2) * PIP_ASPECT_RATIO));
-    const width = Math.min(440, maxWidth);
-    const height = width / PIP_ASPECT_RATIO;
-    setPipRect({
-      x: window.innerWidth - width - PIP_EDGE_GAP,
-      y: window.innerHeight - height - PIP_EDGE_GAP,
-      width,
-      height,
-    });
-    hideHtml();
+    setPipRect(createPipRect());
     setIsPictureInPicture(true);
   };
 
   const exitPictureInPicture = () => {
-    hideHtml();
     setIsPictureInPicture(false);
   };
 
@@ -469,16 +472,21 @@ export function FileDisplayModal() {
     </>
   );
 
-  if (isPictureInPicture) {
-    return createPortal(
+  return createPortal(
+    <>
+      {!isPictureInPicture && <div key="overlay" className="overlay" onClick={close} />}
       <div
-        className="display-pip card"
-        style={{ left: pipRect.x, top: pipRect.y, width: pipRect.width, height: pipRect.height }}
+        key="display-container"
+        className={isPictureInPicture ? 'display-pip card' : 'modal-root'}
+        style={isPictureInPicture
+          ? { left: pipRect.x, top: pipRect.y, width: pipRect.width, height: pipRect.height }
+          : undefined}
+        onClick={!isPictureInPicture ? (e) => e.stopPropagation() : undefined}
       >
         <div
-          className="display-pip-drag-layer"
+          className={isPictureInPicture ? 'display-pip-drag-layer' : 'modal card fade-up display-modal'}
           onPointerDown={(e) => {
-            if ((e.target as HTMLElement).closest('button')) return;
+            if (!isPictureInPicture || (e.target as HTMLElement).closest('button')) return;
             pipGestureRef.current = { type: 'move', pointerX: e.clientX, pointerY: e.clientY, startX: pipRect.x, startY: pipRect.y };
             e.currentTarget.setPointerCapture(e.pointerId);
             e.preventDefault();
@@ -487,32 +495,28 @@ export function FileDisplayModal() {
         >
           {preview}
         </div>
-        <button
-          className="display-pip-resize"
-          title={t('display.resizePictureInPicture')}
-          aria-label={t('display.resizePictureInPicture')}
-          onPointerDown={(e) => {
-            pipGestureRef.current = {
-              type: 'resize',
-              pointerX: e.clientX,
-              pointerY: e.clientY,
-              startWidth: pipRect.width,
-              startHeight: pipRect.height,
-            };
-            e.currentTarget.setPointerCapture(e.pointerId);
-            e.preventDefault();
-          }}
-          onLostPointerCapture={() => (pipGestureRef.current = null)}
-        />
-      </div>,
-      document.body,
-    );
-  }
-
-  return (
-    <Modal onClose={close} width="min(880px, calc(100vw - 32px))" className="display-modal">
-      {preview}
-    </Modal>
+        {isPictureInPicture && (
+          <button
+            className="display-pip-resize"
+            title={t('display.resizePictureInPicture')}
+            aria-label={t('display.resizePictureInPicture')}
+            onPointerDown={(e) => {
+              pipGestureRef.current = {
+                type: 'resize',
+                pointerX: e.clientX,
+                pointerY: e.clientY,
+                startWidth: pipRect.width,
+                startHeight: pipRect.height,
+              };
+              e.currentTarget.setPointerCapture(e.pointerId);
+              e.preventDefault();
+            }}
+            onLostPointerCapture={() => (pipGestureRef.current = null)}
+          />
+        )}
+      </div>
+    </>,
+    document.body,
   );
 }
 

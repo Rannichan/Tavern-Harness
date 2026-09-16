@@ -109,6 +109,7 @@ export function WorkspaceFileManagerModal({ sessionId, onClose }: { sessionId: n
       kind: kindFromPath(node.path),
       title: node.name,
       sessionId,
+      presentation: 'modal',
     });
     onClose();
   };
