@@ -1720,7 +1720,7 @@ async function streamAssistantTurn(
           toolCallCount++;
           // 普通角色限制在会话目录；内置酒馆老板可访问整个沙箱工作区
           await applySessionWorkspace(sessionId, npc?.id ?? null);
-          const needsConfirm = ['update_skill', 'delete_skill', 'update_character', 'delete_character', 'update_world_book', 'delete_world_book'].includes(tc.name);
+          const needsConfirm = ['update_skill', 'delete_skill', 'update_character', 'delete_character', 'update_lorebook', 'delete_lorebook'].includes(tc.name);
           if (needsConfirm) {
             const approved = await requestToolConfirmation(sessionId, tc);
             if (!approved) {

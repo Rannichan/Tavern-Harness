@@ -41,7 +41,7 @@ export interface ToolExecutionContext {
 }
 
 export function isConfirmationNeeded(toolName: string): boolean {
-  return ['update_skill', 'delete_skill', 'update_character', 'delete_character', 'update_world_book', 'delete_world_book'].includes(toolName);
+  return ['update_skill', 'delete_skill', 'update_character', 'delete_character', 'update_lorebook', 'delete_lorebook'].includes(toolName);
 }
 
 /**
@@ -140,8 +140,12 @@ async function runNativeTool(
     case 'run_shell_script':
       return await handleRunShellScript(args, ctx);
 
-    case 'get_tavern_status':
-      return await handleGetTavernStatus(args);
+    case 'get_tavern_info':
+      return await handleGetTavernInfo(args);
+    case 'get_character_info':
+      return await handleGetCharacterInfo(args);
+    case 'get_lorebook_info':
+      return await handleGetLorebookInfo(args);
 
     case 'file_display':
       return await handleFileDisplay(args, ctx);
@@ -162,12 +166,12 @@ async function runNativeTool(
 
     case 'create_conversation':
       return await handleCreateConversation(args);
-    case 'create_world_book':
-      return await handleCreateWorldBook(args);
-    case 'update_world_book':
-      return await gate(ctx, 'update_world_book', translate('tool.gateUpdateWb', { name: String(args.name ?? '') }), () => handleUpdateWorldBook(args));
-    case 'delete_world_book':
-      return await gate(ctx, 'delete_world_book', translate('tool.gateDeleteWb', { name: String(args.name ?? '') }), () => handleDeleteWorldBook(args));
+    case 'create_lorebook':
+      return await handleCreateLorebook(args);
+    case 'update_lorebook':
+      return await gate(ctx, 'update_lorebook', translate('tool.gateUpdateWb', { name: String(args.name ?? '') }), () => handleUpdateLorebook(args));
+    case 'delete_lorebook':
+      return await gate(ctx, 'delete_lorebook', translate('tool.gateDeleteWb', { name: String(args.name ?? '') }), () => handleDeleteLorebook(args));
 
     default:
       return `ERROR: 未知工具 ${toolName}`;
@@ -199,7 +203,7 @@ async function gate(
 // 原生工具实现
 // ============================================================
 
-async function handleGetTavernStatus(args: Record<string, unknown>): Promise<string> {
+async function handleGetTavernInfo(args: Record<string, unknown>): Promise<string> {
   const fields = Array.isArray(args.fields) ? (args.fields as string[]) : [];
   if (fields.length === 0) return 'ERROR: 需要至少一个 fields 字段';
   const out: Record<string, unknown> = {};
@@ -208,14 +212,12 @@ async function handleGetTavernStatus(args: Record<string, unknown>): Promise<str
     const npcs = await db.npcs.toArray();
     out.characters = npcs.map((n) => ({
       name: n.name,
-      greeting: n.greeting,
       is_default: n.isBuiltIn,
-      enabled_skills: n.enabledToolNames,
     }));
   }
-  if (fields.includes('world_books')) {
+  if (fields.includes('lorebooks')) {
     const books = await db.worldBooks.toArray();
-    out.world_books = books.map((b) => ({ name: b.name }));
+    out.lorebooks = books.map((b) => ({ name: b.name }));
   }
   if (fields.includes('skills')) {
     const tools = await db.tools.toArray();
@@ -249,6 +251,29 @@ async function handleGetTavernStatus(args: Record<string, unknown>): Promise<str
     };
   }
   return JSON.stringify(out, null, 2);
+}
+
+async function handleGetCharacterInfo(args: Record<string, unknown>): Promise<string> {
+  const name = String(args.name ?? '').trim();
+  if (!name) return 'ERROR: 缺少 name';
+  const npc = await db.npcs.where('name').equals(name).first();
+  if (!npc) return `ERROR: 角色 ${name} 不存在`;
+  return JSON.stringify({
+    name: npc.name,
+    prompt: npc.prompt,
+    greeting: npc.greeting,
+    alternate_greetings: npc.alternateGreetings ?? [],
+    is_default: npc.isBuiltIn,
+    enabled_skills: npc.enabledToolNames,
+  }, null, 2);
+}
+
+async function handleGetLorebookInfo(args: Record<string, unknown>): Promise<string> {
+  const name = String(args.name ?? '').trim();
+  if (!name) return 'ERROR: 缺少 name';
+  const book = await db.worldBooks.where('name').equals(name).first();
+  if (!book) return `ERROR: 世界书 ${name} 不存在`;
+  return JSON.stringify({ name: book.name, content: book.content }, null, 2);
 }
 
 // ---------- file_display（弹窗展示工作区文件，只读） ----------
@@ -608,7 +633,7 @@ async function handleCreateConversation(args: Record<string, unknown>): Promise<
 
 // ---------- Lorebook CRUD ----------
 
-async function handleCreateWorldBook(args: Record<string, unknown>): Promise<string> {
+async function handleCreateLorebook(args: Record<string, unknown>): Promise<string> {
   const name = String(args.name ?? '').trim();
   const content = String(args.content ?? '');
   if (!name || !content) return 'ERROR: 需要 name / content';
@@ -617,7 +642,7 @@ async function handleCreateWorldBook(args: Record<string, unknown>): Promise<str
   return `OK: 已创建世界书 ${name}`;
 }
 
-async function handleUpdateWorldBook(args: Record<string, unknown>): Promise<string> {
+async function handleUpdateLorebook(args: Record<string, unknown>): Promise<string> {
   const name = String(args.name ?? '');
   const book = await db.worldBooks.where('name').equals(name).first();
   if (!book) return `ERROR: 世界书 ${name} 不存在`;
@@ -628,7 +653,7 @@ async function handleUpdateWorldBook(args: Record<string, unknown>): Promise<str
   return `OK: 已更新世界书 ${name}`;
 }
 
-async function handleDeleteWorldBook(args: Record<string, unknown>): Promise<string> {
+async function handleDeleteLorebook(args: Record<string, unknown>): Promise<string> {
   const name = String(args.name ?? '');
   const book = await db.worldBooks.where('name').equals(name).first();
   if (!book) return `ERROR: 世界书 ${name} 不存在`;

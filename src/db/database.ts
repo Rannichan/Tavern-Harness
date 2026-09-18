@@ -175,6 +175,7 @@ export async function initDatabase(): Promise<void> {
   // 内置技能改名迁移：display_file → file_display（须在 seedBuiltinTools 之前，
   // 否则种子先写入 file_display、迁移再把旧 display_file 改同名，会产生重复记录）
   await migrateDisplayFileRename();
+  await migrateBuiltinToolRenames();
   // 退役内置技能（web_search / manage_timer）已从默认工具列表移除：清理旧库残留
   await retireRemovedBuiltinTools();
   // 预载内置技能表
@@ -269,6 +270,64 @@ const LOCALIZE_LANG_KEY = 'th-builtin-npc-lang';
 /** 已退役的内置技能：从默认工具列表中移除后，旧库里的记录不再被 seed 覆盖同步。
  *  迁移时删除工具记录，并从 NPC 启用列表里剔除（历史消息中的工具调用保留原文，仅作展示）。 */
 const RETIRED_BUILTIN_TOOL_NAMES = ['web_search', 'manage_timer'];
+
+const RENAMED_BUILTIN_TOOLS: Record<string, string> = {
+  get_tavern_status: 'get_tavern_info',
+  create_world_book: 'create_lorebook',
+  update_world_book: 'update_lorebook',
+  delete_world_book: 'delete_lorebook',
+};
+
+async function migrateBuiltinToolRenames(): Promise<void> {
+  for (const [oldName, newName] of Object.entries(RENAMED_BUILTIN_TOOLS)) {
+    const oldTools = (await db.tools.where('name').equals(oldName).toArray()).filter((tool) => tool.isBuiltIn);
+    const existingNew = await db.tools.where('name').equals(newName).first();
+    for (const oldTool of oldTools) {
+      if (existingNew) {
+        await db.tools.delete(oldTool.id!);
+        continue;
+      }
+      let jsonContent = oldTool.jsonContent;
+      try {
+        const parsed = JSON.parse(jsonContent) as { function?: { name?: string } };
+        if (parsed.function?.name === oldName) {
+          parsed.function.name = newName;
+          jsonContent = JSON.stringify(parsed);
+        }
+      } catch {
+        /* seedBuiltinTools will replace malformed built-in definitions */
+      }
+      await db.tools.update(oldTool.id!, { name: newName, jsonContent });
+    }
+  }
+
+  const npcs = await db.npcs.toArray();
+  for (const npc of npcs) {
+    if (!Array.isArray(npc.enabledToolNames)) continue;
+    const renamed = npc.enabledToolNames.map((name) => RENAMED_BUILTIN_TOOLS[name] ?? name);
+    if (renamed.some((name, index) => name !== npc.enabledToolNames[index])) {
+      await db.npcs.update(npc.id!, { enabledToolNames: [...new Set(renamed)] });
+    }
+  }
+
+  const messages = await db.messages.toArray();
+  for (const message of messages) {
+    if (!message.toolCallsJson || !Object.keys(RENAMED_BUILTIN_TOOLS).some((name) => message.toolCallsJson.includes(`"${name}"`))) continue;
+    try {
+      const calls = JSON.parse(message.toolCallsJson) as Array<{ name?: string }>;
+      let changed = false;
+      for (const call of calls) {
+        if (call?.name && RENAMED_BUILTIN_TOOLS[call.name]) {
+          call.name = RENAMED_BUILTIN_TOOLS[call.name];
+          changed = true;
+        }
+      }
+      if (changed) await db.messages.update(message.id!, { toolCallsJson: JSON.stringify(calls) });
+    } catch {
+      /* Preserve malformed historical payloads unchanged. */
+    }
+  }
+}
 
 async function retireRemovedBuiltinTools(): Promise<void> {
   for (const name of RETIRED_BUILTIN_TOOL_NAMES) {

@@ -15,15 +15,17 @@ export const BUILTIN_TOOL_NAMES = [
   'create_skill',
   'update_skill',
   'delete_skill',
-  'get_tavern_status',
+  'get_tavern_info',
+  'get_character_info',
+  'get_lorebook_info',
   'file_display',
   'create_character',
   'update_character',
   'delete_character',
   'create_conversation',
-  'create_world_book',
-  'update_world_book',
-  'delete_world_book',
+  'create_lorebook',
+  'update_lorebook',
+  'delete_lorebook',
 ] as const;
 
 const fn = (name: string, description: string, parameters: Record<string, unknown>): ChatCompletionTool => ({
@@ -194,20 +196,40 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
     }
   ),
   fn(
-    'get_tavern_status',
-    'Read-only snapshot of the tavern: characters, Lorebooks, skills and career statistics. Never modifies anything.',
+    'get_tavern_info',
+    'Read-only snapshot of the tavern: characters, Lorebooks, skills and career statistics.',
     {
       type: 'object',
       properties: {
         fields: {
           type: 'array',
-          items: { type: 'string', enum: ['characters', 'world_books', 'skills', 'career_stats'] },
+          items: { type: 'string', enum: ['characters', 'lorebooks', 'skills', 'career_stats'] },
           minItems: 1,
           uniqueItems: true,
           description: 'Fields to include',
         },
       },
       required: ['fields'],
+      additionalProperties: false,
+    }
+  ),
+  fn(
+    'get_character_info',
+    'Get the details of a character card by name.',
+    {
+      type: 'object',
+      properties: { name: { type: 'string', description: 'Existing character name' } },
+      required: ['name'],
+      additionalProperties: false,
+    }
+  ),
+  fn(
+    'get_lorebook_info',
+    'Get the details of a Lorebook by name.',
+    {
+      type: 'object',
+      properties: { name: { type: 'string', description: 'Existing Lorebook name' } },
+      required: ['name'],
       additionalProperties: false,
     }
   ),
@@ -308,7 +330,7 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
     }
   ),
   fn(
-    'create_world_book',
+    'create_lorebook',
     'Create a Lorebook (world-building text appended to character personas).',
     {
       type: 'object',
@@ -321,7 +343,7 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
     }
   ),
   fn(
-    'update_world_book',
+    'update_lorebook',
     'Update a Lorebook. Requires user confirmation.',
     {
       type: 'object',
@@ -335,7 +357,7 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
     }
   ),
   fn(
-    'delete_world_book',
+    'delete_lorebook',
     'Delete a Lorebook. Requires user confirmation. Unlinks from all sessions.',
     {
       type: 'object',
