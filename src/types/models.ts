@@ -283,7 +283,7 @@ export interface ToolConfirmationRequest {
 }
 
 export interface GeneratedSkillExecution {
-  type: 'template' | 'http_get' | 'javascript' | 'file_read' | 'file_write' | 'shell' | 'device_action';
+  type: 'template' | 'http_get' | 'javascript' | 'file_read' | 'file_write' | 'shell';
   // template
   template?: string;
   // http_get
@@ -298,16 +298,6 @@ export interface GeneratedSkillExecution {
   append_newline?: boolean;
   // shell
   script?: string;
-  // device_action
-  action?: 'flashlight' | 'vibrate' | 'notification' | 'sequence';
-  state?: 'on' | 'off' | 'blink';
-  flashes?: number;
-  on_ms?: number;
-  off_ms?: number;
-  duration_ms?: number;
-  title?: string;
-  message?: string;
-  sequence?: GeneratedSkillExecution[];
   [k: string]: unknown;
 }
 

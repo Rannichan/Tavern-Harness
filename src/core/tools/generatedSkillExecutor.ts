@@ -1,12 +1,5 @@
 import type { GeneratedSkillExecution, ToolConfirmationRequest } from '../../types/models';
-import {
-  createWorkspaceFile,
-  getWorkspaceFile,
-  listWorkspaceFiles,
-  sanitizeRelativePath,
-  readFileContent,
-  removeWorkspaceFilesByPrefix,
-} from './generatedWorkspace';
+import { sanitizeRelativePath } from './generatedWorkspace';
 import { translate } from '../i18n';
 
 // ============================================================
@@ -16,10 +9,6 @@ import { translate } from '../i18n';
 const MAX_OUTPUT_CHARS = 20_000;
 /** 单文件读写字符上限（与沙箱服务 file_read/file_write 对齐） */
 const MAX_READ_CHARS = 100_000;
-/** 虚拟工作区 IndexedDB 键前缀 */
-const WORKSPACE_KEY = 'generated_skill_workspace';
-/** 会话专属工作区在虚拟键空间下的根前缀（键空间前缀，与磁盘工作区目录无关） */
-const SESSION_DIR_PREFIX = 'sessions';
 
 /** 当前会话专属工作目录（null = 共享根工作区，用于旧会话/未设置 workspaceDir 的记录） */
 let currentWorkspaceDir: string | null = null;
@@ -49,11 +38,10 @@ export async function ensureSessionWorkspaceDir(dir: string | null | undefined):
 }
 
 /**
- * 删除会话时清理其专属工作目录（磁盘 + 虚拟工作区）。
- * 磁盘删除失败（沙箱不可用等）不阻塞会话删除；虚拟工作区为幂等清理。
+ * 删除会话时清理其专属磁盘工作目录。
+ * 沙箱不可用时不阻塞会话删除。
  */
 export async function deleteSessionWorkspace(dir: string | null | undefined): Promise<void> {
-  // 1) 磁盘工作区
   if (dir && typeof dir === 'string' && isValidWorkspaceDirName(dir)) {
     try {
       await fetch('/api-v2/session_delete', {
@@ -63,12 +51,6 @@ export async function deleteSessionWorkspace(dir: string | null | undefined): Pr
       });
     } catch {
       /* 沙箱不可用：磁盘目录无法删除，忽略 */
-    }
-    // 2) 虚拟工作区（沙箱未启动 / 模式切换回退时写入的 IndexedDB 数据）
-    try {
-      await removeWorkspaceFilesByPrefix(`generated_skill_workspace/sessions/${dir}`);
-    } catch {
-      /* ignore */
     }
   }
 }
@@ -95,26 +77,6 @@ export function setWorkspaceDir(dir: string | null | undefined): void {
 /** 当前会话工作目录（供文件系统 / shell 端点组装请求） */
 export function sessionWorkspaceDir(): string | null {
   return currentWorkspaceDir;
-}
-
-/**
- * 把「虚拟工作区文件路径」映射为「会话专属前缀」：
- * - 会话模式：虚拟工作区路径落在 SESSION_DIR_PREFIX/<会话工作目录>/ 之下
- * - 共享模式：保持原 WORKSPACE_KEY 前缀
- */
-function keyForSession(path: string): string {
-  const safe = sanitizeRelativePath(path);
-  if (currentWorkspaceDir) return `${WORKSPACE_KEY}/${SESSION_DIR_PREFIX}/${currentWorkspaceDir}/${safe}`;
-  return `${WORKSPACE_KEY}/${safe}`;
-}
-
-/**
- * 会话专属虚拟键空间前缀（含尾部斜杠）。
- * 用于按当前会话枚举其专属工作区文件（虚拟工作区回退模式）。
- */
-function sessionKeyspacePrefix(): string {
-  if (currentWorkspaceDir) return `${WORKSPACE_KEY}/${SESSION_DIR_PREFIX}/${currentWorkspaceDir}/`;
-  return `${WORKSPACE_KEY}/`;
 }
 
 /** shell 确认请求回调（由调用方注入，走统一确认弹窗链路） */
@@ -147,8 +109,6 @@ export async function executeGeneratedSkill(
       return execFileWrite(execution, args);
     case 'shell':
       return execShell(execution, args, confirm);
-    case 'device_action':
-      return execDeviceAction(execution, args);
     default:
       return `ERROR: 未知执行类型 ${(execution as GeneratedSkillExecution).type}`;
   }
@@ -316,56 +276,34 @@ async function handleBridgeCall(req: { method: string; payload: Record<string, u
   switch (method) {
     case 'read': {
       const path = sanitizeRelativePath(String(payload.path ?? ''));
-      const onDisk = await resolveFsMode();
-      if (onDisk) {
-        const text = await diskFileRead(path);
-        if (text !== null) return { ok: true, content: text.slice(0, MAX_READ_CHARS) };
-        return { ok: false, error: `文件不存在: ${path}` };
-      }
-      const f = await getWorkspaceFile(keyForSession(path));
-      if (!f) return { ok: false, error: `文件不存在: ${path}` };
-      return { ok: true, content: f.content.slice(0, MAX_READ_CHARS) };
+      await requireFileServer();
+      const text = await diskFileRead(path);
+      if (text === null) return { ok: false, error: `文件不存在: ${path}` };
+      return { ok: true, content: text.slice(0, MAX_READ_CHARS) };
     }
     case 'write': {
       const path = sanitizeRelativePath(String(payload.path ?? ''));
       const content = String(payload.content ?? '');
-      const onDisk = await resolveFsMode();
-      if (onDisk) {
-        return { ok: true, result: await diskFileWrite(path, content, false) };
-      }
-      if (content.length > MAX_READ_CHARS) return { ok: false, error: '文件超过可写大小上限' };
-      await createWorkspaceFile(keyForSession(path), content);
-      return { ok: true, result: `OK: 已写入 ${path} (${content.length} 字符)` };
+      await requireFileServer();
+      return { ok: true, result: await diskFileWrite(path, content, false) };
     }
     case 'append': {
       const path = sanitizeRelativePath(String(payload.path ?? ''));
       const content = String(payload.content ?? '');
-      const onDisk = await resolveFsMode();
-      if (onDisk) {
-        return { ok: true, result: await diskFileWrite(path, content, true) };
-      }
-      const existing = await getWorkspaceFile(keyForSession(path));
-      const newContent = (existing ? existing.content : '') + content;
-      if (newContent.length > MAX_READ_CHARS) return { ok: false, error: '文件超过可写大小上限' };
-      await createWorkspaceFile(keyForSession(path), newContent);
-      return { ok: true, result: `OK: 已追加 ${path}` };
+      await requireFileServer();
+      return { ok: true, result: await diskFileWrite(path, content, true) };
     }
     case 'list': {
-      const onDisk = await resolveFsMode();
-      if (onDisk) {
-        const files = (await diskFileList()) ?? [];
-        return { ok: true, files: files.slice(0, 500) };
-      }
-      const prefix = sessionKeyspacePrefix();
-      const files = await listWorkspaceFiles();
-      return { ok: true, files: files.filter((f) => f.path.startsWith(prefix)).map((f) => f.path.slice(prefix.length)) };
+      await requireFileServer();
+      const files = await diskFileList();
+      return { ok: true, files: files.slice(0, 500) };
     }
     default:
       return { ok: false, error: `未知桥接方法 ${method}` };
   }
 }
 
-// ---------- file_read / file_write（优先落盘到项目 sandbox_workspace/，服务不可用时回退虚拟工作区）----------
+// ---------- file_read / file_write（仅使用项目 sandbox_workspace/）----------
 /** 本地文件服务可用性（探测与 shell 沙箱同一端点，成功则缓存） */
 let fileServerAvailable: boolean | null = null;
 let fileServerRetryAt = 0;
@@ -390,15 +328,10 @@ async function detectFileServer(): Promise<boolean> {
   return fileServerAvailable;
 }
 
-/** 平台前缀：沙箱真实工作区 vs 虚拟工作区 */
-const fsMode: { disk: boolean } = { disk: false };
-async function resolveFsMode(): Promise<boolean> {
-  if (fsMode.disk) return true;
-  if (await detectFileServer()) {
-    fsMode.disk = true;
-    return true;
+async function requireFileServer(): Promise<void> {
+  if (!(await detectFileServer())) {
+    throw new Error('本地工作区服务不可用，无法读写文件');
   }
-  return false;
 }
 
 async function diskFileRead(path: string): Promise<string | null> {
@@ -410,9 +343,10 @@ async function diskFileRead(path: string): Promise<string | null> {
     });
     const data = (await resp.json()) as { ok?: boolean; message?: string; content?: string };
     if (resp.ok && data.ok) return data.content ?? '';
-    return null;
-  } catch {
-    return null;
+    if (data.message === '文件不存在') return null;
+    throw new Error(data.message || `HTTP ${resp.status}`);
+  } catch (e) {
+    throw new Error(`本地工作区读取失败: ${(e as Error).message}`);
   }
 }
 
@@ -431,7 +365,7 @@ async function diskFileWrite(path: string, content: string, append: boolean): Pr
   }
 }
 
-async function diskFileList(): Promise<string[] | null> {
+async function diskFileList(): Promise<string[]> {
   try {
     const resp = await fetch('/api-v2/file_list', {
       method: 'POST',
@@ -440,65 +374,39 @@ async function diskFileList(): Promise<string[] | null> {
     });
     const data = (await resp.json()) as { ok?: boolean; files?: string[]; message?: string };
     if (resp.ok && data.ok) return data.files ?? [];
-    return null;
-  } catch {
-    return null;
+    throw new Error(data.message || `HTTP ${resp.status}`);
+  } catch (e) {
+    throw new Error(`本地工作区列表读取失败: ${(e as Error).message}`);
   }
 }
 
 // ---------- file_read ----------
 /**
  * 读取工作区文件文本。
- * 磁盘沙箱可用时优先读 sandbox_workspace/；磁盘模式读不到（文件写在
- * 虚拟工作区 / 模式切换过）时回退虚拟工作区。两处都无 → null。
+ * 从 sandbox_workspace/ 读取；文件不存在返回 null，服务不可用时抛出明确错误。
  * 供 file_read 技能、file_display 展示以及弹窗回看共用。
  */
 export async function readWorkspaceFileText(path: string): Promise<string | null> {
   const safe = sanitizeRelativePath(path);
-  const onDisk = await resolveFsMode();
-  if (onDisk) {
-    const text = await diskFileRead(safe);
-    if (text !== null) return text;
-    // 磁盘上不存在（可能写到虚拟工作区）→ 回退虚拟工作区
-    try {
-      return await readFileContent(keyForSession(safe));
-    } catch {
-      return null;
-    }
-  }
-  try {
-    return await readFileContent(keyForSession(safe));
-  } catch {
-    return null;
-  }
+  await requireFileServer();
+  return diskFileRead(safe);
 }
 
-/** Write a complete text value through the same disk/virtual workspace routing as file_write. */
+/** Write a complete text value to the local sandbox workspace. */
 export async function writeWorkspaceFileText(path: string, content: string): Promise<string> {
   const safe = sanitizeRelativePath(path);
-  const onDisk = await resolveFsMode();
-  if (onDisk) return diskFileWrite(safe, content, false);
-  await createWorkspaceFile(keyForSession(safe), content);
-  return `OK: 已写入 ${safe} (${content.length} 字符)`;
+  await requireFileServer();
+  return diskFileWrite(safe, content, false);
 }
 
 // ---------- 会话工作区枚举（文件管理器只读浏览共用） ----------
 /**
  * 列出当前会话专属工作区内的全部文件相对路径。
- * 磁盘沙箱可用时走 /file_list；否则回退虚拟工作区并前缀过滤。
- * 返回 null 表示服务不可用且虚拟工作区也无数据（此时 UI 显示空/错误态）。
+ * 仅通过本地沙箱服务枚举；服务不可用时抛出明确错误。
  */
-export async function listSessionWorkspaceFiles(): Promise<string[] | null> {
-  const onDisk = await resolveFsMode();
-  if (onDisk) {
-    const files = await diskFileList();
-    if (files !== null) return files.slice(0, 500);
-    return null;
-  }
-  const prefix = sessionKeyspacePrefix();
-  const all = await listWorkspaceFiles();
-  const rels = all.filter((f) => f.path.startsWith(prefix)).map((f) => f.path.slice(prefix.length));
-  return rels.length > 0 ? rels : null;
+export async function listSessionWorkspaceFiles(): Promise<string[]> {
+  await requireFileServer();
+  return (await diskFileList()).slice(0, 500);
 }
 
 async function execFileRead(execution: GeneratedSkillExecution, args: Record<string, unknown>): Promise<string> {
@@ -522,25 +430,15 @@ async function execFileWrite(execution: GeneratedSkillExecution, args: Record<st
     } else {
       content = interpolate(execution.content ?? '', args);
     }
-    const onDisk = await resolveFsMode();
-    if (onDisk) {
-      let diskContent = content;
-      if (execution.append) {
-        const sep = execution.append_newline ? '\n' : '';
-        const existing = (await diskFileRead(path)) ?? '';
-        diskContent = existing + (existing.endsWith('\n') || !existing ? '' : sep) + diskContent;
-        if (execution.append_newline) diskContent += '\n';
-      }
-      return await diskFileWrite(path, diskContent, execution.append ?? false);
-    }
-    const existing = await getWorkspaceFile(keyForSession(path));
-    if (execution.append && existing) {
+    await requireFileServer();
+    let diskContent = content;
+    if (execution.append) {
       const sep = execution.append_newline ? '\n' : '';
-      content = existing.content + (existing.content.endsWith('\n') || !existing.content ? '' : sep) + content;
-      if (execution.append_newline) content += '\n';
+      const existing = (await diskFileRead(path)) ?? '';
+      diskContent = existing + (existing.endsWith('\n') || !existing ? '' : sep) + diskContent;
+      if (execution.append_newline) diskContent += '\n';
     }
-    await createWorkspaceFile(keyForSession(path), content);
-    return `OK: 已写入 ${path} (${content.length} 字符)`;
+    return await diskFileWrite(path, diskContent, execution.append ?? false);
   } catch (e) {
     return `ERROR: ${(e as Error).message}`;
   }
@@ -678,54 +576,4 @@ async function execSandboxScript(script: string): Promise<string> {
   const data = (await resp.json()) as { ok?: boolean; message?: string; output?: string };
   if (resp.ok && data.ok) return truncate(data.output ?? '');
   return `ERROR: ${data?.message ?? `HTTP ${resp.status}`}`;
-}
-
-// ---------- device_action ----------
-async function execDeviceAction(
-  execution: GeneratedSkillExecution,
-  args: Record<string, unknown>
-): Promise<string> {
-  const interpolated = (e: GeneratedSkillExecution) => ({
-    ...e,
-    title: e.title ? interpolate(e.title, args) : e.title,
-    message: e.message ? interpolate(e.message, args) : e.message,
-  });
-
-  const runOne = async (e: GeneratedSkillExecution): Promise<string> => {
-    switch (e.action) {
-      case 'flashlight': {
-        // Web: 无闪光灯 API，模拟状态
-        return `OK: 闪光灯 ${e.state ?? 'off'}${e.state === 'blink' ? ` (闪烁 ${e.flashes ?? 3} 次)` : ''}（Web 环境不支持真实闪光灯）`;
-      }
-      case 'vibrate': {
-        const ms = Math.max(1, Math.min(10_000, e.duration_ms ?? 300));
-        if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-          const ok = (navigator as Navigator & { vibrate: (ms: number) => boolean }).vibrate(ms);
-          return ok ? `OK: 已震动 ${ms}ms` : 'OK: 浏览器不支持震动';
-        }
-        return `OK: 震动 ${ms}ms（浏览器不支持）`;
-      }
-      case 'notification': {
-        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-          try {
-            new Notification(e.title || 'Tavern Harness', { body: e.message || '' });
-            return `OK: 已发送通知「${e.title}」`;
-          } catch {
-            return `OK: 通知已生成（浏览器限制静默）`;
-          }
-        }
-        return `OK: 通知「${e.title || ''}」已生成（需授权浏览器通知）`;
-      }
-      case 'sequence': {
-        const steps = (e.sequence ?? []).slice(0, 6);
-        const results: string[] = [];
-        for (const s of steps) results.push(await runOne(s));
-        return results.join('\n');
-      }
-      default:
-        return `OK: 设备动作 ${(e as GeneratedSkillExecution).action} 已执行`;
-    }
-  };
-
-  return await runOne(interpolated(execution));
 }

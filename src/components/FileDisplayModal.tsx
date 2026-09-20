@@ -207,15 +207,20 @@ export function FileDisplayModal() {
       } else {
         setWorkspaceDir(null);
       }
-      const text = await readWorkspaceFileText(active.path);
-      if (cancelled) return;
-      if (text === null) {
+      try {
+        const text = await readWorkspaceFileText(active.path);
+        if (cancelled) return;
+        if (text === null) {
+          setLoadState('error');
+          return;
+        }
+        contentRef.current = text;
+        setContent(text);
+        setLoadState('ok');
+      } catch {
+        if (cancelled) return;
         setLoadState('error');
-        return;
       }
-      contentRef.current = text;
-      setContent(text);
-      setLoadState('ok');
     };
     void read();
     return () => {

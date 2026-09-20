@@ -370,30 +370,16 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
 
 function executionProperties(): Record<string, unknown> {
   return {
-    type: { type: 'string', enum: ['template', 'http_get', 'javascript', 'file_read', 'file_write', 'shell', 'device_action'] },
+    type: { type: 'string', enum: ['template', 'http_get', 'javascript', 'file_read', 'file_write', 'shell'] },
     template: { type: 'string', description: 'template type: result template with {{param}} placeholders' },
     url: { type: 'string', description: "http_get type: public https URL with {{param}} placeholders" },
-    code: { type: 'string', maxLength: 20000, description: "javascript type: JS code. Reads 'input' (args object), assigns JSON-safe 'result'. Supports async/await. Injected helpers: await $read(path)->string, $write(path, content), $append(path, content), $list()->[paths] — these read/write the current workspace (sandboxed to sandbox_workspace/ or virtual workspace) with the same path & size limits as file_read/file_write" },
+    code: { type: 'string', maxLength: 20000, description: "javascript type: JS code. Reads 'input' (args object), assigns JSON-safe 'result'. Supports async/await. Injected helpers: await $read(path)->string, $write(path, content), $append(path, content), $list()->[paths] — these require the local workspace service and read/write the current sandbox_workspace/ directory with the same path & size limits as file_read/file_write" },
     path: { type: 'string', description: 'file_read/file_write: relative path inside the private generated_skill_workspace' },
     content: { type: 'string', description: 'file_write: text content with {{param}} placeholders' },
     json_content: { type: 'object', description: 'file_write: JSON content, interpolated recursively' },
     append: { type: 'boolean', description: 'file_write: append instead of overwrite' },
     append_newline: { type: 'boolean', description: 'file_write: insert newline between appended records (JSONL)' },
     script: { type: 'string', maxLength: 8000, description: 'shell type: supported sandbox commands only' },
-    action: { type: 'string', enum: ['flashlight', 'vibrate', 'notification', 'sequence'], description: 'device_action type' },
-    state: { type: 'string', enum: ['on', 'off', 'blink'] },
-    flashes: { type: 'integer', minimum: 1, maximum: 10 },
-    on_ms: { type: 'integer', minimum: 20, maximum: 1000 },
-    off_ms: { type: 'integer', minimum: 20, maximum: 2000 },
-    duration_ms: { type: 'integer', minimum: 1, maximum: 10000 },
-    title: { type: 'string', maxLength: 100 },
-    message: { type: 'string', maxLength: 500 },
-    sequence: {
-      type: 'array',
-      maxItems: 6,
-      description: 'device_action sequence: 1-6 sub actions, no nesting',
-      items: { type: 'object' },
-    },
   };
 }
 
@@ -403,10 +389,9 @@ function getExecutionDescription(): string {
     '- template: `{template: "As of {{date}}, the price is {{price}}"}`, placeholders interpolated from args',
     '- http_get: `{url: "https://public.example.com/api?q={{q}}"}`, public HTTPS hostname required',
     '- javascript: `{code: "result = { sum: input.a + input.b }"}`, reads `input`, assigns JSON-safe `result`; supports async/await, and can persist game state via `await $read/$write/$append/$list` (sandboxed current workspace, same limits as file_read/file_write)',
-    '- file_read: `{path: "notes.md"}` — read file in workspace (real disk sandbox_workspace/ when local sandbox running, else in-browser virtual workspace; 100KB cap)',
-    '- file_write: `{path: "notes.jsonl", json_content: {...}, append: true, append_newline: true}` — writes to real sandbox_workspace/ folder in project dir when local sandbox running, else virtual workspace',
+    '- file_read: `{path: "notes.md"}` — read a file from sandbox_workspace/ through the required local workspace service (100KB cap)',
+    '- file_write: `{path: "notes.jsonl", json_content: {...}, append: true, append_newline: true}` — write to sandbox_workspace/ through the required local workspace service',
     '- shell: sandboxed commands executed as REAL local commands via an optional local service (node sandbox-server.mjs). Supports newlines, &&, ||, and ; (max 20 commands), but not pipes, redirects, or expansion. Supported commands such as pwd, ls, cat, grep, sed, tar, unzip, jq, awk, node, and git run directly; supported high-risk commands such as sudo, curl, wget, dd, shutdown, docker, and ssh require user confirmation; everything else is rejected',
-    '- device_action: `{action: "vibrate", duration_ms: 300}` | notification | flashlight | sequence (1-6 steps)',
   ].join(' ');
 }
 

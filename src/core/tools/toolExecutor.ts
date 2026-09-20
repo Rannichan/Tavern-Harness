@@ -305,40 +305,48 @@ export function parseDisplayRef(result: string): DisplayPayload | null {
   }
 }
 
-/** 读取工作区文件（磁盘沙箱 + 虚拟工作区双模式）并生成展示结果 */
+/** 读取本地沙箱工作区文件并生成展示结果 */
 async function handleFileDisplay(args: Record<string, unknown>, ctx: ToolExecutionContext): Promise<string> {
-  await applySessionWorkspace(ctx.sessionId, ctx.npcId);
-  const rawPath = sanitizeRelativePath(String(args.path ?? ''));
-  const title = typeof args.title === 'string' && args.title.trim() ? args.title.trim() : undefined;
+  try {
+    await applySessionWorkspace(ctx.sessionId, ctx.npcId);
+    const rawPath = sanitizeRelativePath(String(args.path ?? ''));
+    const title = typeof args.title === 'string' && args.title.trim() ? args.title.trim() : undefined;
 
-  // 从文件后缀推断展示方式
-  const ext = /\.([A-Za-z0-9]+)$/.exec(rawPath);
-  const extLower = ext ? ext[1].toLowerCase() : '';
-  const kind: DisplayPayload['kind'] =
-    /^(html?)$/i.test(extLower) ? 'html' :
-    /^(png|jpe?g|gif|webp|svg|bmp|ico)$/i.test(extLower) ? 'image' :
-    'text';
+    // 从文件后缀推断展示方式
+    const ext = /\.([A-Za-z0-9]+)$/.exec(rawPath);
+    const extLower = ext ? ext[1].toLowerCase() : '';
+    const kind: DisplayPayload['kind'] =
+      /^(html?)$/i.test(extLower) ? 'html' :
+      /^(png|jpe?g|gif|webp|svg|bmp|ico)$/i.test(extLower) ? 'image' :
+      'text';
 
-  const content = await readWorkspaceFileText(rawPath);
-  if (content === null) {
-    return `ERROR: 文件不存在: ${rawPath}`;
+    const content = await readWorkspaceFileText(rawPath);
+    if (content === null) {
+      return `ERROR: 文件不存在: ${rawPath}`;
+    }
+    const payload: DisplayPayload = { path: rawPath, kind, title };
+    // 第一行携带展示引用（store 解析并写入 displayRef / 自动弹窗）。
+    // 不做内容摘要：完整内容在展示弹窗里，模型如需阅读应改用 file_read。
+    return `${DISPLAY_REF_PREFIX}${JSON.stringify(payload)}\nOK: 已在弹窗中展示 ${rawPath}（kind=${kind}）`;
+  } catch (e) {
+    return `ERROR: ${(e as Error).message}`;
   }
-  const payload: DisplayPayload = { path: rawPath, kind, title };
-  // 第一行携带展示引用（store 解析并写入 displayRef / 自动弹窗）。
-  // 不做内容摘要：完整内容在展示弹窗里，模型如需阅读应改用 file_read。
-  return `${DISPLAY_REF_PREFIX}${JSON.stringify(payload)}\nOK: 已在弹窗中展示 ${rawPath}（kind=${kind}）`;
 }
 
 // ---------- file_read / file_write / run_shell_script（内置技能，复用生成式执行引擎的沙箱能力） ----------
 
 async function handleFileRead(args: Record<string, unknown>, ctx: ToolExecutionContext): Promise<string> {
-  await applySessionWorkspace(ctx.sessionId, ctx.npcId);
-  const path = sanitizeRelativePath(String(args.path ?? ''));
-  const content = await readWorkspaceFileText(path);
-  if (content === null) {
-    return `ERROR: 文件不存在: ${path}`;
+  try {
+    await applySessionWorkspace(ctx.sessionId, ctx.npcId);
+    const path = sanitizeRelativePath(String(args.path ?? ''));
+    const content = await readWorkspaceFileText(path);
+    if (content === null) {
+      return `ERROR: 文件不存在: ${path}`;
+    }
+    return content.length > 20_000 ? content.slice(0, 20_000) + '…(已截断)' : content;
+  } catch (e) {
+    return `ERROR: ${(e as Error).message}`;
   }
-  return content.length > 20_000 ? content.slice(0, 20_000) + '…(已截断)' : content;
 }
 
 async function handleFileWrite(args: Record<string, unknown>, ctx: ToolExecutionContext): Promise<string> {

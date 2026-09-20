@@ -8,7 +8,7 @@ import { useStore } from '../store/store';
 // ============================================================
 // 会话工作区文件管理器（只读浏览）
 //  - 会话头部的工作目录标签点击打开
-//  - 只展示当前会话专属工作区（磁盘 sandbox_workspace/ 或虚拟工作区回退）
+//  - 只展示当前会话专属磁盘工作区（sandbox_workspace/）
 //  - 目录点击进入、支持返回上级与面包屑；文件点击复用 file_display 弹窗预览（只读）
 // ============================================================
 
@@ -70,15 +70,16 @@ export function WorkspaceFileManagerModal({ sessionId, onClose }: { sessionId: n
       } catch {
         setWorkspaceDir(null);
       }
-      let list: string[] | null = null;
       try {
-        list = await listSessionWorkspaceFiles();
+        const list = await listSessionWorkspaceFiles();
+        if (cancelled) return;
+        setFiles(list);
+        setLoadState(list.length === 0 ? 'empty' : 'ok');
       } catch {
-        list = null;
+        if (cancelled) return;
+        setFiles([]);
+        setLoadState('error');
       }
-      if (cancelled) return;
-      setFiles(list ?? []);
-      setLoadState(list === null || list.length === 0 ? 'empty' : 'ok');
     };
     void load();
     return () => {

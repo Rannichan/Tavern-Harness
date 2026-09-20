@@ -652,7 +652,7 @@ export const useStore = create<AppState>((set, get) => ({
     await db.messages.where('sessionId').equals(id).delete();
     await db.participants.where('sessionId').equals(id).delete();
     await db.sessions.delete(id);
-    // 删除会话的专属工作目录（磁盘 + 虚拟工作区）；沙箱不可用时静默跳过
+    // 删除会话的专属磁盘工作目录；沙箱不可用时静默跳过
     if (session?.workspaceDir) {
       await deleteSessionWorkspace(session.workspaceDir);
     }
