@@ -34,7 +34,7 @@ export function routeFor(tool: McpTool | null): ToolRoute {
 
 export interface ToolExecutionContext {
   sessionId: number;
-  /** 发起工具调用的 NPC；内置酒馆老板可访问整个沙箱根目录 */
+  /** 发起工具调用的 NPC。 */
   npcId: number | null;
   /** 用户确认回调：返回 Promise<boolean> */
   requestConfirmation: (req: ToolConfirmationRequest) => Promise<boolean>;
@@ -78,7 +78,6 @@ export async function executeToolCall(
   if (mcpTool && mcpTool.executionJson) {
     try {
       const execution = JSON.parse(mcpTool.executionJson) as GeneratedSkillExecution;
-      // 仅酒馆老板的单人对话使用沙箱根目录
       await applySessionWorkspace(ctx.sessionId, ctx.npcId);
       return await executeGeneratedSkill(execution, args, ctx.requestConfirmation);
     } catch (e) {
@@ -89,9 +88,8 @@ export async function executeToolCall(
 }
 
 /**
- * 把工具调用工作目录切到角色可访问的沙箱范围。
- * 仅内置酒馆老板的 NPC 单人对话使用共享根工作区；多人及其他单人对话使用会话专属目录。
- * npcId 未提供时（工作目录浏览 UI）使用会话关联角色判定；明确传 null 时不授予特殊权限。
+ * 把工具调用工作目录切到当前会话的沙箱目录。
+ * 内置酒馆老板的 NPC 单人会话固定使用 public；其他会话使用专属目录。
  * 会话记录上的 workspaceDir（如 "session-12"）由创建会话时生成；
  * 旧会话没有该字段或数据库读取失败时，也回退到 session-<id>，避免意外扩大权限。
  */
@@ -102,7 +100,7 @@ export async function applySessionWorkspace(sessionId: number, npcId?: number | 
     if (session?.mode === 'NPC' && session.associatedId != null) {
       const effectiveNpcId = npcId === undefined ? session.associatedId : npcId;
       if (effectiveNpcId === session.associatedId && (await db.npcs.get(effectiveNpcId))?.isBuiltIn) {
-        setWorkspaceDir(null);
+        setWorkspaceDir('public');
         return;
       }
     }
@@ -333,12 +331,13 @@ async function handleFileDisplay(args: Record<string, unknown>, ctx: ToolExecuti
   }
 }
 
-// ---------- file_read / file_write / run_shell_script（内置技能，复用生成式执行引擎的沙箱能力） ----------
+// ---------- file_read / file_write / run_shell_script（内置技能，复用生成式执行引擎的本地能力） ----------
 
 async function handleFileRead(args: Record<string, unknown>, ctx: ToolExecutionContext): Promise<string> {
   try {
     await applySessionWorkspace(ctx.sessionId, ctx.npcId);
-    const path = sanitizeRelativePath(String(args.path ?? ''));
+    const path = String(args.path ?? '').replace(/\\/g, '/').trim();
+    if (!path) return 'ERROR: 无效路径';
     const content = await readWorkspaceFileText(path);
     if (content === null) {
       return `ERROR: 文件不存在: ${path}`;
@@ -351,7 +350,11 @@ async function handleFileRead(args: Record<string, unknown>, ctx: ToolExecutionC
 
 async function handleFileWrite(args: Record<string, unknown>, ctx: ToolExecutionContext): Promise<string> {
   await applySessionWorkspace(ctx.sessionId, ctx.npcId);
-  return executeGeneratedSkill({ type: 'file_write', path: String(args.path ?? ''), content: String(args.content ?? ''), append: args.append === true }, args);
+  return executeGeneratedSkill(
+    { type: 'file_write', path: String(args.path ?? ''), content: String(args.content ?? ''), append: args.append === true },
+    args,
+    ctx.requestConfirmation,
+  );
 }
 
 async function handleFileEdit(args: Record<string, unknown>, ctx: ToolExecutionContext): Promise<string> {

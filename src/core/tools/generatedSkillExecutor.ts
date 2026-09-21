@@ -10,14 +10,13 @@ const MAX_OUTPUT_CHARS = 20_000;
 /** 单文件读写字符上限（与沙箱服务 file_read/file_write 对齐） */
 const MAX_READ_CHARS = 100_000;
 
-/** 当前会话专属工作目录（null = 共享根工作区，用于旧会话/未设置 workspaceDir 的记录） */
+/** 当前会话专属工作目录；未设置时禁止访问磁盘沙箱。 */
 let currentWorkspaceDir: string | null = null;
 
 /** 会话工作目录名是否合规（仅允许相对目录、不允许 .. / 绝对路径 / 危险字符） */
 function isValidWorkspaceDirName(dir: string): boolean {
   const s = dir.replace(/\\/g, '/').trim();
-  if (!s || s.startsWith('/')) return false;
-  return !s.split('/').some((part) => part === '..' || part === '' || !/^[a-z0-9_.-]+$/i.test(part));
+  return Boolean(s && s !== '.' && s !== '..' && /^[a-z0-9_.-]+$/i.test(s));
 }
 
 /**
@@ -58,7 +57,7 @@ export async function deleteSessionWorkspace(dir: string | null | undefined): Pr
 /**
  * 设置当前会话工作目录。每次工具调用前由调用方（store / 执行器）按会话设置，
  * 保证该会话内所有工具调用（shell / file_read / file_write / 脚本执行）都只在该目录下进行。
- * dir 为会话记录上的 workspaceDir（如 "session-12"），不合规时按 null（共享根）处理。
+ * dir 为会话记录上的 workspaceDir（如 "session-12"），不合规时清空并禁止访问。
  */
 export function setWorkspaceDir(dir: string | null | undefined): void {
   if (!dir || typeof dir !== 'string') {
@@ -66,8 +65,7 @@ export function setWorkspaceDir(dir: string | null | undefined): void {
     return;
   }
   const s = dir.replace(/\\/g, '/').trim();
-  // 安全校验：仅允许相对目录（不允许绝对路径 / .. / 危险字符）
-  if (s.startsWith('/') || s.split('/').some((part) => part === '..' || part === '' || !/^[a-z0-9_.-]+$/i.test(part))) {
+  if (!isValidWorkspaceDirName(s)) {
     currentWorkspaceDir = null;
     return;
   }
@@ -106,7 +104,7 @@ export async function executeGeneratedSkill(
     case 'file_read':
       return execFileRead(execution, args);
     case 'file_write':
-      return execFileWrite(execution, args);
+      return execFileWrite(execution, args, confirm);
     case 'shell':
       return execShell(execution, args, confirm);
     default:
@@ -304,12 +302,13 @@ async function handleBridgeCall(req: { method: string; payload: Record<string, u
 }
 
 // ---------- file_read / file_write（仅使用项目 sandbox_workspace/）----------
-/** 本地文件服务可用性（探测与 shell 沙箱同一端点，成功则缓存） */
+/** 本地文件服务可用性（与本地命令服务共用端点，成功则缓存） */
 let fileServerAvailable: boolean | null = null;
 let fileServerRetryAt = 0;
 async function detectFileServer(): Promise<boolean> {
   if (fileServerAvailable === true) return true;
   if (Date.now() < fileServerRetryAt) return false;
+  if (!currentWorkspaceDir) return false;
   if (typeof window === 'undefined' || !/^https?:\/\//.test(window.location.origin)) {
     fileServerRetryAt = Date.now() + 60_000;
     return false;
@@ -318,7 +317,7 @@ async function detectFileServer(): Promise<boolean> {
     const resp = await fetch('/api-v2/file_list', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({}),
+      body: JSON.stringify({ session: currentWorkspaceDir }),
     });
     fileServerAvailable = resp.ok;
   } catch {
@@ -339,7 +338,7 @@ async function diskFileRead(path: string): Promise<string | null> {
     const resp = await fetch('/api-v2/file_read', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path, session: currentWorkspaceDir ?? undefined }),
+      body: JSON.stringify({ path, session: currentWorkspaceDir }),
     });
     const data = (await resp.json()) as { ok?: boolean; message?: string; content?: string };
     if (resp.ok && data.ok) return data.content ?? '';
@@ -350,14 +349,41 @@ async function diskFileRead(path: string): Promise<string | null> {
   }
 }
 
-async function diskFileWrite(path: string, content: string, append: boolean): Promise<string> {
+async function diskFileWrite(
+  path: string,
+  content: string,
+  append: boolean,
+  confirm?: SkillConfirmFn | null,
+  confirmationRequestId?: string,
+): Promise<string> {
   try {
     const resp = await fetch('/api-v2/file_write', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path, content, mode: append ? 'append' : 'write', session: currentWorkspaceDir ?? undefined }),
+      body: JSON.stringify({
+        path,
+        content,
+        mode: append ? 'append' : 'write',
+        session: currentWorkspaceDir,
+        confirmationRequestId,
+      }),
     });
-    const data = (await resp.json()) as { ok?: boolean; message?: string };
+    const data = (await resp.json()) as { ok?: boolean; message?: string; needConfirm?: boolean; confirmationRequestId?: string };
+    if (data.needConfirm && data.confirmationRequestId) {
+      const approved = confirm
+        ? await confirm({
+            sessionId: -1,
+            toolName: 'file_write',
+            title: translate('tool.gateFileWriteTitle'),
+            message: translate('tool.gateFileWriteMsg', { path }),
+            argsJson: JSON.stringify({ path, append }),
+          })
+        : false;
+      if (!approved) return translate('tool.fileWriteDenied');
+      const approvalError = await approveSandboxScript(data.confirmationRequestId);
+      if (approvalError) return approvalError;
+      return diskFileWrite(path, content, append, null, data.confirmationRequestId);
+    }
     if (!resp.ok || !data.ok) throw new Error(data?.message || `HTTP ${resp.status}`);
     return `OK: 已写入 ${path} (${content.length} 字符)`;
   } catch (e) {
@@ -370,7 +396,7 @@ async function diskFileList(): Promise<string[]> {
     const resp = await fetch('/api-v2/file_list', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ session: currentWorkspaceDir ?? undefined }),
+      body: JSON.stringify({ session: currentWorkspaceDir }),
     });
     const data = (await resp.json()) as { ok?: boolean; files?: string[]; message?: string };
     if (resp.ok && data.ok) return data.files ?? [];
@@ -387,9 +413,10 @@ async function diskFileList(): Promise<string[]> {
  * 供 file_read 技能、file_display 展示以及弹窗回看共用。
  */
 export async function readWorkspaceFileText(path: string): Promise<string | null> {
-  const safe = sanitizeRelativePath(path);
+  const readablePath = path.replace(/\\/g, '/').trim();
+  if (!readablePath) throw new Error('无效路径');
   await requireFileServer();
-  return diskFileRead(safe);
+  return diskFileRead(readablePath);
 }
 
 /** Write a complete text value to the local sandbox workspace. */
@@ -411,7 +438,8 @@ export async function listSessionWorkspaceFiles(): Promise<string[]> {
 
 async function execFileRead(execution: GeneratedSkillExecution, args: Record<string, unknown>): Promise<string> {
   try {
-    const path = sanitizeRelativePath(interpolate(execution.path ?? '', args));
+    const path = interpolate(execution.path ?? '', args).replace(/\\/g, '/').trim();
+    if (!path) throw new Error('无效路径');
     const text = await readWorkspaceFileText(path);
     if (text === null) return `ERROR: 文件不存在: ${path}`;
     return truncate(text);
@@ -421,9 +449,14 @@ async function execFileRead(execution: GeneratedSkillExecution, args: Record<str
 }
 
 // ---------- file_write ----------
-async function execFileWrite(execution: GeneratedSkillExecution, args: Record<string, unknown>): Promise<string> {
+async function execFileWrite(
+  execution: GeneratedSkillExecution,
+  args: Record<string, unknown>,
+  confirm?: SkillConfirmFn | null,
+): Promise<string> {
   try {
-    const path = sanitizeRelativePath(interpolate(execution.path ?? '', args));
+    const path = interpolate(execution.path ?? '', args).replace(/\\/g, '/').trim();
+    if (!path) throw new Error('无效路径');
     let content: string;
     if (execution.json_content != null) {
       content = JSON.stringify(interpolateDeep(execution.json_content, args), null, 2);
@@ -431,14 +464,8 @@ async function execFileWrite(execution: GeneratedSkillExecution, args: Record<st
       content = interpolate(execution.content ?? '', args);
     }
     await requireFileServer();
-    let diskContent = content;
-    if (execution.append) {
-      const sep = execution.append_newline ? '\n' : '';
-      const existing = (await diskFileRead(path)) ?? '';
-      diskContent = existing + (existing.endsWith('\n') || !existing ? '' : sep) + diskContent;
-      if (execution.append_newline) diskContent += '\n';
-    }
-    return await diskFileWrite(path, diskContent, execution.append ?? false);
+    const diskContent = execution.append && execution.append_newline ? `${content}\n` : content;
+    return await diskFileWrite(path, diskContent, execution.append ?? false, confirm);
   } catch (e) {
     return `ERROR: ${(e as Error).message}`;
   }
@@ -455,47 +482,66 @@ function interpolateDeep(value: unknown, args: Record<string, unknown>): unknown
   return value;
 }
 
-// ---------- shell（真实执行：白名单直执 + 黑名单弹窗）----------
+// ---------- shell（真实执行：白名单直执 + 其它命令确认）----------
 
-/**
- * 可由本地 sandbox-server 真实执行的命令（白名单，与 sandbox-server.mjs 对齐）。
- * 白名单命令直接执行，无需弹窗。
- */
-export const SHELL_ALLOWED = [
-  'pwd', 'date', 'echo', 'printf', 'ls', 'cat', 'touch', 'mkdir', 'rm', 'cp', 'mv', 'head', 'tail',
-  'wc', 'basename', 'dirname', 'sort', 'uniq', 'grep', 'cut', 'tr', 'sha256sum', 'md5sum', 'du',
-  'diff', 'find', 'stat', 'cmp', 'sed',
-  'tar', 'gzip', 'gunzip', 'xz', 'unzip', 'zip', 'jq',
-  'env', 'which', 'type', 'timedatectl', 'uptime', 'whoami', 'uname', 'hostname',
-  'true', 'false', 'seq', 'factor', 'od', 'xxd', 'hexdump', 'strings', 'file', 'cksum', 'sum',
-  'tee', 'xargs', 'awk', 'python3', 'node', 'npm', 'npx', 'git', 'ffprobe', 'openssl', 'calc', 'bc',
-];
+/** 按服务端规则统计换行及 && / || / ; 分隔的命令，忽略引号和转义内的连接符。 */
+function countShellCommands(script: string): number {
+  const lines = script.split('\n').filter((line) => line.trim() && !line.trim().startsWith('#'));
+  let count = 0;
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    let commandStart = 0;
+    let quote: "'" | '"' | null = null;
+    let escaped = false;
+    for (let index = 0; index < line.length; index++) {
+      const char = line[index];
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === '\\') {
+        escaped = true;
+        continue;
+      }
+      if (quote) {
+        if (char === quote) quote = null;
+        continue;
+      }
+      if (char === "'" || char === '"') {
+        quote = char;
+        continue;
+      }
+      const operator = line.startsWith('&&', index) ? '&&' : line.startsWith('||', index) ? '||' : char === ';' ? ';' : null;
+      if (!operator) continue;
+      if (!line.slice(commandStart, index).trim()) throw new Error(`连接符 ${operator} 前缺少命令`);
+      count += 1;
+      index += operator.length - 1;
+      commandStart = index + 1;
+    }
+    if (quote) throw new Error('命令包含未闭合的引号');
+    if (!line.slice(commandStart).trim()) throw new Error('连接符后缺少命令');
+    count += 1;
+  }
+  return count;
+}
 
-/**
- * 高危命令：真实执行前需要弹窗确认（与 sandbox-server.mjs 对齐）。
- * 白名单之外的命令一律拒绝（不在白名单，不在黑名单）。
- */
-export const SHELL_BLOCKED = [
-  'sudo', 'su', 'doas', 'pkexec', 'passwd', 'chpasswd',
-  'rm', 'shred', 'dd', 'mkfs', 'fdisk', 'parted', 'mount', 'umount', 'swapon', 'swapoff',
-  'reboot', 'shutdown', 'halt', 'poweroff', 'init', 'systemctl', 'service', 'killall', 'pkill', 'kill',
-  'curl', 'wget', 'nc', 'ncat', 'socat', 'telnet', 'ssh', 'scp', 'sftp', 'ftp',
-  'chmod', 'chown', 'chattr', 'setfacl', 'ln', 'mknod', 'mv',
-  'docker', 'podman', 'kubectl', 'helm',
-];
-
-/** 本地 sandbox 是否可用（成功则永久缓存；失败后短暂重试，避免探测结果永久失效） */
+/** 本地命令服务是否可用（成功则永久缓存；失败后短暂重试，避免探测结果永久失效） */
 let sandboxAvailable: boolean | null = null;
 let sandboxRetryAt = 0;
 async function detectSandbox(): Promise<boolean> {
   if (sandboxAvailable === true) return true;
   if (Date.now() < sandboxRetryAt) return false;
+  if (!currentWorkspaceDir) return false;
   if (typeof window === 'undefined' || !/^https?:\/\//.test(window.location.origin)) {
     sandboxRetryAt = Date.now() + 60_000;
     return false;
   }
   try {
-    const resp = await fetch('/api-v2/exec', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ script: 'echo 1' }) });
+    const resp = await fetch('/api-v2/exec', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ script: 'echo 1', session: currentWorkspaceDir }),
+    });
     sandboxAvailable = resp.ok;
   } catch {
     sandboxAvailable = false;
@@ -504,7 +550,7 @@ async function detectSandbox(): Promise<boolean> {
   return sandboxAvailable;
 }
 
-/** 把整段脚本送去本地 sandbox 执行（白名单/黑名单/超时在服务端再做一次） */
+/** 把整段脚本送去本地命令服务执行（白名单/确认票据/超时均由服务端校验） */
 async function execShell(
   execution: GeneratedSkillExecution,
   args: Record<string, unknown>,
@@ -512,31 +558,47 @@ async function execShell(
 ): Promise<string> {
   const script = interpolate(execution.script ?? '', args);
   if (script.length > 8000) return 'ERROR: 脚本超过 8000 字符';
-  const lines = script.split('\n').filter((l) => l.trim() && !l.trim().startsWith('#'));
-  if (lines.length > 20) return 'ERROR: 脚本行数超过 20';
+  let commandCount: number;
+  try {
+    commandCount = countShellCommands(script);
+  } catch (error) {
+    return `ERROR: ${(error as Error).message}`;
+  }
+  if (commandCount === 0) return 'ERROR: 空脚本';
+  if (commandCount > 20) return 'ERROR: 脚本命令数超过 20';
 
-  // 先尝试让本地沙箱执行（服务端再做一次白名单/黑名单校验）
+  // 先尝试让本地命令服务执行（服务端决定是否需要确认）
   const result = await sendToSandbox(script);
   if (typeof result === 'string') return result; // ERROR: ...
 
-  // 服务端返回需要确认：脚本包含黑名单命令 → 弹窗请用户批准
+  // 服务端返回需要确认：脚本包含非白名单命令或访问工作目录之外的路径
   if (result.needConfirm) {
-    let approved = true;
-    if (confirm) {
+    const confirmationRequestId = result.confirmationRequestId;
+    const reasonKey = result.confirmationReason === 'both'
+      ? 'Both'
+      : result.confirmationReason === 'external_path'
+        ? 'External'
+        : result.confirmationReason === 'non_allowlisted'
+          ? 'NonAllowlisted'
+          : 'Unknown';
+    let approved = false;
+    if (confirm && confirmationRequestId) {
       try {
         approved = await confirm({
           sessionId: -1,
-          toolName: 'shell',
-          title: translate('tool.gateShellTitle'),
-          message: translate('tool.gateShellMsg', { script: script.slice(0, 800) }),
-          argsJson: JSON.stringify({ script: script.slice(0, 2000) }),
+          toolName: 'run_shell_script',
+          title: translate(`tool.gateShell${reasonKey}Title`),
+          message: translate(`tool.gateShell${reasonKey}Msg`),
+          argsJson: JSON.stringify({ script }),
         });
       } catch {
         approved = false;
       }
     }
     if (!approved) return translate('tool.shellDenied', { name: 'shell' });
-    return await execSandboxScript(script);
+    const approvalError = await approveSandboxScript(confirmationRequestId!);
+    if (approvalError) return approvalError;
+    return await execSandboxScript(script, confirmationRequestId!);
   }
 
   return truncate(result.output ?? '');
@@ -545,33 +607,68 @@ async function execShell(
 interface SandboxResult {
   needConfirm: boolean;
   output?: string;
+  confirmationRequestId?: string;
+  confirmationReason?: 'non_allowlisted' | 'external_path' | 'both';
 }
 
 /** 发送脚本到本地沙箱；返回 needConfirm=true 表示需用户批准后重发 */
 async function sendToSandbox(script: string): Promise<SandboxResult | string> {
   const available = await detectSandbox();
-  if (!available) return 'ERROR: 真实 shell 沙箱未启动（请先运行 node sandbox-server.mjs）';
+  if (!available) return 'ERROR: 本地命令执行服务未启动（请先运行 node sandbox-server.mjs）';
   try {
     const resp = await fetch('/api-v2/exec', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ script: script.slice(0, 8000), session: currentWorkspaceDir ?? undefined }),
+      body: JSON.stringify({ script: script.slice(0, 8000), session: currentWorkspaceDir }),
     });
-    const data = (await resp.json()) as { ok?: boolean; message?: string; output?: string; needConfirm?: boolean };
+    const data = (await resp.json()) as {
+      ok?: boolean;
+      message?: string;
+      output?: string;
+      needConfirm?: boolean;
+      confirmationRequestId?: string;
+      confirmationReason?: 'non_allowlisted' | 'external_path' | 'both';
+    };
     if (resp.ok && data.ok) return { needConfirm: false, output: data.output ?? '' };
-    if (data.needConfirm) return { needConfirm: true };
+    if (data.needConfirm) {
+      return {
+        needConfirm: true,
+        confirmationRequestId: data.confirmationRequestId,
+        confirmationReason: data.confirmationReason,
+      };
+    }
     return `ERROR: ${data?.message ?? `HTTP ${resp.status}`}`;
   } catch (e) {
     return `ERROR: shell 执行端点异常 ${(e as Error).message}`;
   }
 }
 
-/** 确认后重发执行 */
-async function execSandboxScript(script: string): Promise<string> {
+/** 用户确认后，通过 Vite 的受信任端点批准待执行请求。 */
+async function approveSandboxScript(confirmationRequestId: string): Promise<string | null> {
+  try {
+    const resp = await fetch('/api-v2/approve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ confirmationRequestId }),
+    });
+    const data = (await resp.json()) as { ok?: boolean; message?: string };
+    if (resp.ok && data.ok) return null;
+    return `ERROR: ${data?.message ?? `HTTP ${resp.status}`}`;
+  } catch (error) {
+    return `ERROR: shell 批准端点异常 ${(error as Error).message}`;
+  }
+}
+
+/** 消费已由受信任批准端点授权的一次性请求。 */
+async function execSandboxScript(script: string, confirmationRequestId: string): Promise<string> {
   const resp = await fetch('/api-v2/exec', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ script: script.slice(0, 8000), confirmed: true, session: currentWorkspaceDir ?? undefined }),
+    body: JSON.stringify({
+      script: script.slice(0, 8000),
+      confirmationRequestId,
+      session: currentWorkspaceDir,
+    }),
   });
   const data = (await resp.json()) as { ok?: boolean; message?: string; output?: string };
   if (resp.ok && data.ok) return truncate(data.output ?? '');

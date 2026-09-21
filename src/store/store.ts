@@ -1718,7 +1718,7 @@ async function streamAssistantTurn(
           identicalToolCallCount = signature === lastToolCallSignature ? identicalToolCallCount + 1 : 1;
           lastToolCallSignature = signature;
           toolCallCount++;
-          // 普通角色限制在会话目录；内置酒馆老板可访问整个沙箱工作区
+          // 普通角色限制在会话目录；内置酒馆老板的单人会话固定使用 public
           await applySessionWorkspace(sessionId, npc?.id ?? null);
           const needsConfirm = ['update_skill', 'delete_skill', 'update_character', 'delete_character', 'update_lorebook', 'delete_lorebook'].includes(tc.name);
           if (needsConfirm) {
@@ -1729,7 +1729,11 @@ async function streamAssistantTurn(
               result = await executeToolCall(tc.name, tc.argumentsJson, { sessionId, npcId: npc?.id ?? null, requestConfirmation: async () => true });
             }
           } else {
-            result = await executeToolCall(tc.name, tc.argumentsJson, { sessionId, npcId: npc?.id ?? null, requestConfirmation: async () => true });
+            result = await executeToolCall(tc.name, tc.argumentsJson, {
+              sessionId,
+              npcId: npc?.id ?? null,
+              requestConfirmation: (req) => requestGeneratedToolConfirmation(sessionId, req),
+            });
           }
         } catch (e) {
           // 工具执行本身抛异常（网络 / 沙箱 / 安全拦截等）→ 立即落库为失败结果，
@@ -2049,9 +2053,20 @@ function requestToolConfirmation(
       sessionId,
       toolName: tc.name,
       title: `确认 ${tc.name}`,
-      message: `模型请求执行修改操作「${tc.name}」。\n\n参数:\n${formatArgs(tc.argumentsJson)}`,
+      message: `模型请求执行修改操作「${tc.name}」。`,
       argsJson: tc.argumentsJson,
     };
+    confirmationDeferreds.set(req, { resolve });
+    useStore.setState({ pendingConfirmation: req });
+  });
+}
+
+function requestGeneratedToolConfirmation(
+  sessionId: number,
+  request: ToolConfirmationRequest
+): Promise<boolean> {
+  return new Promise((resolve) => {
+    const req: ToolConfirmationRequest = { ...request, sessionId };
     confirmationDeferreds.set(req, { resolve });
     useStore.setState({ pendingConfirmation: req });
   });

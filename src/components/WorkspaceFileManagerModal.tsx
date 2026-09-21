@@ -51,9 +51,8 @@ export function WorkspaceFileManagerModal({ sessionId, onClose }: { sessionId: n
   const setActiveDisplay = useStore((s) => s.setActiveDisplay);
   const session = useStore((s) => s.sessions.find((x) => x.id === sessionId));
   const associatedNpc = useStore((s) => s.npcs.find((npc) => npc.id === session?.associatedId));
-  const hasRootAccess = session?.mode === 'NPC' && associatedNpc?.isBuiltIn === true;
-  // 根目录标签：显示会话实际工作目录名（如 session-9）；旧会话无该字段时回退翻译文案
-  const rootLabel = hasRootAccess ? t('header.workspaceRoot') : session?.workspaceDir?.trim() || `session-${sessionId}`;
+  const usesPublicWorkspace = session?.mode === 'NPC' && associatedNpc?.isBuiltIn === true;
+  const rootLabel = usesPublicWorkspace ? t('header.workspaceRoot') : session?.workspaceDir?.trim() || `session-${sessionId}`;
   const [files, setFiles] = useState<string[] | null>(null);
   const [loadState, setLoadState] = useState<'loading' | 'ok' | 'empty' | 'error'>('loading');
   // 当前浏览目录（'' = 根；否则为以 / 结尾的会话内相对路径）
@@ -64,7 +63,7 @@ export function WorkspaceFileManagerModal({ sessionId, onClose }: { sessionId: n
     setLoadState('loading');
     setDir('');
     const load = async () => {
-      // 多人及普通单人对话列出会话目录；酒馆老板单人对话列出沙箱根目录
+      // 多人及普通单人对话列出会话目录；酒馆老板单人对话列出 public 目录
       try {
         await applySessionWorkspace(sessionId);
       } catch {

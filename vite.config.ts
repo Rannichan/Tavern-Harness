@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 import http from 'node:http';
 import https from 'node:https';
 import net from 'node:net';
+import { randomBytes } from 'node:crypto';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -67,6 +68,9 @@ function corsProxyPlugin(): Plugin {
 function sandboxProxyPlugin(): Plugin {
   let sandboxChild: ChildProcess | null = null;
   let starting: Promise<number | null> | null = null;
+  let childPort: number | null = null;
+  const serviceToken = randomBytes(32).toString('base64url');
+  const approvalToken = randomBytes(32).toString('base64url');
   const lockPath = join(process.cwd(), '.sandbox-port');
   const SANDBOX_SCRIPT = join(process.cwd(), 'sandbox-server.mjs');
   const DEFAULT_PORT = 17891;
@@ -98,28 +102,83 @@ function sandboxProxyPlugin(): Plugin {
       sock.once('error', () => resolve(false));
     });
 
+  const serviceReady = (port: number) =>
+    new Promise<boolean>((resolve) => {
+      const body = JSON.stringify({ script: 'echo ready' });
+      const request = http.request({
+        hostname: '127.0.0.1',
+        port,
+        path: '/exec',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(body),
+          'X-Command-Service-Token': serviceToken,
+        },
+        timeout: 400,
+      }, (response) => {
+        response.resume();
+        resolve(response.statusCode === 200);
+      });
+      request.once('timeout', () => {
+        request.destroy();
+        resolve(false);
+      });
+      request.once('error', () => resolve(false));
+      request.end(body);
+    });
+
+  const findAvailablePort = async () => {
+    for (let port = DEFAULT_PORT; port < DEFAULT_PORT + 20; port++) {
+      if (!(await portOpen(port))) return port;
+    }
+    return null;
+  };
+
+  const stopSandbox = () => {
+    const child = sandboxChild;
+    sandboxChild = null;
+    childPort = null;
+    try {
+      child?.kill();
+    } catch {
+      /* ignore */
+    }
+  };
+
   /** 确保 sandbox-server 在运行：已有则复用；否则自动拉起并等待就绪 */
   const ensureSandbox = async (): Promise<number | null> => {
     if (starting) return starting;
     starting = (async () => {
       // 1) 复用已在运行的沙箱（手动启动/上次 vite 拉起）
       const known = loadPort() ?? DEFAULT_PORT;
-      if (await portOpen(known)) return known;
-      if (known !== DEFAULT_PORT && (await portOpen(DEFAULT_PORT))) return DEFAULT_PORT;
+      if ((await portOpen(known)) && (await serviceReady(known))) return known;
+      if (known !== DEFAULT_PORT && (await portOpen(DEFAULT_PORT)) && (await serviceReady(DEFAULT_PORT))) return DEFAULT_PORT;
       // 2) 自动拉起子进程
       if (!sandboxChild && existsSync(SANDBOX_SCRIPT)) {
-        sandboxChild = spawn(process.execPath, [SANDBOX_SCRIPT, String(DEFAULT_PORT)], {
+        const availablePort = await findAvailablePort();
+        if (availablePort == null) return null;
+        childPort = availablePort;
+        const child = spawn(process.execPath, [SANDBOX_SCRIPT, String(availablePort)], {
           cwd: process.cwd(),
           stdio: 'ignore',
           windowsHide: true,
+          env: {
+            ...process.env,
+            COMMAND_SERVICE_TOKEN: serviceToken,
+            COMMAND_APPROVAL_TOKEN: approvalToken,
+          },
         });
-        sandboxChild.on('exit', () => {
+        sandboxChild = child;
+        child.on('exit', () => {
+          if (sandboxChild !== child) return;
           sandboxChild = null;
+          childPort = null;
         });
-        sandboxChild.unref();
+        child.unref();
         process.once('exit', () => {
           try {
-            sandboxChild?.kill();
+            child.kill();
           } catch {
             /* ignore */
           }
@@ -129,7 +188,7 @@ function sandboxProxyPlugin(): Plugin {
       // 3) 等待就绪（最多 3s）
       for (let i = 0; i < 30; i++) {
         await new Promise((r) => setTimeout(r, 100));
-        if (await portOpen(DEFAULT_PORT)) return DEFAULT_PORT;
+        if (childPort != null && (await serviceReady(childPort))) return childPort;
       }
       return null;
     })().finally(() => {
@@ -140,11 +199,37 @@ function sandboxProxyPlugin(): Plugin {
 
   return {
     name: 'sandbox-proxy',
+    closeBundle() {
+      stopSandbox();
+    },
     configureServer(server) {
+      server.watcher.add(SANDBOX_SCRIPT);
+      server.watcher.on('change', (path) => {
+        if (path === SANDBOX_SCRIPT) stopSandbox();
+      });
       server.middlewares.use((req: IncomingMessage, res: ServerResponse, next) => {
         // 转发与沙箱服务相关的端点：/exec 及真实工作区文件端点
-        const m = /^\/api-v2\/(exec|file_read|file_write|file_list|session_create|session_delete)$/.exec(req.url || '');
+        const m = /^\/api-v2\/(exec|approve|file_read|file_write|file_list|session_create|session_delete)$/.exec(req.url || '');
         if (!m || req.method !== 'POST') return next();
+        const origin = req.headers.origin;
+        if (!origin || req.headers['sec-fetch-site'] !== 'same-origin') {
+          res.writeHead(403, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, message: 'sandbox access requires a same-origin browser request' }));
+          return;
+        }
+        let originHost = '';
+        try {
+          originHost = new URL(origin).host;
+        } catch {
+          res.writeHead(403, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, message: 'invalid origin' }));
+          return;
+        }
+        if (originHost !== req.headers.host) {
+          res.writeHead(403, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, message: 'cross-origin request denied' }));
+          return;
+        }
         void (async () => {
           const port = await ensureSandbox();
           if (!port) {
@@ -152,8 +237,13 @@ function sandboxProxyPlugin(): Plugin {
             res.end(JSON.stringify({ ok: false, message: 'sandbox server not running' }));
             return;
           }
+          const forwardedHeaders = {
+            ...req.headers,
+            'x-command-service-token': serviceToken,
+            ...(m[1] === 'approve' ? { 'x-command-approval-token': approvalToken } : {}),
+          };
           const proxyReq = http.request(
-            { protocol: 'http:', hostname: '127.0.0.1', port, path: `/${m[1]}`, method: 'POST', headers: req.headers },
+            { protocol: 'http:', hostname: '127.0.0.1', port, path: `/${m[1]}`, method: 'POST', headers: forwardedHeaders },
             (proxyRes) => {
               res.writeHead(proxyRes.statusCode || 502, proxyRes.headers);
               proxyRes.pipe(res);

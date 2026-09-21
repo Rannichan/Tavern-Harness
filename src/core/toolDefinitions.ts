@@ -36,14 +36,14 @@ const fn = (name: string, description: string, parameters: Record<string, unknow
 export const BUILTIN_TOOLS: ChatCompletionTool[] = [
   fn(
     'run_shell_script',
-    'Execute a shell script in the local sandbox to process files, run code, or perform system operations on the user\'s machine.',
+    'Execute commands through the controlled local command service to process files, run code, or perform system operations on the user\'s machine. This is not an OS sandbox.',
     {
       type: 'object',
       properties: {
         script: {
           type: 'string',
           maxLength: 8000,
-          description: 'Sandboxed command script (max 20 commands). Supports newlines, &&, ||, and ;. Only supported commands are available; some high-risk commands require user confirmation. Pipes, redirects, and expansion are unsupported. Lines starting with # are ignored. Non-interactive only.',
+          description: 'Local command script (max 20 commands). Supports newlines, &&, ||, and ;. Allowlisted commands run directly; every other command requires user confirmation. Pipes, redirects, and expansion are unsupported. Lines starting with # are ignored. Non-interactive only.',
         },
       },
       required: ['script'],
@@ -67,13 +67,13 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
   ),
   fn(
     'file_read',
-    'Read a text file from the current workspace.',
+    'Read a text file from the current workspace or an external directory. External reads are allowed without user confirmation.',
     {
       type: 'object',
       properties: {
         path: {
           type: 'string',
-          description: 'Relative path inside the current workspace. Must exist.',
+          description: 'Relative workspace path or absolute external path. Parent traversal is allowed. The file must exist.',
         },
       },
       required: ['path'],
@@ -379,7 +379,7 @@ function executionProperties(): Record<string, unknown> {
     json_content: { type: 'object', description: 'file_write: JSON content, interpolated recursively' },
     append: { type: 'boolean', description: 'file_write: append instead of overwrite' },
     append_newline: { type: 'boolean', description: 'file_write: insert newline between appended records (JSONL)' },
-    script: { type: 'string', maxLength: 8000, description: 'shell type: supported sandbox commands only' },
+    script: { type: 'string', maxLength: 8000, description: 'shell type: local commands; non-allowlisted commands require user confirmation' },
   };
 }
 
@@ -391,7 +391,7 @@ function getExecutionDescription(): string {
     '- javascript: `{code: "result = { sum: input.a + input.b }"}`, reads `input`, assigns JSON-safe `result`; supports async/await, and can persist game state via `await $read/$write/$append/$list` (sandboxed current workspace, same limits as file_read/file_write)',
     '- file_read: `{path: "notes.md"}` — read a file from sandbox_workspace/ through the required local workspace service (100KB cap)',
     '- file_write: `{path: "notes.jsonl", json_content: {...}, append: true, append_newline: true}` — write to sandbox_workspace/ through the required local workspace service',
-    '- shell: sandboxed commands executed as REAL local commands via an optional local service (node sandbox-server.mjs). Supports newlines, &&, ||, and ; (max 20 commands), but not pipes, redirects, or expansion. Supported commands such as pwd, ls, cat, grep, sed, tar, unzip, jq, awk, node, and git run directly; supported high-risk commands such as sudo, curl, wget, dd, shutdown, docker, and ssh require user confirmation; everything else is rejected',
+    '- shell: commands executed as REAL local commands via an optional controlled service (node sandbox-server.mjs); this is not OS-isolated. Supports newlines, &&, ||, and ; (max 20 commands), but not pipes, redirects, or expansion. Simple non-executing utilities, jq, and bc are allowlisted; command launchers, tools with exec/plugin hooks, and every other command require user confirmation',
   ].join(' ');
 }
 

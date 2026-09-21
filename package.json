@@ -7,6 +7,7 @@
   "scripts": {
     "start": "vite",
     "dev": "vite",
+    "test:command-service": "node sandbox-server.test.mjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview"
   },

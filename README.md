@@ -33,9 +33,9 @@ MyAgent-Android（Mioo）的 Web 版复刻——一个本地优先的 AI 助手 
 - **SillyTavern PNG 导入**：chara V2 / ccv3 V3 一键导入，解析人设、开场白、内嵌Lorebook
 - **Lorebook**：世界观设定附加在人设后，可绑定到会话
 - **技能表（工具）**：
-  - 内置：`run_shell_script`（本地沙箱执行）、`roll_dice`、`create_skill` / `update_skill` / `delete_skill`、`get_tavern_info`、角色与Lorebook CRUD
-  - **生成式技能**：`template` / `http_get` / `javascript`（Web Worker 沙箱，支持 async/await，可注入 `$read`/`$write`/`$append`/`$list` 持久化游戏状态）/ `file_read` / `file_write` / `shell`（真实执行，白名单直执 + 高危弹窗）/ `device_action`（通知 / 震动）
-  - **确认门控**：更新/删除类操作、以及**高危 shell 命令**均弹出确认框
+  - 内置：`run_shell_script`（受控本地命令执行）、`roll_dice`、`create_skill` / `update_skill` / `delete_skill`、`get_tavern_info`、角色与Lorebook CRUD
+  - **生成式技能**：`template` / `http_get` / `javascript`（Web Worker 沙箱，支持 async/await，可注入 `$read`/`$write`/`$append`/`$list` 持久化游戏状态）/ `file_read` / `file_write` / `shell`（真实执行，白名单直执 + 其余命令确认）/ `device_action`（通知 / 震动）
+  - **确认门控**：更新/删除类操作、以及所有**非白名单 shell 命令**均弹出确认框
 
 ## 🚀 使用
 
@@ -52,52 +52,60 @@ npm run preview  # 预览
 2. 在聊天页顶部点击模型名选择模型
 3. 回到对话，开聊！
 
-## 🛡️ 生成式技能 `shell` 的真实执行沙箱
+## 生成式技能 `shell` 的受控本地执行
 
-`shell` 类型默认在浏览器内虚拟工作区模拟（`file_read` / `file_write` 使用 IndexedDB）。如需让 `shell` 技能执行**真实本地命令**，无需手动操作——**开发服务器（`npm run dev`）会在首次收到 `/api-v2/exec` 请求时自动拉起沙箱服务**（`node sandbox-server.mjs`，默认为本机 `127.0.0.1:17891`），并复用已有实例（手动先启动也可，不会被重复拉起）。
+`shell` 技能通过独立的本地命令服务执行**真实本地命令**。开发服务器（`npm run dev`）会在首次收到 `/api-v2/exec` 请求时自动拉起该服务（`sandbox-server.mjs`，默认为本机 `127.0.0.1:17891`）。Vite 代理会为每次运行生成彼此独立的服务密钥和批准密钥并注入内部请求；无密钥的本地直连请求会被拒绝，待确认请求也必须先由专用批准端点授权才能执行。
+
+> **这不是 OS 沙箱。** 命令以启动服务的当前用户权限执行，能够使用该用户拥有的文件、进程和网络权限。会话工作目录只作为命令的初始 `cwd`，不是文件系统安全边界。安全控制来自命令白名单和执行前的用户许可。
 
 ```bash
-npm start          # 或 npm run dev —— 沙箱自动随启
+npm start          # 或 npm run dev —— 本地命令服务按需自动启动
 ```
 
-也可以手动单独启动（可选，常用于调试独立沙箱）：
+如需脱离 Vite 调试服务，必须显式提供仅用于该次调试的服务密钥和批准密钥，并分别在请求的 `X-Command-Service-Token`、`X-Command-Approval-Token` 头中携带：
 
 ```bash
-node sandbox-server.mjs            # 默认端口 17891
+COMMAND_SERVICE_TOKEN=临时随机值 COMMAND_APPROVAL_TOKEN=另一临时随机值 node sandbox-server.mjs
 ```
 
 启用后：
 
 - 开发服务器（`npm run dev`）会自动把 `/api-v2/exec` 转发给该服务；已编译产物（`npm run preview` / 静态部署）需在同一站点额外部署该服务（或手动代理）。
+- Vite 代理覆盖内部认证头，浏览器不能自行指定服务密钥；服务不开放跨域访问。
 - **权限模型（命令分级）**：
-  - **直接执行命令 → 不需确认**：`pwd`、`ls`、`cat`、`touch`、`mkdir`、`cp`、`grep`、`sed`、`tar`、`gzip`、`unzip`、`zip`、`jq`、`awk`、`xargs`、`tee`、`whoami`、`uname`、`uptime`、`node`、`git` …
-  - **高危黑名单命令 → 弹窗确认后执行**：`sudo`、`su`、`dd`、`mkfs`、`fdisk`、`mount`、`chmod`、`chown`、`kill`、`curl`、`wget`、`nc`、`ssh`、`scp`、`shutdown`、`reboot`、`systemctl`、`docker`、`kubectl` …（前端先弹窗展示整段脚本，用户批准后带 `confirmed` 标记重发，服务端才放行；拒绝返回 `CANCELLED`）
-  - **其余命令 → 一律拒绝**（前后端双重检查，无弹窗）
-- 其余规范：仅允许 `https://`（见 `http_get` 内网封锁）、单条命令 5s 超时、输出截断、脚本 ≤ 8000 字符 / ≤ 20 行、每行一条命令（无 shell 解释器，`&` `|` `;` `>` 等仅为普通参数，不构成拼接/注入）。
+  - **直接执行命令 → 不需确认**：白名单按能力分类维护：
+    - 基础信息：`pwd`、`date`、`whoami`、`uname`、`hostname`、`uptime`、`which`
+    - 文件与目录：`ls`、`touch`、`mkdir`、`cp`、`basename`、`dirname`、`du`、`stat`、`file`
+    - 文本与结构化数据：`echo`、`printf`、`cat`、`head`、`tail`、`wc`、`uniq`、`grep`、`cut`、`tr`、`diff`、`cmp`、`od`、`xxd`、`hexdump`、`strings`、`tee`、`jq`
+    - 系统配置 / 查询：`localectl`、`timedatectl`、`ffprobe`
+    - 逻辑 / 数学 / 校验：`true`、`false`、`seq`、`factor`、`bc`、`sha256sum`、`md5sum`、`cksum`、`sum`
+  - 解释器、命令启动器、带 exec / 外部程序 / 动态插件能力的工具，以及所有压缩工具均不在白名单中；包括 `node`、`npm`、`npx`、`git`、`env`、`xargs`、`awk`、`find`、`sed`、`tar`、`zip`、`sort`、`openssl`、`calc`、`gzip`、`gunzip`、`xz`、`unzip`，执行前必须取得用户许可。
+  - **任何非白名单命令 → 弹窗确认后执行**：服务端先签发绑定脚本与会话、60 秒有效且只能使用一次的确认票据；前端展示整段脚本并在用户批准后携票据重发。裸 `confirmed` 标记无效；拒绝返回 `CANCELLED`。
+- 其余规范：单条命令 5s 超时、输出截断、脚本 ≤ 8000 字符 / ≤ 20 条命令；无 shell 解释器，不支持管道、重定向、变量展开或命令替换。
 - 该服务仅监听 `127.0.0.1`，不对外暴露；未启动时返回明确错误提示。
 
 ### 会话隔离的工作目录
 
-每个对话（会话）在创建时都会分配一个**以会话 id 命名的专属工作目录**：`sandbox_workspace/session-<会话id>/`（单层目录，直接位于工作区根下，不再嵌套）。该会话下所有工具调用——`run_shell_script`、`file_read` / `file_write`、生成式技能的 `shell` 与 `javascript`（`$read` / `$write` / `$append` / `$list`）——都**只在这一个目录内进行**：
+每个对话（会话）在创建时都会分配一个**以会话 id 命名的专属工作目录**：`sandbox_workspace/session-<会话id>/`（单层目录，直接位于工作区根下，不再嵌套）。文件工具在这个目录内读写；本地命令以它作为初始 `cwd`：
 
 - **创建对话时即预建其工作目录**（沙箱服务运行时真实建目录；未启动则静默跳过，首次工具调用时自动补建）；
 - 删除对话时会**一并删除其专属工作目录**（磁盘目录 + 沙箱未启动时写入浏览器虚拟工作区 IndexedDB 的数据一并清理）；
-- shell 命令以该目录为 `cwd` 执行；
+- shell 命令以该目录为 `cwd` 执行，但可按当前用户权限访问目录外资源；
 - 文件读写 / 文件列表只对该目录可见（无法访问其它会话的工作目录）；
 - 浏览器虚拟工作区（沙箱未启动时的回退）同样按会话隔离：`generated_skill_workspace/sessions/session-<会话id>/…`；
-- 不同会话之间的文件互不可见、互不影响，游戏状态（血量 / 好感度等）天然按会话隔离。
+- 通过文件工具维护的不同会话数据互不可见、互不影响；本地命令不受这一文件 API 边界约束。
 
 旧会话（在本功能上线前创建）没有工作目录字段，沿用共享根工作区 `sandbox_workspace/`，行为与之前一致。会话头部副标题会显示当前会话的工作目录名（如 `session-12`）。
 
 ### 生成式技能 `file_read` / `file_write` 的真实磁盘工作区
 
-当本地沙箱服务运行（开发服务器自动拉起）时，技能的 `file_read` / `file_write` 会读写项目根目录下的 **`sandbox_workspace/`** 真实文件夹（首次写入自动创建，已被 `.gitignore` 忽略）。技能可以：
+当本地工作区服务运行（开发服务器自动拉起）时，技能的 `file_read` / `file_write` 会读写项目根目录下的 **`sandbox_workspace/`** 真实文件夹（首次写入自动创建，已被 `.gitignore` 忽略）。技能可以：
 
-- 读取工作区内任意相对路径文件（单文件 ≤ 100KB，超出截断）
-- 写入 / 追加文件（相对路径，禁止 `..` / 绝对路径 / 符号链接逃逸，单文件 ≤ 400KB）
+- 读取工作区相对路径或任意外部路径文件，无需确认（单文件 ≤ 100KB，超出截断）
+- 写入 / 追加文件；工作区外路径需要逐次确认（单文件 ≤ 400KB）
 - 通过 `file_list` 端点列出工作区文件（上限 500 个）
 
-> ⚠️ **权限边界**：技能的所有文件操作都被**限制在 `sandbox_workspace/` 目录内**，无法访问项目其它文件（`http_get` 同样屏蔽内网）。沙箱服务未启动时，`file_*` 自动回退到浏览器 IndexedDB 虚拟工作区，行为与之前一致。你可以随时在编辑器 / 资源管理器里直接查看、修改 `sandbox_workspace/` 下的文件——技能读写的就是这些真实文件。
+> **文件 API 权限边界**：`file_read` 可直接读取当前用户有权访问的外部文件；`file_write` 写入工作区外路径时需要用户确认；`file_list` 只枚举当前会话工作区。你可以随时在编辑器 / 资源管理器里直接查看、修改工作区文件。
 
 ### 本地 / 局域网服务（CORS）
 

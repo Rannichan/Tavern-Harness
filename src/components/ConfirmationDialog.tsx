@@ -28,15 +28,19 @@ export function ConfirmationDialog() {
         <div className="modal card confirm fade-up">
           <div className="modal-head">
             <span style={{ fontWeight: 800, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Icon name="settings" size={15} /> {pending.title}
+              <Icon name="settings" size={15} /> {isLimit ? pending.title : t('confirm.title')}
             </span>
           </div>
           <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.6, whiteSpace: 'pre-line' }}>
-              {isLimit ? pending.message : t('confirm.modify')}
-            </div>
             {!isLimit && <div style={{ fontSize: 13, fontWeight: 700 }}>{t('confirm.tool')}<span className="mono" style={{ color: 'var(--primary)' }}>{pending.toolName}</span></div>}
-            <pre className="confirm-args mono">{argsText}</pre>
+            {!pending.inlineCode && <pre className="confirm-args mono">{argsText}</pre>}
+            <div className={isLimit ? undefined : 'confirm-reason'}>
+              {!isLimit && <div className="confirm-reason-title">{pending.title}</div>}
+              <div style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.6, whiteSpace: 'pre-line' }}>
+                {pending.inlineCode && <code className="confirm-inline-code">{pending.inlineCode}</code>}
+                {pending.message || (isLimit ? '' : t('confirm.modify'))}
+              </div>
+            </div>
           </div>
           <div className="modal-foot">
             <button

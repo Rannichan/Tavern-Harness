@@ -98,7 +98,7 @@ export interface ChatSession {
    * 会话专属沙箱工作目录名（以会话 id 为名，如 "session-12"）。
    * 该会话的所有工具调用（shell / file_read / file_write / 脚本执行等）
    * 都在这个独立目录下进行，会话之间相互隔离。
-   * 旧会话（未设置）在本工作区实现前的记录默认为共享根工作区。
+  * 内置酒馆老板的 NPC 单人会话例外地固定使用 public；旧会话未设置时按 session-<id> 使用专属目录。
    */
   workspaceDir?: string | null;
   turnQueueJson: string;
@@ -278,6 +278,7 @@ export interface ToolConfirmationRequest {
   toolName: string;
   title: string;
   message: string;
+  inlineCode?: string;
   argsJson: string;
   kind?: 'tool' | 'limit';
 }

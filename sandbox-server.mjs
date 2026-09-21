@@ -1,16 +1,14 @@
 #!/usr/bin/env node
 // ============================================================
-// 生成式技能真实 Shell 执行沙箱服务（可选，独立进程）
+// 生成式技能受控本地命令执行服务（可选，独立进程）
 //
 // 默认不启动。启动后 vite 开发服务器会把 /api-v2/exec 转发到本服务，
 // 前端生成式技能的 shell 类型即可真实执行命令。
 //
-// 安全模型：
+// 执行模型：
 //   - 仅监听 127.0.0.1（不回显到局域网）
-//   - 命令分级：
-//       * 白名单（宽松）→ 直接执行，无需确认
-//       * 高危黑名单 → 需客户端带 confirmed:true（用户已弹窗批准）才执行
-//       * 其余命令 → 一律拒绝
+//   - 白名单命令直接执行，无需确认
+//   - 任一非白名单命令均需用户批准并回传服务端签发的一次性确认票据
 //   - 支持受控的 &&、||、; 连接符；无 shell 解释器（spawn shell:false），
 //     不支持管道、重定向、变量展开或命令替换
 //   - 单条命令 5s 超时，超时即 kill 进程树
@@ -22,18 +20,26 @@
 
 import { createServer } from 'node:http';
 import { spawn, spawnSync } from 'node:child_process';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import {
-  writeFileSync, existsSync, readFileSync, readFile, writeFile, mkdirSync, readdir, stat, unlink, realpathSync, rmSync,
+  writeFileSync, existsSync, lstatSync, readlinkSync, readFileSync, readFile, writeFile, mkdirSync, mkdtempSync, readdir, stat, statSync, symlinkSync, unlink, realpathSync, rmSync,
 } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, dirname, resolve, sep, delimiter } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.argv[2] || process.env.SANDBOX_PORT || 17891);
 const LOCK_FILE = join(__dirname, '.sandbox-port');
+const SERVICE_TOKEN = process.env.COMMAND_SERVICE_TOKEN;
+const APPROVAL_TOKEN = process.env.COMMAND_APPROVAL_TOKEN;
+if (!SERVICE_TOKEN || !APPROVAL_TOKEN) {
+  console.error('[command-service] missing COMMAND_SERVICE_TOKEN or COMMAND_APPROVAL_TOKEN');
+  process.exit(1);
+}
 
 // ---- Windows 适配 ----
-// 该沙箱命令集为 Unix 风格。Windows 上尽量使用 Git for Windows 自带的
+// 该命令集为 Unix 风格。Windows 上尽量使用 Git for Windows 自带的
 // usr/bin 工具（bool 验证过 pwd/ls/date/echo 等均存在）。
 const IS_WIN = process.platform === 'win32';
 function findGitUsrBin() {
@@ -58,23 +64,21 @@ function findGitUsrBin() {
   return null;
 }
 const GIT_USR_BIN = findGitUsrBin();
-// 子进程继承的 PATH：Git usr\bin 放最前，保证 Unix 命令优先
-const SPAWN_ENV = {
-  ...process.env,
-  PATH: GIT_USR_BIN ? `${GIT_USR_BIN}${delimiter}${process.env.PATH ?? ''}` : (process.env.PATH ?? ''),
-};
+const SANDBOX_ENV_ROOT = mkdtempSync(join(tmpdir(), 'tavern-harness-env-'));
+const SANDBOX_HOME = join(SANDBOX_ENV_ROOT, 'home');
+const SANDBOX_TMP = join(SANDBOX_ENV_ROOT, 'tmp');
+mkdirSync(SANDBOX_HOME, { recursive: true });
+mkdirSync(SANDBOX_TMP, { recursive: true });
+process.once('exit', () => rmSync(SANDBOX_ENV_ROOT, { recursive: true, force: true }));
 
-// cmd.exe 内建命令没有独立可执行文件，spawn 找不到；需要转换为 cmd 可执行的形式
-const CMD_BUILTINS = new Set(['echo', 'date', 'type', 'set', 'cd', 'cls', 'dir', 'copy', 'del', 'rd', 'md']);
-function cmdForLine(cmd, args) {
-  if (!IS_WIN || !CMD_BUILTINS.has(cmd)) return { cmd, args };
-  // echo/date/type 在 Git bash 中都有真实可执行文件，优先用它们（GIT_USR_BIN 已注入 PATH）
-  if (GIT_USR_BIN && cmd !== 'set' && cmd !== 'cd' && cmd !== 'cls' && cmd !== 'dir' && cmd !== 'copy' && cmd !== 'del' && cmd !== 'rd' && cmd !== 'md') {
-    return { cmd, args };
-  }
-  // 其余真正需要 cmd.exe 内建：拼成单条命令行交给 cmd /c
-  return { cmd: 'cmd', args: ['/c', [cmd, ...args].join(' ')] };
-}
+// 子进程仅继承运行所需变量；Git usr\bin 放在 PATH 最前，保证 Unix 命令优先。
+const SPAWN_ENV = {
+  PATH: GIT_USR_BIN ? `${GIT_USR_BIN}${delimiter}${process.env.PATH ?? ''}` : (process.env.PATH ?? ''),
+  LANG: process.env.LANG ?? 'C.UTF-8',
+  LC_ALL: process.env.LC_ALL ?? '',
+  HOME: SANDBOX_HOME,
+  TMPDIR: SANDBOX_TMP,
+};
 
 /**
  * 命令行分词：支持单引号/双引号（去引号）、反斜杠转义、引号内空白保持原样。
@@ -181,68 +185,158 @@ function parseCommandLine(line) {
   return { commands, operators };
 }
 
-// ---- 白名单：可直接执行（黑名单优先于本名单判断） ----
-const SHELL_ALLOWED_REAL = new Set([
-  'pwd','date','echo','printf','ls','cat','touch','mkdir','rm','cp','mv','head','tail',
-  'wc','basename','dirname','sort','uniq','grep','cut','tr','sha256sum','md5sum','du',
-  'diff','find','stat','cmp','sed','tar','gzip','gunzip','xz','unzip','zip','jq',
-  'env','which','type','localectl','timedatectl','uptime','whoami','uname','hostname',
-  'true','false','seq','factor','od','xxd','hexdump','strings','file','cksum','sum',
-  'tee','xargs','awk','node','npm','npx','git','ffprobe','openssl','calc','bc',
-]);
+// ---- 白名单：可直接执行；名单外命令统一请求用户许可 ----
+const SHELL_ALLOWLIST_GROUPS = {
+  basicInfo: [
+    'pwd', 'date', 'whoami', 'uname', 'hostname', 'uptime', 'which',
+  ],
+  fileAndDirectory: [
+    'ls', 'touch', 'mkdir', 'cp', 'basename', 'dirname', 'du', 'stat', 'file',
+  ],
+  textProcessing: [
+    'echo', 'printf', 'cat', 'head', 'tail', 'wc', 'uniq', 'grep', 'cut', 'tr',
+    'diff', 'cmp', 'od', 'xxd', 'hexdump', 'strings', 'tee', 'jq',
+  ],
+  systemQuery: [
+    'localectl', 'timedatectl', 'ffprobe',
+  ],
+  logicAndMath: [
+    'true', 'false', 'seq', 'factor', 'bc', 'sha256sum', 'md5sum', 'cksum', 'sum',
+  ],
+};
+const SHELL_ALLOWED_REAL = new Set(Object.values(SHELL_ALLOWLIST_GROUPS).flat());
 
-// ---- 高危黑名单：需要用户明确批准（前端弹窗二次确认）才执行 ----
-const SHELL_BLOCKED = new Set([
-  'sudo','su','doas','pkexec','passwd','chpasswd',
-  'rm','shred','dd','mkfs','fdisk','parted','mount','umount','swapon','swapoff',
-  'reboot','shutdown','halt','poweroff','init','systemctl','service','killall','pkill','kill',
-  'curl','wget','nc','ncat','socat','telnet','ssh','scp','sftp','ftp',
-  'chmod','chown','chattr','setfacl','ln','mknod','mv',
-  'docker','podman','kubectl','helm',
-]);
+const TRUSTED_COMMAND_DIRS = (IS_WIN
+  ? [GIT_USR_BIN]
+  : ['/bin', '/usr/bin', '/usr/sbin', '/sbin'])
+  .filter(Boolean)
+  .map((dir) => {
+    try {
+      return realpathSync(dir);
+    } catch {
+      return null;
+    }
+  })
+  .filter(Boolean);
 
-// 危险路径前缀：rm -rf / 这类；黑名单已覆盖 rm，这里兜底其它命令带绝对危险路径
-const DANGEROUS_PATHS = [
-  '/etc', '/usr', '/bin', '/sbin', '/boot', '/dev', '/proc', '/sys', '/var',
-  '/System', '/Library', '/Applications',
-];
+function resolveTrustedCommand(command) {
+  const names = IS_WIN ? [`${command}.exe`, command] : [command];
+  for (const trustedDir of TRUSTED_COMMAND_DIRS) {
+    for (const name of names) {
+      const candidate = join(trustedDir, name);
+      if (!existsSync(candidate)) continue;
+      try {
+        const resolved = realpathSync(candidate);
+        const executable = statSync(resolved);
+        const writableByNonOwner = (executable.mode & 0o022) !== 0;
+        if (resolved.startsWith(trustedDir + sep) && executable.uid === 0 && !writableByNonOwner) return resolved;
+      } catch { /* try next candidate */ }
+    }
+  }
+  return null;
+}
+
+const TRUSTED_COMMAND_PATHS = new Map(
+  [...SHELL_ALLOWED_REAL]
+    .map((command) => [command, resolveTrustedCommand(command)])
+    .filter((entry) => entry[1])
+);
 
 const MAX_LINES = 20;
 const MAX_SCRIPT_CHARS = 8000;
 const MAX_OUTPUT = 64 * 1024;
 const CMD_TIMEOUT_MS = 5000;
-const MAX_CMD_CHARS = 2000;
+const CONFIRMATION_TTL_MS = 60_000;
+const MAX_PENDING_CONFIRMATIONS = 1000;
+const pendingConfirmations = new Map();
+
+function confirmationDigest(operation, sessionBase) {
+  return createHash('sha256')
+    .update(operation)
+    .update('\0')
+    .update(sessionBase)
+    .digest();
+}
+
+function issueConfirmationRequest(operation, sessionBase) {
+  const now = Date.now();
+  for (const [requestId, entry] of pendingConfirmations) {
+    if (entry.expiresAt <= now) pendingConfirmations.delete(requestId);
+  }
+  while (pendingConfirmations.size >= MAX_PENDING_CONFIRMATIONS) {
+    pendingConfirmations.delete(pendingConfirmations.keys().next().value);
+  }
+  const requestId = randomBytes(32).toString('base64url');
+  pendingConfirmations.set(requestId, {
+    digest: confirmationDigest(operation, sessionBase),
+    expiresAt: now + CONFIRMATION_TTL_MS,
+    approved: false,
+  });
+  return requestId;
+}
+
+function approveConfirmationRequest(requestId) {
+  if (typeof requestId !== 'string' || !requestId) return false;
+  const entry = pendingConfirmations.get(requestId);
+  if (!entry) return false;
+  if (entry.expiresAt <= Date.now()) {
+    pendingConfirmations.delete(requestId);
+    return false;
+  }
+  entry.approved = true;
+  return true;
+}
+
+function consumeApprovedConfirmation(requestId, operation, sessionBase) {
+  if (typeof requestId !== 'string' || !requestId) return false;
+  const entry = pendingConfirmations.get(requestId);
+  if (!entry || !entry.approved) return false;
+  pendingConfirmations.delete(requestId);
+  if (entry.expiresAt <= Date.now()) return false;
+  return timingSafeEqual(entry.digest, confirmationDigest(operation, sessionBase));
+}
 
 // ---- 真实文件工作区（generate_skill 的 file_read / file_write 落盘区） ----
 // 项目根目录下 sandbox_workspace/，仅允许读写该目录内文件（虚拟磁盘）。
-// 会话隔离：每次请求可携带会话工作目录（session 字段，如 "session-12"），
-// 所有读写/执行都锁定在该目录内；不带 session 时沿用旧行为——共享根工作区。
+// 会话隔离：每次请求必须携带会话工作目录（session 字段，如 "session-12"），
+// 所有读写/执行都锁定在该目录内，不允许回退到共享根工作区。
 const WORKSPACE_ROOT = resolve(__dirname, 'sandbox_workspace');
+const PUBLIC_WORKSPACE = join(WORKSPACE_ROOT, 'public');
 const MAX_FILE_READ_CHARS = 100_000;   // 单文件读取上限（与前端虚拟工作区一致）
 const MAX_FILE_WRITE_BYTES = 400 * 1024; // 单文件写入上限 400KB
 const MAX_LIST_ENTRIES = 500;
 // 会话工作目录的安全字符集：仅允许小写字母数字、下划线、斜杠、点、连字符，
 // 防止路径穿越/注入（由前端按会话 id 生成，如 "session-12"）
-const SESSION_DIR_RE = /^[a-z0-9_./-]+$/;
+const SESSION_DIR_RE = /^[a-z0-9_.-]+$/;
 
 /**
- * 解析会话工作目录：null = 共享根工作区（旧行为）。
- * 校验会话目录是纯相对路径、不含 .. 与绝对路径，且必须位于工作区内。
+ * 解析会话工作目录。仅允许 sandbox_workspace 下的单层目录。
  */
 function resolveSessionBase(session) {
-  if (session === undefined || session === null) return null;
+  if (session === undefined || session === null) throw new Error('缺少合法的会话工作目录');
   const raw = String(session).replace(/\\/g, '/').trim();
-  if (!raw) return null;
-  if (raw.startsWith('/')) throw new Error('simba.sess.abs: 会话工作目录不能是绝对路径');
-  const parts = raw.split('/').filter((s) => s && s !== '.');
-  if (parts.length === 0) return null;
-  if (parts.some((s) => s === '..' || !SESSION_DIR_RE.test(s))) {
-    throw new Error('会话工作目录不合法（含 .. 或非法字符）');
+  if (!raw || raw.startsWith('/') || raw === '.' || raw === '..' || !SESSION_DIR_RE.test(raw)) {
+    throw new Error('缺少合法的会话工作目录');
   }
-  return join(WORKSPACE_ROOT, ...parts);
+  return join(WORKSPACE_ROOT, raw);
 }
 
-/** 相对路径校验：禁止绝对路径、.. 等，锁定在会话工作目录（或共享根）内 */
+/** 创建会话目录，并为普通会话提供固定的只读公共目录入口。 */
+function ensureSessionBase(base) {
+  mkdirSync(PUBLIC_WORKSPACE, { recursive: true });
+  mkdirSync(base, { recursive: true });
+  if (base === PUBLIC_WORKSPACE) return;
+  const publicLink = join(base, 'public');
+  if (existsSync(publicLink)) {
+    if (!lstatSync(publicLink).isSymbolicLink() || realpathSync(publicLink) !== realpathSync(PUBLIC_WORKSPACE)) {
+      throw new Error('会话 public 入口不是合法的公共目录链接');
+    }
+  } else {
+    symlinkSync(IS_WIN ? PUBLIC_WORKSPACE : '../public', publicLink, IS_WIN ? 'junction' : 'dir');
+  }
+}
+
+/** 相对路径校验：禁止绝对路径、.. 等，锁定在会话工作目录内 */
 function sanitizeWorkspaceRelativePath(p) {
   const normalized = String(p).replace(/\\/g, '/').trim();
   if (!normalized || normalized.startsWith('/')) throw new Error('非法路径');
@@ -254,28 +348,73 @@ function sanitizeWorkspaceRelativePath(p) {
 
 function workspacePathFor(rel, base) {
   const safe = sanitizeWorkspaceRelativePath(rel);
-  const root = base ?? WORKSPACE_ROOT;
-  return join(root, ...safe.split('/'));
+  return join(base, ...safe.split('/'));
 }
 
-/** 校验最终解析路径仍在会话工作目录（或共享根）内（防符号链接逃逸） */
+function fileWriteOperation(path, content, mode) {
+  return JSON.stringify({ type: 'file_write', path, content, mode });
+}
+
+/** 校验最终解析路径仍在会话工作目录内（防符号链接逃逸） */
 function assertInside(root, p) {
   const rp = resolve(p);
   if (rp !== root && !rp.startsWith(root + sep)) throw new Error('路径超出工作区');
 }
 
+function isInside(root, p) {
+  return p === root || p.startsWith(root + sep);
+}
+
+function assertWritableParent(base, parent) {
+  let existing = parent;
+  while (!existsSync(existing) && existing !== base) existing = dirname(existing);
+  assertInside(base, realpathSync(existing));
+}
+
 // ---- HTTP 服务 ----
 const server = createServer(async (req, res) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  if (req.method === 'OPTIONS') {
-    res.writeHead(204);
-    res.end();
+  const suppliedToken = req.headers['x-command-service-token'];
+  const tokenMatches = typeof suppliedToken === 'string'
+    && suppliedToken.length === SERVICE_TOKEN.length
+    && timingSafeEqual(Buffer.from(suppliedToken), Buffer.from(SERVICE_TOKEN));
+  if (!tokenMatches) {
+    res.writeHead(401);
+    res.end(JSON.stringify({ ok: false, message: 'unauthorized' }));
     return;
   }
   if (req.method !== 'POST') {
     res.writeHead(404);
     res.end(JSON.stringify({ ok: false, message: 'not found' }));
+    return;
+  }
+
+  if (req.url === '/approve') {
+    const suppliedApprovalToken = req.headers['x-command-approval-token'];
+    const approvalTokenMatches = typeof suppliedApprovalToken === 'string'
+      && suppliedApprovalToken.length === APPROVAL_TOKEN.length
+      && timingSafeEqual(Buffer.from(suppliedApprovalToken), Buffer.from(APPROVAL_TOKEN));
+    if (!approvalTokenMatches) {
+      res.writeHead(401);
+      res.end(JSON.stringify({ ok: false, message: 'approval unauthorized' }));
+      return;
+    }
+    let body = '';
+    for await (const chunk of req) body += chunk;
+    if (body.length > 16 * 1024) {
+      res.writeHead(413);
+      res.end(JSON.stringify({ ok: false, message: 'body too large' }));
+      return;
+    }
+    try {
+      const payload = JSON.parse(body);
+      const approved = approveConfirmationRequest(payload?.confirmationRequestId);
+      res.writeHead(approved ? 200 : 404);
+      res.end(JSON.stringify({ ok: approved, message: approved ? undefined : 'confirmation request not found or expired' }));
+    } catch {
+      res.writeHead(400);
+      res.end(JSON.stringify({ ok: false, message: 'invalid json' }));
+    }
     return;
   }
 
@@ -300,19 +439,40 @@ const server = createServer(async (req, res) => {
       // 会话隔离：同一端点按会话工作目录读写文件（互不影响）
       const base = resolveSessionBase(payload?.session);
       if (req.url === '/file_read') {
-        const rel = sanitizeWorkspaceRelativePath(String(payload?.path ?? ''));
-        const fp = workspacePathFor(rel, base);
+        const rawPath = String(payload?.path ?? '').replace(/\\/g, '/').trim();
+        if (!rawPath) throw new Error('非法路径');
+        const fp = resolve(base, rawPath);
         const text = await readFileAsync(fp);
-        res.end(JSON.stringify({ ok: true, path: rel, content: text.slice(0, MAX_FILE_READ_CHARS) }));
+        res.end(JSON.stringify({ ok: true, path: rawPath, content: text.slice(0, MAX_FILE_READ_CHARS) }));
       } else if (req.url === '/file_write') {
-        const rel = sanitizeWorkspaceRelativePath(String(payload?.path ?? ''));
-        const fp = workspacePathFor(rel, base);
+        const rawPath = String(payload?.path ?? '').replace(/\\/g, '/').trim();
+        if (!rawPath) throw new Error('非法路径');
         const mode = payload?.mode === 'append' ? 'append' : 'write';
-        mkdirSync(dirname(fp), { recursive: true });
-        const baseRoot = base ?? WORKSPACE_ROOT;
-        assertInside(baseRoot, realpathSync(dirname(fp)));
-        if (existsSync(fp)) assertInside(baseRoot, realpathSync(fp)); // 已有实体文件防符号链接
         const content = String(payload?.content ?? '');
+        const operation = fileWriteOperation(rawPath, content, mode);
+        ensureSessionBase(base);
+        const external = resolvesOutsideSession(rawPath, base);
+        if (external && !consumeApprovedConfirmation(payload?.confirmationRequestId, operation, base)) {
+          const confirmationRequestId = issueConfirmationRequest(operation, base);
+          res.end(JSON.stringify({
+            ok: false,
+            needConfirm: true,
+            confirmationRequestId,
+            confirmationExpiresInMs: CONFIRMATION_TTL_MS,
+            message: '写入当前工作目录之外的路径需要用户确认',
+          }));
+          return;
+        }
+        const rel = external ? rawPath : sanitizeWorkspaceRelativePath(rawPath);
+        const fp = resolve(base, rel);
+        if (!external) {
+          assertWritableParent(base, dirname(fp));
+          mkdirSync(dirname(fp), { recursive: true });
+          assertInside(base, realpathSync(dirname(fp)));
+          if (existsSync(fp)) assertInside(base, realpathSync(fp));
+        } else {
+          mkdirSync(dirname(fp), { recursive: true });
+        }
         if (Buffer.byteLength(content, 'utf8') > MAX_FILE_WRITE_BYTES) {
           throw new Error(`文件超过 ${MAX_FILE_WRITE_BYTES / 1024}KB 上限`);
         }
@@ -324,9 +484,9 @@ const server = createServer(async (req, res) => {
         }
         res.end(JSON.stringify({ ok: true, path: rel, mode, bytes: Buffer.byteLength(content, 'utf8') }));
       } else {
-        // file_list：返回会话工作目录（或共享根）内的相对路径（分组目录）
+        // file_list：返回会话工作目录内的相对路径（分组目录）
         const files = [];
-        await walkWorkspace(base ?? WORKSPACE_ROOT, '', files);
+        await walkWorkspace(base, '', files);
         files.sort();
         const sliced = files.slice(0, MAX_LIST_ENTRIES);
         res.end(JSON.stringify({ ok: true, files: sliced, truncated: files.length > MAX_LIST_ENTRIES }));
@@ -359,12 +519,10 @@ const server = createServer(async (req, res) => {
     }
     try {
       const base = resolveSessionBase(payload?.session);
-      if (!base || base === WORKSPACE_ROOT) {
-        throw new Error('缺少合法的会话工作目录');
-      }
       if (req.url === '/session_create') {
-        mkdirSync(base, { recursive: true });
+        ensureSessionBase(base);
       } else {
+        if (base === PUBLIC_WORKSPACE) throw new Error('公共工作目录不可删除');
         rmSync(base, { recursive: true, force: true });
       }
       res.end(JSON.stringify({ ok: true }));
@@ -398,22 +556,36 @@ const server = createServer(async (req, res) => {
     return;
   }
   const script = String(payload?.script ?? '');
-  const confirmed = payload?.confirmed === true;
   // 会话隔离：shell 命令在会话工作目录（cwd）下执行；自动创建目录
-  let sessionBase = null;
+  let sessionBase;
   try {
     sessionBase = resolveSessionBase(payload?.session);
   } catch (e) {
     res.end(JSON.stringify({ ok: false, message: String((e && e.message) || e) }));
     return;
   }
-  if (sessionBase) mkdirSync(sessionBase, { recursive: true });
+  ensureSessionBase(sessionBase);
 
-  // 校验：黑名单命令需客户端已确认（前端弹窗批准后带 confirmed:true 重发）
-  const check = validateScript(script, confirmed);
-  if (check === 'NEED_CONFIRM') {
-    res.end(JSON.stringify({ ok: false, needConfirm: true, message: '脚本包含高危命令，需要用户确认' }));
-    return;
+  // 校验：非白名单命令只能凭服务端签发、绑定脚本与会话的一次性票据执行。
+  let check = validateScript(script, sessionBase);
+  if (check?.needConfirmReason) {
+    if (!consumeApprovedConfirmation(payload?.confirmationRequestId, script, sessionBase)) {
+      const confirmationRequestId = issueConfirmationRequest(script, sessionBase);
+      res.end(JSON.stringify({
+        ok: false,
+        needConfirm: true,
+        confirmationReason: check.needConfirmReason,
+        confirmationRequestId,
+        confirmationExpiresInMs: CONFIRMATION_TTL_MS,
+        message: check.needConfirmReason === 'both'
+          ? '脚本包含非白名单命令，并且访问当前工作目录之外的路径，需要用户确认'
+          : check.needConfirmReason === 'external_path'
+            ? '脚本访问当前工作目录之外的路径，需要用户确认'
+            : '脚本包含非白名单命令，需要用户确认',
+      }));
+      return;
+    }
+    check = null;
   }
   if (check) {
     res.end(JSON.stringify({ ok: false, message: check }));
@@ -447,15 +619,70 @@ const server = createServer(async (req, res) => {
 
 // ---- 校验与执行 ----
 /**
- * 返回 null → 通过；'NEED_CONFIRM' → 有黑名单命令且未被确认；字符串 → 拒绝原因
+ * 返回 null → 全部命令均在白名单；'NEED_CONFIRM' → 至少一个命令不在白名单；字符串 → 拒绝原因
  */
-function validateScript(script, confirmed) {
+function resolvesOutsideSession(value, sessionBase) {
+  if (!value || value === '-') return false;
+  let candidate = value;
+  if (value.startsWith('-')) {
+    const equalsIndex = value.indexOf('=');
+    const traversalIndex = value.indexOf('..');
+    const absoluteIndex = value.indexOf('/');
+    const pathIndex = equalsIndex >= 0
+      ? equalsIndex + 1
+      : traversalIndex >= 0
+        ? traversalIndex
+        : absoluteIndex >= 0
+          ? absoluteIndex
+          : -1;
+    if (pathIndex < 0) return false;
+    candidate = value.slice(pathIndex);
+  }
+  if (!candidate) return false;
+  const target = resolve(sessionBase, candidate);
+  if (!isInside(sessionBase, target)) return true;
+
+  try {
+    const realBase = realpathSync(sessionBase);
+    const relativeTarget = target.slice(sessionBase.length).split(sep).filter(Boolean);
+    let resolvedPrefix = realBase;
+    let symlinkHops = 0;
+    for (const part of relativeTarget) {
+      const next = join(resolvedPrefix, part);
+      try {
+        if (lstatSync(next).isSymbolicLink()) {
+          resolvedPrefix = resolve(dirname(next), readlinkSync(next));
+        } else {
+          resolvedPrefix = next;
+        }
+      } catch {
+        resolvedPrefix = next;
+      }
+      if (!isInside(realBase, resolvedPrefix)) return true;
+      while (true) {
+        try {
+          if (!lstatSync(resolvedPrefix).isSymbolicLink()) break;
+          if (++symlinkHops > 40) return true;
+          resolvedPrefix = resolve(dirname(resolvedPrefix), readlinkSync(resolvedPrefix));
+          if (!isInside(realBase, resolvedPrefix)) return true;
+        } catch {
+          break;
+        }
+      }
+    }
+    return false;
+  } catch {
+    return true;
+  }
+}
+
+function validateScript(script, sessionBase) {
   if (script.length > MAX_SCRIPT_CHARS) return '脚本超过 8000 字符';
-  if (script.length > MAX_CMD_CHARS) return '脚本过长';
   const lines = script.split('\n').filter((l) => l.trim() && !l.trim().startsWith('#'));
   if (lines.length === 0) return '空脚本';
   let commandCount = 0;
-  let needConfirm = false;
+  let hasNonAllowlistedCommand = false;
+  let hasExternalPath = false;
   for (const line of lines) {
     let commands;
     try {
@@ -466,32 +693,30 @@ function validateScript(script, confirmed) {
     commandCount += commands.length;
     if (commandCount > MAX_LINES) return '脚本命令数超过 20';
     for (const command of commands) {
-      const cmd = tokenize(command)[0];
-      if (SHELL_BLOCKED.has(cmd)) {
-        needConfirm = true;
-      } else if (!SHELL_ALLOWED_REAL.has(cmd)) {
-        return `命令 ${cmd} 不在支持名单`;
-      }
-      for (const p of DANGEROUS_PATHS) {
-        if (command.includes(p + sep) || command === p || command.startsWith(p + '/')) {
-          return `脚本引用了危险路径 ${p}`;
-        }
-      }
+      const [cmd, ...args] = tokenize(command);
+      if (!SHELL_ALLOWED_REAL.has(cmd)) hasNonAllowlistedCommand = true;
+      if (args.some((arg) => resolvesOutsideSession(arg, sessionBase))) hasExternalPath = true;
     }
   }
-  return needConfirm && !confirmed ? 'NEED_CONFIRM' : null;
+  if (hasNonAllowlistedCommand && hasExternalPath) return { needConfirmReason: 'both' };
+  if (hasExternalPath) return { needConfirmReason: 'external_path' };
+  if (hasNonAllowlistedCommand) return { needConfirmReason: 'non_allowlisted' };
+  return null;
 }
 
 function runOne(line, sessionBase) {
   const tokens = tokenize(line);
   let cmd = tokens[0];
-  let args = tokens.slice(1);
-  const adapted = cmdForLine(cmd, args);
-  cmd = adapted.cmd;
-  args = adapted.args;
+  const args = tokens.slice(1);
+  const trustedPath = SHELL_ALLOWED_REAL.has(cmd) ? TRUSTED_COMMAND_PATHS.get(cmd) : null;
+  if (SHELL_ALLOWED_REAL.has(cmd) && !trustedPath) {
+    return Promise.reject(new Error(`白名单命令 ${cmd} 在受信任系统目录中不可用`));
+  }
+  if (trustedPath) {
+    cmd = trustedPath;
+  }
   return new Promise((resolve, reject) => {
-    // cwd：会话隔离工作目录（无 session 时为共享根工作区，沿用旧行为）
-    const cwd = sessionBase ?? WORKSPACE_ROOT;
+    const cwd = sessionBase;
     const child = spawn(cmd, args, {
       cwd,
       shell: false,
@@ -566,6 +791,8 @@ async function walkWorkspace(dir, prefix, out) {
     const full = join(dir, ent.name);
     try {
       if (ent.isDirectory()) {
+        await walkWorkspace(full, rel, out);
+      } else if (ent.isSymbolicLink() && rel === 'public' && realpathSync(full) === realpathSync(PUBLIC_WORKSPACE)) {
         await walkWorkspace(full, rel, out);
       } else if (ent.isFile()) {
         out.push(rel);

@@ -159,7 +159,7 @@ function SessionHeader({
 
   const modeLabel = session.mode === 'STANDARD' ? t('header.modeStandard') : session.mode === 'NPC' ? t('header.modeNpc') : t('header.modeGroup');
   const npcRef = session.associatedId ? npcs.find((n) => n.id === session.associatedId) : null;
-  const hasRootWorkspaceAccess = session.mode === 'NPC' && npcRef?.isBuiltIn === true;
+  const usesPublicWorkspace = session.mode === 'NPC' && npcRef?.isBuiltIn === true;
   const groupNpcs = participants.filter((p) => p.kind === 'NPC').map((p) => npcs.find((n) => n.id === p.npcId)).filter(Boolean);
   const groupMemberAvatars = (groupNpcs as NpcCharacter[]).slice(0, 4).map((n) => ({
     name: n.name,
@@ -182,7 +182,7 @@ function SessionHeader({
         </div>
       </div>
       <div className="chat-actions">
-        <button className="btn-ghost icon-tooltip" title={t(hasRootWorkspaceAccess ? 'header.workspaceRootHint' : 'header.workspaceHint')} onClick={() => setShowWorkspace(true)}>
+        <button className="btn-ghost icon-tooltip" title={t(usesPublicWorkspace ? 'header.workspaceRootHint' : 'header.workspaceHint')} onClick={() => setShowWorkspace(true)}>
           <Icon name="folder" size={17} />
         </button>
         <button className="btn-ghost icon-tooltip" title={t('header.editSessionTip')} onClick={() => setShowEdit(true)}>
