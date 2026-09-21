@@ -578,9 +578,9 @@ const server = createServer(async (req, res) => {
         confirmationRequestId,
         confirmationExpiresInMs: CONFIRMATION_TTL_MS,
         message: check.needConfirmReason === 'both'
-          ? '脚本包含非白名单命令，并且访问当前工作目录之外的路径，需要用户确认'
+          ? '脚本包含非白名单命令，并且写入当前工作目录之外的路径，需要用户确认'
           : check.needConfirmReason === 'external_path'
-            ? '脚本访问当前工作目录之外的路径，需要用户确认'
+            ? '脚本写入当前工作目录之外的路径，需要用户确认'
             : '脚本包含非白名单命令，需要用户确认',
       }));
       return;
@@ -676,13 +676,84 @@ function resolvesOutsideSession(value, sessionBase) {
   }
 }
 
+function operandsAfterOptions(args, optionsWithValues = new Set()) {
+  const operands = [];
+  let optionsEnded = false;
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index];
+    if (!optionsEnded && arg === '--') {
+      optionsEnded = true;
+      continue;
+    }
+    if (!optionsEnded && arg.startsWith('-') && arg !== '-') {
+      const option = arg.split('=', 1)[0];
+      if (!arg.includes('=') && optionsWithValues.has(option)) index += 1;
+      continue;
+    }
+    operands.push(arg);
+  }
+  return operands;
+}
+
+function shellWriteTargets(command, args) {
+  if (command === 'touch') {
+    return operandsAfterOptions(args, new Set(['-d', '--date', '-r', '--reference', '-t']));
+  }
+  if (command === 'mkdir') {
+    return operandsAfterOptions(args, new Set(['-m', '--mode', '-Z', '--context']));
+  }
+  if (command === 'tee') return operandsAfterOptions(args);
+  if (command === 'uniq') {
+    const operands = operandsAfterOptions(args, new Set([
+      '-f', '--skip-fields', '-s', '--skip-chars', '-w', '--check-chars',
+    ]));
+    return operands.length > 1 ? [operands[1]] : [];
+  }
+  if (command === 'xxd') {
+    const operands = operandsAfterOptions(args, new Set([
+      '-a', '-c', '-cols', '-g', '-groupsize', '-l', '-len', '-o', '-s', '-seek',
+    ]));
+    return operands.length > 1 ? [operands[1]] : [];
+  }
+  if (command === 'cp') {
+    let targetDirectory = null;
+    const operands = [];
+    let optionsEnded = false;
+    for (let index = 0; index < args.length; index++) {
+      const arg = args[index];
+      if (!optionsEnded && arg === '--') {
+        optionsEnded = true;
+        continue;
+      }
+      if (!optionsEnded && (arg === '-t' || arg === '--target-directory')) {
+        targetDirectory = args[index + 1] ?? null;
+        index += 1;
+        continue;
+      }
+      if (!optionsEnded && arg.startsWith('--target-directory=')) {
+        targetDirectory = arg.slice('--target-directory='.length);
+        continue;
+      }
+      if (!optionsEnded && arg.startsWith('-t') && arg.length > 2) {
+        targetDirectory = arg.slice(2);
+        continue;
+      }
+      if (!optionsEnded && arg.startsWith('-') && arg !== '-') continue;
+      operands.push(arg);
+    }
+    if (targetDirectory) return [targetDirectory];
+    return operands.length > 1 ? [operands.at(-1)] : [];
+  }
+  return [];
+}
+
 function validateScript(script, sessionBase) {
   if (script.length > MAX_SCRIPT_CHARS) return '脚本超过 8000 字符';
   const lines = script.split('\n').filter((l) => l.trim() && !l.trim().startsWith('#'));
   if (lines.length === 0) return '空脚本';
   let commandCount = 0;
   let hasNonAllowlistedCommand = false;
-  let hasExternalPath = false;
+  let hasExternalWrite = false;
   for (const line of lines) {
     let commands;
     try {
@@ -695,11 +766,13 @@ function validateScript(script, sessionBase) {
     for (const command of commands) {
       const [cmd, ...args] = tokenize(command);
       if (!SHELL_ALLOWED_REAL.has(cmd)) hasNonAllowlistedCommand = true;
-      if (args.some((arg) => resolvesOutsideSession(arg, sessionBase))) hasExternalPath = true;
+      if (shellWriteTargets(cmd, args).some((arg) => resolvesOutsideSession(arg, sessionBase))) {
+        hasExternalWrite = true;
+      }
     }
   }
-  if (hasNonAllowlistedCommand && hasExternalPath) return { needConfirmReason: 'both' };
-  if (hasExternalPath) return { needConfirmReason: 'external_path' };
+  if (hasNonAllowlistedCommand && hasExternalWrite) return { needConfirmReason: 'both' };
+  if (hasExternalWrite) return { needConfirmReason: 'external_path' };
   if (hasNonAllowlistedCommand) return { needConfirmReason: 'non_allowlisted' };
   return null;
 }

@@ -20,6 +20,7 @@ const session = `confirmation-test-${process.pid}`;
 const otherSession = `${session}-other`;
 const createdSession = `${session}-created`;
 const publicFile = `public-test-${process.pid}.txt`;
+const missingPublicTarget = `missing-public-${process.pid}.txt`;
 const timeoutMarker = `timeout-grandchild-${process.pid}.txt`;
 const hostSecret = `host-secret-${process.pid}`;
 const server = spawn(process.execPath, ['sandbox-server.mjs', String(port)], {
@@ -279,11 +280,15 @@ try {
   assert.equal(externalPathRequest.confirmationReason, 'external_path');
   assert.equal(existsSync(externalShellFile), false, 'external writes must not run before approval');
   const externalCopyRequest = await post({
-    script: `cp ${join(root, '.gitignore')} ${join(root, '.gitignore_副本')}`,
+    script: `cp ${join(root, '.gitignore')} copied-from-external.txt`,
     session,
   });
-  assert.equal(externalCopyRequest.needConfirm, true);
-  assert.equal(externalCopyRequest.confirmationReason, 'external_path', 'allowlisted cp with only external paths must not be labeled non-allowlisted');
+  assert.equal(externalCopyRequest.ok, true, 'copying from an external source into the session must not require confirmation');
+  assert.equal(externalCopyRequest.needConfirm, undefined);
+  assert.equal(
+    readFileSync(join(root, 'sandbox_workspace', session, 'copied-from-external.txt'), 'utf8'),
+    readFileSync(join(root, '.gitignore'), 'utf8'),
+  );
   const externalPathApproval = await approve(externalPathRequest.confirmationRequestId);
   assert.equal(externalPathApproval.body.ok, true);
   const approvedExternalPath = await post({
@@ -295,22 +300,51 @@ try {
   assert.equal(existsSync(externalShellFile), true, 'approved external writes must execute');
 
   const publicPathRequest = await post({ script: `cat public/${publicFile}`, session });
-  assert.equal(publicPathRequest.needConfirm, true, 'access through the public link is outside a regular session and must require confirmation');
+  assert.equal(publicPathRequest.ok, true, 'reading through the public link must not require confirmation');
+  assert.equal(publicPathRequest.output, 'changed operation');
 
-  const missingPublicTarget = `missing-public-${process.pid}.txt`;
+  const absoluteExternalRead = await post({ script: `cat ${join(root, '.gitignore')}`, session });
+  assert.equal(absoluteExternalRead.ok, true, 'reading an absolute external path must not require confirmation');
+  assert.equal(absoluteExternalRead.needConfirm, undefined);
+
   const copyToMissingPublicPath = await post({ script: `cp created.txt public/${missingPublicTarget}`, session: otherSession });
   assert.equal(copyToMissingPublicPath.needConfirm, true, 'copying to a missing public target must require confirmation');
   assert.equal(existsSync(join(root, 'sandbox_workspace', 'public', missingPublicTarget)), false, 'the copy must not run before approval');
+  const publicCopyApproval = await approve(copyToMissingPublicPath.confirmationRequestId);
+  assert.equal(publicCopyApproval.body.ok, true);
+  const approvedPublicCopy = await post({
+    script: `cp created.txt public/${missingPublicTarget}`,
+    session: otherSession,
+    confirmationRequestId: copyToMissingPublicPath.confirmationRequestId,
+  });
+  assert.equal(approvedPublicCopy.ok, true, 'approved public writes must execute');
+  assert.equal(readFileSync(join(root, 'sandbox_workspace', 'public', missingPublicTarget), 'utf8'), 'created on write');
 
   const genericDanglingLink = await post({ script: 'touch external/new-through-dangling-link.txt', session: otherSession });
   assert.equal(genericDanglingLink.needConfirm, true, 'any symlink whose declared target is outside the session must require confirmation even when its target is missing');
 
   symlinkSync('external', join(root, 'sandbox_workspace', otherSession, 'alias'), 'dir');
   const chainedExternalLink = await post({ script: 'cat alias/secret.txt', session: otherSession });
-  assert.equal(chainedExternalLink.needConfirm, true, 'chained symlinks must not hide an external path');
+  assert.equal(chainedExternalLink.needConfirm, undefined, 'external reads through chained symlinks must not require confirmation');
+  assert.match(chainedExternalLink.message, /文件不存在|No such file or directory/);
 
-  const optionEmbeddedPath = await post({ script: `touch -o${externalShellFile}`, session });
-  assert.equal(optionEmbeddedPath.needConfirm, true, 'external paths embedded in option arguments must require confirmation');
+  const optionEmbeddedPath = await post({
+    script: `cp created.txt --target-directory=${fakeBin}`,
+    session: otherSession,
+  });
+  assert.equal(optionEmbeddedPath.needConfirm, true, 'external write targets embedded in option arguments must require confirmation');
+
+  const uniqExternalOutput = await post({
+    script: `uniq -f 1 created.txt ${join(fakeBin, 'uniq-output.txt')}`,
+    session: otherSession,
+  });
+  assert.equal(uniqExternalOutput.needConfirm, true, 'optional external output files must require confirmation');
+
+  const compactTargetDirectory = await post({
+    script: `cp -t${fakeBin} created.txt`,
+    session: otherSession,
+  });
+  assert.equal(compactTargetDirectory.needConfirm, true, 'compact target-directory options must not bypass confirmation');
 
   const metacharacters = await post({ script: 'echo safe & literal | text > file', session });
   assert.equal(metacharacters.ok, true, 'shell metacharacters must remain literal arguments');
@@ -388,7 +422,7 @@ try {
 
   const combinedReason = await post({ script: `node ${externalShellFile}`, session });
   assert.equal(combinedReason.needConfirm, true);
-  assert.equal(combinedReason.confirmationReason, 'both');
+  assert.equal(combinedReason.confirmationReason, 'non_allowlisted');
 
   const unapprovedNonAllowlisted = await post({
     script: nonAllowlistedScript,
@@ -467,6 +501,7 @@ try {
   rmSync(join(root, 'sandbox_workspace', otherSession), { recursive: true, force: true });
   rmSync(join(root, 'sandbox_workspace', createdSession), { recursive: true, force: true });
   rmSync(join(root, 'sandbox_workspace', 'public', publicFile), { force: true });
+  rmSync(join(root, 'sandbox_workspace', 'public', missingPublicTarget), { force: true });
   if (previousLock === null) rmSync(lockFile, { force: true });
   else writeFileSync(lockFile, previousLock);
 }
