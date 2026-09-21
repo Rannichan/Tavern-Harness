@@ -355,6 +355,7 @@ async function diskFileWrite(
   append: boolean,
   confirm?: SkillConfirmFn | null,
   confirmationRequestId?: string,
+  toolName: string = 'file_write',
 ): Promise<string> {
   try {
     const resp = await fetch('/api-v2/file_write', {
@@ -373,16 +374,19 @@ async function diskFileWrite(
       const approved = confirm
         ? await confirm({
             sessionId: -1,
-            toolName: 'file_write',
-            title: translate('tool.gateFileWriteTitle'),
-            message: translate('tool.gateFileWriteMsg', { path }),
+            toolName,
+            title: translate(toolName === 'file_edit' ? 'tool.gateFileEditTitle' : 'tool.gateFileWriteTitle'),
+            message: translate(
+              toolName === 'file_edit' ? 'tool.gateFileEditMsg' : 'tool.gateFileWriteMsg',
+              { path },
+            ),
             argsJson: JSON.stringify({ path, append }),
           })
         : false;
-      if (!approved) return translate('tool.fileWriteDenied');
+      if (!approved) return translate(toolName === 'file_edit' ? 'tool.fileEditDenied' : 'tool.fileWriteDenied');
       const approvalError = await approveSandboxScript(data.confirmationRequestId);
       if (approvalError) return approvalError;
-      return diskFileWrite(path, content, append, null, data.confirmationRequestId);
+      return diskFileWrite(path, content, append, null, data.confirmationRequestId, toolName);
     }
     if (!resp.ok || !data.ok) throw new Error(data?.message || `HTTP ${resp.status}`);
     return `OK: 已写入 ${path} (${content.length} 字符)`;
@@ -424,6 +428,22 @@ export async function writeWorkspaceFileText(path: string, content: string): Pro
   const safe = sanitizeRelativePath(path);
   await requireFileServer();
   return diskFileWrite(safe, content, false);
+}
+
+/**
+ * 写入本地沙箱工作区（可携带确认回调与工具名）。
+ * 与 file_write 技能一致：工作区内直接写；工作区外需用户确认（一次性票据）。
+ * 供 file_edit 在外部路径上复用同一确认链路。
+ */
+export async function writeWorkspaceFileTextFor(
+  path: string,
+  content: string,
+  confirm: SkillConfirmFn | null,
+  toolName = 'file_write',
+): Promise<string> {
+  const safe = sanitizeRelativePath(path);
+  await requireFileServer();
+  return diskFileWrite(safe, content, false, confirm, undefined, toolName);
 }
 
 // ---------- 会话工作区枚举（文件管理器只读浏览共用） ----------

@@ -15,6 +15,7 @@ import {
   setWorkspaceDir,
   sessionWorkspaceDir,
   writeWorkspaceFileText,
+  writeWorkspaceFileTextFor,
 } from './generatedSkillExecutor';
 import { sanitizeRelativePath } from './generatedWorkspace';
 import { translate } from '../i18n';
@@ -360,10 +361,11 @@ async function handleFileWrite(args: Record<string, unknown>, ctx: ToolExecution
 async function handleFileEdit(args: Record<string, unknown>, ctx: ToolExecutionContext): Promise<string> {
   await applySessionWorkspace(ctx.sessionId, ctx.npcId);
   try {
-    const path = sanitizeRelativePath(String(args.path ?? ''));
+    const path = String(args.path ?? '').replace(/\\/g, '/').trim();
     const oldText = String(args.old_text ?? '');
     const newText = String(args.new_text ?? '');
     const expected = args.expected_replacements == null ? 1 : Number(args.expected_replacements);
+    if (!path) return 'ERROR: 无效路径';
     if (!oldText) return 'ERROR: old_text 不能为空';
     if (!Number.isInteger(expected) || expected < 1 || expected > 100) {
       return 'ERROR: expected_replacements 必须是 1-100 的整数';
@@ -376,7 +378,8 @@ async function handleFileEdit(args: Record<string, unknown>, ctx: ToolExecutionC
       return `ERROR: 未修改 ${path}：old_text 实际匹配 ${matches} 次，预期 ${expected} 次`;
     }
 
-    await writeWorkspaceFileText(path, content.split(oldText).join(newText));
+    // 与 file_write 对齐：工作区内直接写；外部路径（绝对路径/..）需要用户确认后写入
+    await writeWorkspaceFileTextFor(path, content.split(oldText).join(newText), ctx.requestConfirmation, 'file_edit');
     return `OK: 已编辑 ${path}，替换 ${matches} 处`;
   } catch (e) {
     return `ERROR: ${(e as Error).message}`;

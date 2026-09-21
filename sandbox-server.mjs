@@ -227,9 +227,11 @@ function resolveTrustedCommand(command) {
       if (!existsSync(candidate)) continue;
       try {
         const resolved = realpathSync(candidate);
+        if (!resolved.startsWith(trustedDir + sep)) return null;
+        if (IS_WIN) return resolved; // Windows 无 POSIX 权限位（Git usr/bin 的 exe 显示 666），跳过 uid/writable 校验
         const executable = statSync(resolved);
         const writableByNonOwner = (executable.mode & 0o022) !== 0;
-        if (resolved.startsWith(trustedDir + sep) && executable.uid === 0 && !writableByNonOwner) return resolved;
+        if (executable.uid === 0 && !writableByNonOwner) return resolved;
       } catch { /* try next candidate */ }
     }
   }

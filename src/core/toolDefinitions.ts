@@ -105,7 +105,7 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
   ),
   fn(
     'file_edit',
-    'Edit an existing text file by replacing exact text. Prefer this over file_write for small code changes. The edit is rejected unless old_text occurs exactly expected_replacements times, which protects against stale or ambiguous edits.',
+    'Edit an existing text file by replacing exact text. Prefer this over file_write for small code changes. The edit is rejected unless old_text occurs exactly expected_replacements times, which protects against stale or ambiguous edits. Paths inside the current workspace run directly; writing to an external path (absolute or parent traversal) requires user confirmation.',
     {
       type: 'object',
       properties: {

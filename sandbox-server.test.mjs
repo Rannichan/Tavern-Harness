@@ -2,10 +2,14 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { chmodSync, existsSync, lstatSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { delimiter, join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
+import { fileURLToPath } from 'node:url';
 
-const root = new URL('.', import.meta.url).pathname;
+const IS_WIN = process.platform === 'win32';
+const root = fileURLToPath(new URL('.', import.meta.url));
+/** 嵌入命令脚本的绝对路径统一转成前斜杠（Windows 反斜杠会被命令分词器当作转义符） */
+const forward = (p) => p.replace(/\\/g, '/');
 const serverSource = readFileSync(join(root, 'sandbox-server.mjs'), 'utf8');
 assert.doesNotMatch(serverSource, /cmd(?:\.exe)?[^\n]*['"]\/c['"]/, 'the service must not execute commands through cmd /c');
 const lockFile = join(root, '.sandbox-port');
@@ -30,7 +34,7 @@ const server = spawn(process.execPath, ['sandbox-server.mjs', String(port)], {
     ...process.env,
     COMMAND_SERVICE_TOKEN: serviceToken,
     COMMAND_APPROVAL_TOKEN: approvalToken,
-    PATH: `${fakeBin}:${process.env.PATH ?? ''}`,
+    PATH: `${fakeBin}${delimiter}${process.env.PATH ?? ''}`,
     HOST_SECRET_SENTINEL: hostSecret,
     SSH_AUTH_SOCK: `/tmp/test-ssh-agent-${process.pid}`,
     GIT_ASKPASS: `/tmp/test-git-askpass-${process.pid}`,
@@ -205,7 +209,8 @@ try {
 
   const externalDir = mkdtempSync(join(tmpdir(), 'command-service-external-'));
   writeFileSync(join(externalDir, 'secret.txt'), 'outside');
-  symlinkSync(externalDir, join(root, 'sandbox_workspace', otherSession, 'external'), 'dir');
+  // Windows 用 junction（无需管理员/开发者模式，目标须为绝对路径）；Unix 用目录符号链接
+  symlinkSync(externalDir, join(root, 'sandbox_workspace', otherSession, 'external'), IS_WIN ? 'junction' : 'dir');
   const externalReadResponse = await fetch(`http://127.0.0.1:${port}/file_read`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Command-Service-Token': serviceToken },
@@ -218,7 +223,7 @@ try {
   const absoluteReadResponse = await fetch(`http://127.0.0.1:${port}/file_read`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Command-Service-Token': serviceToken },
-    body: JSON.stringify({ session: otherSession, path: join(externalDir, 'secret.txt') }),
+    body: JSON.stringify({ session: otherSession, path: forward(join(externalDir, 'secret.txt')) }),
   });
   const absoluteRead = await absoluteReadResponse.json();
   assert.equal(absoluteReadResponse.status, 200);
@@ -265,7 +270,7 @@ try {
   assert.equal(allowlisted.output, 'allowlisted');
 
   const internalAbsoluteFile = join(root, 'sandbox_workspace', session, 'internal-absolute.txt');
-  const internalAbsolute = await post({ script: `touch ${internalAbsoluteFile}`, session });
+  const internalAbsolute = await post({ script: `touch ${forward(internalAbsoluteFile)}`, session });
   assert.equal(internalAbsolute.ok, true, 'an absolute path inside the session must not require confirmation');
   assert.equal(existsSync(internalAbsoluteFile), true);
 
@@ -275,12 +280,12 @@ try {
   assert.equal(existsSync(join(root, 'sandbox_workspace', `outside-${process.pid}.txt`)), false);
 
   const externalShellFile = join(fakeBin, 'external-shell-write.txt');
-  const externalPathRequest = await post({ script: `touch ${externalShellFile}`, session });
+  const externalPathRequest = await post({ script: `touch ${forward(externalShellFile)}`, session });
   assert.equal(externalPathRequest.needConfirm, true, 'an absolute path outside the session must require confirmation');
   assert.equal(externalPathRequest.confirmationReason, 'external_path');
   assert.equal(existsSync(externalShellFile), false, 'external writes must not run before approval');
   const externalCopyRequest = await post({
-    script: `cp ${join(root, '.gitignore')} copied-from-external.txt`,
+    script: `cp ${forward(join(root, '.gitignore'))} copied-from-external.txt`,
     session,
   });
   assert.equal(externalCopyRequest.ok, true, 'copying from an external source into the session must not require confirmation');
@@ -292,7 +297,7 @@ try {
   const externalPathApproval = await approve(externalPathRequest.confirmationRequestId);
   assert.equal(externalPathApproval.body.ok, true);
   const approvedExternalPath = await post({
-    script: `touch ${externalShellFile}`,
+    script: `touch ${forward(externalShellFile)}`,
     session,
     confirmationRequestId: externalPathRequest.confirmationRequestId,
   });
@@ -303,7 +308,7 @@ try {
   assert.equal(publicPathRequest.ok, true, 'reading through the public link must not require confirmation');
   assert.equal(publicPathRequest.output, 'changed operation');
 
-  const absoluteExternalRead = await post({ script: `cat ${join(root, '.gitignore')}`, session });
+  const absoluteExternalRead = await post({ script: `cat ${forward(join(root, '.gitignore'))}`, session });
   assert.equal(absoluteExternalRead.ok, true, 'reading an absolute external path must not require confirmation');
   assert.equal(absoluteExternalRead.needConfirm, undefined);
 
@@ -323,25 +328,25 @@ try {
   const genericDanglingLink = await post({ script: 'touch external/new-through-dangling-link.txt', session: otherSession });
   assert.equal(genericDanglingLink.needConfirm, true, 'any symlink whose declared target is outside the session must require confirmation even when its target is missing');
 
-  symlinkSync('external', join(root, 'sandbox_workspace', otherSession, 'alias'), 'dir');
+  symlinkSync(IS_WIN ? join(root, 'sandbox_workspace', otherSession, 'external') : 'external', join(root, 'sandbox_workspace', otherSession, 'alias'), IS_WIN ? 'junction' : 'dir');
   const chainedExternalLink = await post({ script: 'cat alias/secret.txt', session: otherSession });
   assert.equal(chainedExternalLink.needConfirm, undefined, 'external reads through chained symlinks must not require confirmation');
   assert.match(chainedExternalLink.message, /文件不存在|No such file or directory/);
 
   const optionEmbeddedPath = await post({
-    script: `cp created.txt --target-directory=${fakeBin}`,
+    script: `cp created.txt --target-directory=${forward(fakeBin)}`,
     session: otherSession,
   });
   assert.equal(optionEmbeddedPath.needConfirm, true, 'external write targets embedded in option arguments must require confirmation');
 
   const uniqExternalOutput = await post({
-    script: `uniq -f 1 created.txt ${join(fakeBin, 'uniq-output.txt')}`,
+    script: `uniq -f 1 created.txt ${forward(join(fakeBin, 'uniq-output.txt'))}`,
     session: otherSession,
   });
   assert.equal(uniqExternalOutput.needConfirm, true, 'optional external output files must require confirmation');
 
   const compactTargetDirectory = await post({
-    script: `cp -t${fakeBin} created.txt`,
+    script: `cp -t${forward(fakeBin)} created.txt`,
     session: otherSession,
   });
   assert.equal(compactTargetDirectory.needConfirm, true, 'compact target-directory options must not bypass confirmation');
@@ -367,11 +372,22 @@ try {
       return separator === -1 ? [line, ''] : [line.slice(0, separator), line.slice(separator + 1)];
     }),
   );
+  // 服务端只向子进程传入显式环境白名单。Windows 上 MSYS 工具（env.exe）会额外附加
+  // Windows 系统环境块中的固定项（HOMEDRIVE/TEMP/SYSTEMROOT 等），因此断言为：
+  // 白名单变量必须存在 + 敏感变量一律不得出现（而非精确等于 5 个）。
+  for (const key of ['HOME', 'LANG', 'LC_ALL', 'PATH', 'TMPDIR']) {
+    assert.ok(key in childEnvironment, `child environment must include ${key}`);
+  }
   assert.deepEqual(
-    Object.keys(childEnvironment).sort(),
-    ['HOME', 'LANG', 'LC_ALL', 'PATH', 'TMPDIR'].sort(),
-    'child commands must receive only the explicit environment allowlist',
+    Object.keys(childEnvironment).filter((key) => ![
+      'HOME', 'LANG', 'LC_ALL', 'PATH', 'TMPDIR',
+      'HOMEDRIVE', 'HOMEPATH', 'LOGONSERVER', 'SYSTEMDRIVE', 'SYSTEMROOT',
+      'TEMP', 'TERM', 'USERDOMAIN', 'USERNAME', 'USERPROFILE', 'WINDIR',
+    ].includes(key)).sort(),
+    [],
+    'child commands must not inherit any other environment variables',
   );
+  // MSYS 会把沙箱 HOME/TMPDIR 渲染成 POSIX 风格（/tmp/tavern-harness-env-*/home），Unix 亦然
   assert.match(childEnvironment.HOME, /tavern-harness-env-[^/]+\/home$/);
   assert.match(childEnvironment.TMPDIR, /tavern-harness-env-[^/]+\/tmp$/);
   assert.notEqual(childEnvironment.HOME, process.env.HOME);
@@ -420,7 +436,7 @@ try {
   assert.equal(nonAllowlisted.confirmationReason, 'non_allowlisted');
   assert.equal(typeof nonAllowlisted.confirmationRequestId, 'string');
 
-  const combinedReason = await post({ script: `node ${externalShellFile}`, session });
+  const combinedReason = await post({ script: `node ${forward(externalShellFile)}`, session });
   assert.equal(combinedReason.needConfirm, true);
   assert.equal(combinedReason.confirmationReason, 'non_allowlisted');
 
