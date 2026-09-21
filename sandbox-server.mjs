@@ -722,6 +722,7 @@ function runOne(line, sessionBase) {
       shell: false,
       stdio: ['ignore', 'pipe', 'pipe'],
       env: SPAWN_ENV,
+      detached: !IS_WIN,
     });
     let stdout = '';
     let stderr = '';
@@ -730,7 +731,15 @@ function runOne(line, sessionBase) {
       if (settled) return;
       settled = true;
       try {
-        child.kill('SIGKILL');
+        if (IS_WIN) {
+          const killed = spawnSync('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], {
+            windowsHide: true,
+            stdio: 'ignore',
+          });
+          if (killed.error || killed.status !== 0) child.kill('SIGKILL');
+        } else {
+          process.kill(-child.pid, 'SIGKILL');
+        }
       } catch { /* ignore */ }
       reject(new Error(`命令超时 (${CMD_TIMEOUT_MS}ms)`));
     }, CMD_TIMEOUT_MS);

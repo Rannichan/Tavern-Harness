@@ -20,6 +20,7 @@ const session = `confirmation-test-${process.pid}`;
 const otherSession = `${session}-other`;
 const createdSession = `${session}-created`;
 const publicFile = `public-test-${process.pid}.txt`;
+const timeoutMarker = `timeout-grandchild-${process.pid}.txt`;
 const hostSecret = `host-secret-${process.pid}`;
 const server = spawn(process.execPath, ['sandbox-server.mjs', String(port)], {
   cwd: root,
@@ -428,6 +429,27 @@ try {
 
   const replayed = await post({ script, session, confirmationRequestId: forged.confirmationRequestId });
   assert.equal(replayed.needConfirm, true, 'an approved request must be single-use');
+
+  const grandchildCode = `setTimeout(() => require('node:fs').writeFileSync(${JSON.stringify(timeoutMarker)}, 'alive'), 7000)`;
+  const parentCode = `const { spawn } = require('node:child_process'); spawn(process.execPath, ['-e', ${JSON.stringify(grandchildCode)}], { stdio: 'ignore' }); setTimeout(() => {}, 20000)`;
+  const timeoutScript = `node -e ${JSON.stringify(parentCode)}`;
+  const timeoutConfirmation = await post({ script: timeoutScript, session });
+  assert.equal(timeoutConfirmation.needConfirm, true);
+  const timeoutApproval = await approve(timeoutConfirmation.confirmationRequestId);
+  assert.equal(timeoutApproval.body.ok, true);
+  const timedOut = await post({
+    script: timeoutScript,
+    session,
+    confirmationRequestId: timeoutConfirmation.confirmationRequestId,
+  });
+  assert.equal(timedOut.ok, false);
+  assert.match(timedOut.message, /命令超时 \(5000ms\)/);
+  await delay(3000);
+  assert.equal(
+    existsSync(join(root, 'sandbox_workspace', session, timeoutMarker)),
+    false,
+    'timing out a command must terminate its descendant processes',
+  );
 
   const changedScriptApproval = await approve(replayed.confirmationRequestId);
   assert.equal(changedScriptApproval.body.ok, true);
