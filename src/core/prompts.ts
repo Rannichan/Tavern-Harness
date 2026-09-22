@@ -2,8 +2,6 @@ import type {
   ChatParticipant,
   ChatSession,
   NetworkMessage,
-  NpcCharacter,
-  WorldBook,
 } from '../types/models';
 import { sanitizeHistoryContentForModel } from './openai';
 import { translate } from './i18n';

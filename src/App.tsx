@@ -11,11 +11,12 @@ import { ConfirmationDialog } from './components/ConfirmationDialog';
 import { FileDisplayModal } from './components/FileDisplayModal';
 import { WorkspaceFileManagerModal } from './components/WorkspaceFileManagerModal';
 import { Toasts } from './components/Toasts';
-import { AchievementModal } from './components/AchievementModal';
+import { AchievementModal, showAchievementUnlock } from './components/AchievementModal';
 import { GameplayExportModal, GameplayImportModal } from './components/GameplayDialogs';
 import { Icon, SessionVisual, Modal } from './components/shared';
 import type { NpcCharacter } from './types/models';
 import { useT } from './core/i18n';
+import { registerUnlockDispatcher } from './core/achievements';
 import './theme/chat.css';
 import './theme/views.css';
 
@@ -29,6 +30,14 @@ export default function App() {
   const participants = useStore((s) => s.participants);
   const isStreaming = useStore((s) => s.streaming.sessionId != null);
   const t = useT();
+
+  useEffect(() => {
+    registerUnlockDispatcher(async (achievement, total) => {
+      await useStore.getState().refreshAchievements();
+      showAchievementUnlock(achievement, total);
+    });
+    return () => registerUnlockDispatcher(() => {});
+  }, []);
 
   useEffect(() => {
     init();
@@ -113,7 +122,7 @@ function GameplayEntryDialogs() {
       setImportOpen(false);
       setExportTarget(e.detail);
     };
-    const onImport = (e: CustomEvent) => {
+    const onImport = () => {
       setExportTarget(null);
       setImportOpen(true);
     };

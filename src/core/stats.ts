@@ -14,7 +14,7 @@ export interface StatsDelta {
 }
 
 /** 消息产生后累计到生涯统计（服务器关闭也不丢失：已持久化消息带 usage） */
-export async function accumulateStats(delta: StatsDelta, sessionId: number | null, npcId: number | null): Promise<void> {
+export async function accumulateStats(delta: StatsDelta, sessionId: number | null, _npcId: number | null): Promise<void> {
   if (delta.inputTokens <= 0 && delta.outputTokens <= 0 && delta.rounds <= 0) return;
   const stats = (await db.careerStats.get(1)) ?? { id: 1, inputTokens: 0, outputTokens: 0, totalRounds: 0 };
   await db.careerStats.put({

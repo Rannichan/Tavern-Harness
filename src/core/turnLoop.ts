@@ -1,5 +1,4 @@
 import type { ChatParticipant, ChatSession, TurnOrderMode } from '../types/models';
-import { NEW_TOPIC_MARKER } from './toolDefinitions';
 import { translate } from './i18n';
 
 // ============================================================

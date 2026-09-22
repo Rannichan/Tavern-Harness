@@ -4,7 +4,7 @@ import { Icon, Markdown } from './shared';
 import { useStore } from '../store/store';
 import { useT } from '../core/i18n';
 import { highlightCode } from '../core/markdown';
-import { readWorkspaceFileText, setWorkspaceDir } from '../core/tools/generatedSkillExecutor';
+import { readWorkspaceFileText } from '../core/tools/generatedSkillExecutor';
 import { applySessionWorkspace } from '../core/tools/toolExecutor';
 import type { DisplayFileRef } from '../types/models';
 
@@ -163,16 +163,9 @@ export function FileDisplayModal() {
       if (reading) return;
       reading = true;
       try {
-        if (active.sessionId != null) {
-          try {
-            await applySessionWorkspace(active.sessionId);
-          } catch {
-            setWorkspaceDir(null);
-          }
-        } else {
-          setWorkspaceDir(null);
-        }
-        const text = await readWorkspaceFileText(active.path);
+        if (active.sessionId == null) throw new Error('缺少会话工作目录');
+        const workspaceDir = await applySessionWorkspace(active.sessionId);
+        const text = await readWorkspaceFileText(active.path, workspaceDir);
         if (cancelled || text === null) return;
         if (contentRef.current !== text) {
           hideHtml();
@@ -198,17 +191,10 @@ export function FileDisplayModal() {
     // 按产生该展示的会话设置工作目录：普通弹窗（active.sessionId = 当前会话）读当前会话工作区；
     // 回看历史消息（sessionId 持久化）读该会话自己的工作区
     const read = async () => {
-      if (active.sessionId != null) {
-        try {
-          await applySessionWorkspace(active.sessionId);
-        } catch {
-          setWorkspaceDir(null);
-        }
-      } else {
-        setWorkspaceDir(null);
-      }
       try {
-        const text = await readWorkspaceFileText(active.path);
+        if (active.sessionId == null) throw new Error('缺少会话工作目录');
+        const workspaceDir = await applySessionWorkspace(active.sessionId);
+        const text = await readWorkspaceFileText(active.path, workspaceDir);
         if (cancelled) return;
         if (text === null) {
           setLoadState('error');

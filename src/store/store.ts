@@ -45,7 +45,7 @@ import { applyTheme as applyThemeManual, cacheThemeMode, watchSystemTheme } from
 import { setLanguage, translate } from '../core/i18n';
 import { localizeBuiltinNpc } from '../db/database';
 import { estimateTokensFromChars, accumulateStats, sessionPreviewText } from '../core/stats';
-import { ACHIEVEMENTS, registerUnlockDispatcher, type AchievementDef } from '../core/achievements';
+import { ACHIEVEMENTS, type AchievementDef } from '../core/achievements';
 
 // ============================================================
 // Store（对应 MainViewModel）
@@ -923,16 +923,6 @@ export const useStore = create<AppState>((set, get) => ({
 }));
 
 // ============================================================
-// 成就解锁分发（UI 层以此为唯一入口展示解锁弹窗）
-// ============================================================
-
-registerUnlockDispatcher((ach, total) => {
-  import('../components/AchievementModal').then(({ showAchievementUnlock }) => {
-    showAchievementUnlock(ach, total);
-  });
-});
-
-// ============================================================
 // 内部实现
 // ============================================================
 
@@ -1296,12 +1286,6 @@ async function ensureLoopHistory(sessionId: number): Promise<string[][]> {
   return [];
 }
 
-function lastUserText(sessionId: number): string {
-  const list = useStore.getState().messages[sessionId] ?? [];
-  const last = [...list].reverse().find((m) => m.role === 'user');
-  return last?.content ?? '';
-}
-
 /** 最近一次某 NPC 的发言文本（用于解析该 NPC 发言中的 @ 点名） */
 function lastAssistantTextBySpeaker(sessionId: number, speakerParticipantId: number): string {
   const list = useStore.getState().messages[sessionId] ?? [];
@@ -1363,7 +1347,6 @@ async function streamAssistantTurn(
   npc: NpcCharacter | null,
   participantId: number | null = null,
   participant?: ChatParticipant,
-  mentionedIds: number[] = [],
   turnLoopIndex: number | null = null
 ): Promise<TurnResult> {
   const settings = useStore.getState().settings;
@@ -1996,7 +1979,7 @@ async function continueGroupConversation(sessionId: number): Promise<TurnResult>
       continue;
     }
     // 先不推进队列：让流式发言期间队列首位 = 正在发言的角色（面板实时高亮）
-    const turnResult = await streamAssistantTurn(session, npc, nextId, next, [], loopIndex);
+    const turnResult = await streamAssistantTurn(session, npc, nextId, next, loopIndex);
     if (turnResult === 'failed') failed = true;
     const mentioned = mentionedParticipantIds(lastAssistantTextBySpeaker(sessionId, nextId), players, nextId);
     // 回合结束：移出该发言者 + 被 @ 点名者插入/移到队首（历史轮次不受影响）
@@ -2099,14 +2082,6 @@ function requestLimitConfirmation(
     confirmationDeferreds.set(req, { resolve });
     useStore.setState({ pendingConfirmation: req });
   });
-}
-
-function formatArgs(argsJson: string): string {
-  try {
-    return JSON.stringify(JSON.parse(argsJson), null, 2);
-  } catch {
-    return argsJson;
-  }
 }
 
 /**

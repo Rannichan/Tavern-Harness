@@ -35,12 +35,14 @@ export async function getUnlockedAchievementIds(): Promise<Set<string>> {
   return new Set(rows.map((r) => r.achievementId));
 }
 
-const unlockDispatcher: { push: (ach: AchievementDef, total: number) => void } = {
+const unlockDispatcher: { push: (ach: AchievementDef, total: number) => void | Promise<void> } = {
   push: () => {},
 };
 
 /** 注册「解锁成就」回调（由 UI 层在启动时注入，用于弹窗撒花展示） */
-export function registerUnlockDispatcher(dispatcher: (ach: AchievementDef, total: number) => void): void {
+export function registerUnlockDispatcher(
+  dispatcher: (ach: AchievementDef, total: number) => void | Promise<void>,
+): void {
   unlockDispatcher.push = dispatcher;
 }
 
@@ -68,13 +70,10 @@ export async function checkAchievementUnlocks(): Promise<void> {
       }
     }
     if (newly.length > 0) {
-      // 先同步进 store，成就页无需刷新即可看到最新解锁
-      const { useStore } = await import('../store/store');
-      useStore.getState().refreshAchievements();
       // 由高到低依次展示（若多级同时达成）
       for (const { def, total } of newly.sort((a, b) => b.def.threshold - a.def.threshold)) {
         try {
-          unlockDispatcher.push(def, total);
+          await unlockDispatcher.push(def, total);
         } catch {
           // 忽略 UI 展示层的错误，不影响统计与持久化
         }

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Modal, Icon } from './shared';
 import { useT } from '../core/i18n';
 import { applySessionWorkspace } from '../core/tools/toolExecutor';
-import { listSessionWorkspaceFiles, setWorkspaceDir } from '../core/tools/generatedSkillExecutor';
+import { listSessionWorkspaceFiles } from '../core/tools/generatedSkillExecutor';
 import { useStore } from '../store/store';
 
 // ============================================================
@@ -65,12 +65,8 @@ export function WorkspaceFileManagerModal({ sessionId, onClose }: { sessionId: n
     const load = async () => {
       // 多人及普通单人对话列出会话目录；酒馆老板单人对话列出 public 目录
       try {
-        await applySessionWorkspace(sessionId);
-      } catch {
-        setWorkspaceDir(null);
-      }
-      try {
-        const list = await listSessionWorkspaceFiles();
+        const workspaceDir = await applySessionWorkspace(sessionId);
+        const list = await listSessionWorkspaceFiles(workspaceDir);
         if (cancelled) return;
         setFiles(list);
         setLoadState(list.length === 0 ? 'empty' : 'ok');

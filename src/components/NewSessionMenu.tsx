@@ -182,7 +182,7 @@ export function NewSessionMenu({ onClose, editingSession }: { onClose: () => voi
             <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[restrictToSortList]} onDragEnd={onDragEnd}>
               <SortableContext items={participantOrder} strategy={verticalListSortingStrategy}>
                 <div className="sort-list">
-                  {participantOrder.map((id, index) => {
+                  {participantOrder.map((id) => {
                     const npc = id === -1 ? null : npcs.find((n) => n.id === id) ?? null;
                     return (
                       <ParticipantSortItem

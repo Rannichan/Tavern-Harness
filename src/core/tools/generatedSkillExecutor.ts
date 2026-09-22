@@ -10,9 +10,6 @@ const MAX_OUTPUT_CHARS = 20_000;
 /** 单文件读写字符上限（与沙箱服务 file_read/file_write 对齐） */
 const MAX_READ_CHARS = 100_000;
 
-/** 当前会话专属工作目录；未设置时禁止访问磁盘沙箱。 */
-let currentWorkspaceDir: string | null = null;
-
 /** 会话工作目录名是否合规（仅允许相对目录、不允许 .. / 绝对路径 / 危险字符） */
 function isValidWorkspaceDirName(dir: string): boolean {
   const s = dir.replace(/\\/g, '/').trim();
@@ -54,34 +51,18 @@ export async function deleteSessionWorkspace(dir: string | null | undefined): Pr
   }
 }
 
-/**
- * 设置当前会话工作目录。每次工具调用前由调用方（store / 执行器）按会话设置，
- * 保证该会话内所有工具调用（shell / file_read / file_write / 脚本执行）都只在该目录下进行。
- * dir 为会话记录上的 workspaceDir（如 "session-12"），不合规时清空并禁止访问。
- */
-export function setWorkspaceDir(dir: string | null | undefined): void {
-  if (!dir || typeof dir !== 'string') {
-    currentWorkspaceDir = null;
-    return;
-  }
+/** 规范化会话工作目录名；不合规时返回 null 并禁止访问。 */
+export function normalizeWorkspaceDir(dir: string | null | undefined): string | null {
+  if (!dir || typeof dir !== 'string') return null;
   const s = dir.replace(/\\/g, '/').trim();
-  if (!isValidWorkspaceDirName(s)) {
-    currentWorkspaceDir = null;
-    return;
-  }
-  currentWorkspaceDir = s;
-}
-
-/** 当前会话工作目录（供文件系统 / shell 端点组装请求） */
-export function sessionWorkspaceDir(): string | null {
-  return currentWorkspaceDir;
+  return isValidWorkspaceDirName(s) ? s : null;
 }
 
 /** shell 确认请求回调（由调用方注入，走统一确认弹窗链路） */
 export type SkillConfirmFn = (req: ToolConfirmationRequest) => Promise<boolean>;
 
 /** 填充 {{param}} 占位符 */
-export function interpolate(template: string, args: Record<string, unknown>): string {
+function interpolate(template: string, args: Record<string, unknown>): string {
   return template.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, key: string) => {
     const val = key.split('.').reduce<unknown>((acc, k) => (acc as Record<string, unknown>)?.[k], args);
     if (val == null) return '';
@@ -92,28 +73,33 @@ export function interpolate(template: string, args: Record<string, unknown>): st
 export async function executeGeneratedSkill(
   execution: GeneratedSkillExecution,
   args: Record<string, unknown>,
-  confirm?: SkillConfirmFn | null
+  confirm?: SkillConfirmFn | null,
+  workspaceDir?: string | null,
 ): Promise<string> {
   switch (execution.type) {
     case 'template':
-      return truncate(interpolate(execution.template ?? '', args));
+      return truncateToolOutput(interpolate(execution.template ?? '', args));
     case 'http_get':
       return execHttpGet(execution, args);
     case 'javascript':
-      return execJavaScript(execution, args);
+      return execJavaScript(execution, args, workspaceDir);
     case 'file_read':
-      return execFileRead(execution, args);
+      return execFileRead(execution, args, workspaceDir);
     case 'file_write':
-      return execFileWrite(execution, args, confirm);
+      return execFileWrite(execution, args, confirm, workspaceDir);
     case 'shell':
-      return execShell(execution, args, confirm);
+      return execShell(execution, args, confirm, workspaceDir);
     default:
       return `ERROR: 未知执行类型 ${(execution as GeneratedSkillExecution).type}`;
   }
 }
 
-function truncate(s: string): string {
+export function truncateToolOutput(s: string): string {
   return s.length > MAX_OUTPUT_CHARS ? s.slice(0, MAX_OUTPUT_CHARS) + translate('tool.truncated') : s;
+}
+
+function normalizePath(path: string): string {
+  return path.replace(/\\/g, '/').trim();
 }
 
 // ---------- http_get ----------
@@ -139,12 +125,11 @@ async function execHttpGet(execution: GeneratedSkillExecution, args: Record<stri
   }
   try {
     const resp = await fetch(url.toString(), {
-      headers: { 'User-Agent': 'Tavern-Harness/1.0' },
       signal: AbortSignal.timeout(10_000),
       redirect: 'manual',
     });
     const text = await resp.text();
-    return truncate(text.slice(0, 20_000));
+    return truncateToolOutput(text);
   } catch (e) {
     return `ERROR: 请求失败 ${(e as Error).message}`;
   }
@@ -213,7 +198,11 @@ function createSandboxWorker(code: string): Worker {
   return new Worker(URL.createObjectURL(blob));
 }
 
-async function execJavaScript(execution: GeneratedSkillExecution, args: Record<string, unknown>): Promise<string> {
+async function execJavaScript(
+  execution: GeneratedSkillExecution,
+  args: Record<string, unknown>,
+  workspaceDir?: string | null,
+): Promise<string> {
   const code = execution.code ?? '';
   if (code.length > 20_000) return 'ERROR: 代码超过 2 万字符';
   const input = JSON.parse(JSON.stringify(args ?? {}));
@@ -236,7 +225,7 @@ async function execJavaScript(execution: GeneratedSkillExecution, args: Record<s
       const d = ev.data;
       if (!d) return;
       if (d.__bridge__) {
-        void handleBridgeCall(d).then(
+        void handleBridgeCall(d, workspaceDir).then(
           (result) => worker.postMessage({ __bridge_resp__: true, id: d.id, ok: true, result }),
           (err) => worker.postMessage({ __bridge_resp__: true, id: d.id, ok: false, error: String((err && err.message) || err) })
         );
@@ -251,7 +240,7 @@ async function execJavaScript(execution: GeneratedSkillExecution, args: Record<s
       if ('__result__' in d) {
         clearTimeout(timer);
         worker.terminate();
-        resolve(truncate(JSON.stringify(d.__result__ ?? null)));
+        resolve(truncateToolOutput(JSON.stringify(d.__result__ ?? null)));
         return;
       }
     };
@@ -269,31 +258,34 @@ async function execJavaScript(execution: GeneratedSkillExecution, args: Record<s
  * 统一返回 { ok, content?/result?/files?, error? }，Worker 内 $read 等
  * 在失败时 reject 成 Error，技能代码用 try/catch 接住。
  */
-async function handleBridgeCall(req: { method: string; payload: Record<string, unknown> }): Promise<unknown> {
+async function handleBridgeCall(
+  req: { method: string; payload: Record<string, unknown> },
+  workspaceDir?: string | null,
+): Promise<unknown> {
   const { method, payload } = req;
   switch (method) {
     case 'read': {
       const path = sanitizeRelativePath(String(payload.path ?? ''));
-      await requireFileServer();
-      const text = await diskFileRead(path);
+      await requireFileServer(workspaceDir);
+      const text = await diskFileRead(path, workspaceDir!);
       if (text === null) return { ok: false, error: `文件不存在: ${path}` };
       return { ok: true, content: text.slice(0, MAX_READ_CHARS) };
     }
     case 'write': {
       const path = sanitizeRelativePath(String(payload.path ?? ''));
       const content = String(payload.content ?? '');
-      await requireFileServer();
-      return { ok: true, result: await diskFileWrite(path, content, false) };
+      await requireFileServer(workspaceDir);
+      return { ok: true, result: await diskFileWrite(path, content, false, workspaceDir!) };
     }
     case 'append': {
       const path = sanitizeRelativePath(String(payload.path ?? ''));
       const content = String(payload.content ?? '');
-      await requireFileServer();
-      return { ok: true, result: await diskFileWrite(path, content, true) };
+      await requireFileServer(workspaceDir);
+      return { ok: true, result: await diskFileWrite(path, content, true, workspaceDir!) };
     }
     case 'list': {
-      await requireFileServer();
-      const files = await diskFileList();
+      await requireFileServer(workspaceDir);
+      const files = await diskFileList(workspaceDir!);
       return { ok: true, files: files.slice(0, 500) };
     }
     default:
@@ -302,43 +294,56 @@ async function handleBridgeCall(req: { method: string; payload: Record<string, u
 }
 
 // ---------- file_read / file_write（仅使用项目 sandbox_workspace/）----------
-/** 本地文件服务可用性（与本地命令服务共用端点，成功则缓存） */
-let fileServerAvailable: boolean | null = null;
-let fileServerRetryAt = 0;
-async function detectFileServer(): Promise<boolean> {
-  if (fileServerAvailable === true) return true;
-  if (Date.now() < fileServerRetryAt) return false;
-  if (!currentWorkspaceDir) return false;
+interface ServiceProbeState {
+  available: boolean;
+  retryAt: number;
+}
+
+async function probeLocalService(
+  state: ServiceProbeState,
+  url: string,
+  body: Record<string, unknown>,
+  workspaceDir?: string | null,
+): Promise<boolean> {
+  if (!normalizeWorkspaceDir(workspaceDir)) return false;
+  if (state.available) return true;
+  if (Date.now() < state.retryAt) return false;
   if (typeof window === 'undefined' || !/^https?:\/\//.test(window.location.origin)) {
-    fileServerRetryAt = Date.now() + 60_000;
+    state.retryAt = Date.now() + 60_000;
     return false;
   }
   try {
-    const resp = await fetch('/api-v2/file_list', {
+    const resp = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ session: currentWorkspaceDir }),
+      body: JSON.stringify(body),
     });
-    fileServerAvailable = resp.ok;
+    state.available = resp.ok;
   } catch {
-    fileServerAvailable = false;
+    state.available = false;
   }
-  if (!fileServerAvailable) fileServerRetryAt = Date.now() + 5000; // 5 秒后自动重试
-  return fileServerAvailable;
+  if (!state.available) state.retryAt = Date.now() + 5000;
+  return state.available;
 }
 
-async function requireFileServer(): Promise<void> {
-  if (!(await detectFileServer())) {
+/** 本地文件服务可用性（与本地命令服务共用端点，成功则缓存） */
+const fileServerProbe: ServiceProbeState = { available: false, retryAt: 0 };
+async function detectFileServer(workspaceDir?: string | null): Promise<boolean> {
+  return probeLocalService(fileServerProbe, '/api-v2/file_list', { session: workspaceDir }, workspaceDir);
+}
+
+async function requireFileServer(workspaceDir?: string | null): Promise<void> {
+  if (!(await detectFileServer(workspaceDir))) {
     throw new Error('本地工作区服务不可用，无法读写文件');
   }
 }
 
-async function diskFileRead(path: string): Promise<string | null> {
+async function diskFileRead(path: string, workspaceDir: string): Promise<string | null> {
   try {
     const resp = await fetch('/api-v2/file_read', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path, session: currentWorkspaceDir }),
+      body: JSON.stringify({ path, session: workspaceDir }),
     });
     const data = (await resp.json()) as { ok?: boolean; message?: string; content?: string };
     if (resp.ok && data.ok) return data.content ?? '';
@@ -353,6 +358,7 @@ async function diskFileWrite(
   path: string,
   content: string,
   append: boolean,
+  workspaceDir: string,
   confirm?: SkillConfirmFn | null,
   confirmationRequestId?: string,
   toolName: string = 'file_write',
@@ -365,7 +371,7 @@ async function diskFileWrite(
         path,
         content,
         mode: append ? 'append' : 'write',
-        session: currentWorkspaceDir,
+        session: workspaceDir,
         confirmationRequestId,
       }),
     });
@@ -386,7 +392,7 @@ async function diskFileWrite(
       if (!approved) return translate(toolName === 'file_edit' ? 'tool.fileEditDenied' : 'tool.fileWriteDenied');
       const approvalError = await approveSandboxScript(data.confirmationRequestId);
       if (approvalError) return approvalError;
-      return diskFileWrite(path, content, append, null, data.confirmationRequestId, toolName);
+      return diskFileWrite(path, content, append, workspaceDir, null, data.confirmationRequestId, toolName);
     }
     if (!resp.ok || !data.ok) throw new Error(data?.message || `HTTP ${resp.status}`);
     return `OK: 已写入 ${path} (${content.length} 字符)`;
@@ -395,12 +401,12 @@ async function diskFileWrite(
   }
 }
 
-async function diskFileList(): Promise<string[]> {
+async function diskFileList(workspaceDir: string): Promise<string[]> {
   try {
     const resp = await fetch('/api-v2/file_list', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ session: currentWorkspaceDir }),
+      body: JSON.stringify({ session: workspaceDir }),
     });
     const data = (await resp.json()) as { ok?: boolean; files?: string[]; message?: string };
     if (resp.ok && data.ok) return data.files ?? [];
@@ -416,18 +422,11 @@ async function diskFileList(): Promise<string[]> {
  * 从 sandbox_workspace/ 读取；文件不存在返回 null，服务不可用时抛出明确错误。
  * 供 file_read 技能、file_display 展示以及弹窗回看共用。
  */
-export async function readWorkspaceFileText(path: string): Promise<string | null> {
-  const readablePath = path.replace(/\\/g, '/').trim();
+export async function readWorkspaceFileText(path: string, workspaceDir: string): Promise<string | null> {
+  const readablePath = normalizePath(path);
   if (!readablePath) throw new Error('无效路径');
-  await requireFileServer();
-  return diskFileRead(readablePath);
-}
-
-/** Write a complete text value to the local sandbox workspace. */
-export async function writeWorkspaceFileText(path: string, content: string): Promise<string> {
-  const safe = sanitizeRelativePath(path);
-  await requireFileServer();
-  return diskFileWrite(safe, content, false);
+  await requireFileServer(workspaceDir);
+  return diskFileRead(readablePath, workspaceDir);
 }
 
 /**
@@ -438,12 +437,13 @@ export async function writeWorkspaceFileText(path: string, content: string): Pro
 export async function writeWorkspaceFileTextFor(
   path: string,
   content: string,
+  workspaceDir: string,
   confirm: SkillConfirmFn | null,
   toolName = 'file_write',
 ): Promise<string> {
   const safe = sanitizeRelativePath(path);
-  await requireFileServer();
-  return diskFileWrite(safe, content, false, confirm, undefined, toolName);
+  await requireFileServer(workspaceDir);
+  return diskFileWrite(safe, content, false, workspaceDir, confirm, undefined, toolName);
 }
 
 // ---------- 会话工作区枚举（文件管理器只读浏览共用） ----------
@@ -451,18 +451,22 @@ export async function writeWorkspaceFileTextFor(
  * 列出当前会话专属工作区内的全部文件相对路径。
  * 仅通过本地沙箱服务枚举；服务不可用时抛出明确错误。
  */
-export async function listSessionWorkspaceFiles(): Promise<string[]> {
-  await requireFileServer();
-  return (await diskFileList()).slice(0, 500);
+export async function listSessionWorkspaceFiles(workspaceDir: string): Promise<string[]> {
+  await requireFileServer(workspaceDir);
+  return (await diskFileList(workspaceDir)).slice(0, 500);
 }
 
-async function execFileRead(execution: GeneratedSkillExecution, args: Record<string, unknown>): Promise<string> {
+async function execFileRead(
+  execution: GeneratedSkillExecution,
+  args: Record<string, unknown>,
+  workspaceDir?: string | null,
+): Promise<string> {
   try {
-    const path = interpolate(execution.path ?? '', args).replace(/\\/g, '/').trim();
+    const path = normalizePath(interpolate(execution.path ?? '', args));
     if (!path) throw new Error('无效路径');
-    const text = await readWorkspaceFileText(path);
+    const text = await readWorkspaceFileText(path, normalizeWorkspaceDir(workspaceDir) ?? '');
     if (text === null) return `ERROR: 文件不存在: ${path}`;
-    return truncate(text);
+    return truncateToolOutput(text);
   } catch (e) {
     return `ERROR: ${(e as Error).message}`;
   }
@@ -473,9 +477,10 @@ async function execFileWrite(
   execution: GeneratedSkillExecution,
   args: Record<string, unknown>,
   confirm?: SkillConfirmFn | null,
+  workspaceDir?: string | null,
 ): Promise<string> {
   try {
-    const path = interpolate(execution.path ?? '', args).replace(/\\/g, '/').trim();
+    const path = normalizePath(interpolate(execution.path ?? '', args));
     if (!path) throw new Error('无效路径');
     let content: string;
     if (execution.json_content != null) {
@@ -483,9 +488,10 @@ async function execFileWrite(
     } else {
       content = interpolate(execution.content ?? '', args);
     }
-    await requireFileServer();
+    const safeWorkspaceDir = normalizeWorkspaceDir(workspaceDir);
+    await requireFileServer(safeWorkspaceDir);
     const diskContent = execution.append && execution.append_newline ? `${content}\n` : content;
-    return await diskFileWrite(path, diskContent, execution.append ?? false, confirm);
+    return await diskFileWrite(path, diskContent, execution.append ?? false, safeWorkspaceDir!, confirm);
   } catch (e) {
     return `ERROR: ${(e as Error).message}`;
   }
@@ -546,35 +552,22 @@ function countShellCommands(script: string): number {
 }
 
 /** 本地命令服务是否可用（成功则永久缓存；失败后短暂重试，避免探测结果永久失效） */
-let sandboxAvailable: boolean | null = null;
-let sandboxRetryAt = 0;
-async function detectSandbox(): Promise<boolean> {
-  if (sandboxAvailable === true) return true;
-  if (Date.now() < sandboxRetryAt) return false;
-  if (!currentWorkspaceDir) return false;
-  if (typeof window === 'undefined' || !/^https?:\/\//.test(window.location.origin)) {
-    sandboxRetryAt = Date.now() + 60_000;
-    return false;
-  }
-  try {
-    const resp = await fetch('/api-v2/exec', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ script: 'echo 1', session: currentWorkspaceDir }),
-    });
-    sandboxAvailable = resp.ok;
-  } catch {
-    sandboxAvailable = false;
-  }
-  if (!sandboxAvailable) sandboxRetryAt = Date.now() + 5000; // 5 秒后自动重试，无需刷新页面
-  return sandboxAvailable;
+const sandboxProbe: ServiceProbeState = { available: false, retryAt: 0 };
+async function detectSandbox(workspaceDir?: string | null): Promise<boolean> {
+  return probeLocalService(
+    sandboxProbe,
+    '/api-v2/exec',
+    { script: 'echo 1', session: workspaceDir },
+    workspaceDir,
+  );
 }
 
 /** 把整段脚本送去本地命令服务执行（白名单/确认票据/超时均由服务端校验） */
 async function execShell(
   execution: GeneratedSkillExecution,
   args: Record<string, unknown>,
-  confirm?: SkillConfirmFn | null
+  confirm?: SkillConfirmFn | null,
+  workspaceDir?: string | null,
 ): Promise<string> {
   const script = interpolate(execution.script ?? '', args);
   if (script.length > 8000) return 'ERROR: 脚本超过 8000 字符';
@@ -588,7 +581,8 @@ async function execShell(
   if (commandCount > 20) return 'ERROR: 脚本命令数超过 20';
 
   // 先尝试让本地命令服务执行（服务端决定是否需要确认）
-  const result = await sendToSandbox(script);
+  const safeWorkspaceDir = normalizeWorkspaceDir(workspaceDir);
+  const result = await sendToSandbox(script, safeWorkspaceDir);
   if (typeof result === 'string') return result; // ERROR: ...
 
   // 服务端返回需要确认：脚本包含非白名单命令或访问工作目录之外的路径
@@ -618,10 +612,10 @@ async function execShell(
     if (!approved) return translate('tool.shellDenied', { name: 'shell' });
     const approvalError = await approveSandboxScript(confirmationRequestId!);
     if (approvalError) return approvalError;
-    return await execSandboxScript(script, confirmationRequestId!);
+    return await execSandboxScript(script, confirmationRequestId!, safeWorkspaceDir!);
   }
 
-  return truncate(result.output ?? '');
+  return truncateToolOutput(result.output ?? '');
 }
 
 interface SandboxResult {
@@ -632,14 +626,14 @@ interface SandboxResult {
 }
 
 /** 发送脚本到本地沙箱；返回 needConfirm=true 表示需用户批准后重发 */
-async function sendToSandbox(script: string): Promise<SandboxResult | string> {
-  const available = await detectSandbox();
+async function sendToSandbox(script: string, workspaceDir: string | null): Promise<SandboxResult | string> {
+  const available = await detectSandbox(workspaceDir);
   if (!available) return 'ERROR: 本地命令执行服务未启动（请先运行 node sandbox-server.mjs）';
   try {
     const resp = await fetch('/api-v2/exec', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ script: script.slice(0, 8000), session: currentWorkspaceDir }),
+      body: JSON.stringify({ script: script.slice(0, 8000), session: workspaceDir }),
     });
     const data = (await resp.json()) as {
       ok?: boolean;
@@ -680,17 +674,17 @@ async function approveSandboxScript(confirmationRequestId: string): Promise<stri
 }
 
 /** 消费已由受信任批准端点授权的一次性请求。 */
-async function execSandboxScript(script: string, confirmationRequestId: string): Promise<string> {
+async function execSandboxScript(script: string, confirmationRequestId: string, workspaceDir: string): Promise<string> {
   const resp = await fetch('/api-v2/exec', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       script: script.slice(0, 8000),
       confirmationRequestId,
-      session: currentWorkspaceDir,
+      session: workspaceDir,
     }),
   });
   const data = (await resp.json()) as { ok?: boolean; message?: string; output?: string };
-  if (resp.ok && data.ok) return truncate(data.output ?? '');
+  if (resp.ok && data.ok) return truncateToolOutput(data.output ?? '');
   return `ERROR: ${data?.message ?? `HTTP ${resp.status}`}`;
 }

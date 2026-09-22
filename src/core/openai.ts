@@ -93,8 +93,6 @@ async function attemptStream(
 
     // Delta 工具调用按 index 组装
     const toolDeltas = new Map<number, { id: string; name: string; args: string; lastEmitted: string }>();
-    let hasUsage = false;
-
     let buffer = '';
     while (true) {
       const { done, value } = await reader.read();
@@ -111,7 +109,7 @@ async function attemptStream(
           const data = line.slice(5).trim();
           if (data === '[DONE]') break;
           if (data) {
-            handleDataLine(data, onChunk, toolDeltas, () => (hasUsage = true));
+            handleDataLine(data, onChunk, toolDeltas);
           }
         }
       }
@@ -157,7 +155,6 @@ function handleDataLine(
   data: string,
   onChunk: (c: ChatStreamChunk) => void,
   toolDeltas: Map<number, { id: string; name: string; args: string; lastEmitted: string }>,
-  setHasUsage: () => void
 ): void {
   try {
     const json = JSON.parse(data);
@@ -165,7 +162,6 @@ function handleDataLine(
 
     const usage = json.usage;
     if (usage) {
-      setHasUsage();
       onChunk({
         type: 'usage',
         prompt: usage.prompt_tokens ?? 0,

@@ -50,28 +50,6 @@ export function highlightCode(code: string, lang?: string): string {
   return out;
 }
 
-/** 块级数学渲染（$$...$$ 或 \[...\]） */
-function renderBlockMath(matches: Array<{ raw: string; content: string; index: number }>, html: string): string {
-  let result = html;
-  for (const m of matches) {
-    const katexHtml = renderKatexInline(m.content, true);
-    result = result.replace(m.raw, katexHtml);
-  }
-  return result;
-}
-
-function renderKatexInline(content: string, displayMode: boolean): string {
-  try {
-    return katex.renderToString(content, {
-      displayMode,
-      throwOnError: false,
-      output: 'html',
-    });
-  } catch {
-    return `<span class="math-fallback mono">$${content}$</span>`;
-  }
-}
-
 /** 数学公式：内联 $...$ / \(...\) 与块级 $$...$$ / \[...\] */
 export function renderMath(content: string, displayMode: boolean): string {
   try {
@@ -96,7 +74,6 @@ export function extractBlockMath(source: string): { text: string; matches: Block
   const matches: BlockMathMatch[] = [];
   // $$...$$ (支持多行)
   const re1 = /\$\$([\s\S]+?)\$\$/g;
-  let m: RegExpExecArray | null;
   const cleaned = source
     .replace(re1, (raw, content, index) => {
       matches.push({ raw, content: content.trim(), index });
@@ -130,13 +107,6 @@ export function renderInlineMath(html: string): string {
     );
   }
   return result;
-}
-
-interface MarkdownSegment {
-  kind: 'text' | 'blockMath' | 'code';
-  html: string;
-  mathContent?: string;
-  displayMode?: boolean;
 }
 
 /** 主流程：源文本 → 分段（含数学与代码高亮） */

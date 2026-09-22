@@ -92,6 +92,9 @@ export function GameplayImportModal({
   const t = useT();
   const addToast = useStore((s) => s.addToast);
   const setActiveSession = useStore((s) => s.setActiveSession);
+  const refreshNpcs = useStore((s) => s.refreshNpcs);
+  const refreshWorldBooks = useStore((s) => s.refreshWorldBooks);
+  const refreshTools = useStore((s) => s.refreshTools);
   const refreshSessions = useStore((s) => s.refreshSessions);
   const loadMessages = useStore((s) => s.loadMessages);
   const refreshLiveQueue = useStore((s) => s.refreshLiveQueue);
@@ -133,7 +136,7 @@ export function GameplayImportModal({
           msgs: String(result.importedMessages),
         })
       );
-      await refreshSessions();
+      await Promise.all([refreshNpcs(), refreshWorldBooks(), refreshTools(), refreshSessions()]);
       await loadMessages(result.sessionId);
       await refreshLiveQueue(result.sessionId);
       setActiveSession(result.sessionId);

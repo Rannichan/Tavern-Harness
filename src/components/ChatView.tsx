@@ -22,7 +22,7 @@ import { Avatar, Icon, Markdown, Collapse, Modal, AttachCard } from './shared';
 import { FileDisplayViewButton, parseStoredDisplayRef } from './FileDisplayModal';
 import { formatMetrics } from '../core/stats';
 import { saveTextFile } from '../core/fileDownload';
-import { effectiveDisplayQueue, initializeTurnQueue, speakerLabel, suggestMagicCommands } from '../core/turnLoop';
+import { effectiveDisplayQueue, speakerLabel, suggestMagicCommands } from '../core/turnLoop';
 import { onChatScroll, onQueueScroll, onQueueScrollIntent, registerChatEl, registerQueueEl, scrollChatTo, scrollQueueToLoop } from '../core/linkedScroll';
 import { useT, translate } from '../core/i18n';
 
@@ -1113,7 +1113,7 @@ export function MessageMenu() {
   }
 
   if (!msgMenuState) return null;
-  const { x, y, msg, session } = msgMenuState;
+  const { x, y, msg } = msgMenuState;
 
   const actions: Array<{ label: string; icon: string; onClick: () => void; danger?: boolean }> = [];
   if (msg.role === 'user' || msg.role === 'assistant') {

@@ -11,10 +11,9 @@ import { BUILTIN_TOOLS, BUILTIN_TOOL_NAMES } from '../toolDefinitions';
 import { rollDice } from './builtinTools';
 import {
   executeGeneratedSkill,
+  normalizeWorkspaceDir,
   readWorkspaceFileText,
-  setWorkspaceDir,
-  sessionWorkspaceDir,
-  writeWorkspaceFileText,
+  truncateToolOutput,
   writeWorkspaceFileTextFor,
 } from './generatedSkillExecutor';
 import { sanitizeRelativePath } from './generatedWorkspace';
@@ -79,8 +78,8 @@ export async function executeToolCall(
   if (mcpTool && mcpTool.executionJson) {
     try {
       const execution = JSON.parse(mcpTool.executionJson) as GeneratedSkillExecution;
-      await applySessionWorkspace(ctx.sessionId, ctx.npcId);
-      return await executeGeneratedSkill(execution, args, ctx.requestConfirmation);
+      const workspaceDir = await applySessionWorkspace(ctx.sessionId, ctx.npcId);
+      return await executeGeneratedSkill(execution, args, ctx.requestConfirmation, workspaceDir);
     } catch (e) {
       return `ERROR: 技能实现无效 ${(e as Error).message}`;
     }
@@ -94,15 +93,14 @@ export async function executeToolCall(
  * 会话记录上的 workspaceDir（如 "session-12"）由创建会话时生成；
  * 旧会话没有该字段或数据库读取失败时，也回退到 session-<id>，避免意外扩大权限。
  */
-export async function applySessionWorkspace(sessionId: number, npcId?: number | null): Promise<void> {
+export async function applySessionWorkspace(sessionId: number, npcId?: number | null): Promise<string> {
   let dir = `session-${sessionId}`;
   try {
     const session = await db.sessions.get(sessionId);
     if (session?.mode === 'NPC' && session.associatedId != null) {
       const effectiveNpcId = npcId === undefined ? session.associatedId : npcId;
       if (effectiveNpcId === session.associatedId && (await db.npcs.get(effectiveNpcId))?.isBuiltIn) {
-        setWorkspaceDir('public');
-        return;
+        return 'public';
       }
     }
     if (session && typeof (session as ChatSession).workspaceDir === 'string') {
@@ -111,12 +109,7 @@ export async function applySessionWorkspace(sessionId: number, npcId?: number | 
   } catch {
     dir = `session-${sessionId}`;
   }
-  setWorkspaceDir(dir);
-}
-
-/** 仅供内部调试/校验：当前已应用的工作目录 */
-export function currentSessionWorkspace(): string | null {
-  return sessionWorkspaceDir();
+  return normalizeWorkspaceDir(dir) ?? `session-${sessionId}`;
 }
 
 async function runNativeTool(
@@ -307,7 +300,7 @@ export function parseDisplayRef(result: string): DisplayPayload | null {
 /** 读取本地沙箱工作区文件并生成展示结果 */
 async function handleFileDisplay(args: Record<string, unknown>, ctx: ToolExecutionContext): Promise<string> {
   try {
-    await applySessionWorkspace(ctx.sessionId, ctx.npcId);
+    const workspaceDir = await applySessionWorkspace(ctx.sessionId, ctx.npcId);
     const rawPath = sanitizeRelativePath(String(args.path ?? ''));
     const title = typeof args.title === 'string' && args.title.trim() ? args.title.trim() : undefined;
 
@@ -319,7 +312,7 @@ async function handleFileDisplay(args: Record<string, unknown>, ctx: ToolExecuti
       /^(png|jpe?g|gif|webp|svg|bmp|ico)$/i.test(extLower) ? 'image' :
       'text';
 
-    const content = await readWorkspaceFileText(rawPath);
+    const content = await readWorkspaceFileText(rawPath, workspaceDir);
     if (content === null) {
       return `ERROR: 文件不存在: ${rawPath}`;
     }
@@ -336,30 +329,31 @@ async function handleFileDisplay(args: Record<string, unknown>, ctx: ToolExecuti
 
 async function handleFileRead(args: Record<string, unknown>, ctx: ToolExecutionContext): Promise<string> {
   try {
-    await applySessionWorkspace(ctx.sessionId, ctx.npcId);
+    const workspaceDir = await applySessionWorkspace(ctx.sessionId, ctx.npcId);
     const path = String(args.path ?? '').replace(/\\/g, '/').trim();
     if (!path) return 'ERROR: 无效路径';
-    const content = await readWorkspaceFileText(path);
+    const content = await readWorkspaceFileText(path, workspaceDir);
     if (content === null) {
       return `ERROR: 文件不存在: ${path}`;
     }
-    return content.length > 20_000 ? content.slice(0, 20_000) + '…(已截断)' : content;
+    return truncateToolOutput(content);
   } catch (e) {
     return `ERROR: ${(e as Error).message}`;
   }
 }
 
 async function handleFileWrite(args: Record<string, unknown>, ctx: ToolExecutionContext): Promise<string> {
-  await applySessionWorkspace(ctx.sessionId, ctx.npcId);
+  const workspaceDir = await applySessionWorkspace(ctx.sessionId, ctx.npcId);
   return executeGeneratedSkill(
     { type: 'file_write', path: String(args.path ?? ''), content: String(args.content ?? ''), append: args.append === true },
     args,
     ctx.requestConfirmation,
+    workspaceDir,
   );
 }
 
 async function handleFileEdit(args: Record<string, unknown>, ctx: ToolExecutionContext): Promise<string> {
-  await applySessionWorkspace(ctx.sessionId, ctx.npcId);
+  const workspaceDir = await applySessionWorkspace(ctx.sessionId, ctx.npcId);
   try {
     const path = String(args.path ?? '').replace(/\\/g, '/').trim();
     const oldText = String(args.old_text ?? '');
@@ -371,7 +365,7 @@ async function handleFileEdit(args: Record<string, unknown>, ctx: ToolExecutionC
       return 'ERROR: expected_replacements 必须是 1-100 的整数';
     }
 
-    const content = await readWorkspaceFileText(path);
+    const content = await readWorkspaceFileText(path, workspaceDir);
     if (content === null) return `ERROR: 文件不存在: ${path}`;
     const matches = content.split(oldText).length - 1;
     if (matches !== expected) {
@@ -379,7 +373,13 @@ async function handleFileEdit(args: Record<string, unknown>, ctx: ToolExecutionC
     }
 
     // 与 file_write 对齐：工作区内直接写；外部路径（绝对路径/..）需要用户确认后写入
-    await writeWorkspaceFileTextFor(path, content.split(oldText).join(newText), ctx.requestConfirmation, 'file_edit');
+    await writeWorkspaceFileTextFor(
+      path,
+      content.split(oldText).join(newText),
+      workspaceDir,
+      ctx.requestConfirmation,
+      'file_edit',
+    );
     return `OK: 已编辑 ${path}，替换 ${matches} 处`;
   } catch (e) {
     return `ERROR: ${(e as Error).message}`;
@@ -387,8 +387,13 @@ async function handleFileEdit(args: Record<string, unknown>, ctx: ToolExecutionC
 }
 
 async function handleRunShellScript(args: Record<string, unknown>, ctx: ToolExecutionContext): Promise<string> {
-  await applySessionWorkspace(ctx.sessionId, ctx.npcId);
-  return executeGeneratedSkill({ type: 'shell', script: String(args.script ?? '') }, args, ctx.requestConfirmation);
+  const workspaceDir = await applySessionWorkspace(ctx.sessionId, ctx.npcId);
+  return executeGeneratedSkill(
+    { type: 'shell', script: String(args.script ?? '') },
+    args,
+    ctx.requestConfirmation,
+    workspaceDir,
+  );
 }
 
 // ---------- 技能 CRUD ----------

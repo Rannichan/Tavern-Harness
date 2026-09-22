@@ -453,13 +453,6 @@ export async function importGameplay(payload: unknown): Promise<ImportGameplayRe
     }
   }
 
-  // ---- 7. 收尾：刷新 store ----
-  const store = await import('../store/store');
-  await store.useStore.getState().refreshNpcs();
-  await store.useStore.getState().refreshWorldBooks();
-  await store.useStore.getState().refreshTools();
-  await store.useStore.getState().refreshSessions();
-
   return {
     sessionId,
     sessionTitle: title,

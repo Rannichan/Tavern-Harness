@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useStore } from '../store/store';
+import { createSession, useStore } from '../store/store';
 import { db } from '../db/database';
 import { Icon, SessionVisual } from './shared';
 import { NewSessionMenu } from './NewSessionMenu';
@@ -14,25 +14,11 @@ import type { NpcCharacter } from '../types/models';
 export function Dashboard() {
   const npcs = useStore((s) => s.npcs);
   const sessions = useStore((s) => s.sessions);
-  const addToast = useStore((s) => s.addToast);
   const t = useT();
   const [showNew, setShowNew] = useState(false);
 
   const startNpc = async (id: number) => {
-    const { createSession } = await import('../store/store');
     const sid = await createSession('NPC', { associatedId: id });
-    await useStore.getState().refreshSessions();
-    useStore.getState().setActiveSession(sid);
-  };
-
-  const startGroup = async () => {
-    const { createSession } = await import('../store/store');
-    const npcIds = npcs.map((n) => n.id!).slice(0, 3);
-    if (npcIds.length < 2) {
-      addToast(t('toast.needTwoNpcs'), 'error');
-      return;
-    }
-    const sid = await createSession('GROUP', { npcIds });
     await useStore.getState().refreshSessions();
     useStore.getState().setActiveSession(sid);
   };

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useStore } from '../store/store';
 import { db } from '../db/database';
 import { type ThemeMode } from '../theme/theme';
@@ -184,8 +184,6 @@ async function fetchModelsSmart(baseUrl: string, apiKey: string): Promise<Models
   const proxyUrl = toProxyUrl(baseUrl);
 
   let lastErr: Error | null = null;
-  let viaProxy = false;
-
   const tryFetch = async (url: string): Promise<string[]> => {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 7000);
