@@ -160,42 +160,10 @@ try {
     body: JSON.stringify({ session: otherSession, path: `public/${publicFile}`, content: 'must not change' }),
   });
   const publicWrite = await publicWriteResponse.json();
-  assert.equal(publicWriteResponse.status, 200);
-  assert.equal(publicWrite.needConfirm, true);
+  assert.equal(publicWriteResponse.status, 400);
+  assert.equal(publicWrite.ok, false);
+  assert.match(publicWrite.message, /public 目录仅允许读取，不允许写入/);
   assert.equal(readFileSync(join(root, 'sandbox_workspace', 'public', publicFile), 'utf8'), 'shared read-only content');
-
-  const publicWriteApproval = await approve(publicWrite.confirmationRequestId);
-  assert.equal(publicWriteApproval.body.ok, true);
-  const changedPublicWriteResponse = await fetch(`http://127.0.0.1:${port}/file_write`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Command-Service-Token': serviceToken },
-    body: JSON.stringify({
-      session: otherSession,
-      path: `public/${publicFile}`,
-      content: 'changed operation',
-      confirmationRequestId: publicWrite.confirmationRequestId,
-    }),
-  });
-  const changedPublicWrite = await changedPublicWriteResponse.json();
-  assert.equal(changedPublicWrite.needConfirm, true, 'approval must be bound to the exact file content');
-  assert.equal(readFileSync(join(root, 'sandbox_workspace', 'public', publicFile), 'utf8'), 'shared read-only content');
-
-  const approvedPublicWrite = await approve(changedPublicWrite.confirmationRequestId);
-  assert.equal(approvedPublicWrite.body.ok, true);
-  const completedPublicWriteResponse = await fetch(`http://127.0.0.1:${port}/file_write`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Command-Service-Token': serviceToken },
-    body: JSON.stringify({
-      session: otherSession,
-      path: `public/${publicFile}`,
-      content: 'changed operation',
-      confirmationRequestId: changedPublicWrite.confirmationRequestId,
-    }),
-  });
-  const completedPublicWrite = await completedPublicWriteResponse.json();
-  assert.equal(completedPublicWriteResponse.status, 200);
-  assert.equal(completedPublicWrite.ok, true);
-  assert.equal(readFileSync(join(root, 'sandbox_workspace', 'public', publicFile), 'utf8'), 'changed operation');
 
   const publicDeleteResponse = await fetch(`http://127.0.0.1:${port}/session_delete`, {
     method: 'POST',
@@ -205,7 +173,7 @@ try {
   const publicDelete = await publicDeleteResponse.json();
   assert.equal(publicDeleteResponse.status, 400);
   assert.match(publicDelete.message, /公共工作目录不可删除/);
-  assert.equal(readFileSync(join(root, 'sandbox_workspace', 'public', publicFile), 'utf8'), 'changed operation');
+  assert.equal(readFileSync(join(root, 'sandbox_workspace', 'public', publicFile), 'utf8'), 'shared read-only content');
 
   const externalDir = mkdtempSync(join(tmpdir(), 'command-service-external-'));
   writeFileSync(join(externalDir, 'secret.txt'), 'outside');
@@ -217,52 +185,37 @@ try {
     body: JSON.stringify({ session: otherSession, path: 'external/secret.txt' }),
   });
   const externalRead = await externalReadResponse.json();
-  assert.equal(externalReadResponse.status, 200);
-  assert.equal(externalRead.content, 'outside', 'external symlink reads must be allowed without confirmation');
-  assert.equal(externalRead.needConfirm, undefined);
+  assert.equal(externalReadResponse.status, 400);
+  assert.equal(externalRead.ok, false);
+  assert.match(externalRead.message, /路径超出工作区/);
   const absoluteReadResponse = await fetch(`http://127.0.0.1:${port}/file_read`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Command-Service-Token': serviceToken },
     body: JSON.stringify({ session: otherSession, path: forward(join(externalDir, 'secret.txt')) }),
   });
   const absoluteRead = await absoluteReadResponse.json();
-  assert.equal(absoluteReadResponse.status, 200);
-  assert.equal(absoluteRead.content, 'outside', 'absolute external paths must be readable without confirmation');
-  assert.equal(absoluteRead.needConfirm, undefined);
+  assert.equal(absoluteReadResponse.status, 400);
+  assert.equal(absoluteRead.ok, false);
+  assert.match(absoluteRead.message, /非法路径/);
   const traversalReadResponse = await fetch(`http://127.0.0.1:${port}/file_read`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Command-Service-Token': serviceToken },
     body: JSON.stringify({ session: otherSession, path: `../public/${publicFile}` }),
   });
   const traversalRead = await traversalReadResponse.json();
-  assert.equal(traversalReadResponse.status, 200);
-  assert.equal(traversalRead.content, 'changed operation', 'parent traversal reads must be allowed without confirmation');
-  assert.equal(traversalRead.needConfirm, undefined);
+  assert.equal(traversalReadResponse.status, 400);
+  assert.equal(traversalRead.ok, false);
+  assert.match(traversalRead.message, /路径不能包含 \.\./);
   const externalWriteResponse = await fetch(`http://127.0.0.1:${port}/file_write`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Command-Service-Token': serviceToken },
     body: JSON.stringify({ session: otherSession, path: 'external/new/nested.txt', content: 'outside write' }),
   });
   const externalWrite = await externalWriteResponse.json();
-  assert.equal(externalWriteResponse.status, 200);
-  assert.equal(externalWrite.needConfirm, true);
+  assert.equal(externalWriteResponse.status, 400);
+  assert.equal(externalWrite.ok, false);
+  assert.match(externalWrite.message, /路径超出工作区/);
   assert.equal(existsSync(join(externalDir, 'new')), false, 'unapproved writes must not create directories outside the workspace');
-  const externalWriteApproval = await approve(externalWrite.confirmationRequestId);
-  assert.equal(externalWriteApproval.body.ok, true);
-  const approvedExternalWriteResponse = await fetch(`http://127.0.0.1:${port}/file_write`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Command-Service-Token': serviceToken },
-    body: JSON.stringify({
-      session: otherSession,
-      path: 'external/new/nested.txt',
-      content: 'outside write',
-      confirmationRequestId: externalWrite.confirmationRequestId,
-    }),
-  });
-  const approvedExternalWrite = await approvedExternalWriteResponse.json();
-  assert.equal(approvedExternalWriteResponse.status, 200);
-  assert.equal(approvedExternalWrite.ok, true);
-  assert.equal(readFileSync(join(externalDir, 'new', 'nested.txt'), 'utf8'), 'outside write');
   rmSync(externalDir, { recursive: true, force: true });
 
   const allowlisted = await post({ script: 'echo allowlisted', session });
@@ -276,13 +229,14 @@ try {
 
   const traversalPath = `../outside-${process.pid}.txt`;
   const traversalRequest = await post({ script: `touch ${traversalPath}`, session });
-  assert.equal(traversalRequest.needConfirm, true, 'parent traversal outside the session must require confirmation');
+  assert.equal(traversalRequest.ok, false, 'parent traversal outside the session must be rejected');
+  assert.match(traversalRequest.message, /脚本写入路径必须位于当前会话工作目录/);
   assert.equal(existsSync(join(root, 'sandbox_workspace', `outside-${process.pid}.txt`)), false);
 
   const externalShellFile = join(fakeBin, 'external-shell-write.txt');
   const externalPathRequest = await post({ script: `touch ${forward(externalShellFile)}`, session });
-  assert.equal(externalPathRequest.needConfirm, true, 'an absolute path outside the session must require confirmation');
-  assert.equal(externalPathRequest.confirmationReason, 'external_path');
+  assert.equal(externalPathRequest.ok, false, 'an absolute path outside the session must be rejected');
+  assert.match(externalPathRequest.message, /脚本写入路径必须位于当前会话工作目录/);
   assert.equal(existsSync(externalShellFile), false, 'external writes must not run before approval');
   const externalCopyRequest = await post({
     script: `cp ${forward(join(root, '.gitignore'))} copied-from-external.txt`,
@@ -294,39 +248,22 @@ try {
     readFileSync(join(root, 'sandbox_workspace', session, 'copied-from-external.txt'), 'utf8'),
     readFileSync(join(root, '.gitignore'), 'utf8'),
   );
-  const externalPathApproval = await approve(externalPathRequest.confirmationRequestId);
-  assert.equal(externalPathApproval.body.ok, true);
-  const approvedExternalPath = await post({
-    script: `touch ${forward(externalShellFile)}`,
-    session,
-    confirmationRequestId: externalPathRequest.confirmationRequestId,
-  });
-  assert.equal(approvedExternalPath.ok, true);
-  assert.equal(existsSync(externalShellFile), true, 'approved external writes must execute');
-
   const publicPathRequest = await post({ script: `cat public/${publicFile}`, session });
   assert.equal(publicPathRequest.ok, true, 'reading through the public link must not require confirmation');
-  assert.equal(publicPathRequest.output, 'changed operation');
+  assert.equal(publicPathRequest.output, 'shared read-only content');
 
   const absoluteExternalRead = await post({ script: `cat ${forward(join(root, '.gitignore'))}`, session });
   assert.equal(absoluteExternalRead.ok, true, 'reading an absolute external path must not require confirmation');
   assert.equal(absoluteExternalRead.needConfirm, undefined);
 
   const copyToMissingPublicPath = await post({ script: `cp created.txt public/${missingPublicTarget}`, session: otherSession });
-  assert.equal(copyToMissingPublicPath.needConfirm, true, 'copying to a missing public target must require confirmation');
+  assert.equal(copyToMissingPublicPath.ok, false, 'copying to public must be rejected');
+  assert.match(copyToMissingPublicPath.message, /脚本写入路径必须位于当前会话工作目录/);
   assert.equal(existsSync(join(root, 'sandbox_workspace', 'public', missingPublicTarget)), false, 'the copy must not run before approval');
-  const publicCopyApproval = await approve(copyToMissingPublicPath.confirmationRequestId);
-  assert.equal(publicCopyApproval.body.ok, true);
-  const approvedPublicCopy = await post({
-    script: `cp created.txt public/${missingPublicTarget}`,
-    session: otherSession,
-    confirmationRequestId: copyToMissingPublicPath.confirmationRequestId,
-  });
-  assert.equal(approvedPublicCopy.ok, true, 'approved public writes must execute');
-  assert.equal(readFileSync(join(root, 'sandbox_workspace', 'public', missingPublicTarget), 'utf8'), 'created on write');
 
   const genericDanglingLink = await post({ script: 'touch external/new-through-dangling-link.txt', session: otherSession });
-  assert.equal(genericDanglingLink.needConfirm, true, 'any symlink whose declared target is outside the session must require confirmation even when its target is missing');
+  assert.equal(genericDanglingLink.ok, false, 'any symlink whose declared target is outside the session must be rejected even when its target is missing');
+  assert.match(genericDanglingLink.message, /脚本写入路径必须位于当前会话工作目录/);
 
   symlinkSync(IS_WIN ? join(root, 'sandbox_workspace', otherSession, 'external') : 'external', join(root, 'sandbox_workspace', otherSession, 'alias'), IS_WIN ? 'junction' : 'dir');
   const chainedExternalLink = await post({ script: 'cat alias/secret.txt', session: otherSession });
@@ -337,19 +274,22 @@ try {
     script: `cp created.txt --target-directory=${forward(fakeBin)}`,
     session: otherSession,
   });
-  assert.equal(optionEmbeddedPath.needConfirm, true, 'external write targets embedded in option arguments must require confirmation');
+  assert.equal(optionEmbeddedPath.ok, false, 'external write targets embedded in option arguments must be rejected');
+  assert.match(optionEmbeddedPath.message, /脚本写入路径必须位于当前会话工作目录/);
 
   const uniqExternalOutput = await post({
     script: `uniq -f 1 created.txt ${forward(join(fakeBin, 'uniq-output.txt'))}`,
     session: otherSession,
   });
-  assert.equal(uniqExternalOutput.needConfirm, true, 'optional external output files must require confirmation');
+  assert.equal(uniqExternalOutput.ok, false, 'optional external output files must be rejected');
+  assert.match(uniqExternalOutput.message, /脚本写入路径必须位于当前会话工作目录/);
 
   const compactTargetDirectory = await post({
     script: `cp -t${forward(fakeBin)} created.txt`,
     session: otherSession,
   });
-  assert.equal(compactTargetDirectory.needConfirm, true, 'compact target-directory options must not bypass confirmation');
+  assert.equal(compactTargetDirectory.ok, false, 'compact target-directory options must not bypass path restrictions');
+  assert.match(compactTargetDirectory.message, /脚本写入路径必须位于当前会话工作目录/);
 
   const metacharacters = await post({ script: 'echo safe & literal | text > file', session });
   assert.equal(metacharacters.ok, true, 'shell metacharacters must remain literal arguments');

@@ -99,7 +99,7 @@ export function truncateToolOutput(s: string): string {
 }
 
 function normalizePath(path: string): string {
-  return path.replace(/\\/g, '/').trim();
+  return sanitizeRelativePath(path);
 }
 
 // ---------- http_get ----------
@@ -431,8 +431,8 @@ export async function readWorkspaceFileText(path: string, workspaceDir: string):
 
 /**
  * 写入本地沙箱工作区（可携带确认回调与工具名）。
- * 与 file_write 技能一致：工作区内直接写；工作区外需用户确认（一次性票据）。
- * 供 file_edit 在外部路径上复用同一确认链路。
+ * 与 file_write 技能一致：仅允许工作区相对路径；普通会话的 public 软链只读。
+ * 供 file_edit 复用同一写入链路。
  */
 export async function writeWorkspaceFileTextFor(
   path: string,
