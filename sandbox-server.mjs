@@ -569,11 +569,7 @@ const server = createServer(async (req, res) => {
         confirmationReason: check.needConfirmReason,
         confirmationRequestId,
         confirmationExpiresInMs: CONFIRMATION_TTL_MS,
-        message: check.needConfirmReason === 'both'
-          ? '脚本包含非白名单命令，并且写入当前工作目录之外的路径，需要用户确认'
-          : check.needConfirmReason === 'external_path'
-            ? '脚本写入当前工作目录之外的路径，需要用户确认'
-            : '脚本包含非白名单命令，需要用户确认',
+        message: '脚本包含非白名单命令，需要用户确认',
       }));
       return;
     }

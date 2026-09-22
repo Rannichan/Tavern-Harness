@@ -86,7 +86,7 @@ export async function executeGeneratedSkill(
     case 'file_read':
       return execFileRead(execution, args, workspaceDir);
     case 'file_write':
-      return execFileWrite(execution, args, confirm, workspaceDir);
+      return execFileWrite(execution, args, workspaceDir);
     case 'shell':
       return execShell(execution, args, confirm, workspaceDir);
     default:
@@ -359,9 +359,6 @@ async function diskFileWrite(
   content: string,
   append: boolean,
   workspaceDir: string,
-  confirm?: SkillConfirmFn | null,
-  confirmationRequestId?: string,
-  toolName: string = 'file_write',
 ): Promise<string> {
   try {
     const resp = await fetch('/api-v2/file_write', {
@@ -372,28 +369,9 @@ async function diskFileWrite(
         content,
         mode: append ? 'append' : 'write',
         session: workspaceDir,
-        confirmationRequestId,
       }),
     });
-    const data = (await resp.json()) as { ok?: boolean; message?: string; needConfirm?: boolean; confirmationRequestId?: string };
-    if (data.needConfirm && data.confirmationRequestId) {
-      const approved = confirm
-        ? await confirm({
-            sessionId: -1,
-            toolName,
-            title: translate(toolName === 'file_edit' ? 'tool.gateFileEditTitle' : 'tool.gateFileWriteTitle'),
-            message: translate(
-              toolName === 'file_edit' ? 'tool.gateFileEditMsg' : 'tool.gateFileWriteMsg',
-              { path },
-            ),
-            argsJson: JSON.stringify({ path, append }),
-          })
-        : false;
-      if (!approved) return translate(toolName === 'file_edit' ? 'tool.fileEditDenied' : 'tool.fileWriteDenied');
-      const approvalError = await approveSandboxScript(data.confirmationRequestId);
-      if (approvalError) return approvalError;
-      return diskFileWrite(path, content, append, workspaceDir, null, data.confirmationRequestId, toolName);
-    }
+    const data = (await resp.json()) as { ok?: boolean; message?: string };
     if (!resp.ok || !data.ok) throw new Error(data?.message || `HTTP ${resp.status}`);
     return `OK: 已写入 ${path} (${content.length} 字符)`;
   } catch (e) {
@@ -430,7 +408,7 @@ export async function readWorkspaceFileText(path: string, workspaceDir: string):
 }
 
 /**
- * 写入本地沙箱工作区（可携带确认回调与工具名）。
+ * 写入本地沙箱工作区。
  * 与 file_write 技能一致：仅允许工作区相对路径；普通会话的 public 软链只读。
  * 供 file_edit 复用同一写入链路。
  */
@@ -438,13 +416,11 @@ export async function writeWorkspaceFileTextFor(
   path: string,
   content: string,
   workspaceDir: string,
-  confirm: SkillConfirmFn | null,
-  toolName = 'file_write',
 ): Promise<string> {
   const normalizedPath = normalizePath(path);
   if (!normalizedPath) throw new Error('无效路径');
   await requireFileServer(workspaceDir);
-  return diskFileWrite(normalizedPath, content, false, workspaceDir, confirm, undefined, toolName);
+  return diskFileWrite(normalizedPath, content, false, workspaceDir);
 }
 
 // ---------- 会话工作区枚举（文件管理器只读浏览共用） ----------
@@ -477,7 +453,6 @@ async function execFileRead(
 async function execFileWrite(
   execution: GeneratedSkillExecution,
   args: Record<string, unknown>,
-  confirm?: SkillConfirmFn | null,
   workspaceDir?: string | null,
 ): Promise<string> {
   try {
@@ -492,7 +467,7 @@ async function execFileWrite(
     const safeWorkspaceDir = normalizeWorkspaceDir(workspaceDir);
     await requireFileServer(safeWorkspaceDir);
     const diskContent = execution.append && execution.append_newline ? `${content}\n` : content;
-    return await diskFileWrite(path, diskContent, execution.append ?? false, safeWorkspaceDir!, confirm);
+    return await diskFileWrite(path, diskContent, execution.append ?? false, safeWorkspaceDir!);
   } catch (e) {
     return `ERROR: ${(e as Error).message}`;
   }
@@ -589,13 +564,7 @@ async function execShell(
   // 服务端返回需要确认：脚本包含非白名单命令或访问工作目录之外的路径
   if (result.needConfirm) {
     const confirmationRequestId = result.confirmationRequestId;
-    const reasonKey = result.confirmationReason === 'both'
-      ? 'Both'
-      : result.confirmationReason === 'external_path'
-        ? 'External'
-        : result.confirmationReason === 'non_allowlisted'
-          ? 'NonAllowlisted'
-          : 'Unknown';
+    const reasonKey = result.confirmationReason === 'non_allowlisted' ? 'NonAllowlisted' : 'Unknown';
     let approved = false;
     if (confirm && confirmationRequestId) {
       try {
@@ -623,7 +592,7 @@ interface SandboxResult {
   needConfirm: boolean;
   output?: string;
   confirmationRequestId?: string;
-  confirmationReason?: 'non_allowlisted' | 'external_path' | 'both';
+  confirmationReason?: 'non_allowlisted';
 }
 
 /** 发送脚本到本地沙箱；返回 needConfirm=true 表示需用户批准后重发 */
@@ -642,7 +611,7 @@ async function sendToSandbox(script: string, workspaceDir: string | null): Promi
       output?: string;
       needConfirm?: boolean;
       confirmationRequestId?: string;
-      confirmationReason?: 'non_allowlisted' | 'external_path' | 'both';
+      confirmationReason?: 'non_allowlisted';
     };
     if (resp.ok && data.ok) return { needConfirm: false, output: data.output ?? '' };
     if (data.needConfirm) {

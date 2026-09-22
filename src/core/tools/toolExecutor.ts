@@ -374,8 +374,6 @@ async function handleFileEdit(args: Record<string, unknown>, ctx: ToolExecutionC
       path,
       content.split(oldText).join(newText),
       workspaceDir,
-      ctx.requestConfirmation,
-      'file_edit',
     );
     return `OK: 已编辑 ${path}，替换 ${matches} 处`;
   } catch (e) {
