@@ -95,7 +95,7 @@ COMMAND_SERVICE_TOKEN=临时随机值 COMMAND_APPROVAL_TOKEN=另一临时随机�
 - 浏览器虚拟工作区（沙箱未启动时的回退）同样按会话隔离：`generated_skill_workspace/sessions/session-<会话id>/…`；
 - 通过文件工具维护的不同会话数据互不可见、互不影响；本地命令写入也受同一目录边界约束。
 
-旧会话（在本功能上线前创建）没有工作目录字段，沿用共享根工作区 `sandbox_workspace/`，行为与之前一致。会话头部副标题会显示当前会话的工作目录名（如 `session-12`）。
+旧会话（在本功能上线前创建）如果没有工作目录字段，会自动回退到 `session-<会话id>` 专属目录，避免共享根目录带来的权限扩大。会话头部副标题会显示当前会话的工作目录名（如 `session-12`）。
 
 ### 生成式技能 `file_read` / `file_write` 的真实磁盘工作区
 
