@@ -613,8 +613,8 @@ const server = createServer(async (req, res) => {
 /**
  * 返回 null → 全部命令均在白名单；'NEED_CONFIRM' → 至少一个命令不在白名单；字符串 → 拒绝原因
  */
-function resolvesOutsideSession(value, sessionBase) {
-  if (!value || value === '-') return false;
+function extractPathCandidate(value) {
+  if (!value || value === '-') return null;
   let candidate = value;
   if (value.startsWith('-')) {
     const equalsIndex = value.indexOf('=');
@@ -627,9 +627,22 @@ function resolvesOutsideSession(value, sessionBase) {
         : absoluteIndex >= 0
           ? absoluteIndex
           : -1;
-    if (pathIndex < 0) return false;
+    if (pathIndex < 0) return null;
     candidate = value.slice(pathIndex);
   }
+  return candidate || null;
+}
+
+function isPublicLinkReadPath(value, sessionBase) {
+  if (sessionBase === PUBLIC_WORKSPACE) return false;
+  const candidate = extractPathCandidate(value);
+  if (!candidate) return false;
+  const normalized = candidate.replace(/\\/g, '/').trim();
+  return normalized === 'public' || normalized.startsWith('public/');
+}
+
+function resolvesOutsideSession(value, sessionBase) {
+  const candidate = extractPathCandidate(value);
   if (!candidate) return false;
   const target = resolve(sessionBase, candidate);
   if (!isInside(sessionBase, target)) return true;
@@ -739,6 +752,76 @@ function shellWriteTargets(command, args) {
   return [];
 }
 
+function shellReadTargets(command, args) {
+  if (['ls', 'du', 'stat', 'file', 'basename', 'dirname', 'sha256sum', 'md5sum', 'cksum', 'sum', 'ffprobe'].includes(command)) {
+    return operandsAfterOptions(args);
+  }
+  if (['cat', 'head', 'tail', 'wc', 'od', 'hexdump', 'strings', 'cut'].includes(command)) {
+    return operandsAfterOptions(args, new Set(['-n', '-c', '-s', '-w', '-f', '--fields']));
+  }
+  if (command === 'uniq') {
+    const operands = operandsAfterOptions(args, new Set([
+      '-f', '--skip-fields', '-s', '--skip-chars', '-w', '--check-chars',
+    ]));
+    return operands.length > 0 ? [operands[0]] : [];
+  }
+  if (command === 'xxd') {
+    const operands = operandsAfterOptions(args, new Set([
+      '-a', '-c', '-cols', '-g', '-groupsize', '-l', '-len', '-o', '-s', '-seek',
+    ]));
+    return operands.length > 0 ? [operands[0]] : [];
+  }
+  if (command === 'grep') {
+    const operands = operandsAfterOptions(args, new Set([
+      '-e', '--regexp', '-f', '--file', '-m', '--max-count', '-A', '-B', '-C',
+    ]));
+    return operands.length > 1 ? operands.slice(1) : [];
+  }
+  if (command === 'tr') return [];
+  if (command === 'diff' || command === 'cmp') {
+    const operands = operandsAfterOptions(args);
+    return operands.slice(0, 2);
+  }
+  if (command === 'cp') {
+    let targetDirectory = null;
+    const operands = [];
+    let optionsEnded = false;
+    for (let index = 0; index < args.length; index++) {
+      const arg = args[index];
+      if (!optionsEnded && arg === '--') {
+        optionsEnded = true;
+        continue;
+      }
+      if (!optionsEnded && (arg === '-t' || arg === '--target-directory')) {
+        targetDirectory = args[index + 1] ?? null;
+        index += 1;
+        continue;
+      }
+      if (!optionsEnded && arg.startsWith('--target-directory=')) {
+        targetDirectory = arg.slice('--target-directory='.length);
+        continue;
+      }
+      if (!optionsEnded && arg.startsWith('-t') && arg.length > 2) {
+        targetDirectory = arg.slice(2);
+        continue;
+      }
+      if (!optionsEnded && arg.startsWith('-') && arg !== '-') continue;
+      operands.push(arg);
+    }
+    if (targetDirectory) return operands;
+    return operands.length > 1 ? operands.slice(0, -1) : [];
+  }
+  if (command === 'jq') {
+    const operands = operandsAfterOptions(args, new Set([
+      '-f', '--from-file', '-L',
+    ]));
+    if (operands.length === 0) return [];
+    if (operands.length === 1) return [];
+    return operands.slice(1);
+  }
+  return [];
+}
+
 function validateScript(script, sessionBase) {
   if (script.length > MAX_SCRIPT_CHARS) return '脚本超过 8000 字符';
   const lines = script.split('\n').filter((l) => l.trim() && !l.trim().startsWith('#'));
@@ -746,6 +829,7 @@ function validateScript(script, sessionBase) {
   let commandCount = 0;
   let hasNonAllowlistedCommand = false;
   let hasExternalWrite = false;
+  let hasExternalRead = false;
   for (const line of lines) {
     let commands;
     try {
@@ -761,8 +845,14 @@ function validateScript(script, sessionBase) {
       if (shellWriteTargets(cmd, args).some((arg) => resolvesOutsideSession(arg, sessionBase))) {
         hasExternalWrite = true;
       }
+      if (shellReadTargets(cmd, args).some((arg) => (
+        !isPublicLinkReadPath(arg, sessionBase) && resolvesOutsideSession(arg, sessionBase)
+      ))) {
+        hasExternalRead = true;
+      }
     }
   }
+  if (hasExternalRead) return '脚本读取路径必须位于当前会话工作目录（仅允许通过 public 链接读取公共目录）';
   if (hasExternalWrite) return '脚本写入路径必须位于当前会话工作目录（public 链接只读）';
   if (hasNonAllowlistedCommand) return { needConfirmReason: 'non_allowlisted' };
   return null;

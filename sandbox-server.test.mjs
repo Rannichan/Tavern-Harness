@@ -242,19 +242,16 @@ try {
     script: `cp ${forward(join(root, '.gitignore'))} copied-from-external.txt`,
     session,
   });
-  assert.equal(externalCopyRequest.ok, true, 'copying from an external source into the session must not require confirmation');
-  assert.equal(externalCopyRequest.needConfirm, undefined);
-  assert.equal(
-    readFileSync(join(root, 'sandbox_workspace', session, 'copied-from-external.txt'), 'utf8'),
-    readFileSync(join(root, '.gitignore'), 'utf8'),
-  );
+  assert.equal(externalCopyRequest.ok, false, 'copying from an external source into the session must be rejected');
+  assert.match(externalCopyRequest.message, /脚本读取路径必须位于当前会话工作目录/);
+  assert.equal(existsSync(join(root, 'sandbox_workspace', session, 'copied-from-external.txt')), false);
   const publicPathRequest = await post({ script: `cat public/${publicFile}`, session });
   assert.equal(publicPathRequest.ok, true, 'reading through the public link must not require confirmation');
   assert.equal(publicPathRequest.output, 'shared read-only content');
 
   const absoluteExternalRead = await post({ script: `cat ${forward(join(root, '.gitignore'))}`, session });
-  assert.equal(absoluteExternalRead.ok, true, 'reading an absolute external path must not require confirmation');
-  assert.equal(absoluteExternalRead.needConfirm, undefined);
+  assert.equal(absoluteExternalRead.ok, false, 'reading an absolute external path must be rejected');
+  assert.match(absoluteExternalRead.message, /脚本读取路径必须位于当前会话工作目录/);
 
   const copyToMissingPublicPath = await post({ script: `cp created.txt public/${missingPublicTarget}`, session: otherSession });
   assert.equal(copyToMissingPublicPath.ok, false, 'copying to public must be rejected');
@@ -267,8 +264,8 @@ try {
 
   symlinkSync(IS_WIN ? join(root, 'sandbox_workspace', otherSession, 'external') : 'external', join(root, 'sandbox_workspace', otherSession, 'alias'), IS_WIN ? 'junction' : 'dir');
   const chainedExternalLink = await post({ script: 'cat alias/secret.txt', session: otherSession });
-  assert.equal(chainedExternalLink.needConfirm, undefined, 'external reads through chained symlinks must not require confirmation');
-  assert.match(chainedExternalLink.message, /文件不存在|No such file or directory/);
+  assert.equal(chainedExternalLink.ok, false, 'external reads through chained symlinks must be rejected');
+  assert.match(chainedExternalLink.message, /脚本读取路径必须位于当前会话工作目录/);
 
   const optionEmbeddedPath = await post({
     script: `cp created.txt --target-directory=${forward(fakeBin)}`,
