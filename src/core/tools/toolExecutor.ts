@@ -296,7 +296,7 @@ export function parseDisplayRef(result: string): DisplayPayload | null {
 async function handleFileDisplay(args: Record<string, unknown>, ctx: ToolExecutionContext): Promise<string> {
   try {
     const workspaceDir = await applySessionWorkspace(ctx.sessionId, ctx.npcId);
-    // 与 file_read 对齐：只规范化、不限制读取边界（可读 .. / 绝对路径 / 外部符号链接）
+    // 与 file_read 对齐：仅允许会话工作区内相对路径；public 软链只读
     const rawPath = String(args.path ?? '').replace(/\\/g, '/').trim();
     if (!rawPath) return 'ERROR: 无效路径';
     const title = typeof args.title === 'string' && args.title.trim() ? args.title.trim() : undefined;
@@ -369,13 +369,11 @@ async function handleFileEdit(args: Record<string, unknown>, ctx: ToolExecutionC
       return `ERROR: 未修改 ${path}：old_text 实际匹配 ${matches} 次，预期 ${expected} 次`;
     }
 
-    // 与 file_write 对齐：工作区内直接写；外部路径（绝对路径/..）需要用户确认后写入
+    // 与 file_write 对齐：仅工作区内写入；public 软链写入直接拒绝
     await writeWorkspaceFileTextFor(
       path,
       content.split(oldText).join(newText),
       workspaceDir,
-      ctx.requestConfirmation,
-      'file_edit',
     );
     return `OK: 已编辑 ${path}，替换 ${matches} 处`;
   } catch (e) {

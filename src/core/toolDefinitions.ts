@@ -67,13 +67,13 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
   ),
   fn(
     'file_read',
-    'Read a text file from the current workspace or an external directory. External reads are allowed without user confirmation.',
+    'Read a text file from the current conversation workspace. Paths must stay inside the workspace; for normal sessions, the public link is read-only.',
     {
       type: 'object',
       properties: {
         path: {
           type: 'string',
-          description: 'Relative workspace path or absolute external path. Parent traversal is allowed. The file must exist.',
+          description: 'Relative path inside the current conversation workspace. Absolute paths and parent traversal are rejected. The file must exist.',
         },
       },
       required: ['path'],
@@ -82,13 +82,13 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
   ),
   fn(
     'file_write',
-    'Write or append to a file. Paths inside the current workspace run directly; writing to an external path requires user confirmation.',
+    'Write or append to a file in the current conversation workspace. Absolute paths and parent traversal are rejected. For normal sessions, writing to the public link is denied.',
     {
       type: 'object',
       properties: {
         path: {
           type: 'string',
-          description: 'Relative workspace path or absolute external path. Parent traversal is allowed. External writes require user confirmation.',
+          description: 'Relative path inside the current conversation workspace. Absolute paths and parent traversal are rejected. public link is read-only in normal sessions.',
         },
         content: {
           type: 'string',
@@ -105,7 +105,7 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
   ),
   fn(
     'file_edit',
-    'Edit an existing text file by replacing exact text. Prefer this over file_write for small code changes. The edit is rejected unless old_text occurs exactly expected_replacements times, which protects against stale or ambiguous edits. Paths inside the current workspace run directly; writing to an external path (absolute or parent traversal) requires user confirmation.',
+    'Edit an existing text file by replacing exact text. Prefer this over file_write for small code changes. The edit is rejected unless old_text occurs exactly expected_replacements times, which protects against stale or ambiguous edits. Path rules follow file_write: workspace-relative only, and public link stays read-only in normal sessions.',
     {
       type: 'object',
       properties: {
@@ -373,7 +373,7 @@ function executionProperties(): Record<string, unknown> {
     type: { type: 'string', enum: ['template', 'http_get', 'javascript', 'file_read', 'file_write', 'shell'] },
     template: { type: 'string', description: 'template type: result template with {{param}} placeholders' },
     url: { type: 'string', description: "http_get type: public https URL with {{param}} placeholders" },
-    code: { type: 'string', maxLength: 20000, description: "javascript type: JS code. Reads 'input' (args object), assigns JSON-safe 'result'. Supports async/await. Injected helpers: await $read(path)->string, $write(path, content), $append(path, content), $list()->[paths]. Helper paths must be relative to the current session workspace; absolute paths and parent traversal (..) are rejected. Unlike built-in file tools, JavaScript helpers cannot access external paths." },
+    code: { type: 'string', maxLength: 20000, description: "javascript type: JS code. Reads 'input' (args object), assigns JSON-safe 'result'. Supports async/await. Injected helpers: await $read(path)->string, $write(path, content), $append(path, content), $list()->[paths]. Helper paths must be relative to the current session workspace; absolute paths and parent traversal (..) are rejected." },
     path: { type: 'string', description: 'file_read/file_write: relative path inside the private generated_skill_workspace' },
     content: { type: 'string', description: 'file_write: text content with {{param}} placeholders' },
     json_content: { type: 'object', description: 'file_write: JSON content, interpolated recursively' },
@@ -388,7 +388,7 @@ function getExecutionDescription(): string {
     'Declarative implementation of the skill. One of:',
     '- template: `{template: "As of {{date}}, the price is {{price}}"}`, placeholders interpolated from args',
     '- http_get: `{url: "https://public.example.com/api?q={{q}}"}`, public HTTPS hostname required',
-    '- javascript: `{code: "result = { sum: input.a + input.b }"}`, reads `input`, assigns JSON-safe `result`; supports async/await and can persist game state via `await $read/$write/$append/$list`. These helpers only accept relative paths in the current session workspace; absolute paths and `..` are rejected, so they cannot access external paths like the built-in file tools',
+    '- javascript: `{code: "result = { sum: input.a + input.b }"}`, reads `input`, assigns JSON-safe `result`; supports async/await and can persist game state via `await $read/$write/$append/$list`. These helpers only accept relative paths in the current session workspace; absolute paths and `..` are rejected',
     '- file_read: `{path: "notes.md"}` — read a file from sandbox_workspace/ through the required local workspace service (100KB cap)',
     '- file_write: `{path: "notes.jsonl", json_content: {...}, append: true, append_newline: true}` — write to sandbox_workspace/ through the required local workspace service',
     '- shell: commands executed as REAL local commands via an optional controlled service (node sandbox-server.mjs); this is not OS-isolated. Supports newlines, &&, ||, and ; (max 20 commands), but not pipes, redirects, or expansion. Simple non-executing utilities, jq, and bc are allowlisted; command launchers, tools with exec/plugin hooks, and every other command require user confirmation',

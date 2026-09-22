@@ -353,10 +353,6 @@ function workspacePathFor(rel, base) {
   return join(base, ...safe.split('/'));
 }
 
-function fileWriteOperation(path, content, mode) {
-  return JSON.stringify({ type: 'file_write', path, content, mode });
-}
-
 /** 校验最终解析路径仍在会话工作目录内（防符号链接逃逸） */
 function assertInside(root, p) {
   const rp = resolve(p);
@@ -443,38 +439,32 @@ const server = createServer(async (req, res) => {
       if (req.url === '/file_read') {
         const rawPath = String(payload?.path ?? '').replace(/\\/g, '/').trim();
         if (!rawPath) throw new Error('非法路径');
-        const fp = resolve(base, rawPath);
+        const rel = sanitizeWorkspaceRelativePath(rawPath);
+        const readingPublicLink = base !== PUBLIC_WORKSPACE && (rel === 'public' || rel.startsWith('public/'));
+        if (!readingPublicLink && resolvesOutsideSession(rel, base)) {
+          throw new Error('路径超出工作区');
+        }
+        const fp = resolve(base, rel);
         const text = await readFileAsync(fp);
-        res.end(JSON.stringify({ ok: true, path: rawPath, content: text.slice(0, MAX_FILE_READ_CHARS) }));
+        res.end(JSON.stringify({ ok: true, path: rel, content: text.slice(0, MAX_FILE_READ_CHARS) }));
       } else if (req.url === '/file_write') {
         const rawPath = String(payload?.path ?? '').replace(/\\/g, '/').trim();
         if (!rawPath) throw new Error('非法路径');
         const mode = payload?.mode === 'append' ? 'append' : 'write';
         const content = String(payload?.content ?? '');
-        const operation = fileWriteOperation(rawPath, content, mode);
         ensureSessionBase(base);
-        const external = resolvesOutsideSession(rawPath, base);
-        if (external && !consumeApprovedConfirmation(payload?.confirmationRequestId, operation, base)) {
-          const confirmationRequestId = issueConfirmationRequest(operation, base);
-          res.end(JSON.stringify({
-            ok: false,
-            needConfirm: true,
-            confirmationRequestId,
-            confirmationExpiresInMs: CONFIRMATION_TTL_MS,
-            message: '写入当前工作目录之外的路径需要用户确认',
-          }));
-          return;
+        const rel = sanitizeWorkspaceRelativePath(rawPath);
+        if (base !== PUBLIC_WORKSPACE && (rel === 'public' || rel.startsWith('public/'))) {
+          throw new Error('public 目录仅允许读取，不允许写入');
         }
-        const rel = external ? rawPath : sanitizeWorkspaceRelativePath(rawPath);
+        if (resolvesOutsideSession(rel, base)) {
+          throw new Error('路径超出工作区');
+        }
         const fp = resolve(base, rel);
-        if (!external) {
-          assertWritableParent(base, dirname(fp));
-          mkdirSync(dirname(fp), { recursive: true });
-          assertInside(base, realpathSync(dirname(fp)));
-          if (existsSync(fp)) assertInside(base, realpathSync(fp));
-        } else {
-          mkdirSync(dirname(fp), { recursive: true });
-        }
+        assertWritableParent(base, dirname(fp));
+        mkdirSync(dirname(fp), { recursive: true });
+        assertInside(base, realpathSync(dirname(fp)));
+        if (existsSync(fp)) assertInside(base, realpathSync(fp));
         if (Buffer.byteLength(content, 'utf8') > MAX_FILE_WRITE_BYTES) {
           throw new Error(`文件超过 ${MAX_FILE_WRITE_BYTES / 1024}KB 上限`);
         }
@@ -579,11 +569,7 @@ const server = createServer(async (req, res) => {
         confirmationReason: check.needConfirmReason,
         confirmationRequestId,
         confirmationExpiresInMs: CONFIRMATION_TTL_MS,
-        message: check.needConfirmReason === 'both'
-          ? '脚本包含非白名单命令，并且写入当前工作目录之外的路径，需要用户确认'
-          : check.needConfirmReason === 'external_path'
-            ? '脚本写入当前工作目录之外的路径，需要用户确认'
-            : '脚本包含非白名单命令，需要用户确认',
+        message: '脚本包含非白名单命令，需要用户确认',
       }));
       return;
     }
@@ -623,8 +609,8 @@ const server = createServer(async (req, res) => {
 /**
  * 返回 null → 全部命令均在白名单；'NEED_CONFIRM' → 至少一个命令不在白名单；字符串 → 拒绝原因
  */
-function resolvesOutsideSession(value, sessionBase) {
-  if (!value || value === '-') return false;
+function extractPathCandidate(value) {
+  if (!value || value === '-') return null;
   let candidate = value;
   if (value.startsWith('-')) {
     const equalsIndex = value.indexOf('=');
@@ -637,9 +623,22 @@ function resolvesOutsideSession(value, sessionBase) {
         : absoluteIndex >= 0
           ? absoluteIndex
           : -1;
-    if (pathIndex < 0) return false;
+    if (pathIndex < 0) return null;
     candidate = value.slice(pathIndex);
   }
+  return candidate || null;
+}
+
+function isPublicLinkReadPath(value, sessionBase) {
+  if (sessionBase === PUBLIC_WORKSPACE) return false;
+  const candidate = extractPathCandidate(value);
+  if (!candidate) return false;
+  const normalized = candidate.replace(/\\/g, '/').trim();
+  return normalized === 'public' || normalized.startsWith('public/');
+}
+
+function resolvesOutsideSession(value, sessionBase) {
+  const candidate = extractPathCandidate(value);
   if (!candidate) return false;
   const target = resolve(sessionBase, candidate);
   if (!isInside(sessionBase, target)) return true;
@@ -749,6 +748,76 @@ function shellWriteTargets(command, args) {
   return [];
 }
 
+function shellReadTargets(command, args) {
+  if (['ls', 'du', 'stat', 'file', 'basename', 'dirname', 'sha256sum', 'md5sum', 'cksum', 'sum', 'ffprobe'].includes(command)) {
+    return operandsAfterOptions(args);
+  }
+  if (['cat', 'head', 'tail', 'wc', 'od', 'hexdump', 'strings', 'cut'].includes(command)) {
+    return operandsAfterOptions(args, new Set(['-n', '-c', '-s', '-w', '-f', '--fields']));
+  }
+  if (command === 'uniq') {
+    const operands = operandsAfterOptions(args, new Set([
+      '-f', '--skip-fields', '-s', '--skip-chars', '-w', '--check-chars',
+    ]));
+    return operands.length > 0 ? [operands[0]] : [];
+  }
+  if (command === 'xxd') {
+    const operands = operandsAfterOptions(args, new Set([
+      '-a', '-c', '-cols', '-g', '-groupsize', '-l', '-len', '-o', '-s', '-seek',
+    ]));
+    return operands.length > 0 ? [operands[0]] : [];
+  }
+  if (command === 'grep') {
+    const operands = operandsAfterOptions(args, new Set([
+      '-e', '--regexp', '-f', '--file', '-m', '--max-count', '-A', '-B', '-C',
+    ]));
+    return operands.length > 1 ? operands.slice(1) : [];
+  }
+  if (command === 'tr') return [];
+  if (command === 'diff' || command === 'cmp') {
+    const operands = operandsAfterOptions(args);
+    return operands.slice(0, 2);
+  }
+  if (command === 'cp') {
+    let targetDirectory = null;
+    const operands = [];
+    let optionsEnded = false;
+    for (let index = 0; index < args.length; index++) {
+      const arg = args[index];
+      if (!optionsEnded && arg === '--') {
+        optionsEnded = true;
+        continue;
+      }
+      if (!optionsEnded && (arg === '-t' || arg === '--target-directory')) {
+        targetDirectory = args[index + 1] ?? null;
+        index += 1;
+        continue;
+      }
+      if (!optionsEnded && arg.startsWith('--target-directory=')) {
+        targetDirectory = arg.slice('--target-directory='.length);
+        continue;
+      }
+      if (!optionsEnded && arg.startsWith('-t') && arg.length > 2) {
+        targetDirectory = arg.slice(2);
+        continue;
+      }
+      if (!optionsEnded && arg.startsWith('-') && arg !== '-') continue;
+      operands.push(arg);
+    }
+    if (targetDirectory) return operands;
+    return operands.length > 1 ? operands.slice(0, -1) : [];
+  }
+  if (command === 'jq') {
+    const operands = operandsAfterOptions(args, new Set([
+      '-f', '--from-file', '-L',
+    ]));
+    if (operands.length === 0) return [];
+    if (operands.length === 1) return [];
+    return operands.slice(1);
+  }
+  return [];
+}
+
 function validateScript(script, sessionBase) {
   if (script.length > MAX_SCRIPT_CHARS) return '脚本超过 8000 字符';
   const lines = script.split('\n').filter((l) => l.trim() && !l.trim().startsWith('#'));
@@ -756,6 +825,7 @@ function validateScript(script, sessionBase) {
   let commandCount = 0;
   let hasNonAllowlistedCommand = false;
   let hasExternalWrite = false;
+  let hasExternalRead = false;
   for (const line of lines) {
     let commands;
     try {
@@ -771,10 +841,15 @@ function validateScript(script, sessionBase) {
       if (shellWriteTargets(cmd, args).some((arg) => resolvesOutsideSession(arg, sessionBase))) {
         hasExternalWrite = true;
       }
+      if (shellReadTargets(cmd, args).some((arg) => (
+        !isPublicLinkReadPath(arg, sessionBase) && resolvesOutsideSession(arg, sessionBase)
+      ))) {
+        hasExternalRead = true;
+      }
     }
   }
-  if (hasNonAllowlistedCommand && hasExternalWrite) return { needConfirmReason: 'both' };
-  if (hasExternalWrite) return { needConfirmReason: 'external_path' };
+  if (hasExternalRead) return '脚本读取路径必须位于当前会话工作目录（仅允许通过 public 链接读取公共目录）';
+  if (hasExternalWrite) return '脚本写入路径必须位于当前会话工作目录（public 链接只读）';
   if (hasNonAllowlistedCommand) return { needConfirmReason: 'non_allowlisted' };
   return null;
 }
