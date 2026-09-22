@@ -7,7 +7,7 @@ import type {
   McpTool,
   ToolConfirmationRequest,
 } from '../../types/models';
-import { BUILTIN_TOOLS, BUILTIN_TOOL_NAMES } from '../toolDefinitions';
+import { BUILTIN_TOOL_NAMES } from '../toolDefinitions';
 import { rollDice } from './builtinTools';
 import {
   executeGeneratedSkill,
@@ -16,7 +16,6 @@ import {
   truncateToolOutput,
   writeWorkspaceFileTextFor,
 } from './generatedSkillExecutor';
-import { sanitizeRelativePath } from './generatedWorkspace';
 import { translate } from '../i18n';
 
 // ============================================================
@@ -38,10 +37,6 @@ export interface ToolExecutionContext {
   npcId: number | null;
   /** 用户确认回调：返回 Promise<boolean> */
   requestConfirmation: (req: ToolConfirmationRequest) => Promise<boolean>;
-}
-
-export function isConfirmationNeeded(toolName: string): boolean {
-  return ['update_skill', 'delete_skill', 'update_character', 'delete_character', 'update_lorebook', 'delete_lorebook'].includes(toolName);
 }
 
 /**
@@ -301,7 +296,9 @@ export function parseDisplayRef(result: string): DisplayPayload | null {
 async function handleFileDisplay(args: Record<string, unknown>, ctx: ToolExecutionContext): Promise<string> {
   try {
     const workspaceDir = await applySessionWorkspace(ctx.sessionId, ctx.npcId);
-    const rawPath = sanitizeRelativePath(String(args.path ?? ''));
+    // 与 file_read 对齐：只规范化、不限制读取边界（可读 .. / 绝对路径 / 外部符号链接）
+    const rawPath = String(args.path ?? '').replace(/\\/g, '/').trim();
+    if (!rawPath) return 'ERROR: 无效路径';
     const title = typeof args.title === 'string' && args.title.trim() ? args.title.trim() : undefined;
 
     // 从文件后缀推断展示方式
@@ -689,10 +686,6 @@ async function handleDeleteLorebook(args: Record<string, unknown>): Promise<stri
 export async function listToolNames(): Promise<string[]> {
   const tools = await db.tools.toArray();
   return tools.map((t) => t.name).sort();
-}
-
-export function getBuiltinTools(): ChatCompletionTool[] {
-  return BUILTIN_TOOLS;
 }
 
 /** 根据会话与当前发言人获取已启用的工具列表（NPC 会话取 associatedId，群聊取当前发言人 NPC） */

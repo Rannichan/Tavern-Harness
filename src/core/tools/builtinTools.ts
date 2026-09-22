@@ -1,4 +1,3 @@
-import type { DiceResult } from '../../types/models';
 import { translate } from '../i18n';
 
 // ============================================================
@@ -36,21 +35,4 @@ export function rollDice(expression: string): string {
   const parts = [rolls.join(', ')];
   if (modifier !== 0) parts.push(`${modifier > 0 ? '+' : ''}${modifier}`);
   return translate('tool.diceRoll', { expr, rolls: parts.join('] '), total, crit: critical });
-}
-
-export function rollDiceStructured(expression: string): DiceResult | null {
-  const m = expression.trim().match(DICE_RE);
-  if (!m) return null;
-  const count = m[1] ? parseInt(m[1], 10) : 1;
-  const sides = parseInt(m[2], 10);
-  const modifier = m[3] ? parseInt(m[3], 10) : 0;
-  if (count < 1 || count > 100 || sides < 2 || sides > 10000) return null;
-  const rolls: number[] = [];
-  for (let i = 0; i < count; i++) rolls.push(1 + Math.floor(Math.random() * sides));
-  const total = rolls.reduce((a, b) => a + b, 0) + modifier;
-  let critical: DiceResult['critical'];
-  if (count === 1 && sides === 20) {
-    critical = rolls[0] === 20 ? 'success' : rolls[0] === 1 ? 'failure' : undefined;
-  }
-  return { expression: expression.trim(), rolls, modifier, total, critical };
 }

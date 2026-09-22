@@ -441,9 +441,10 @@ export async function writeWorkspaceFileTextFor(
   confirm: SkillConfirmFn | null,
   toolName = 'file_write',
 ): Promise<string> {
-  const safe = sanitizeRelativePath(path);
+  const normalizedPath = normalizePath(path);
+  if (!normalizedPath) throw new Error('无效路径');
   await requireFileServer(workspaceDir);
-  return diskFileWrite(safe, content, false, workspaceDir, confirm, undefined, toolName);
+  return diskFileWrite(normalizedPath, content, false, workspaceDir, confirm, undefined, toolName);
 }
 
 // ---------- 会话工作区枚举（文件管理器只读浏览共用） ----------

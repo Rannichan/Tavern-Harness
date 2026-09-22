@@ -302,14 +302,6 @@ export interface GeneratedSkillExecution {
   [k: string]: unknown;
 }
 
-export interface DiceResult {
-  expression: string;
-  rolls: number[];
-  modifier: number;
-  total: number;
-  critical?: 'success' | 'failure';
-}
-
 export interface FileEntry {
   name: string;
   path: string;
