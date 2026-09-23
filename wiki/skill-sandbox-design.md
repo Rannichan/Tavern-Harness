@@ -56,11 +56,11 @@
 ```mermaid
 flowchart LR
     START([发起工具调用<br/>executeToolCall]) --> PARSE{解析参数 JSON}
-    PARSE -->|合法| ROUTE{"routeFor 路由判定<br/>工具名 + isBuiltIn"}
+    PARSE -->|合法| ROUTE{"routeFor 路由判定<br/>先 isBuiltIn 后 工具名"}
+    ROUTE -->|!isBuiltIn| STANDARD[executeGeneratedSkill<br/>按 execution.type 分派]
+    ROUTE -->|isBuiltIn 且名在名单| NATIVE[runNativeTool 直接分派]
+    ROUTE -->|其他| BLOCKED["ERROR: 工具不存在<br/>并附可用工具列表"]
     PARSE -->|非法| ERR1["ERROR: 参数不是合法 JSON"]
-    ROUTE -->|NATIVE| NATIVE[runNativeTool 直接分派]
-    ROUTE -->|STANDARD| STANDARD[executeGeneratedSkill<br/>按 execution.type 分派]
-    ROUTE -->|BLOCKED| ERR2["ERROR: 工具不存在<br/>并附可用工具列表"]
 
     subgraph G1["原生分派（NATIVE）"]
         NB{实现细分}
@@ -157,32 +157,17 @@ flowchart LR
 
 ### 2.1 路由判定（routeFor）
 
-`src/core/tools/toolExecutor.ts` 中 `routeFor()` 对每次工具调用返回三种路由之一：
+`src/core/tools/toolExecutor.ts` 中 `routeFor()` 对每次工具调用返回三种路由之一，按**判定优先级**依次为：
 
-| 路由 | 判定条件 | 处置 |
-| --- | --- | --- |
-| `NATIVE` | 工具名命中 `BUILTIN_TOOL_NAMES` 且 `isBuiltIn` | 前端 `runNativeTool` 直接分派（见 1.1 / 1.2） |
-| `STANDARD` | 非内置（`!isBuiltIn`），即 `create_skill` 产出的生成式技能 | 解析 `executionJson` 按 `execution.type` 分派到 `executeGeneratedSkill`（见 1.3） |
-| `BLOCKED` | 其它（工具不存在，或模型幻想了未知工具名） | 返回 `ERROR: 工具 'xxx' 不存在或不可用`，并附带可用工具列表 |
-
-生成式技能永远不可进入原生路由：`routeFor()` 先判 `!tool.isBuiltIn`，即使名字与内置相同也走 STANDARD。
-
-### 2.2 执行流（turnLoop 的 ReAct 循环）
-
-工具调用发生在 `store.ts` 的回合循环（ReAct 深度循环）中：
-
-1. **构建请求**：会话按当前发言者取启用工具集 `getEnabledToolsForSession`（NPC 会话取 `associatedId`，群聊取当前发言人），得到 `ChatCompletionTool[]` 传入 `tools`。
-2. **流式生成**：`streamChatCompletions` 流式输出，工具调用以 `tool_call` chunk 累积（id / name / argumentsJson / contentOffset），超大 `file_write` 参数按 `100ms` 间隔快照落库以便断点恢复。
-3. **执行工具**：按工具调用顺序逐个执行 `executeToolCall`：
-   - 先 `applySessionWorkspace` 锁定会话工作目录（见第 4 节）；
-   - 再走 `needsConfirm` 白名单判断：`update_skill` / `delete_skill` / `update_character` / `delete_character` / `update_lorebook` / `delete_lorebook` 先 `requestToolConfirmation` 弹窗确认；其余直接执行，其中 shell 等生成式确认交给 `requestGeneratedToolConfirmation`（见 3.3）。
-   - 每个结果落库为 `role: 'tool'` 消息（失败/空结果也落库，空结果补占位文案）。
-4. **后处理**：`OK:` 前缀触发关联刷新（角色 / 世界书 / 技能），`file_display` 结果解析 `DISPLAY_REF` 自动打开弹窗，失败结果按 `ERROR:`/`CANCELLED:` 前缀判定并计入失败计数。
-5. **继续循环**：有工具结果则 `depth++` 进入下一层 ReAct（把工具结果带回去再生成）；无工具调用则回合结束。
+| 优先级 | 路由 | 判定条件 | 处置 |
+| --- | --- | --- | --- |
+| 1 | `STANDARD` | 记录存在且非内置（`!isBuiltIn`） | 解析 `executionJson` 按 `execution.type` 分派到 `executeGeneratedSkill`（见 1.3） |
+| 2 | `NATIVE` | 走到此步必然 `isBuiltIn` 为真；工具名命中 `BUILTIN_TOOL_NAMES` | 前端 `runNativeTool` 直接分派（见 1.1 / 1.2） |
+| 3 | `BLOCKED` | 其余：工具不存在 / 记录为 null / 内置但名字不在名单 | 返回 `ERROR: 工具 'xxx' 不存在或不可用`，并附带可用工具列表 |
 
 ### 2.3 三层防线（预算限制）
 
-每回合的深度循环受三类预算约束，超出即弹窗请求用户确认是否继续（拒绝则中断回合）：
+每回合的ReAct深度循环受三类预算约束，超出即弹窗请求用户确认是否继续（拒绝则中断回合）：
 
 | 限制 | 常量 | 行为 |
 | --- | --- | --- |
@@ -195,12 +180,20 @@ flowchart LR
 
 ### 2.4 确认门控的两个入口
 
-| 入口 | 触发场景 | 回调 |
-| --- | --- | --- |
-| 路由内 `gate()` | 原生工具在 `runNativeTool` 内直接调用（`update_*` / `delete_*`） | `ctx.requestConfirmation`（由调用方注入） |
-| 循环外层白名单 | 回合循环在 `executeToolCall` **之前**拦截同一批 `update_*` / `delete_*` | `requestToolConfirmation`（带 argsJson） |
+对同批 `update_skill` / `delete_skill` / `update_character` / `delete_character` / `update_lorebook` / `delete_lorebook` 六把工具，确认弹窗有两个调用入口：回合循环的**外层白名单**与 `runNativeTool` 内的**内层 `gate()`**。二者都基于 `ToolConfirmationRequest { sessionId, toolName, title, message, argsJson }`。
 
-两者都基于 `ToolConfirmationRequest { sessionId, toolName, title, message, argsJson }`；外层拦截通过后，内层 `requestConfirmation` 被替换为 `async () => true`，避免二次弹窗。
+| 维度 | 入口 A：循环外层白名单（主入口） | 入口 B：路由内 `gate()`（兜底） |
+| --- | --- | --- |
+| 触发工具 | 同一批六把工具，按工具名匹配（**不论 `isBuiltIn`**，同名自定义技能同样被拦） | 同一批六把工具进入 `NATIVE` 路由后 |
+| 触发时机 | `executeToolCall` **之前**（`store.ts` 的 `needsConfirm` 白名单） | `runNativeTool` 分派到具体 case 后、写库实现执行前 |
+| 确认内容 | `argsJson: tc.argumentsJson`（完整参数，用户能看到要改/删哪个对象） | `argsJson: '{}'`（不透传参数） |
+| 回调实现 | `requestToolConfirmation(sessionId, tc)`，挂起直到用户响应 | `ctx.requestConfirmation`（由调用方注入） |
+| 通过后行为 | 注入 `async () => true` 作为内层回调，`gate()` 直接放行，不二次弹窗 | 继续执行对应实现 |
+| 取消行为 | 不进入 `executeToolCall`（不解析参数、不查库、不执行实现），直接置取消文案 | 返回取消文案（`toast.canceled`） |
+
+**两者关系**：内层 `gate()` 是外层白名单的兜底——即使未来出现绕过 `needsConfirm` 分支的调用路径（例如别处直接调 `executeToolCall`），破坏性写操作仍必须确认；当前正常路径中外层总是先拦截，内层拿到的回调恒为 `async () => true`。
+
+> 注：生成式 shell 技能的非白名单命令确认（`requestGeneratedToolConfirmation`，请求结构同为 `ToolConfirmationRequest`）**不属于**这两个入口——它经 `executeToolCall` 的 `requestConfirmation` 参数在执行过程中按需注入，见 3.3。
 
 ### 2.5 工具结果与重试
 
