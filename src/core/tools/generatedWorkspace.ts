@@ -5,9 +5,9 @@
 /** 校验路径：相对路径、不允许 .. / 绝对路径 */
 export function sanitizeRelativePath(path: string): string {
   const p = path.replace(/\\/g, '/').trim();
-  if (p.startsWith('/')) throw new Error('不允许绝对路径');
+  if (p.startsWith('/')) throw new Error('Absolute paths are not allowed');
   const parts = p.split('/').filter((s) => s && s !== '.');
-  if (parts.some((s) => s === '..')) throw new Error('路径不能包含 ..');
-  if (parts.length === 0) throw new Error('无效路径');
+  if (parts.some((s) => s === '..')) throw new Error('Path must not contain ..');
+  if (parts.length === 0) throw new Error('Invalid path');
   return parts.join('/');
 }

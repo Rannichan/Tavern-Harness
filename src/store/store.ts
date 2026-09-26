@@ -1381,6 +1381,7 @@ async function streamAssistantTurn(
   let lastToolCallSignature = '';
   let identicalToolCallCount = 0;
   let limitDeclined = false;
+  let toolCancelled = false;
   const resetToolBudgets = () => {
     depth = 0;
     toolCallCount = 0;
@@ -1703,14 +1704,15 @@ async function streamAssistantTurn(
           toolCallCount++;
           // 普通角色限制在会话目录；内置酒馆老板的单人会话固定使用 public
           await applySessionWorkspace(sessionId, npc?.id ?? null);
+          // 确认收口：修改/删除组在外层白名单确认（执行前），shell 组在执行中按需确认，
+          // 两条路径共用同一个 requestConfirmation 回调（requestGeneratedToolConfirmation）
           const needsConfirm = ['update_skill', 'delete_skill', 'update_character', 'delete_character', 'update_lorebook', 'delete_lorebook'].includes(tc.name);
+          let approved = true;
           if (needsConfirm) {
-            const approved = await requestToolConfirmation(sessionId, tc);
-            if (!approved) {
-              result = translate('toast.canceled', { name: tc.name });
-            } else {
-              result = await executeToolCall(tc.name, tc.argumentsJson, { sessionId, npcId: npc?.id ?? null, requestConfirmation: async () => true });
-            }
+            approved = await requestToolConfirmation(sessionId, tc);
+          }
+          if (!approved) {
+            result = translate('toast.canceled', { name: tc.name });
           } else {
             result = await executeToolCall(tc.name, tc.argumentsJson, {
               sessionId,
@@ -1770,22 +1772,24 @@ async function streamAssistantTurn(
           });
         }
 
-        // 工具调用失败 / 被取消 / 无结果 → 立即提示，避免用户误以为还在执行中。
-        // 失败判定沿用 UI 的惯例：ERROR: / CANCELLED: 前缀（部分工具成功时返回非 OK: 文本，
-        // 如掷骰结果、JSON 快照、模板输出，不能简单用「非 OK:」判定失败）；
-        // 用户主动取消（CANCELLED + 取消文案）不算失败，不弹错误提示。
-        const canceledResult = translate('toast.canceled', { name: tc.name });
-        const limitCanceled = limitDeclined && result.startsWith('CANCELLED:');
-        const isToolError =
-          !limitCanceled &&
-          (result.startsWith('ERROR:') || (result.startsWith('CANCELLED:') && result !== canceledResult));
+        // 结果前缀语义约定：ERROR: = 执行失败（计入连续失败）；
+        // CANCELLED: = 用户主动停止（外层白名单取消 toast.canceled / shell 拒绝 tool.shellDenied /
+        // Agent 限额停止 confirm.limitCanceled，全部产生点仅此三类），一律不计失败，
+        // 清零失败计数并终止当前 ReAct 回合，把控制权交还用户；其余为成功结果（部分工具成功时返回非 OK: 文本，
+        // 如掷骰结果、JSON 快照、模板输出，不能简单用「非 OK:」判定失败）。
+        // 历史版本曾按「与 toast.canceled 字符串全等」判定用户取消，导致 shell 拒绝（tool.shellDenied，
+        // 名字硬编码为 shell）被误判为失败，现统一按前缀豁免。
+        const isToolError = result.startsWith('ERROR:');
+        const isToolCancelled = result.startsWith('CANCELLED:');
         if (isToolError) {
           consecutiveToolFailures++;
-          useStore
-            .getState()
-            .addToast(translate('toast.toolFailed', { name: tc.name, detail: result.slice(0, 120) }), 'error');
         } else {
           consecutiveToolFailures = 0;
+        }
+
+        if (isToolCancelled) {
+          toolCancelled = true;
+          break;
         }
 
         if (
@@ -1803,7 +1807,7 @@ async function streamAssistantTurn(
       // 保证「失败 / 无结果」在工具执行完成时立即可见，而不是等用户下一条消息
       await useStore.getState().loadMessages(sessionId);
 
-      if (limitDeclined) break;
+      if (limitDeclined || toolCancelled) break;
 
       // 有工具结果 → 下一层 ReAct
       depth++;
@@ -2026,33 +2030,35 @@ async function continueRegeneratedGroupLoop(
   return continueGroupConversation(sessionId);
 }
 
-/** 请求用户确认（挂起直到 resolveConfirmation） */
-function requestToolConfirmation(
-  sessionId: number,
-  tc: { id: string; name: string; argumentsJson: string }
-): Promise<boolean> {
+/** 挂起一个确认请求，直到用户在弹窗上应答（resolveConfirmation）。所有确认共用此唯一挂起点。 */
+function suspendConfirmation(req: ToolConfirmationRequest): Promise<boolean> {
   return new Promise((resolve) => {
-    const req: ToolConfirmationRequest = {
-      sessionId,
-      toolName: tc.name,
-      title: `确认 ${tc.name}`,
-      message: `模型请求执行修改操作「${tc.name}」。`,
-      argsJson: tc.argumentsJson,
-    };
     confirmationDeferreds.set(req, { resolve });
     useStore.setState({ pendingConfirmation: req });
   });
 }
 
+/** 外层白名单确认（修改/删除组，executeToolCall 之前按工具名拦截）。 */
+function requestToolConfirmation(
+  sessionId: number,
+  tc: { id: string; name: string; argumentsJson: string }
+): Promise<boolean> {
+  // message 留空 → 弹窗回退到已本地化的 confirm.modify 文案（工具名由弹窗单独一行展示）
+  return suspendConfirmation({
+    sessionId,
+    toolName: tc.name,
+    title: translate('confirm.modifyTitle', { name: tc.name }),
+    message: '',
+    argsJson: tc.argumentsJson,
+  });
+}
+
+/** shell 执行中确认（沙箱服务判定后透传 ToolConfirmationRequest）。 */
 function requestGeneratedToolConfirmation(
   sessionId: number,
   request: ToolConfirmationRequest
 ): Promise<boolean> {
-  return new Promise((resolve) => {
-    const req: ToolConfirmationRequest = { ...request, sessionId };
-    confirmationDeferreds.set(req, { resolve });
-    useStore.setState({ pendingConfirmation: req });
-  });
+  return suspendConfirmation({ ...request, sessionId });
 }
 
 function requestLimitConfirmation(
@@ -2065,22 +2071,18 @@ function requestLimitConfirmation(
     consecutiveToolFailures: number;
   }
 ): Promise<boolean> {
-  return new Promise((resolve) => {
-    const req: ToolConfirmationRequest = {
-      sessionId,
-      toolName: 'agent_limit',
-      title: translate('confirm.limitTitle'),
-      message: translate('confirm.limitMessage', { reason }),
-      argsJson: JSON.stringify({
-        depth: counters.depth,
-        tool_calls: counters.toolCallCount,
-        identical_calls: counters.identicalToolCallCount,
-        consecutive_failures: counters.consecutiveToolFailures,
-      }),
-      kind: 'limit',
-    };
-    confirmationDeferreds.set(req, { resolve });
-    useStore.setState({ pendingConfirmation: req });
+  return suspendConfirmation({
+    sessionId,
+    toolName: 'agent_limit',
+    title: translate('confirm.limitTitle'),
+    message: translate('confirm.limitMessage', { reason }),
+    argsJson: JSON.stringify({
+      depth: counters.depth,
+      tool_calls: counters.toolCallCount,
+      identical_calls: counters.identicalToolCallCount,
+      consecutive_failures: counters.consecutiveToolFailures,
+    }),
+    kind: 'limit',
   });
 }
 

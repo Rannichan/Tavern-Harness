@@ -87,7 +87,7 @@ try {
 
   const missingExecSession = await post({ script: 'echo unauthorized-root' });
   assert.equal(missingExecSession.ok, false);
-  assert.match(missingExecSession.message, /缺少合法的会话工作目录/);
+  assert.match(missingExecSession.message, /A valid session workspace is required/);
 
   const missingFileSessionResponse = await fetch(`http://127.0.0.1:${port}/file_list`, {
     method: 'POST',
@@ -97,7 +97,7 @@ try {
   const missingFileSession = await missingFileSessionResponse.json();
   assert.equal(missingFileSessionResponse.status, 400);
   assert.equal(missingFileSession.ok, false);
-  assert.match(missingFileSession.message, /缺少合法的会话工作目录/);
+  assert.match(missingFileSession.message, /A valid session workspace is required/);
 
   const sessionCreateResponse = await fetch(`http://127.0.0.1:${port}/session_create`, {
     method: 'POST',
@@ -162,7 +162,7 @@ try {
   const publicWrite = await publicWriteResponse.json();
   assert.equal(publicWriteResponse.status, 400);
   assert.equal(publicWrite.ok, false);
-  assert.match(publicWrite.message, /public 目录仅允许读取，不允许写入/);
+  assert.match(publicWrite.message, /The public directory is read-only/);
   assert.equal(readFileSync(join(root, 'sandbox_workspace', 'public', publicFile), 'utf8'), 'shared read-only content');
 
   const publicDeleteResponse = await fetch(`http://127.0.0.1:${port}/session_delete`, {
@@ -172,7 +172,7 @@ try {
   });
   const publicDelete = await publicDeleteResponse.json();
   assert.equal(publicDeleteResponse.status, 400);
-  assert.match(publicDelete.message, /公共工作目录不可删除/);
+  assert.match(publicDelete.message, /The public workspace cannot be deleted/);
   assert.equal(readFileSync(join(root, 'sandbox_workspace', 'public', publicFile), 'utf8'), 'shared read-only content');
 
   const externalDir = mkdtempSync(join(tmpdir(), 'command-service-external-'));
@@ -187,7 +187,7 @@ try {
   const externalRead = await externalReadResponse.json();
   assert.equal(externalReadResponse.status, 400);
   assert.equal(externalRead.ok, false);
-  assert.match(externalRead.message, /路径超出工作区/);
+  assert.match(externalRead.message, /Path is outside the workspace/);
   const absoluteReadResponse = await fetch(`http://127.0.0.1:${port}/file_read`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Command-Service-Token': serviceToken },
@@ -196,7 +196,7 @@ try {
   const absoluteRead = await absoluteReadResponse.json();
   assert.equal(absoluteReadResponse.status, 400);
   assert.equal(absoluteRead.ok, false);
-  assert.match(absoluteRead.message, /非法路径/);
+  assert.match(absoluteRead.message, /Invalid path/);
   const traversalReadResponse = await fetch(`http://127.0.0.1:${port}/file_read`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Command-Service-Token': serviceToken },
@@ -205,7 +205,7 @@ try {
   const traversalRead = await traversalReadResponse.json();
   assert.equal(traversalReadResponse.status, 400);
   assert.equal(traversalRead.ok, false);
-  assert.match(traversalRead.message, /路径不能包含 \.\./);
+  assert.match(traversalRead.message, /Path must not contain \.\./);
   const externalWriteResponse = await fetch(`http://127.0.0.1:${port}/file_write`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Command-Service-Token': serviceToken },
@@ -214,7 +214,7 @@ try {
   const externalWrite = await externalWriteResponse.json();
   assert.equal(externalWriteResponse.status, 400);
   assert.equal(externalWrite.ok, false);
-  assert.match(externalWrite.message, /路径超出工作区/);
+  assert.match(externalWrite.message, /Path is outside the workspace/);
   assert.equal(existsSync(join(externalDir, 'new')), false, 'unapproved writes must not create directories outside the workspace');
   rmSync(externalDir, { recursive: true, force: true });
 
@@ -230,20 +230,20 @@ try {
   const traversalPath = `../outside-${process.pid}.txt`;
   const traversalRequest = await post({ script: `touch ${traversalPath}`, session });
   assert.equal(traversalRequest.ok, false, 'parent traversal outside the session must be rejected');
-  assert.match(traversalRequest.message, /脚本写入路径必须位于当前会话工作目录/);
+  assert.match(traversalRequest.message, /Script write paths must stay within the current session workspace/);
   assert.equal(existsSync(join(root, 'sandbox_workspace', `outside-${process.pid}.txt`)), false);
 
   const externalShellFile = join(fakeBin, 'external-shell-write.txt');
   const externalPathRequest = await post({ script: `touch ${forward(externalShellFile)}`, session });
   assert.equal(externalPathRequest.ok, false, 'an absolute path outside the session must be rejected');
-  assert.match(externalPathRequest.message, /脚本写入路径必须位于当前会话工作目录/);
+  assert.match(externalPathRequest.message, /Script write paths must stay within the current session workspace/);
   assert.equal(existsSync(externalShellFile), false, 'external writes must not run before approval');
   const externalCopyRequest = await post({
     script: `cp ${forward(join(root, '.gitignore'))} copied-from-external.txt`,
     session,
   });
   assert.equal(externalCopyRequest.ok, false, 'copying from an external source into the session must be rejected');
-  assert.match(externalCopyRequest.message, /脚本读取路径必须位于当前会话工作目录/);
+  assert.match(externalCopyRequest.message, /Script read paths must stay within the current session workspace/);
   assert.equal(existsSync(join(root, 'sandbox_workspace', session, 'copied-from-external.txt')), false);
   const publicPathRequest = await post({ script: `cat public/${publicFile}`, session });
   assert.equal(publicPathRequest.ok, true, 'reading through the public link must not require confirmation');
@@ -251,42 +251,65 @@ try {
 
   const absoluteExternalRead = await post({ script: `cat ${forward(join(root, '.gitignore'))}`, session });
   assert.equal(absoluteExternalRead.ok, false, 'reading an absolute external path must be rejected');
-  assert.match(absoluteExternalRead.message, /脚本读取路径必须位于当前会话工作目录/);
+  assert.match(absoluteExternalRead.message, /Script read paths must stay within the current session workspace/);
 
   const copyToMissingPublicPath = await post({ script: `cp created.txt public/${missingPublicTarget}`, session: otherSession });
   assert.equal(copyToMissingPublicPath.ok, false, 'copying to public must be rejected');
-  assert.match(copyToMissingPublicPath.message, /脚本写入路径必须位于当前会话工作目录/);
+  assert.match(copyToMissingPublicPath.message, /Script write paths must stay within the current session workspace/);
   assert.equal(existsSync(join(root, 'sandbox_workspace', 'public', missingPublicTarget)), false, 'the copy must not run before approval');
+
+  // 非白名单改动型命令（mv / rm 等）同样先做路径分类：越界直接拒绝，不得进入确认通道
+  const mvToPublic = await post({ script: `mv created.txt public/${missingPublicTarget}`, session: otherSession });
+  assert.equal(mvToPublic.ok, false, 'moving a file into public must be rejected without a confirmation ticket');
+  assert.equal(mvToPublic.needConfirm, undefined, 'an out-of-session write must not offer confirmation');
+  assert.match(mvToPublic.message, /Script write paths must stay within the current session workspace/);
+  assert.equal(existsSync(join(root, 'sandbox_workspace', otherSession, 'created.txt')), true, 'the source file must survive a rejected mv');
+  assert.equal(existsSync(join(root, 'sandbox_workspace', 'public', missingPublicTarget)), false, 'the move must not run before approval');
+
+  const mvFromPublic = await post({ script: `mv public/${publicFile} moved-from-public.txt`, session: otherSession });
+  assert.equal(mvFromPublic.ok, false, 'moving a file out of public must be rejected (mv deletes its source)');
+  assert.match(mvFromPublic.message, /Script write paths must stay within the current session workspace/);
+  assert.equal(existsSync(join(root, 'sandbox_workspace', 'public', publicFile)), true, 'the public file must survive a rejected mv');
+
+  const rmExternal = await post({ script: `rm ${forward(join(root, '.gitignore'))}`, session: otherSession });
+  assert.equal(rmExternal.ok, false, 'removing an external file must be rejected');
+  assert.equal(rmExternal.needConfirm, undefined, 'an out-of-session removal must not offer confirmation');
+  assert.match(rmExternal.message, /Script write paths must stay within the current session workspace/);
+  assert.equal(existsSync(join(root, '.gitignore')), true, 'the external file must survive a rejected rm');
+
+  const mvInsideSession = await post({ script: 'mv created.txt renamed.txt', session: otherSession });
+  assert.equal(mvInsideSession.needConfirm, true, 'an in-session mv is still a non-allowlisted command requiring confirmation');
+  assert.equal(typeof mvInsideSession.confirmationRequestId, 'string');
 
   const genericDanglingLink = await post({ script: 'touch external/new-through-dangling-link.txt', session: otherSession });
   assert.equal(genericDanglingLink.ok, false, 'any symlink whose declared target is outside the session must be rejected even when its target is missing');
-  assert.match(genericDanglingLink.message, /脚本写入路径必须位于当前会话工作目录/);
+  assert.match(genericDanglingLink.message, /Script write paths must stay within the current session workspace/);
 
   symlinkSync(IS_WIN ? join(root, 'sandbox_workspace', otherSession, 'external') : 'external', join(root, 'sandbox_workspace', otherSession, 'alias'), IS_WIN ? 'junction' : 'dir');
   const chainedExternalLink = await post({ script: 'cat alias/secret.txt', session: otherSession });
   assert.equal(chainedExternalLink.ok, false, 'external reads through chained symlinks must be rejected');
-  assert.match(chainedExternalLink.message, /脚本读取路径必须位于当前会话工作目录/);
+  assert.match(chainedExternalLink.message, /Script read paths must stay within the current session workspace/);
 
   const optionEmbeddedPath = await post({
     script: `cp created.txt --target-directory=${forward(fakeBin)}`,
     session: otherSession,
   });
   assert.equal(optionEmbeddedPath.ok, false, 'external write targets embedded in option arguments must be rejected');
-  assert.match(optionEmbeddedPath.message, /脚本写入路径必须位于当前会话工作目录/);
+  assert.match(optionEmbeddedPath.message, /Script write paths must stay within the current session workspace/);
 
   const uniqExternalOutput = await post({
     script: `uniq -f 1 created.txt ${forward(join(fakeBin, 'uniq-output.txt'))}`,
     session: otherSession,
   });
   assert.equal(uniqExternalOutput.ok, false, 'optional external output files must be rejected');
-  assert.match(uniqExternalOutput.message, /脚本写入路径必须位于当前会话工作目录/);
+  assert.match(uniqExternalOutput.message, /Script write paths must stay within the current session workspace/);
 
   const compactTargetDirectory = await post({
     script: `cp -t${forward(fakeBin)} created.txt`,
     session: otherSession,
   });
   assert.equal(compactTargetDirectory.ok, false, 'compact target-directory options must not bypass path restrictions');
-  assert.match(compactTargetDirectory.message, /脚本写入路径必须位于当前会话工作目录/);
+  assert.match(compactTargetDirectory.message, /Script write paths must stay within the current session workspace/);
 
   const metacharacters = await post({ script: 'echo safe & literal | text > file', session });
   assert.equal(metacharacters.ok, true, 'shell metacharacters must remain literal arguments');
@@ -341,7 +364,7 @@ try {
 
   const overCharacterLimit = await post({ script: `${scriptAtCharacterLimit}x`, session });
   assert.equal(overCharacterLimit.ok, false);
-  assert.equal(overCharacterLimit.message, '脚本超过 8000 字符');
+  assert.equal(overCharacterLimit.message, 'Script exceeds 8,000 characters');
 
   const scriptAtCommandLimit = Array.from({ length: 20 }, () => 'true').join(';');
   const atCommandLimit = await post({ script: scriptAtCommandLimit, session });
@@ -349,7 +372,7 @@ try {
 
   const overCommandLimit = await post({ script: `${scriptAtCommandLimit};true`, session });
   assert.equal(overCommandLimit.ok, false);
-  assert.equal(overCommandLimit.message, '脚本命令数超过 20');
+  assert.equal(overCommandLimit.message, 'Script contains more than 20 commands');
 
   for (const command of ['jq', 'bc']) {
     const result = await post({ script: `${command} --version`, session });
@@ -373,9 +396,15 @@ try {
   assert.equal(nonAllowlisted.confirmationReason, 'non_allowlisted');
   assert.equal(typeof nonAllowlisted.confirmationRequestId, 'string');
 
-  const combinedReason = await post({ script: `node ${forward(externalShellFile)}`, session });
-  assert.equal(combinedReason.needConfirm, true);
-  assert.equal(combinedReason.confirmationReason, 'non_allowlisted');
+  const nonAllowlistedExternalPath = await post({ script: `node ${forward(externalShellFile)}`, session });
+  assert.equal(nonAllowlistedExternalPath.ok, false);
+  assert.equal(nonAllowlistedExternalPath.needConfirm, undefined, 'an explicit external path must be rejected before non-allowlisted confirmation');
+  assert.match(nonAllowlistedExternalPath.message, /Script paths must stay within the current session workspace/);
+
+  const externalPythonScript = await post({ script: `python3 ${forward(join(root, 'hello.py'))}`, session });
+  assert.equal(externalPythonScript.ok, false, 'executing a Python script outside the session must be rejected');
+  assert.equal(externalPythonScript.needConfirm, undefined, 'an external script path must not offer confirmation');
+  assert.match(externalPythonScript.message, /Script paths must stay within the current session workspace/);
 
   const unapprovedNonAllowlisted = await post({
     script: nonAllowlistedScript,
@@ -396,7 +425,7 @@ try {
     confirmationRequestId: nonAllowlisted.confirmationRequestId,
   });
   assert.equal(permittedNonAllowlisted.ok, false);
-  assert.match(permittedNonAllowlisted.message, /无法执行 command-that-does-not-exist/);
+  assert.match(permittedNonAllowlisted.message, /Failed to execute command-that-does-not-exist/);
   assert.equal(permittedNonAllowlisted.needConfirm, undefined, 'an approved command must reach execution');
 
   const script = 'rm marker.txt';
@@ -430,7 +459,7 @@ try {
     confirmationRequestId: timeoutConfirmation.confirmationRequestId,
   });
   assert.equal(timedOut.ok, false);
-  assert.match(timedOut.message, /命令超时 \(5000ms\)/);
+  assert.match(timedOut.message, /Command timed out \(5000ms\)/);
   await delay(3000);
   assert.equal(
     existsSync(join(root, 'sandbox_workspace', session, timeoutMarker)),

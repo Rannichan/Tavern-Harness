@@ -172,15 +172,15 @@ function parseCommandLine(line) {
     const operator = line.startsWith('&&', i) ? '&&' : line.startsWith('||', i) ? '||' : ch === ';' ? ';' : null;
     if (!operator) continue;
     const command = line.slice(start, i).trim();
-    if (!command) throw new Error(`连接符 ${operator} 前缺少命令`);
+    if (!command) throw new Error(`Missing command before operator ${operator}`);
     commands.push(command);
     operators.push(operator);
     i += operator.length - 1;
     start = i + 1;
   }
-  if (quote) throw new Error('命令包含未闭合的引号');
+  if (quote) throw new Error('Command contains an unclosed quote');
   const command = line.slice(start).trim();
-  if (!command) throw new Error('连接符后缺少命令');
+  if (!command) throw new Error('Missing command after operator');
   commands.push(command);
   return { commands, operators };
 }
@@ -315,10 +315,10 @@ const SESSION_DIR_RE = /^[a-z0-9_.-]+$/;
  * 解析会话工作目录。仅允许 sandbox_workspace 下的单层目录。
  */
 function resolveSessionBase(session) {
-  if (session === undefined || session === null) throw new Error('缺少合法的会话工作目录');
+  if (session === undefined || session === null) throw new Error('A valid session workspace is required');
   const raw = String(session).replace(/\\/g, '/').trim();
   if (!raw || raw.startsWith('/') || raw === '.' || raw === '..' || !SESSION_DIR_RE.test(raw)) {
-    throw new Error('缺少合法的会话工作目录');
+    throw new Error('A valid session workspace is required');
   }
   return join(WORKSPACE_ROOT, raw);
 }
@@ -331,7 +331,7 @@ function ensureSessionBase(base) {
   const publicLink = join(base, 'public');
   if (existsSync(publicLink)) {
     if (!lstatSync(publicLink).isSymbolicLink() || realpathSync(publicLink) !== realpathSync(PUBLIC_WORKSPACE)) {
-      throw new Error('会话 public 入口不是合法的公共目录链接');
+      throw new Error('The session public entry is not a valid link to the public workspace');
     }
   } else {
     symlinkSync(IS_WIN ? PUBLIC_WORKSPACE : '../public', publicLink, IS_WIN ? 'junction' : 'dir');
@@ -341,10 +341,10 @@ function ensureSessionBase(base) {
 /** 相对路径校验：禁止绝对路径、.. 等，锁定在会话工作目录内 */
 function sanitizeWorkspaceRelativePath(p) {
   const normalized = String(p).replace(/\\/g, '/').trim();
-  if (!normalized || normalized.startsWith('/')) throw new Error('非法路径');
+  if (!normalized || normalized.startsWith('/')) throw new Error('Invalid path');
   const parts = normalized.split('/').filter((s) => s && s !== '.');
-  if (parts.length === 0) throw new Error('非法路径');
-  if (parts.some((s) => s === '..')) throw new Error('路径不能包含 ..');
+  if (parts.length === 0) throw new Error('Invalid path');
+  if (parts.some((s) => s === '..')) throw new Error('Path must not contain ..');
   return parts.join('/');
 }
 
@@ -356,7 +356,7 @@ function workspacePathFor(rel, base) {
 /** 校验最终解析路径仍在会话工作目录内（防符号链接逃逸） */
 function assertInside(root, p) {
   const rp = resolve(p);
-  if (rp !== root && !rp.startsWith(root + sep)) throw new Error('路径超出工作区');
+  if (rp !== root && !rp.startsWith(root + sep)) throw new Error('Path is outside the workspace');
 }
 
 function isInside(root, p) {
@@ -438,27 +438,27 @@ const server = createServer(async (req, res) => {
       const base = resolveSessionBase(payload?.session);
       if (req.url === '/file_read') {
         const rawPath = String(payload?.path ?? '').replace(/\\/g, '/').trim();
-        if (!rawPath) throw new Error('非法路径');
+        if (!rawPath) throw new Error('Invalid path');
         const rel = sanitizeWorkspaceRelativePath(rawPath);
         const readingPublicLink = base !== PUBLIC_WORKSPACE && (rel === 'public' || rel.startsWith('public/'));
         if (!readingPublicLink && resolvesOutsideSession(rel, base)) {
-          throw new Error('路径超出工作区');
+          throw new Error('Path is outside the workspace');
         }
         const fp = resolve(base, rel);
         const text = await readFileAsync(fp);
         res.end(JSON.stringify({ ok: true, path: rel, content: text.slice(0, MAX_FILE_READ_CHARS) }));
       } else if (req.url === '/file_write') {
         const rawPath = String(payload?.path ?? '').replace(/\\/g, '/').trim();
-        if (!rawPath) throw new Error('非法路径');
+        if (!rawPath) throw new Error('Invalid path');
         const mode = payload?.mode === 'append' ? 'append' : 'write';
         const content = String(payload?.content ?? '');
         ensureSessionBase(base);
         const rel = sanitizeWorkspaceRelativePath(rawPath);
         if (base !== PUBLIC_WORKSPACE && (rel === 'public' || rel.startsWith('public/'))) {
-          throw new Error('public 目录仅允许读取，不允许写入');
+          throw new Error('The public directory is read-only');
         }
         if (resolvesOutsideSession(rel, base)) {
-          throw new Error('路径超出工作区');
+          throw new Error('Path is outside the workspace');
         }
         const fp = resolve(base, rel);
         assertWritableParent(base, dirname(fp));
@@ -466,7 +466,7 @@ const server = createServer(async (req, res) => {
         assertInside(base, realpathSync(dirname(fp)));
         if (existsSync(fp)) assertInside(base, realpathSync(fp));
         if (Buffer.byteLength(content, 'utf8') > MAX_FILE_WRITE_BYTES) {
-          throw new Error(`文件超过 ${MAX_FILE_WRITE_BYTES / 1024}KB 上限`);
+          throw new Error(`File exceeds the ${MAX_FILE_WRITE_BYTES / 1024}KB limit`);
         }
         if (mode === 'append') {
           const existing = existsSync(fp) ? await readFilePromise(fp, 'utf8') : '';
@@ -514,7 +514,7 @@ const server = createServer(async (req, res) => {
       if (req.url === '/session_create') {
         ensureSessionBase(base);
       } else {
-        if (base === PUBLIC_WORKSPACE) throw new Error('公共工作目录不可删除');
+        if (base === PUBLIC_WORKSPACE) throw new Error('The public workspace cannot be deleted');
         rmSync(base, { recursive: true, force: true });
       }
       res.end(JSON.stringify({ ok: true }));
@@ -569,7 +569,7 @@ const server = createServer(async (req, res) => {
         confirmationReason: check.needConfirmReason,
         confirmationRequestId,
         confirmationExpiresInMs: CONFIRMATION_TTL_MS,
-        message: '脚本包含非白名单命令，需要用户确认',
+        message: 'The script contains a non-allowlisted command and requires user confirmation',
       }));
       return;
     }
@@ -592,7 +592,7 @@ const server = createServer(async (req, res) => {
         if ((previousOperator === '&&' && lastCode !== 0) || (previousOperator === '||' && lastCode === 0)) continue;
         const result = await runOne(commands[i], sessionBase);
         lastCode = result.code;
-        lastError = result.stderr || (lastCode !== 0 ? `退出码 ${lastCode}` : '');
+        lastError = result.stderr || (lastCode !== 0 ? `Exit code ${lastCode}` : '');
         if (result.stdout) outputs.push(result.stdout.trimEnd());
         if (result.stderr) outputs.push(result.stderr.trimEnd());
       }
@@ -696,6 +696,36 @@ function operandsAfterOptions(args, optionsWithValues = new Set()) {
   return operands;
 }
 
+/** cp / mv / install / ln 共用的操作数提取：识别 -t/--target-directory 及其嵌入式形态。 */
+function cpLikeOperands(args) {
+  let targetDirectory = null;
+  const operands = [];
+  let optionsEnded = false;
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index];
+    if (!optionsEnded && arg === '--') {
+      optionsEnded = true;
+      continue;
+    }
+    if (!optionsEnded && (arg === '-t' || arg === '--target-directory')) {
+      targetDirectory = args[index + 1] ?? null;
+      index += 1;
+      continue;
+    }
+    if (!optionsEnded && arg.startsWith('--target-directory=')) {
+      targetDirectory = arg.slice('--target-directory='.length);
+      continue;
+    }
+    if (!optionsEnded && arg.startsWith('-t') && arg.length > 2) {
+      targetDirectory = arg.slice(2);
+      continue;
+    }
+    if (!optionsEnded && arg.startsWith('-') && arg !== '-') continue;
+    operands.push(arg);
+  }
+  return { targetDirectory, operands };
+}
+
 function shellWriteTargets(command, args) {
   if (command === 'touch') {
     return operandsAfterOptions(args, new Set(['-d', '--date', '-r', '--reference', '-t']));
@@ -716,35 +746,34 @@ function shellWriteTargets(command, args) {
     ]));
     return operands.length > 1 ? [operands[1]] : [];
   }
-  if (command === 'cp') {
-    let targetDirectory = null;
-    const operands = [];
-    let optionsEnded = false;
-    for (let index = 0; index < args.length; index++) {
-      const arg = args[index];
-      if (!optionsEnded && arg === '--') {
-        optionsEnded = true;
-        continue;
-      }
-      if (!optionsEnded && (arg === '-t' || arg === '--target-directory')) {
-        targetDirectory = args[index + 1] ?? null;
-        index += 1;
-        continue;
-      }
-      if (!optionsEnded && arg.startsWith('--target-directory=')) {
-        targetDirectory = arg.slice('--target-directory='.length);
-        continue;
-      }
-      if (!optionsEnded && arg.startsWith('-t') && arg.length > 2) {
-        targetDirectory = arg.slice(2);
-        continue;
-      }
-      if (!optionsEnded && arg.startsWith('-') && arg !== '-') continue;
-      operands.push(arg);
-    }
+  // cp / install：只写目标位（-t 目录或最后一个操作数）
+  if (command === 'cp' || command === 'install') {
+    const { targetDirectory, operands } = cpLikeOperands(args);
     if (targetDirectory) return [targetDirectory];
     return operands.length > 1 ? [operands.at(-1)] : [];
   }
+  // mv 会删除源文件，因此源与目标都按写目标校验（源越界同样直接拒绝）
+  if (command === 'mv') {
+    const { targetDirectory, operands } = cpLikeOperands(args);
+    return targetDirectory ? [...operands, targetDirectory] : operands;
+  }
+  if (command === 'ln') {
+    const { targetDirectory, operands } = cpLikeOperands(args);
+    if (targetDirectory) return [targetDirectory];
+    return operands.length > 1 ? [operands.at(-1)] : [];
+  }
+  // 以下均为非白名单的已知改动型命令：路径校验必须照常生效，越界直接拒绝而非进入确认通道。
+  if (command === 'rm' || command === 'rmdir') return operandsAfterOptions(args);
+  if (command === 'shred') {
+    return operandsAfterOptions(args, new Set(['-s', '--size', '-n', '--iterations']));
+  }
+  if (command === 'truncate') {
+    return operandsAfterOptions(args, new Set(['-s', '--size']));
+  }
+  if (command === 'chmod' || command === 'chown' || command === 'chgrp') {
+    return operandsAfterOptions(args, new Set(['--reference']));
+  }
+  if (command === 'dd') return args;
   return [];
 }
 
@@ -778,32 +807,8 @@ function shellReadTargets(command, args) {
     const operands = operandsAfterOptions(args);
     return operands.slice(0, 2);
   }
-  if (command === 'cp') {
-    let targetDirectory = null;
-    const operands = [];
-    let optionsEnded = false;
-    for (let index = 0; index < args.length; index++) {
-      const arg = args[index];
-      if (!optionsEnded && arg === '--') {
-        optionsEnded = true;
-        continue;
-      }
-      if (!optionsEnded && (arg === '-t' || arg === '--target-directory')) {
-        targetDirectory = args[index + 1] ?? null;
-        index += 1;
-        continue;
-      }
-      if (!optionsEnded && arg.startsWith('--target-directory=')) {
-        targetDirectory = arg.slice('--target-directory='.length);
-        continue;
-      }
-      if (!optionsEnded && arg.startsWith('-t') && arg.length > 2) {
-        targetDirectory = arg.slice(2);
-        continue;
-      }
-      if (!optionsEnded && arg.startsWith('-') && arg !== '-') continue;
-      operands.push(arg);
-    }
+  if (command === 'cp' || command === 'install') {
+    const { targetDirectory, operands } = cpLikeOperands(args);
     if (targetDirectory) return operands;
     return operands.length > 1 ? operands.slice(0, -1) : [];
   }
@@ -819,13 +824,14 @@ function shellReadTargets(command, args) {
 }
 
 function validateScript(script, sessionBase) {
-  if (script.length > MAX_SCRIPT_CHARS) return '脚本超过 8000 字符';
+  if (script.length > MAX_SCRIPT_CHARS) return 'Script exceeds 8,000 characters';
   const lines = script.split('\n').filter((l) => l.trim() && !l.trim().startsWith('#'));
-  if (lines.length === 0) return '空脚本';
+  if (lines.length === 0) return 'Script is empty';
   let commandCount = 0;
   let hasNonAllowlistedCommand = false;
   let hasExternalWrite = false;
   let hasExternalRead = false;
+  let hasExternalPath = false;
   for (const line of lines) {
     let commands;
     try {
@@ -834,7 +840,7 @@ function validateScript(script, sessionBase) {
       return e.message;
     }
     commandCount += commands.length;
-    if (commandCount > MAX_LINES) return '脚本命令数超过 20';
+    if (commandCount > MAX_LINES) return 'Script contains more than 20 commands';
     for (const command of commands) {
       const [cmd, ...args] = tokenize(command);
       if (!SHELL_ALLOWED_REAL.has(cmd)) hasNonAllowlistedCommand = true;
@@ -846,10 +852,16 @@ function validateScript(script, sessionBase) {
       ))) {
         hasExternalRead = true;
       }
+      if ([cmd, ...args].some((arg) => (
+        !isPublicLinkReadPath(arg, sessionBase) && resolvesOutsideSession(arg, sessionBase)
+      ))) {
+        hasExternalPath = true;
+      }
     }
   }
-  if (hasExternalRead) return '脚本读取路径必须位于当前会话工作目录（仅允许通过 public 链接读取公共目录）';
-  if (hasExternalWrite) return '脚本写入路径必须位于当前会话工作目录（public 链接只读）';
+  if (hasExternalRead) return 'Script read paths must stay within the current session workspace; public files may only be read through the public link';
+  if (hasExternalWrite) return 'Script write paths must stay within the current session workspace and cannot use the public symlink';
+  if (hasExternalPath) return 'Script paths must stay within the current session workspace; public files may only be read through the public link';
   if (hasNonAllowlistedCommand) return { needConfirmReason: 'non_allowlisted' };
   return null;
 }
@@ -860,7 +872,7 @@ function runOne(line, sessionBase) {
   const args = tokens.slice(1);
   const trustedPath = SHELL_ALLOWED_REAL.has(cmd) ? TRUSTED_COMMAND_PATHS.get(cmd) : null;
   if (SHELL_ALLOWED_REAL.has(cmd) && !trustedPath) {
-    return Promise.reject(new Error(`白名单命令 ${cmd} 在受信任系统目录中不可用`));
+    return Promise.reject(new Error(`Allowlisted command ${cmd} is unavailable in a trusted system directory`));
   }
   if (trustedPath) {
     cmd = trustedPath;
@@ -891,7 +903,7 @@ function runOne(line, sessionBase) {
           process.kill(-child.pid, 'SIGKILL');
         }
       } catch { /* ignore */ }
-      reject(new Error(`命令超时 (${CMD_TIMEOUT_MS}ms)`));
+      reject(new Error(`Command timed out (${CMD_TIMEOUT_MS}ms)`));
     }, CMD_TIMEOUT_MS);
     child.stdout.on('data', (d) => {
       stdout += d;
@@ -905,7 +917,7 @@ function runOne(line, sessionBase) {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      reject(new Error(`无法执行 ${cmd}: ${e.message}`));
+      reject(new Error(`Failed to execute ${cmd}: ${e.message}`));
     });
     child.on('close', (code) => {
       if (settled) return;
@@ -919,7 +931,7 @@ function runOne(line, sessionBase) {
 // ---- 真实工作区文件工具 ----
 function readFileAsync(p) {
   return new Promise((resolve, reject) => {
-    readFile(p, 'utf8', (err, data) => (err ? reject(new Error('文件不存在')) : resolve(data)));
+    readFile(p, 'utf8', (err, data) => (err ? reject(new Error('File not found')) : resolve(data)));
   });
 }
 function readFilePromise(p, enc) {

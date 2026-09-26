@@ -90,7 +90,7 @@ export async function executeGeneratedSkill(
     case 'shell':
       return execShell(execution, args, confirm, workspaceDir);
     default:
-      return `ERROR: 未知执行类型 ${(execution as GeneratedSkillExecution).type}`;
+      return `ERROR: Unknown execution type ${(execution as GeneratedSkillExecution).type}`;
   }
 }
 
@@ -109,9 +109,9 @@ async function execHttpGet(execution: GeneratedSkillExecution, args: Record<stri
   try {
     url = new URL(raw);
   } catch {
-    return 'ERROR: 无效 URL';
+    return 'ERROR: Invalid URL';
   }
-  if (url.protocol !== 'https:') return 'ERROR: 仅允许 https 公网地址';
+  if (url.protocol !== 'https:') return 'ERROR: Only public HTTPS URLs are allowed';
   // 屏蔽内网地址
   const host = url.hostname.toLowerCase();
   if (
@@ -121,7 +121,7 @@ async function execHttpGet(execution: GeneratedSkillExecution, args: Record<stri
     /^10\.|^192\.168\.|^169\.254\.|^172\.(1[6-9]|2\d|3[01])\./.test(host) ||
     host === '[::1]'
   ) {
-    return 'ERROR: 不允许访问内网地址';
+    return 'ERROR: Private network addresses are not allowed';
   }
   try {
     const resp = await fetch(url.toString(), {
@@ -131,7 +131,7 @@ async function execHttpGet(execution: GeneratedSkillExecution, args: Record<stri
     const text = await resp.text();
     return truncateToolOutput(text);
   } catch (e) {
-    return `ERROR: 请求失败 ${(e as Error).message}`;
+    return `ERROR: Request failed: ${(e as Error).message}`;
   }
 }
 
@@ -152,7 +152,7 @@ self.__bridge = (method, payload) => new Promise((resolve, reject) => {
 });
 self.__req = async (name, payload) => {
   const r = await self.__bridge(name, payload);
-  if (r && r.ok === false) throw new Error(r.error || '操作失败');
+  if (r && r.ok === false) throw new Error(r.error || 'Operation failed');
   return r;
 };
 self.__run = async (ev) => {
@@ -168,7 +168,7 @@ self.__run = async (ev) => {
     try {
       safe = JSON.parse(JSON.stringify(result ?? null));
     } catch (e) {
-      self.postMessage({ __error__: 'result 不可序列化: ' + String(e) });
+      self.postMessage({ __error__: 'Result is not serializable: ' + String(e) });
       return;
     }
     self.postMessage({ __result__: safe });
@@ -204,7 +204,7 @@ async function execJavaScript(
   workspaceDir?: string | null,
 ): Promise<string> {
   const code = execution.code ?? '';
-  if (code.length > 20_000) return 'ERROR: 代码超过 2 万字符';
+  if (code.length > 20_000) return 'ERROR: Code exceeds 20,000 characters';
   const input = JSON.parse(JSON.stringify(args ?? {}));
 
   return new Promise((resolve) => {
@@ -212,13 +212,13 @@ async function execJavaScript(
     try {
       worker = createSandboxWorker(code);
     } catch (e) {
-      resolve(`ERROR: 无法创建沙箱 ${(e as Error).message}`);
+      resolve(`ERROR: Failed to create sandbox: ${(e as Error).message}`);
       return;
     }
     // 单次执行总超时（含所有桥接等待），到点即 terminate
     const timer = setTimeout(() => {
       worker.terminate();
-      resolve('ERROR: 脚本执行超时 (5000ms)');
+      resolve('ERROR: Script execution timed out (5000ms)');
     }, 5000);
     // 桥接请求：复用主线程已验证的文件沙箱能力
     worker.onmessage = (ev: MessageEvent) => {
@@ -268,7 +268,7 @@ async function handleBridgeCall(
       const path = sanitizeRelativePath(String(payload.path ?? ''));
       await requireFileServer(workspaceDir);
       const text = await diskFileRead(path, workspaceDir!);
-      if (text === null) return { ok: false, error: `文件不存在: ${path}` };
+      if (text === null) return { ok: false, error: `File not found: ${path}` };
       return { ok: true, content: text.slice(0, MAX_READ_CHARS) };
     }
     case 'write': {
@@ -289,7 +289,7 @@ async function handleBridgeCall(
       return { ok: true, files: files.slice(0, 500) };
     }
     default:
-      return { ok: false, error: `未知桥接方法 ${method}` };
+      return { ok: false, error: `Unknown bridge method ${method}` };
   }
 }
 
@@ -334,7 +334,7 @@ async function detectFileServer(workspaceDir?: string | null): Promise<boolean> 
 
 async function requireFileServer(workspaceDir?: string | null): Promise<void> {
   if (!(await detectFileServer(workspaceDir))) {
-    throw new Error('本地工作区服务不可用，无法读写文件');
+    throw new Error('Local workspace service is unavailable; files cannot be read or written');
   }
 }
 
@@ -347,10 +347,10 @@ async function diskFileRead(path: string, workspaceDir: string): Promise<string 
     });
     const data = (await resp.json()) as { ok?: boolean; message?: string; content?: string };
     if (resp.ok && data.ok) return data.content ?? '';
-    if (data.message === '文件不存在') return null;
+    if (data.message === 'File not found') return null;
     throw new Error(data.message || `HTTP ${resp.status}`);
   } catch (e) {
-    throw new Error(`本地工作区读取失败: ${(e as Error).message}`);
+    throw new Error(`Failed to read from local workspace: ${(e as Error).message}`);
   }
 }
 
@@ -375,7 +375,7 @@ async function diskFileWrite(
     if (!resp.ok || !data.ok) throw new Error(data?.message || `HTTP ${resp.status}`);
     return `OK: 已写入 ${path} (${content.length} 字符)`;
   } catch (e) {
-    throw new Error(`磁盘写入失败: ${(e as Error).message}`);
+    throw new Error(`Failed to write to disk: ${(e as Error).message}`);
   }
 }
 
@@ -390,7 +390,7 @@ async function diskFileList(workspaceDir: string): Promise<string[]> {
     if (resp.ok && data.ok) return data.files ?? [];
     throw new Error(data.message || `HTTP ${resp.status}`);
   } catch (e) {
-    throw new Error(`本地工作区列表读取失败: ${(e as Error).message}`);
+    throw new Error(`Failed to list local workspace: ${(e as Error).message}`);
   }
 }
 
@@ -402,7 +402,7 @@ async function diskFileList(workspaceDir: string): Promise<string[]> {
  */
 export async function readWorkspaceFileText(path: string, workspaceDir: string): Promise<string | null> {
   const readablePath = normalizePath(path);
-  if (!readablePath) throw new Error('无效路径');
+  if (!readablePath) throw new Error('Invalid path');
   await requireFileServer(workspaceDir);
   return diskFileRead(readablePath, workspaceDir);
 }
@@ -418,7 +418,7 @@ export async function writeWorkspaceFileTextFor(
   workspaceDir: string,
 ): Promise<string> {
   const normalizedPath = normalizePath(path);
-  if (!normalizedPath) throw new Error('无效路径');
+  if (!normalizedPath) throw new Error('Invalid path');
   await requireFileServer(workspaceDir);
   return diskFileWrite(normalizedPath, content, false, workspaceDir);
 }
@@ -440,9 +440,9 @@ async function execFileRead(
 ): Promise<string> {
   try {
     const path = normalizePath(interpolate(execution.path ?? '', args));
-    if (!path) throw new Error('无效路径');
+    if (!path) throw new Error('Invalid path');
     const text = await readWorkspaceFileText(path, normalizeWorkspaceDir(workspaceDir) ?? '');
-    if (text === null) return `ERROR: 文件不存在: ${path}`;
+    if (text === null) return `ERROR: File not found: ${path}`;
     return truncateToolOutput(text);
   } catch (e) {
     return `ERROR: ${(e as Error).message}`;
@@ -457,7 +457,7 @@ async function execFileWrite(
 ): Promise<string> {
   try {
     const path = normalizePath(interpolate(execution.path ?? '', args));
-    if (!path) throw new Error('无效路径');
+    if (!path) throw new Error('Invalid path');
     let content: string;
     if (execution.json_content != null) {
       content = JSON.stringify(interpolateDeep(execution.json_content, args), null, 2);
@@ -515,13 +515,13 @@ function countShellCommands(script: string): number {
       }
       const operator = line.startsWith('&&', index) ? '&&' : line.startsWith('||', index) ? '||' : char === ';' ? ';' : null;
       if (!operator) continue;
-      if (!line.slice(commandStart, index).trim()) throw new Error(`连接符 ${operator} 前缺少命令`);
+      if (!line.slice(commandStart, index).trim()) throw new Error(`Missing command before operator ${operator}`);
       count += 1;
       index += operator.length - 1;
       commandStart = index + 1;
     }
-    if (quote) throw new Error('命令包含未闭合的引号');
-    if (!line.slice(commandStart).trim()) throw new Error('连接符后缺少命令');
+    if (quote) throw new Error('Command contains an unclosed quote');
+    if (!line.slice(commandStart).trim()) throw new Error('Missing command after operator');
     count += 1;
   }
   return count;
@@ -546,15 +546,15 @@ async function execShell(
   workspaceDir?: string | null,
 ): Promise<string> {
   const script = interpolate(execution.script ?? '', args);
-  if (script.length > 8000) return 'ERROR: 脚本超过 8000 字符';
+  if (script.length > 8000) return 'ERROR: Script exceeds 8,000 characters';
   let commandCount: number;
   try {
     commandCount = countShellCommands(script);
   } catch (error) {
     return `ERROR: ${(error as Error).message}`;
   }
-  if (commandCount === 0) return 'ERROR: 空脚本';
-  if (commandCount > 20) return 'ERROR: 脚本命令数超过 20';
+  if (commandCount === 0) return 'ERROR: Script is empty';
+  if (commandCount > 20) return 'ERROR: Script contains more than 20 commands';
 
   // 先尝试让本地命令服务执行（服务端决定是否需要确认）
   const safeWorkspaceDir = normalizeWorkspaceDir(workspaceDir);
@@ -598,7 +598,7 @@ interface SandboxResult {
 /** 发送脚本到本地沙箱；返回 needConfirm=true 表示需用户批准后重发 */
 async function sendToSandbox(script: string, workspaceDir: string | null): Promise<SandboxResult | string> {
   const available = await detectSandbox(workspaceDir);
-  if (!available) return 'ERROR: 本地命令执行服务未启动（请先运行 node sandbox-server.mjs）';
+  if (!available) return 'ERROR: Local command service is not running (start it with node sandbox-server.mjs)';
   try {
     const resp = await fetch('/api-v2/exec', {
       method: 'POST',
@@ -623,7 +623,7 @@ async function sendToSandbox(script: string, workspaceDir: string | null): Promi
     }
     return `ERROR: ${data?.message ?? `HTTP ${resp.status}`}`;
   } catch (e) {
-    return `ERROR: shell 执行端点异常 ${(e as Error).message}`;
+    return `ERROR: Shell execution endpoint failed: ${(e as Error).message}`;
   }
 }
 
@@ -639,7 +639,7 @@ async function approveSandboxScript(confirmationRequestId: string): Promise<stri
     if (resp.ok && data.ok) return null;
     return `ERROR: ${data?.message ?? `HTTP ${resp.status}`}`;
   } catch (error) {
-    return `ERROR: shell 批准端点异常 ${(error as Error).message}`;
+    return `ERROR: Shell approval endpoint failed: ${(error as Error).message}`;
   }
 }
 

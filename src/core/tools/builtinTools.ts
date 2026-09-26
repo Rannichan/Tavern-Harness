@@ -9,15 +9,15 @@ const DICE_RE = /^(\d*)d(\d+)([+-]\d+)?$/;
 export function rollDice(expression: string): string {
   const expr = expression.trim() || '1d20';
   const m = expr.match(DICE_RE);
-  if (!m) return translate('tool.diceExprInvalid', { expr: expression });
+  if (!m) return `ERROR: Invalid dice expression "${expression}", e.g. d20, 2d6, 3d10+2`;
 
   const count = m[1] ? parseInt(m[1], 10) : 1;
   const sides = parseInt(m[2], 10);
   const modifier = m[3] ? parseInt(m[3], 10) : 0;
 
-  if (count < 1 || count > 100) return translate('tool.diceCountRange');
-  if (sides < 2 || sides > 10000) return translate('tool.diceSidesRange');
-  if (Math.abs(modifier) > 1000000) return translate('tool.diceModTooBig');
+  if (count < 1 || count > 100) return 'ERROR: Dice count must be 1-100';
+  if (sides < 2 || sides > 10000) return 'ERROR: Dice sides must be 2-10000';
+  if (Math.abs(modifier) > 1000000) return 'ERROR: Modifier too large';
 
   const rolls: number[] = [];
   for (let i = 0; i < count; i++) {

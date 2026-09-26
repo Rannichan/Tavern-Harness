@@ -16,7 +16,6 @@ import {
   truncateToolOutput,
   writeWorkspaceFileTextFor,
 } from './generatedSkillExecutor';
-import { translate } from '../i18n';
 
 // ============================================================
 // 工具路由与确认门控 — 对应 ToolExecutionCoordinator.kt
@@ -41,7 +40,8 @@ export interface ToolExecutionContext {
 
 /**
  * 执行一个工具调用（原生或生成式）。
- * 需要确认的操作先发起确认请求，用户取消时返回 "CANCELLED: ..."
+ * 修改/删除类工具的统一确认入口在外层白名单（store.ts 回合循环）；
+ * shell 类工具的确认在执行过程中按需触发（沙箱服务判定）。
  */
 export async function executeToolCall(
   toolName: string,
@@ -56,12 +56,12 @@ export async function executeToolCall(
   try {
     args = JSON.parse(argsJson || '{}');
   } catch {
-    return 'ERROR: 工具参数不是合法 JSON';
+    return 'ERROR: Tool arguments are not valid JSON';
   }
 
   // 系统消息层：自动执行幻觉工具名（未知工具）
   if (route === 'BLOCKED') {
-    return `ERROR: 工具 '${toolName}' 不存在或不可用。可用的工具: ${(await listToolNames()).join(', ')}`;
+    return `ERROR: Tool '${toolName}' does not exist or is unavailable. Available tools: ${(await listToolNames()).join(', ')}`;
   }
 
   // 原生路由
@@ -76,10 +76,10 @@ export async function executeToolCall(
       const workspaceDir = await applySessionWorkspace(ctx.sessionId, ctx.npcId);
       return await executeGeneratedSkill(execution, args, ctx.requestConfirmation, workspaceDir);
     } catch (e) {
-      return `ERROR: 技能实现无效 ${(e as Error).message}`;
+      return `ERROR: Invalid skill implementation: ${(e as Error).message}`;
     }
   }
-  return `ERROR: 技能 '${toolName}' 没有实现`;
+  return `ERROR: Skill '${toolName}' has no implementation`;
 }
 
 /**
@@ -115,7 +115,7 @@ async function runNativeTool(
   switch (toolName) {
     case 'roll_dice': {
       const expr = String(args.expression ?? '');
-      if (!expr) return 'ERROR: 缺少 expression';
+      if (!expr) return 'ERROR: Missing expression';
       return rollDice(expr);
     }
     case 'file_read':
@@ -139,50 +139,30 @@ async function runNativeTool(
 
     case 'create_skill':
       return await handleCreateSkill(args);
+    // 修改/删除组的确认统一在外层白名单（store.ts 回合循环）收口，此处直接执行
     case 'update_skill':
-      return await gate(ctx, 'update_skill', translate('tool.gateUpdateSkill', { name: String(args.name ?? '') }), () => handleUpdateSkill(args));
+      return await handleUpdateSkill(args);
     case 'delete_skill':
-      return await gate(ctx, 'delete_skill', translate('tool.gateDeleteSkill', { name: String(args.name ?? '') }), () => handleDeleteSkill(args));
+      return await handleDeleteSkill(args);
 
     case 'create_character':
       return await handleCreateCharacter(args);
     case 'update_character':
-      return await gate(ctx, 'update_character', translate('tool.gateUpdateChar', { name: String(args.name ?? '') }), () => handleUpdateCharacter(args));
+      return await handleUpdateCharacter(args);
     case 'delete_character':
-      return await gate(ctx, 'delete_character', translate('tool.gateDeleteChar', { name: String(args.name ?? '') }), () => handleDeleteCharacter(args));
+      return await handleDeleteCharacter(args);
 
     case 'create_conversation':
       return await handleCreateConversation(args);
     case 'create_lorebook':
       return await handleCreateLorebook(args);
     case 'update_lorebook':
-      return await gate(ctx, 'update_lorebook', translate('tool.gateUpdateWb', { name: String(args.name ?? '') }), () => handleUpdateLorebook(args));
+      return await handleUpdateLorebook(args);
     case 'delete_lorebook':
-      return await gate(ctx, 'delete_lorebook', translate('tool.gateDeleteWb', { name: String(args.name ?? '') }), () => handleDeleteLorebook(args));
+      return await handleDeleteLorebook(args);
 
     default:
-      return `ERROR: 未知工具 ${toolName}`;
-  }
-}
-
-async function gate(
-  ctx: ToolExecutionContext,
-  toolName: string,
-  title: string,
-  action: () => Promise<string>
-): Promise<string> {
-  try {
-    const confirmed = await ctx.requestConfirmation({
-      sessionId: ctx.sessionId,
-      toolName,
-      title,
-      message: title,
-      argsJson: '{}',
-    });
-    if (!confirmed) return translate('toast.canceled', { name: toolName });
-    return await action();
-  } catch {
-    return translate('toast.canceled', { name: toolName });
+      return `ERROR: Unknown tool ${toolName}`;
   }
 }
 
@@ -192,7 +172,7 @@ async function gate(
 
 async function handleGetTavernInfo(args: Record<string, unknown>): Promise<string> {
   const fields = Array.isArray(args.fields) ? (args.fields as string[]) : [];
-  if (fields.length === 0) return 'ERROR: 需要至少一个 fields 字段';
+  if (fields.length === 0) return 'ERROR: At least one field is required';
   const out: Record<string, unknown> = {};
 
   if (fields.includes('characters')) {
@@ -242,9 +222,9 @@ async function handleGetTavernInfo(args: Record<string, unknown>): Promise<strin
 
 async function handleGetCharacterInfo(args: Record<string, unknown>): Promise<string> {
   const name = String(args.name ?? '').trim();
-  if (!name) return 'ERROR: 缺少 name';
+  if (!name) return 'ERROR: Missing name';
   const npc = await db.npcs.where('name').equals(name).first();
-  if (!npc) return `ERROR: 角色 ${name} 不存在`;
+  if (!npc) return `ERROR: Character ${name} does not exist`;
   return JSON.stringify({
     name: npc.name,
     prompt: npc.prompt,
@@ -257,9 +237,9 @@ async function handleGetCharacterInfo(args: Record<string, unknown>): Promise<st
 
 async function handleGetLorebookInfo(args: Record<string, unknown>): Promise<string> {
   const name = String(args.name ?? '').trim();
-  if (!name) return 'ERROR: 缺少 name';
+  if (!name) return 'ERROR: Missing name';
   const book = await db.worldBooks.where('name').equals(name).first();
-  if (!book) return `ERROR: 世界书 ${name} 不存在`;
+  if (!book) return `ERROR: Lorebook ${name} does not exist`;
   return JSON.stringify({ name: book.name, content: book.content }, null, 2);
 }
 
@@ -298,7 +278,7 @@ async function handleFileDisplay(args: Record<string, unknown>, ctx: ToolExecuti
     const workspaceDir = await applySessionWorkspace(ctx.sessionId, ctx.npcId);
     // 与 file_read 对齐：仅允许会话工作区内相对路径；public 软链只读
     const rawPath = String(args.path ?? '').replace(/\\/g, '/').trim();
-    if (!rawPath) return 'ERROR: 无效路径';
+    if (!rawPath) return 'ERROR: Invalid path';
     const title = typeof args.title === 'string' && args.title.trim() ? args.title.trim() : undefined;
 
     // 从文件后缀推断展示方式
@@ -311,7 +291,7 @@ async function handleFileDisplay(args: Record<string, unknown>, ctx: ToolExecuti
 
     const content = await readWorkspaceFileText(rawPath, workspaceDir);
     if (content === null) {
-      return `ERROR: 文件不存在: ${rawPath}`;
+      return `ERROR: File not found: ${rawPath}`;
     }
     const payload: DisplayPayload = { path: rawPath, kind, title };
     // 第一行携带展示引用（store 解析并写入 displayRef / 自动弹窗）。
@@ -328,10 +308,10 @@ async function handleFileRead(args: Record<string, unknown>, ctx: ToolExecutionC
   try {
     const workspaceDir = await applySessionWorkspace(ctx.sessionId, ctx.npcId);
     const path = String(args.path ?? '').replace(/\\/g, '/').trim();
-    if (!path) return 'ERROR: 无效路径';
+    if (!path) return 'ERROR: Invalid path';
     const content = await readWorkspaceFileText(path, workspaceDir);
     if (content === null) {
-      return `ERROR: 文件不存在: ${path}`;
+      return `ERROR: File not found: ${path}`;
     }
     return truncateToolOutput(content);
   } catch (e) {
@@ -356,17 +336,17 @@ async function handleFileEdit(args: Record<string, unknown>, ctx: ToolExecutionC
     const oldText = String(args.old_text ?? '');
     const newText = String(args.new_text ?? '');
     const expected = args.expected_replacements == null ? 1 : Number(args.expected_replacements);
-    if (!path) return 'ERROR: 无效路径';
-    if (!oldText) return 'ERROR: old_text 不能为空';
+    if (!path) return 'ERROR: Invalid path';
+    if (!oldText) return 'ERROR: old_text must not be empty';
     if (!Number.isInteger(expected) || expected < 1 || expected > 100) {
-      return 'ERROR: expected_replacements 必须是 1-100 的整数';
+      return 'ERROR: expected_replacements must be an integer from 1 to 100';
     }
 
     const content = await readWorkspaceFileText(path, workspaceDir);
-    if (content === null) return `ERROR: 文件不存在: ${path}`;
+    if (content === null) return `ERROR: File not found: ${path}`;
     const matches = content.split(oldText).length - 1;
     if (matches !== expected) {
-      return `ERROR: 未修改 ${path}：old_text 实际匹配 ${matches} 次，预期 ${expected} 次`;
+      return `ERROR: ${path} was not modified: old_text matched ${matches} times; expected ${expected}`;
     }
 
     // 与 file_write 对齐：仅工作区内写入；public 软链写入直接拒绝
@@ -395,11 +375,11 @@ async function handleRunShellScript(args: Record<string, unknown>, ctx: ToolExec
 
 function validateSkillArgs(args: Record<string, unknown>): string | null {
   const name = String(args.name ?? '');
-  if (!/^[a-z][a-z0-9_]{2,39}$/.test(name)) return '技能名需为 3-40 位小写字母数字下划线（字母开头）';
+  if (!/^[a-z][a-z0-9_]{2,39}$/.test(name)) return 'Skill name must contain 3-40 lowercase letters, digits, or underscores and start with a letter';
   const desc = String(args.description ?? '');
-  if (desc.length > 500) return '描述超过 500 字符';
+  if (desc.length > 500) return 'Description exceeds 500 characters';
   const params = args.parameters as Record<string, unknown> | undefined;
-  if (params && params.type !== 'object') return '参数必须是 object 类型 schema';
+  if (params && params.type !== 'object') return 'Parameters must use an object schema';
   return null;
 }
 
@@ -424,7 +404,7 @@ async function handleCreateSkill(args: Record<string, unknown>): Promise<string>
   if (err) return `ERROR: ${err}`;
   const name = String(args.name);
   const exists = await db.tools.where('name').equals(name).first();
-  if (exists) return `ERROR: 技能 ${name} 已存在`;
+  if (exists) return `ERROR: Skill ${name} already exists`;
   const tool = await createSkillTool(name, String(args.description ?? ''), (args.parameters as Record<string, unknown>) ?? {}, args.execution);
   await db.tools.add(tool);
   return `OK: 已创建技能 ${name}。注意：新技能默认未对任何角色启用，可用 update_character 的 enable_skills 启用。`;
@@ -433,11 +413,11 @@ async function handleCreateSkill(args: Record<string, unknown>): Promise<string>
 async function handleUpdateSkill(args: Record<string, unknown>): Promise<string> {
   const name = String(args.name ?? '');
   const tool = await db.tools.where('name').equals(name).first();
-  if (!tool) return `ERROR: 技能 ${name} 不存在`;
-  if (tool.isBuiltIn) return `ERROR: 内置技能 ${name} 受保护，不可修改`;
+  if (!tool) return `ERROR: Skill ${name} does not exist`;
+  if (tool.isBuiltIn) return `ERROR: Built-in skill ${name} is protected and cannot be modified`;
   const newName = args.new_name ? String(args.new_name) : tool.name;
-  if (args.new_name && !/^[a-z][a-z0-9_]{2,39}$/.test(newName)) return 'ERROR: 新技能名不合法';
-  if (args.new_name && (await db.tools.where('name').equals(newName).first())) return `ERROR: 技能 ${newName} 已存在`;
+  if (args.new_name && !/^[a-z][a-z0-9_]{2,39}$/.test(newName)) return 'ERROR: Invalid new skill name';
+  if (args.new_name && (await db.tools.where('name').equals(newName).first())) return `ERROR: Skill ${newName} already exists`;
 
   const parsed = safeJsonParse<ChatCompletionTool>(tool.jsonContent);
   const updatedTool = {
@@ -471,8 +451,8 @@ async function handleUpdateSkill(args: Record<string, unknown>): Promise<string>
 async function handleDeleteSkill(args: Record<string, unknown>): Promise<string> {
   const name = String(args.name ?? '');
   const tool = await db.tools.where('name').equals(name).first();
-  if (!tool) return `ERROR: 技能 ${name} 不存在`;
-  if (tool.isBuiltIn) return `ERROR: 内置技能 ${name} 受保护，不可删除`;
+  if (!tool) return `ERROR: Skill ${name} does not exist`;
+  if (tool.isBuiltIn) return `ERROR: Built-in skill ${name} is protected and cannot be deleted`;
   await db.tools.delete(tool.id!);
   // 清理角色引用
   const npcs = await db.npcs.toArray();
@@ -490,9 +470,9 @@ async function handleCreateCharacter(args: Record<string, unknown>): Promise<str
   const name = String(args.name ?? '').trim();
   const greeting = String(args.greeting ?? '');
   const prompt = String(args.prompt ?? '');
-  if (!name || !greeting || !prompt) return 'ERROR: 需要 name / greeting / prompt';
+  if (!name || !greeting || !prompt) return 'ERROR: name, greeting, and prompt are required';
   const exists = await db.npcs.where('name').equals(name).first();
-  if (exists) return `ERROR: 角色 ${name} 已存在`;
+  if (exists) return `ERROR: Character ${name} already exists`;
   const alternates = Array.isArray(args.alternate_greetings)
     ? (args.alternate_greetings as unknown[])
         .map((g) => String(g ?? '').trim())
@@ -517,11 +497,11 @@ async function handleCreateCharacter(args: Record<string, unknown>): Promise<str
 async function handleUpdateCharacter(args: Record<string, unknown>): Promise<string> {
   const name = String(args.name ?? '');
   const npc = await db.npcs.where('name').equals(name).first();
-  if (!npc) return `ERROR: 角色 ${name} 不存在`;
+  if (!npc) return `ERROR: Character ${name} does not exist`;
   const updates: Partial<import('../../types/models').NpcCharacter> = {};
   if (args.new_name) {
     const n = String(args.new_name);
-    if (await db.npcs.where('name').equals(n).first()) return `ERROR: 角色 ${n} 已存在`;
+    if (await db.npcs.where('name').equals(n).first()) return `ERROR: Character ${n} already exists`;
     updates.name = n;
   }
   if (args.greeting != null) updates.greeting = String(args.greeting).slice(0, 1000);
@@ -538,7 +518,7 @@ async function handleUpdateCharacter(args: Record<string, unknown>): Promise<str
     const enabled = new Set(npc.enabledToolNames);
     if (Array.isArray(args.enable_skills)) {
       for (const s of args.enable_skills) {
-        if (!allTools.has(s)) return `ERROR: 技能 ${s} 不存在`;
+        if (!allTools.has(s)) return `ERROR: Skill ${s} does not exist`;
         enabled.add(s);
       }
     }
@@ -556,8 +536,8 @@ async function handleUpdateCharacter(args: Record<string, unknown>): Promise<str
 async function handleDeleteCharacter(args: Record<string, unknown>): Promise<string> {
   const name = String(args.name ?? '');
   const npc = await db.npcs.where('name').equals(name).first();
-  if (!npc) return `ERROR: 角色 ${name} 不存在`;
-  if (npc.isBuiltIn) return `ERROR: 内置角色 ${name} 受保护，不可删除`;
+  if (!npc) return `ERROR: Character ${name} does not exist`;
+  if (npc.isBuiltIn) return `ERROR: Built-in character ${name} is protected and cannot be deleted`;
   await db.npcs.delete(npc.id!);
   // 清理会话关联（删除关联会话？App 中保留用户会话，仅解绑）
   const sessions = await db.sessions.where('associatedId').equals(npc.id!).toArray();
@@ -572,14 +552,14 @@ async function handleCreateConversation(args: Record<string, unknown>): Promise<
   const rawParticipants = Array.isArray(args.participants)
     ? (args.participants as unknown[]).map((name) => String(name ?? '').trim()).filter(Boolean)
     : [];
-  if (rawParticipants.length === 0) return 'ERROR: 需要至少一个参与角色';
-  if (new Set(rawParticipants).size !== rawParticipants.length) return 'ERROR: participants 里有重复角色';
+  if (rawParticipants.length === 0) return 'ERROR: At least one participating character is required';
+  if (new Set(rawParticipants).size !== rawParticipants.length) return 'ERROR: participants contains duplicate characters';
 
   const npcIds: number[] = [];
   const npcNameToId = new Map<string, number>();
   for (const name of rawParticipants) {
     const npc = await db.npcs.where('name').equals(name).first();
-    if (!npc?.id) return `ERROR: 角色 ${name} 不存在`;
+    if (!npc?.id) return `ERROR: Character ${name} does not exist`;
     npcIds.push(npc.id);
     npcNameToId.set(npc.name, npc.id);
   }
@@ -589,7 +569,7 @@ async function handleCreateConversation(args: Record<string, unknown>): Promise<
     const worldBookName = String(args.world_book).trim();
     if (worldBookName) {
       const worldBook = await db.worldBooks.where('name').equals(worldBookName).first();
-      if (!worldBook?.id) return `ERROR: 世界书 ${worldBookName} 不存在`;
+      if (!worldBook?.id) return `ERROR: Lorebook ${worldBookName} does not exist`;
       worldBookId = worldBook.id;
     }
   }
@@ -599,7 +579,7 @@ async function handleCreateConversation(args: Record<string, unknown>): Promise<
     const personaName = String(args.user_persona).trim();
     if (personaName) {
       const persona = await db.npcs.where('name').equals(personaName).first();
-      if (!persona?.id) return `ERROR: 用户人设 ${personaName} 不存在`;
+      if (!persona?.id) return `ERROR: User persona ${personaName} does not exist`;
       userPersonaNpcId = persona.id;
     }
   }
@@ -612,13 +592,13 @@ async function handleCreateConversation(args: Record<string, unknown>): Promise<
   for (const token of orderTokens) {
     const normalized = token.toLowerCase();
     if (playerAliases.has(normalized)) {
-      if (participantOrder.includes(-1)) return 'ERROR: 发言顺序中玩家重复出现';
+      if (participantOrder.includes(-1)) return 'ERROR: Player appears more than once in the speaking order';
       participantOrder.push(-1);
       continue;
     }
     const npcId = npcNameToId.get(token);
-    if (npcId == null) return `ERROR: 发言顺序中的参与者 ${token} 不存在`;
-    if (participantOrder.includes(npcId)) return `ERROR: 发言顺序中的参与者 ${token} 重复出现`;
+    if (npcId == null) return `ERROR: Participant ${token} in the speaking order does not exist`;
+    if (participantOrder.includes(npcId)) return `ERROR: Participant ${token} appears more than once in the speaking order`;
     participantOrder.push(npcId);
   }
   for (const participantId of [-1, ...npcIds]) {
@@ -650,8 +630,8 @@ async function handleCreateConversation(args: Record<string, unknown>): Promise<
 async function handleCreateLorebook(args: Record<string, unknown>): Promise<string> {
   const name = String(args.name ?? '').trim();
   const content = String(args.content ?? '');
-  if (!name || !content) return 'ERROR: 需要 name / content';
-  if (await db.worldBooks.where('name').equals(name).first()) return `ERROR: 世界书 ${name} 已存在`;
+  if (!name || !content) return 'ERROR: name and content are required';
+  if (await db.worldBooks.where('name').equals(name).first()) return `ERROR: Lorebook ${name} already exists`;
   await db.worldBooks.add({ name, content: content.slice(0, 10_000), imageUri: null, createdAt: Date.now() });
   return `OK: 已创建世界书 ${name}`;
 }
@@ -659,7 +639,7 @@ async function handleCreateLorebook(args: Record<string, unknown>): Promise<stri
 async function handleUpdateLorebook(args: Record<string, unknown>): Promise<string> {
   const name = String(args.name ?? '');
   const book = await db.worldBooks.where('name').equals(name).first();
-  if (!book) return `ERROR: 世界书 ${name} 不存在`;
+  if (!book) return `ERROR: Lorebook ${name} does not exist`;
   const updates: Partial<import('../../types/models').WorldBook> = {};
   if (args.new_name) updates.name = String(args.new_name).slice(0, 60);
   if (args.content != null) updates.content = String(args.content).slice(0, 10_000);
@@ -670,7 +650,7 @@ async function handleUpdateLorebook(args: Record<string, unknown>): Promise<stri
 async function handleDeleteLorebook(args: Record<string, unknown>): Promise<string> {
   const name = String(args.name ?? '');
   const book = await db.worldBooks.where('name').equals(name).first();
-  if (!book) return `ERROR: 世界书 ${name} 不存在`;
+  if (!book) return `ERROR: Lorebook ${name} does not exist`;
   await db.worldBooks.delete(book.id!);
   const sessions = await db.sessions.toArray();
   for (const s of sessions) {
