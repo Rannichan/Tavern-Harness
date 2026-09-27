@@ -256,7 +256,9 @@
   /* 技能最多展示 5 行（行高约21px，5行+4个4px间隙≈121px），超出可滚动 */
   max-height: 121px;
   overflow-y: auto;
-  scrollbar-width: thin;
+  /* 不设置 scrollbar-width/scrollbar-color：设置后会禁用全局 ::-webkit-scrollbar
+     定制，退回浏览器默认滚动条（白色轨道，与卡片羊皮纸底色不协调）；
+     留空即沿用全局滚动条样式，与侧边栏会话列表一致 */
 }
 .char-card .cactions {
   display: flex;
