@@ -67,7 +67,7 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
   ),
   fn(
     'file_read',
-    'Read a text file from the current conversation workspace. Paths must stay inside the workspace; for normal sessions, the public link is read-only.',
+    'Read an existing text file from the current conversation workspace.',
     {
       type: 'object',
       properties: {
@@ -82,7 +82,7 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
   ),
   fn(
     'file_write',
-    'Write or append to a file in the current conversation workspace. Absolute paths and parent traversal are rejected. For normal sessions, writing to the public link is denied.',
+    'Create, overwrite, or append to a file in the current conversation workspace.',
     {
       type: 'object',
       properties: {
@@ -105,13 +105,13 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
   ),
   fn(
     'file_edit',
-    'Edit an existing text file by replacing exact text. Prefer this over file_write for small code changes. The edit is rejected unless old_text occurs exactly expected_replacements times, which protects against stale or ambiguous edits. Path rules follow file_write: workspace-relative only, and public link stays read-only in normal sessions.',
+    'Replace exact text in an existing file. Prefer this over file_write for small code changes.',
     {
       type: 'object',
       properties: {
         path: {
           type: 'string',
-          description: 'Relative path inside the current workspace. Must exist.',
+          description: 'Relative path inside the current conversation workspace. Absolute paths and parent traversal are rejected. The file must exist. The public link is read-only in normal sessions.',
         },
         old_text: {
           type: 'string',

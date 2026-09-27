@@ -170,6 +170,9 @@
   overflow-y: auto;
   padding: 22px 28px;
 }
+.workshop-page {
+  scrollbar-gutter: stable;
+}
 .view-col {
   max-width: 900px;
   margin: 0 auto;

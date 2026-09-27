@@ -81,7 +81,7 @@ export function CharactersView() {
   };
 
   return (
-    <div className="view-page">
+    <div className="view-page workshop-page">
       <div className="view-col">
         <div>
           <h2 className="view-title">{t('workshop.title')}</h2>
