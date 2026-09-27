@@ -119,7 +119,7 @@ export function CharactersView() {
             onImportDraftConsumed={() => setImportDraft(null)}
           />
         )}
-        {tab === 'skills' && <SkillList onChanged={() => {}} />}
+        {tab === 'skills' && <SkillList />}
       </div>
       <input
         ref={fileRef}
@@ -540,7 +540,7 @@ function toolOrigin(t: McpTool): 'builtin' | 'custom' | 'imported' {
 }
 
 /** 保留在分组内的横向（拖动过程中，卡片实际拖动时不会离开组） */
-function SkillList({ onChanged }: { onChanged: () => void }) {
+function SkillList() {
   const tools = useStore((s) => s.tools);
   const addToast = useStore((s) => s.addToast);
   const t = useT();
@@ -576,7 +576,6 @@ function SkillList({ onChanged }: { onChanged: () => void }) {
   const deleteTool = async (tt: McpTool) => {
     await db.tools.delete(tt.id!);
     await refresh();
-    onChanged();
     addToast(t('toast.skillDeleted'));
   };
 

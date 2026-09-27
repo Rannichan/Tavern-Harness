@@ -60,7 +60,6 @@ export interface ApiProvider {
   apiKey: string;
   isEnabled: boolean;
   cachedModelsCsv: string;
-  fieldMappingsJson: string;
   createdAt: number;
 }
 
@@ -123,7 +122,6 @@ export interface ToolCallRecord {
 
 export interface ChatAttachmentInfo {
   // 保存元信息，dataUrl 单独存字段（避免所有消息都过大）
-  mimeType: string;
   displayName: string;
 }
 

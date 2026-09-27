@@ -112,10 +112,10 @@ export interface SessionMember {
   imageUrl?: string | null;
 }
 
-function GroupCollage({ members, size }: { members: SessionMember[]; size: 'sm' | 'lg' }) {
+function GroupCollage({ members }: { members: SessionMember[] }) {
   // 始终渲染 2×2 四宫格；成员不足 4 位时空余格子留空
   return (
-    <div className={`gcollage gcollage-m4 ${size === 'lg' ? 'gcollage-lg' : ''}`}>
+    <div className="gcollage gcollage-m4">
       {[0, 1, 2, 3].map((i) => {
         const m = members[i];
         return (
@@ -164,7 +164,7 @@ export function SessionVisual({
   // GROUP
   return (
     <div className={`svc svc-group ${size === 'lg' ? 'svc-group-lg' : ''}`}>
-      <GroupCollage members={members ?? []} size={size} />
+      <GroupCollage members={members ?? []} />
     </div>
   );
 }
@@ -186,7 +186,7 @@ export function Collapse({
   icon?: string;
   preview?: string;
   children: React.ReactNode;
-  accent?: 'think' | 'tool' | 'success' | 'error' | 'default';
+  accent?: 'think' | 'default';
   defaultOpen?: boolean;
   live?: boolean;
 }) {

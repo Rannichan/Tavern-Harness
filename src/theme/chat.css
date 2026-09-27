@@ -1202,12 +1202,6 @@
   padding: 1px 7px;
   flex-shrink: 0;
 }
-.sort-idx {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-faint);
-  flex-shrink: 0;
-}
 .math-block {
   text-align: center;
   margin: 0.7em 0;

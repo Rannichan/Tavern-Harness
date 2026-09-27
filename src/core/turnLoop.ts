@@ -1,5 +1,6 @@
 import type { ChatParticipant, ChatSession, TurnOrderMode } from '../types/models';
 import { translate } from './i18n';
+import { escapeRegExp } from './strings';
 
 // ============================================================
 // 魔数命令（与 App 一致：/new 与 /pass）
@@ -89,10 +90,6 @@ export function mentionedParticipantIds(
     found.push(h.id);
   }
   return found;
-}
-
-function escapeRegExp(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /**

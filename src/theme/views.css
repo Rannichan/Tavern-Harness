@@ -749,18 +749,6 @@
 }
 
 /* ---------- 创建对话：角色槽位 ---------- */
-.npc-slot {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  min-width: 58px;
-  padding: 8px 6px 6px;
-  border: 1.5px dashed var(--border);
-  border-radius: 12px;
-  background: var(--surface-2);
-}
 .npc-slot-x {
   position: absolute;
   top: 50%;

@@ -8,6 +8,7 @@ import { saveTextFile } from '../core/fileDownload';
 import { effectiveDisplayQueue, speakerLabel, suggestMagicCommands } from '../core/turnLoop';
 import { onChatScroll, onQueueScroll, onQueueScrollIntent, registerChatEl, registerQueueEl, scrollChatTo, scrollQueueToLoop } from '../core/linkedScroll';
 import { useT, translate } from '../core/i18n';
+import { escapeRegExp, prettyJson, trimEdgeNewlines } from '../core/strings';
 
 function fmtTime(ts: number): string {
   const d = new Date(ts);
@@ -16,16 +17,11 @@ function fmtTime(ts: number): string {
   return `${hh}:${mm}`;
 }
 
-function trimEdgeNewlines(text: string): string {
-  return text.replace(/^(?:\r?\n)+|(?:\r?\n)+$/g, '');
-}
-
 function renderComposerRichNodes(text: string, names: string[]): ReactNode[] {
   if (!text) return [];
-  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const mentionRe =
     names.length > 0
-      ? new RegExp(`@(?:${[...names].sort((a, b) => b.length - a.length).map(esc).join('|')})(?=\\s|[，。！？,.!?]|$)`, 'g')
+      ? new RegExp(`@(?:${[...names].sort((a, b) => b.length - a.length).map(escapeRegExp).join('|')})(?=\\s|[，。！？,.!?]|$)`, 'g')
       : null;
   const hits: Array<{ start: number; end: number; cls: string }> = [];
   if (mentionRe) {
@@ -271,7 +267,7 @@ function MessageBubble({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [msg.id]);
 
-  const isUser = msg.role === 'user' || (msg.role === 'assistant' && msg.speakerParticipantId == null && session.mode === 'STANDARD' && false);
+  const isUser = msg.role === 'user';
   const speaker = msg.speakerParticipantId != null
     ? participants.find((p) => p.participantId === msg.speakerParticipantId)
     : undefined;
@@ -531,11 +527,7 @@ function ToolCallCard({ tc, executing, results }: { tc: ToolCallRecord; executin
   const [open, setOpen] = useState(false);
   const formattedArgs = useMemo(() => {
     if (!open) return '';
-    try {
-      return JSON.stringify(JSON.parse(tc.argumentsJson), null, 2);
-    } catch {
-      return tc.argumentsJson;
-    }
+    return prettyJson(tc.argumentsJson);
   }, [open, tc.argumentsJson]);
   const hasResult = results.length > 0;
   const isError = results.some((r) => r.content.startsWith('ERROR:') || r.content.startsWith('CANCELLED:'));
@@ -1331,14 +1323,6 @@ function buildRawLog(msg: ChatMessage): string {
     req ? `\n## Request\n${req}` : '',
     resp ? `\n## Response (SSE)\n${resp}` : '',
   ].join('\n');
-}
-
-function prettyJson(s: string): string {
-  try {
-    return JSON.stringify(JSON.parse(s), null, 2);
-  } catch {
-    return s;
-  }
 }
 
 // ============================================================

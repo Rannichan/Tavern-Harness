@@ -388,6 +388,3 @@ export function Sidebar() {
     </aside>
   );
 }
-
-// 重新导出类型（供 App 使用）
-export type { ChatSession };

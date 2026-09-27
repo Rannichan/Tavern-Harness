@@ -7,8 +7,8 @@ import type { AppLanguage } from '../types/models';
 // - translate()  ：静态翻译（store / 工具执行器 / 非组件模块使用），
 //                  读取当前语言模块级快照
 // - setLanguage(): 由 store 在初始化与切换语言时调用（设置 <html lang> + 通知订阅者）
-// - 键前缀约定：nav. chat. settings. workshop. stats. dash. header.
-//               newSession. confirm. deleteConfirm. toast. tool. ach.
+// - 键前缀约定：common. nav. chat. settings. workshop. stats. dash. header. newSession.
+//               gameplay. confirm. deleteConfirm. toast. tool. ach. achModal. display. prompt. builtinNpc.
 // ============================================================
 
 type LangKey = Exclude<AppLanguage, null>;
@@ -144,7 +144,6 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'chat.queueFixed': '固定座位顺序',
     'chat.queueLocateSelf': '点击定位到你的发言',
     'chat.queueLocateNpc': '点击定位到 {name} 的发言',
-    'chat.sortFixed': '固定顺序',
     'chat.sortRandom': '随机顺序',
     'chat.collpMore': '（点击展开完整内容）',
 
@@ -544,7 +543,6 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'chat.queueFixed': '固定座位順序',
     'chat.queueLocateSelf': '點擊定位到你的發言',
     'chat.queueLocateNpc': '點擊定位到 {name} 的發言',
-    'chat.sortFixed': '固定順序',
     'chat.sortRandom': '隨機順序',
     'chat.collpMore': '（點擊展開完整內容）',
 
@@ -933,7 +931,6 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'chat.queueFixed': 'Fixed seat order',
     'chat.queueLocateSelf': 'Click to locate your message',
     'chat.queueLocateNpc': 'Click to locate {name}\'s message',
-    'chat.sortFixed': 'Fixed order',
     'chat.sortRandom': 'Random order',
     'chat.collpMore': '(Click to expand full content)',
 

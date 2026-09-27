@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { AchievementDef } from '../core/achievements';
 import { useT, currentLocale } from '../core/i18n';
+import { idToKey } from '../core/strings';
 
 // ============================================================
 // 成就解锁庆祝弹窗（奖杯 + 撒花）
@@ -65,11 +66,6 @@ function makeConfetti(count: number): ConfettiPiece[] {
     drift: (Math.random() - 0.5) * 120,
     round: Math.random() < 0.3,
   }));
-}
-
-/** 成就 id（kebab-case，如 old-friend）→ i18n 键（camelCase，如 oldFriend） */
-function idToKey(id: string): string {
-  return id.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
 }
 
 function AchievementCelebration() {

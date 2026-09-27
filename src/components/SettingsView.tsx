@@ -308,7 +308,7 @@ function ProviderManager({ providers, onChanged }: { providers: ApiProvider[]; o
             )}
           </div>
         ))}
-        <button className="btn" style={{ alignSelf: 'flex-start' }} onClick={() => setEditing({ name: '', baseUrl: '', apiKey: '', isEnabled: true, cachedModelsCsv: '', fieldMappingsJson: '[]', createdAt: Date.now() })}>
+        <button className="btn" style={{ alignSelf: 'flex-start' }} onClick={() => setEditing({ name: '', baseUrl: '', apiKey: '', isEnabled: true, cachedModelsCsv: '', createdAt: Date.now() })}>
           <Icon name="plus" size={13} /> {t('settings.addProvider')}
         </button>
       </div>

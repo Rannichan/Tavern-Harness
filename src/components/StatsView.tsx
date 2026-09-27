@@ -4,6 +4,7 @@ import { getCareerStats, resetCareerStats } from '../core/stats';
 import { Icon } from './shared';
 import type { AchievementState } from '../store/store';
 import { useT, currentLocale } from '../core/i18n';
+import { idToKey } from '../core/strings';
 
 // ============================================================
 // 生涯统计 + 成就陈列
@@ -15,11 +16,6 @@ interface StatsData {
   totalRounds: number;
   sessionCount: number;
   npcStats: Array<{ npcId: number; npcName: string; rounds: number }>;
-}
-
-/** 成就 id（kebab-case，如 old-friend）→ i18n 键（camelCase，如 oldFriend） */
-function idToKey(id: string): string {
-  return id.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
 }
 
 export function StatsView() {

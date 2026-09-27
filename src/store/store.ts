@@ -43,6 +43,7 @@ import { getEnabledToolsForSession, executeToolCall, parseDisplayRef, applySessi
 import { ensureSessionWorkspaceDir, deleteSessionWorkspace } from '../core/tools/generatedSkillExecutor';
 import { applyTheme as applyThemeManual, cacheThemeMode, watchSystemTheme } from '../theme/theme';
 import { setLanguage, translate } from '../core/i18n';
+import { trimEdgeNewlines } from '../core/strings';
 import { localizeBuiltinNpc } from '../db/database';
 import { estimateTokensFromChars, accumulateStats, sessionPreviewText } from '../core/stats';
 import { ACHIEVEMENTS, type AchievementDef } from '../core/achievements';
@@ -125,7 +126,6 @@ interface AppState {
   setActiveView: (v: ActiveView) => void;
 
   sendMessage: (text: string, attachments?: string[], attachmentNames?: string[]) => Promise<void>;
-  regenerateLast: () => Promise<void>;
   /** 重新生成指定消息（右键菜单：右键哪条就重生成哪条）。删除该消息及之后的 tool 消息后重跑 */
   regenerateMessage: (messageId: number) => Promise<void>;
   editMessage: (messageId: number, newContent: string, sessionId: number, newAttachments?: string[], newAttachmentNames?: string[]) => Promise<void>;
@@ -409,8 +409,7 @@ export const useStore = create<AppState>((set, get) => ({
     }
 
     // 保存用户消息（若在群聊中轮到玩家，同时将其移出队列）
-    const attachInfos = attachments.map((a, i) => ({
-      mimeType: a.startsWith('data:image') ? 'image/png' : 'video/mp4',
+    const attachInfos = attachments.map((_, i) => ({
       displayName: attachmentNames[i]?.trim() || translate('common.attachment'),
     }));
     const userMsg: ChatMessage = {
@@ -462,19 +461,6 @@ export const useStore = create<AppState>((set, get) => ({
     }
 
     await runConversationLoop(session);
-  },
-
-  regenerateLast: async () => {
-    const sessionId = get().activeSessionId;
-    if (sessionId == null) return;
-    if (get().streaming.sessionId != null) return;
-
-    // 默认入口：仍然只重生成「最后一条 assistant 回复」。
-    // 具体删除 / 续跑逻辑见 regenerateMessage。
-    const messages = await db.messages.where('sessionId').equals(sessionId).sortBy('timestamp');
-    const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
-    if (!lastAssistant) return;
-    await get().regenerateMessage(lastAssistant.id!);
   },
 
   regenerateMessage: async (messageId) => {
@@ -551,8 +537,7 @@ export const useStore = create<AppState>((set, get) => ({
     );
     await db.messages.bulkDelete(toDelete.map((m) => m.id!));
     const attachments = newAttachments ?? message.attachments;
-    const attachmentInfos = (newAttachments != null ? newAttachments : message.attachments).map((a, i) => ({
-      mimeType: a.startsWith('data:image') ? 'image/png' : 'video/mp4',
+    const attachmentInfos = (newAttachments != null ? newAttachments : message.attachments).map((_, i) => ({
       displayName: (newAttachmentNames?.[i]?.trim()) || message.attachmentInfos?.[i]?.displayName || translate('common.attachment'),
     }));
     await db.messages.update(messageId, { content: newContent, attachments, attachmentInfos });
@@ -622,8 +607,7 @@ export const useStore = create<AppState>((set, get) => ({
     const message = await db.messages.get(messageId);
     if (!message) return;
     const attachments = newAttachments ?? message.attachments;
-    const attachmentInfos = (newAttachments != null ? newAttachments : message.attachments).map((a, i) => ({
-      mimeType: a.startsWith('data:image') ? 'image/png' : 'video/mp4',
+    const attachmentInfos = (newAttachments != null ? newAttachments : message.attachments).map((_, i) => ({
       displayName: (newAttachmentNames?.[i]?.trim()) || message.attachmentInfos?.[i]?.displayName || translate('common.attachment'),
     }));
     // 仅修改本条消息内容，不删除任何后续消息、不触发重新生成
@@ -1864,10 +1848,6 @@ async function persistPartialDraft(
     updatedAt: Date.now(),
     lastMessage: preview || '…',
   });
-}
-
-function trimEdgeNewlines(text: string): string {
-  return text.replace(/^(?:\r?\n)+|(?:\r?\n)+$/g, '');
 }
 
 /** 当前 assistant 回合产生的「一轮对话」对应到生涯统计的增量 */

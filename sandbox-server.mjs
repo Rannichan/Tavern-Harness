@@ -22,7 +22,7 @@ import { createServer } from 'node:http';
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import {
-  writeFileSync, existsSync, lstatSync, readlinkSync, readFileSync, readFile, writeFile, mkdirSync, mkdtempSync, readdir, stat, statSync, symlinkSync, unlink, realpathSync, rmSync,
+  writeFileSync, existsSync, lstatSync, readlinkSync, readFile, writeFile, mkdirSync, mkdtempSync, readdir, statSync, symlinkSync, realpathSync, rmSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname, resolve, sep, delimiter } from 'node:path';

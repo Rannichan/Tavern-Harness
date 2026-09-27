@@ -1,6 +1,7 @@
 import { useStore } from '../store/store';
 import { Icon } from './shared';
 import { useT } from '../core/i18n';
+import { prettyJson } from '../core/strings';
 
 // ============================================================
 // 工具确认门控弹窗（更新/删除类操作）
@@ -14,12 +15,7 @@ export function ConfirmationDialog() {
   if (!pending) return null;
   const isLimit = pending.kind === 'limit';
 
-  let argsText = pending.argsJson;
-  try {
-    argsText = JSON.stringify(JSON.parse(pending.argsJson), null, 2);
-  } catch {
-    /* keep raw */
-  }
+  const argsText = prettyJson(pending.argsJson);
 
   return (
     <>

@@ -235,5 +235,3 @@ function parseToolCalls(json: string): NonNullable<NetworkMessage['tool_calls']>
     return [];
   }
 }
-
-export { parseToolCalls };

@@ -90,6 +90,20 @@ export class TavernDB extends Dexie {
       workspaceFiles: 'path, updatedAt',
       achievementUnlocks: '++id, achievementId, unlockedAt',
     });
+    // v5：移除已由会话沙箱文件 API 取代的 workspaceFiles 表
+    this.version(5).stores({
+      settings: 'id',
+      providers: '++id, name, isEnabled',
+      npcs: '++id, name, isBuiltIn',
+      sessions: '++id, mode, updatedAt, associatedId, pinned, workspaceDir',
+      participants: '[sessionId+participantId], sessionId, participantId',
+      messages: '++id, [sessionId+timestamp], sessionId, timestamp',
+      tools: '++id, name, isBuiltIn',
+      worldBooks: '++id, name',
+      careerStats: 'id',
+      careerNpcStats: 'npcId',
+      achievementUnlocks: '++id, achievementId, unlockedAt',
+    });
   }
 
   /** 打开数据库后立即执行：把 pinned 字段归一化为 0/1（旧记录为 undefined） */
