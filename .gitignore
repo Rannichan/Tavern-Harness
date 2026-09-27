@@ -9,3 +9,5 @@ sandbox_workspace/
 skills/
 docs/
 *.png
+# 个人笔记（notebook 目录）
+notebook/
