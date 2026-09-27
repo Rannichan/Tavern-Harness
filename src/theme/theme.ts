@@ -1,6 +1,6 @@
 export type ThemeMode = 'system' | 'light' | 'dark';
 
-export interface ThemePalette {
+interface ThemePalette {
   /** 深色模式主色（烛光发光色，浅亮） */
   primary: string;
   /** 浅色模式主色（在羊皮纸背景上有足够对比的深色变体） */
@@ -14,7 +14,7 @@ export interface ThemePalette {
 }
 
 /** 固定主题色：赛博琥珀（与 MyAgent-Android 温暖烛光一致） */
-export const AMBER_PALETTE: ThemePalette = {
+const AMBER_PALETTE: ThemePalette = {
   primary: '#FFCB8B',
   primaryLight: '#9A5B17',
   primaryDim: '#C88A3F',
@@ -24,7 +24,7 @@ export const AMBER_PALETTE: ThemePalette = {
   glow: 'rgba(255,178,96,0.34)',
 };
 
-export function isDarkMode(mode: ThemeMode): boolean {
+function isDarkMode(mode: ThemeMode): boolean {
   if (mode === 'system') {
     return typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches;
   }
@@ -59,7 +59,7 @@ export function cacheThemeMode(mode: ThemeMode): void {
 }
 
 /** 读取缓存的主题模式（可能为 null） */
-export function cachedThemeMode(): ThemeMode | null {
+function cachedThemeMode(): ThemeMode | null {
   try {
     const v = localStorage.getItem(THEME_CACHE_KEY);
     return v === 'light' || v === 'dark' || v === 'system' ? v : null;

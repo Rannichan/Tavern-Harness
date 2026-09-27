@@ -53,13 +53,6 @@ export interface AppSettings {
   statsResetTime: number | null;
 }
 
-export interface FieldMapping {
-  sourceField: string;
-  sourceValue?: string;
-  targetField: string;
-  targetValue?: string;
-}
-
 export interface ApiProvider {
   id?: number;
   name: string;
@@ -132,7 +125,6 @@ export interface ChatAttachmentInfo {
   // 保存元信息，dataUrl 单独存字段（避免所有消息都过大）
   mimeType: string;
   displayName: string;
-  sizeBytes: number;
 }
 
 export interface ChatMessage {
@@ -300,12 +292,4 @@ export interface GeneratedSkillExecution {
   // shell
   script?: string;
   [k: string]: unknown;
-}
-
-export interface FileEntry {
-  name: string;
-  path: string;
-  isDir: boolean;
-  size: number;
-  modifiedAt: number;
 }

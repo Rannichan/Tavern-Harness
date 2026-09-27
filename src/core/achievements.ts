@@ -21,16 +21,14 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'legend', name: '酒馆传奇', icon: '🏆', threshold: 100_000_000, description: '累计使用 100,000,000 Token' },
 ];
 
-export const MAX_ACHIEVEMENT_THRESHOLD = ACHIEVEMENTS[ACHIEVEMENTS.length - 1].threshold;
-
 /** 生涯总 token（输入 + 输出） */
-export async function getTotalTokens(): Promise<number> {
+async function getTotalTokens(): Promise<number> {
   const stats = (await db.careerStats.get(1)) ?? { id: 1, inputTokens: 0, outputTokens: 0, totalRounds: 0 };
   return stats.inputTokens + stats.outputTokens;
 }
 
 /** 已解锁的成就 id 集合 */
-export async function getUnlockedAchievementIds(): Promise<Set<string>> {
+async function getUnlockedAchievementIds(): Promise<Set<string>> {
   const rows = await db.achievementUnlocks.toArray();
   return new Set(rows.map((r) => r.achievementId));
 }

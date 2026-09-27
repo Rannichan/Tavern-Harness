@@ -59,7 +59,7 @@ export function normalizeWorkspaceDir(dir: string | null | undefined): string | 
 }
 
 /** shell 确认请求回调（由调用方注入，走统一确认弹窗链路） */
-export type SkillConfirmFn = (req: ToolConfirmationRequest) => Promise<boolean>;
+type SkillConfirmFn = (req: ToolConfirmationRequest) => Promise<boolean>;
 
 /** 填充 {{param}} 占位符 */
 function interpolate(template: string, args: Record<string, unknown>): string {
@@ -561,18 +561,17 @@ async function execShell(
   const result = await sendToSandbox(script, safeWorkspaceDir);
   if (typeof result === 'string') return result; // ERROR: ...
 
-  // 服务端返回需要确认：脚本包含非白名单命令或访问工作目录之外的路径
+  // 服务端返回需要确认：脚本包含非白名单命令
   if (result.needConfirm) {
     const confirmationRequestId = result.confirmationRequestId;
-    const reasonKey = result.confirmationReason === 'non_allowlisted' ? 'NonAllowlisted' : 'Unknown';
     let approved = false;
     if (confirm && confirmationRequestId) {
       try {
         approved = await confirm({
           sessionId: -1,
           toolName: 'run_shell_script',
-          title: translate(`tool.gateShell${reasonKey}Title`),
-          message: translate(`tool.gateShell${reasonKey}Msg`),
+          title: translate('tool.gateShellNonAllowlistedTitle'),
+          message: translate('tool.gateShellNonAllowlistedMsg'),
           argsJson: JSON.stringify({ script }),
         });
       } catch {

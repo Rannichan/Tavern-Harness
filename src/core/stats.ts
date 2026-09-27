@@ -6,7 +6,7 @@ import { checkAchievementUnlocks } from './achievements';
 // 生涯统计（append-only）与工具函数
 // ============================================================
 
-export interface StatsDelta {
+interface StatsDelta {
   inputTokens: number;
   outputTokens: number;
   rounds: number;
@@ -57,7 +57,7 @@ export async function resetCareerStats(): Promise<void> {
 
 
 /** 从消息内容剥离思考标签，用于列表预览 */
-export function stripThinking(content: string): string {
+function stripThinking(content: string): string {
   return content
     .replace(/<thinking>[\s\S]*?<\/thinking>/g, '')
     .replace(/\b(?:thinking|reasoning|思考)\s*[:\-＝=][\s\S]*?(?=\n\s*(?:<\/?(?:thinking|reasoning|think)>|\S))/gi, '')

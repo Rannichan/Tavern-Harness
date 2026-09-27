@@ -6,7 +6,7 @@
 // ============================================================
 
 /** 判断当前环境是否可能提供代理（Vite dev 服务器） */
-export function canUseProxy(): boolean {
+function canUseProxy(): boolean {
   if (typeof window === 'undefined') return false;
   // 仅当页面运行在开发服务器（非 file:// 等）时可用
   return /^https?:\/\//.test(window.location.origin);

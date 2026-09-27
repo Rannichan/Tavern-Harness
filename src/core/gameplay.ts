@@ -25,18 +25,18 @@ import type {
 import { saveJsonFile, type SaveResult } from './fileDownload';
 import { ensureSessionWorkspaceDir } from './tools/generatedSkillExecutor';
 
-export const GAMEPLAY_EXPORT_VERSION = 1;
+const GAMEPLAY_EXPORT_VERSION = 1;
 const GAMEPLAY_FORMAT = 'tavern-harness-gameplay';
 
 /** 参与会话的角色：角色卡全量快照 + 会话内显示名 */
-export interface GameplayNpc {
+interface GameplayNpc {
   npc: NpcCharacter;
   /** 会话参与者表中的显示名（可能与会话创建后角色改名不同） */
   sessionDisplayName: string;
 }
 
 /** 游戏导出文件结构 */
-export interface GameplayExportPayload {
+interface GameplayExportPayload {
   format: typeof GAMEPLAY_FORMAT;
   version: number;
   exportedAt: number;
@@ -80,11 +80,6 @@ function collectToolNamesFromMessages(messages: ChatMessage[]): Set<string> {
     }
   }
   return names;
-}
-
-/** 字符串是否为有效的内嵌 data URL */
-export function isDataUrl(s: string | null | undefined): boolean {
-  return Boolean(s && s.startsWith('data:'));
 }
 
 /** 不影响重建对话的字段：性能 / 调试 / 运行时细节，导出时直接移除
@@ -161,7 +156,7 @@ async function uniqueName(
 // 导出
 // ---------------------------------------------------------------------------
 
-export interface ExportGameplayOptions {
+interface ExportGameplayOptions {
   sessionId: number;
   includeHistory: boolean;
 }
@@ -263,7 +258,7 @@ function remapToolCallsJson(value: string | undefined, map: Map<string, string>)
 // 导入
 // ---------------------------------------------------------------------------
 
-export interface ImportGameplayResult {
+interface ImportGameplayResult {
   sessionId: number;
   sessionTitle: string;
   createdNpcs: number;

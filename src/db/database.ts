@@ -109,7 +109,7 @@ export class TavernDB extends Dexie {
 
 export const db = new TavernDB();
 
-export const DEFAULT_SETTINGS: AppSettings = {
+const DEFAULT_SETTINGS: AppSettings = {
   id: 1,
   baseUrl: 'https://api.openai.com/v1/',
   apiKey: '',
@@ -133,7 +133,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   statsResetTime: null,
 };
 
-export const DEFAULT_STATS: CareerStatsTotal = {
+const DEFAULT_STATS: CareerStatsTotal = {
   id: 1,
   inputTokens: 0,
   outputTokens: 0,
@@ -141,7 +141,7 @@ export const DEFAULT_STATS: CareerStatsTotal = {
 };
 
 /** 内置酒馆老板：默认启用所有内置技能（名称/人设/开场白随界面语言本地化） */
-export const DEFAULT_NPC: NpcCharacter = {
+const DEFAULT_NPC: NpcCharacter = {
   name: translate('builtinNpc.name'),
   prompt: translate('builtinNpc.prompt'),
   greeting: translate('builtinNpc.greeting'),
@@ -349,7 +349,7 @@ async function retireRemovedBuiltinTools(): Promise<void> {
 }
 
 /** 内置技能（只读保护）第一次使用时写库，已存在的同步更新 schema */
-export async function seedBuiltinTools(): Promise<void> {
+async function seedBuiltinTools(): Promise<void> {
   const now = Date.now();
   for (const tool of BUILTIN_TOOLS) {
     const name = tool.function.name;

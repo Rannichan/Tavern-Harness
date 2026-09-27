@@ -1,5 +1,4 @@
-import { db } from '../db/database';
-import type { NpcCharacter, WorldBook } from '../types/models';
+import type { NpcCharacter } from '../types/models';
 
 // ============================================================
 // SillyTavern PNG 角色卡导入（chara v2 / ccv3 tEXt 块）
@@ -10,12 +9,6 @@ import type { NpcCharacter, WorldBook } from '../types/models';
 //   PNG 嵌入的 chara 块内容是「把 JSON 字符串按 UTF-8 编码后，再整体做 base64」的结果
 // - v3: https://github.com/kwaroran/character-card-spec-v3/blob/main/SPEC_V3.md
 //   PNG 嵌入的 ccv3 块内容同样是「JSON 字符串 utf-8 -> base64」
-
-export interface SillyTavernImportResult {
-  characterName: string | null;
-  worldBookName: string | null;
-  version: string | null;
-}
 
 /** TavernCardV2 的 data 字段（v2 卡字段全部嵌套在 data 中） */
 interface TavernV2Data {
@@ -113,7 +106,7 @@ function safeBase64Decode(text: string): string | null {
  * 解析 PNG tEXt 块（chara / ccv3）。
  * 返回归一化后的卡片数据：v2 卡会把 data 字段展开到顶层，与 v3 字段结构对齐。
  */
-export function parsePngChara(buffer: ArrayBuffer): { key: 'ccv3' | 'chara'; data: StEnvelope } | null {
+function parsePngChara(buffer: ArrayBuffer): { key: 'ccv3' | 'chara'; data: StEnvelope } | null {
   if (buffer.byteLength > MAX_PNG_SIZE) throw new Error('PNG 文件超过 8MB');
   const bytes = new Uint8Array(buffer);
   const dv = new DataView(buffer);
@@ -281,67 +274,6 @@ function buildGreetings(data: StEnvelope, maxLen = 1000): { greeting: string; al
   return { greeting, alternateGreetings: alternates };
 }
 
-/** 创建角色与可选 Lorebook（重名自动加后缀） */
-async function persistCard(data: StEnvelope, key: 'ccv3' | 'chara', pngDataUrl: string | null = null): Promise<SillyTavernImportResult> {
-  const name = data.name?.trim() || '未命名角色';
-  const { greeting, alternateGreetings } = buildGreetings(data);
-
-  // 重名加后缀
-  let finalName = name;
-  let suffix = 2;
-  while (await db.npcs.where('name').equals(finalName).first()) {
-    finalName = `${name} (${suffix})`;
-    suffix++;
-  }
-
-  const npc: NpcCharacter = {
-    name: finalName,
-    prompt: buildPromptFromStructured(data, name),
-    greeting,
-    alternateGreetings,
-    avatarColorOrdinal: Math.floor(Math.random() * 6),
-    avatarDataUrl: resolveAvatar(data, pngDataUrl),
-    enabledToolNames: [],
-    isBuiltIn: false,
-    createdAt: Date.now(),
-  };
-  await db.npcs.add(npc);
-
-  let worldBookName: string | null = null;
-  const lorebook = renderLorebook(data.character_book, name);
-  if (lorebook) {
-    // 重名加后缀
-    let finalBookName = lorebook.name;
-    let bs = 2;
-    while (await db.worldBooks.where('name').equals(finalBookName).first()) {
-      finalBookName = `${lorebook.name} (${bs})`;
-      bs++;
-    }
-    const wb: WorldBook = {
-      name: finalBookName,
-      content: lorebook.content,
-      imageUri: null,
-      createdAt: Date.now(),
-    };
-    worldBookName = finalBookName;
-    await db.worldBooks.add(wb);
-  }
-
-  return {
-    characterName: npc.name,
-    worldBookName,
-    version: key === 'ccv3' ? 'v3' : 'v2',
-  };
-}
-
-/** 导入角色卡 PNG 文件：创建角色（重名自动加后缀）与可选 Lorebook，PNG 图片本身作为头像 */
-export async function importSillyTavernCard(file: File): Promise<SillyTavernImportResult> {
-  const buffer = await file.arrayBuffer();
-  const parsed = parsePngChara(buffer);
-  if (!parsed) throw new Error('未找到角色卡数据（ccv3 / chara）');
-  return persistCard(parsed.data, parsed.key, pngToDataUrl(buffer));
-}
-
 // ============================================================
 // 预填草稿（不落库）：UI 把解析结果填入「新建角色 / 新建 Lorebook」表单，
 // 由用户确认后手动保存
@@ -382,20 +314,4 @@ export async function parseSillyTavernCardFile(file: File): Promise<ParsedSillyT
   const worldBook = lorebook ? { name: lorebook.name, content: lorebook.content } : null;
 
   return { version: key === 'ccv3' ? 'v3' : 'v2', character, worldBook };
-}
-
-/** 从 data URL 导入（兼容老接口，PNG 本身作为头像兜底） */
-export function importSillyTavernFromDataUrl(dataUrl: string): Promise<SillyTavernImportResult> {
-  const buffer = decodeBase64Png(dataUrl);
-  const parsed = parsePngChara(buffer);
-  if (!parsed) throw new Error('未找到角色卡数据');
-  return persistCard(parsed.data, parsed.key, dataUrl.startsWith('data:') ? dataUrl : null);
-}
-
-function decodeBase64Png(dataUrl: string): ArrayBuffer {
-  const base64 = dataUrl.split(',')[1] ?? dataUrl;
-  const bin = atob(base64);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return bytes.buffer;
 }

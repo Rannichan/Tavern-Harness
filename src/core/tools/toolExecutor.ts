@@ -21,16 +21,16 @@ import {
 // 工具路由与确认门控 — 对应 ToolExecutionCoordinator.kt
 // ============================================================
 
-export type ToolRoute = 'NATIVE' | 'STANDARD' | 'BLOCKED';
+type ToolRoute = 'NATIVE' | 'STANDARD' | 'BLOCKED';
 
-export function routeFor(tool: McpTool | null): ToolRoute {
+function routeFor(tool: McpTool | null): ToolRoute {
   // 生成式技能（非内置）永远不可进入原生路由，即使重用内置名字
   if (tool && !tool.isBuiltIn) return 'STANDARD';
   if (tool && (BUILTIN_TOOL_NAMES as readonly string[]).includes(tool.name)) return 'NATIVE';
   return 'BLOCKED';
 }
 
-export interface ToolExecutionContext {
+interface ToolExecutionContext {
   sessionId: number;
   /** 发起工具调用的 NPC。 */
   npcId: number | null;
@@ -250,9 +250,9 @@ async function handleGetLorebookInfo(args: Record<string, unknown>): Promise<str
  * 把 JSON 部分写入消息的 displayRef 字段，并自动打开展示弹窗。
  * 对模型返回的仍是可读文本（不暴露内部标记）。
  */
-export const DISPLAY_REF_PREFIX = 'DISPLAY_REF: ';
+const DISPLAY_REF_PREFIX = 'DISPLAY_REF: ';
 
-export interface DisplayPayload {
+interface DisplayPayload {
   path: string;
   kind: 'text' | 'image' | 'html';
   title?: string;
@@ -661,7 +661,7 @@ async function handleDeleteLorebook(args: Record<string, unknown>): Promise<stri
 
 // ---------- 工具列举 ----------
 
-export async function listToolNames(): Promise<string[]> {
+async function listToolNames(): Promise<string[]> {
   const tools = await db.tools.toArray();
   return tools.map((t) => t.name).sort();
 }
@@ -699,7 +699,7 @@ export async function getEnabledToolsForSession(
   return result;
 }
 
-export function safeJsonParse<T>(s: string | null | undefined): T | null {
+function safeJsonParse<T>(s: string | null | undefined): T | null {
   if (!s) return null;
   try {
     return JSON.parse(s) as T;

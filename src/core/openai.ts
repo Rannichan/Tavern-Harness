@@ -7,7 +7,7 @@ import { fallbackToolCallId } from './turnLoop';
 import { isNetworkLikeError, toProxyUrl } from './proxy';
 import { translate } from './i18n';
 
-export const OPENAI_TIMEOUTS = { connect: 15_000, read: 60_000, write: 15_000 };
+const OPENAI_TIMEOUTS = { read: 60_000 };
 
 /**
  * 计算请求 URL 候选：先直连，若失败且开发服务器可用（存在 /api/ 代理），
@@ -257,7 +257,7 @@ function handleDataLine(
   }
 }
 
-export function mergeToolArguments(current: string, incoming: string): string {
+function mergeToolArguments(current: string, incoming: string): string {
   if (!current) return incoming;
   if (!incoming || incoming === current) return current;
   if (incoming.startsWith(current)) return incoming;

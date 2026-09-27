@@ -18,7 +18,7 @@ function extOf(path: string): string {
 }
 
 /** 与 file_display 相同的「按扩展名推断展示方式」逻辑 */
-export function kindFromPath(path: string): 'text' | 'image' | 'html' {
+function kindFromPath(path: string): 'text' | 'image' | 'html' {
   const ext = extOf(path);
   if (/^(html?)$/i.test(ext)) return 'html';
   if (/^(png|jpe?g|gif|webp|svg|bmp|ico)$/i.test(ext)) return 'image';

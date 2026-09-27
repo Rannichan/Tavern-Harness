@@ -63,8 +63,6 @@ export const STANDARD_SYSTEM_PROMPT = 'You are a helpful assistant.';
 // 历史消息 → 网络消息（GROUP 角色折叠 / 附件 / 思考清理）
 // ============================================================
 
-export interface BuildNetworkMessageInput extends ChatParticipant {}
-
 export function buildNetworkMessagesForSession(p: {
   messages: Array<{
     role: string;

@@ -51,7 +51,7 @@ export function highlightCode(code: string, lang?: string): string {
 }
 
 /** 数学公式：内联 $...$ / \(...\) 与块级 $$...$$ / \[...\] */
-export function renderMath(content: string, displayMode: boolean): string {
+function renderMath(content: string, displayMode: boolean): string {
   try {
     return katex.renderToString(content, {
       displayMode,
@@ -70,7 +70,7 @@ interface BlockMathMatch {
 }
 
 /** 解析块级数学公式（$$ 或 \[ \]） */
-export function extractBlockMath(source: string): { text: string; matches: BlockMathMatch[] } {
+function extractBlockMath(source: string): { text: string; matches: BlockMathMatch[] } {
   const matches: BlockMathMatch[] = [];
   // $$...$$ (支持多行)
   const re1 = /\$\$([\s\S]+?)\$\$/g;
@@ -87,7 +87,7 @@ export function extractBlockMath(source: string): { text: string; matches: Block
 }
 
 /** 内联数学 $...$ */
-export function renderInlineMath(html: string): string {
+function renderInlineMath(html: string): string {
   // 先保护代码块里的 $（marked 已转义为 &dollar;，避免冲突）
   const inlineRe = /(?<!\\)\$(?!\$)(.+?)(?<!\\)\$/g;
   let attempts = 0;
@@ -167,6 +167,3 @@ export function highlightMentions(html: string, names: string[]): string {
   }
   return result;
 }
-
-export const unescapeHtml = (s: string) =>
-  s.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");

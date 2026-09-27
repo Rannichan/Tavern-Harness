@@ -5,18 +5,18 @@ import { translate } from './i18n';
 // 魔数命令（与 App 一致：/new 与 /pass）
 // ============================================================
 
-export interface MagicCommand {
+interface MagicCommand {
   text: string;
   description: string;
 }
 
-export const MAGIC_COMMANDS: MagicCommand[] = [
+const MAGIC_COMMANDS: MagicCommand[] = [
   { text: '/new', description: '' },
   { text: '/pass', description: '' },
 ];
 
 /** 获取命令描述（每次读取当前语言） */
-export function commandDescription(text: string): string {
+function commandDescription(text: string): string {
   return text === '/new' ? translate('chat.cmdNew') : translate('chat.cmdPass');
 }
 
@@ -50,7 +50,7 @@ export function initializeTurnQueue(participants: ChatParticipant[], mode: TurnO
   return ids;
 }
 
-export function shuffle<T>(arr: T[]): T[] {
+function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -186,34 +186,6 @@ export function queueHistoryJson(history: string[][]): string {
   return JSON.stringify(history);
 }
 
-/** 从参与者中取下一个发言人（队首） */
-export function nextSpeaker(queue: string[], participantIdMap: Map<number, ChatParticipant>): ChatParticipant | null {
-  while (queue.length > 0) {
-    const id = parseInt(queue[0], 10);
-    const p = participantIdMap.get(id);
-    if (p) return p;
-    queue.shift();
-  }
-  return null;
-}
-
-/**
- * 解析当前应发言者（队首）。玩家（PLAYER）也参与队列。
- * 群聊中返回 null 表示当前队列为空（等待重新初始化 / 新的玩家输入）。
- */
-export function resolveTurnSpeaker(
-  session: Pick<ChatSession, 'mode' | 'turnOrderMode' | 'loopIndex' | 'turnQueueJson'>,
-  participants: ChatParticipant[]
-): { participant: ChatParticipant; queue: string[]; loopIndex: number } | null {
-  if (session.mode !== 'GROUP') return null;
-  const { queue, loopIndex } = refreshQueue(session, participants);
-  if (queue.length === 0) return null;
-  const id = parseInt(queue[0], 10);
-  const participant = participants.find((p) => p.participantId === id);
-  if (!participant) return null;
-  return { participant, queue, loopIndex };
-}
-
 /**
  * 计算用于左侧「发言队列」展示的队列（含补全逻辑）：
  * - 队列非空 → 不解构，原样返回（含当前发言者）
@@ -234,31 +206,7 @@ export function speakerLabel(p: ChatParticipant): string {
   return p.kind === 'PLAYER' ? translate('common.user') : p.displayName;
 }
 
-// ============================================================
-// 工具函数
-// ============================================================
-
-export function parseIsoWithOffset(s: string): number | null {
-  // 要求显式时区偏移（如 +08:00 / Z），避免浏览器按本地时区解析出歧义
-  if (!/^[+-]\d{2}:?\d{2}$/.test(s.slice(-6).replace('Z', '+00:00'))) {
-    const t = Date.parse(s);
-    return Number.isNaN(t) ? null : t;
-  }
-  const t = Date.parse(s);
-  return Number.isNaN(t) ? null : t;
-}
-
 /** 一个实用的 AI 工具调用 id 回退生成 */
 export function fallbackToolCallId(index: number): string {
   return `call-${Date.now()}-${index}`;
 }
-
-let uid = 0;
-export function uuid(): string {
-  uid += 1;
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
-  return `id-${Date.now()}-${uid}`;
-}
-
-export const NEW_TOPIC_COMMAND = '/new';
-export const PASS_COMMAND = '/pass';

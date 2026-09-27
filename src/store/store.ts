@@ -147,9 +147,6 @@ interface AppState {
   }) => Promise<void>;
   resetSessionConversation: (sessionId: number) => Promise<void>;
   resolveConfirmation: (approved: boolean) => void;
-  setTurnOrderMode: (sessionId: number, mode: TurnOrderMode) => Promise<void>;
-  reorderParticipants: (sessionId: number, participantIdsInOrder: number[]) => Promise<void>;
-  moveParticipant: (sessionId: number, participantId: number, newSeat: number) => Promise<void>;
   /** 用 DB 最新数据刷新某会话的队列快照（面板实时源） */
   refreshLiveQueue: (sessionId: number) => Promise<void>;
   /** 清除某会话的队列快照（会话删除时） */
@@ -415,7 +412,6 @@ export const useStore = create<AppState>((set, get) => ({
     const attachInfos = attachments.map((a, i) => ({
       mimeType: a.startsWith('data:image') ? 'image/png' : 'video/mp4',
       displayName: attachmentNames[i]?.trim() || translate('common.attachment'),
-      sizeBytes: a.length,
     }));
     const userMsg: ChatMessage = {
       sessionId,
@@ -558,7 +554,6 @@ export const useStore = create<AppState>((set, get) => ({
     const attachmentInfos = (newAttachments != null ? newAttachments : message.attachments).map((a, i) => ({
       mimeType: a.startsWith('data:image') ? 'image/png' : 'video/mp4',
       displayName: (newAttachmentNames?.[i]?.trim()) || message.attachmentInfos?.[i]?.displayName || translate('common.attachment'),
-      sizeBytes: a.length,
     }));
     await db.messages.update(messageId, { content: newContent, attachments, attachmentInfos });
     await get().loadMessages(sessionId);
@@ -630,7 +625,6 @@ export const useStore = create<AppState>((set, get) => ({
     const attachmentInfos = (newAttachments != null ? newAttachments : message.attachments).map((a, i) => ({
       mimeType: a.startsWith('data:image') ? 'image/png' : 'video/mp4',
       displayName: (newAttachmentNames?.[i]?.trim()) || message.attachmentInfos?.[i]?.displayName || translate('common.attachment'),
-      sizeBytes: a.length,
     }));
     // 仅修改本条消息内容，不删除任何后续消息、不触发重新生成
     await db.messages.update(messageId, { content: newContent, attachments, attachmentInfos });
@@ -824,58 +818,6 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   setActiveDisplay: (d) => set({ activeDisplay: d }),
-
-  /** 切换群聊发言顺序模式（PRESET 固定座位 / RANDOM 每循环洗牌）。
-   * 只更新模式本身：不重置当前队列、不动循环历史、不改 loopIndex，
-   * 因此不影响当前循环与队列面板的历史展示；新顺序在进入下一轮循环
-   * （队列为空重建）时生效，并由 persistQueue 追加到循环历史末尾。 */
-  setTurnOrderMode: async (sessionId, mode) => {
-    const session = await db.sessions.get(sessionId);
-    if (!session) return;
-    await db.sessions.update(sessionId, { turnOrderMode: mode });
-    await get().refreshSessions();
-    await get().refreshLiveQueue(sessionId);
-  },
-
-  /** 保存群聊成员的固定座位顺序（由排序弹窗拖动产生） */
-  reorderParticipants: async (sessionId, participantIdsInOrder) => {
-    const participants = await db.participants.where('sessionId').equals(sessionId).toArray();
-    const seatById = new Map<string, number>();
-    participantIdsInOrder.forEach((id, i) => seatById.set(String(id), i));
-    let changed = false;
-    for (const p of participants) {
-      const seat = seatById.get(String(p.participantId));
-      if (seat != null && seat !== p.seatOrder) {
-        await db.participants.update(p, { seatOrder: seat });
-        changed = true;
-      }
-    }
-    if (changed) {
-      await get().loadMessages(sessionId);
-      await get().refreshSessions();
-      await get().refreshLiveQueue(sessionId);
-    }
-  },
-
-  /** 单个成员移动到新座位（拖拽重排时交互式更新，保持其余成员相对位置） */
-  moveParticipant: async (sessionId, participantId, newSeat) => {
-    const participants = (await db.participants.where('sessionId').equals(sessionId).toArray()).sort(
-      (a, b) => a.seatOrder - b.seatOrder
-    );
-    const idx = participants.findIndex((p) => p.participantId === participantId);
-    if (idx < 0) return;
-    const [moved] = participants.splice(idx, 1);
-    const clamped = Math.max(0, Math.min(newSeat, participants.length));
-    participants.splice(clamped, 0, moved);
-    for (let i = 0; i < participants.length; i++) {
-      if (participants[i].seatOrder !== i) {
-        await db.participants.update(participants[i], { seatOrder: i });
-      }
-    }
-    await get().loadMessages(sessionId);
-    await get().refreshSessions();
-    await get().refreshLiveQueue(sessionId);
-  },
 
   /** 用 DB 最新队列刷新快照（群聊面板的实时数据源） */
   refreshLiveQueue: async (sessionId) => {
