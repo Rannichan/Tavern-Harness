@@ -195,7 +195,9 @@ export function Sidebar() {
             }
           }}
         >
-          <div className="brand-logo">🫖</div>
+          <div className="brand-logo">
+            <img src="/tavern-harness-logo.png" alt="Tavern Harness" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+          </div>
           <div>
             <div className="brand-name">Tavern Harness</div>
             <div className="brand-sub">{t('nav.brandSub')}</div>

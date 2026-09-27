@@ -64,7 +64,9 @@ export default function App() {
         <div className="tav-bg" />
         <div style={{ height: '100dvh', display: 'grid', placeItems: 'center', position: 'relative', zIndex: 1 }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
-            <div className="brand-logo" style={{ width: 56, height: 56, fontSize: 26 }}>🫖</div>
+            <div className="brand-logo" style={{ width: 56, height: 56, fontSize: 26 }}>
+              <img src="/tavern-harness-logo.png" alt="Tavern Harness" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+            </div>
             <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>{t('nav.loading')}</div>
           </div>
         </div>

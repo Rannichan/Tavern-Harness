@@ -9,5 +9,8 @@ sandbox_workspace/
 skills/
 docs/
 *.png
+# 应用图标/logo 需要入库（例外）
+!public/favicon.png
+!public/tavern-harness-logo.png
 # 个人笔记（notebook 目录）
 notebook/
