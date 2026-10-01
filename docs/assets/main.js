@@ -49,11 +49,9 @@
     if (!bar) return;
     const onScroll = () => {
       if (window.scrollY > 20) {
-        bar.style.background =
-          'linear-gradient(to bottom, rgba(21,13,7,0.97), rgba(21,13,7,0.9))';
+        bar.style.background = 'var(--topbar-bg-solid)';
       } else {
-        bar.style.background =
-          'linear-gradient(to bottom, rgba(21,13,7,0.86), rgba(21,13,7,0.55) 70%, transparent)';
+        bar.style.background = 'var(--topbar-bg)';
       }
     };
     window.addEventListener('scroll', onScroll, { passive: true });

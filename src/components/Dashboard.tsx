@@ -97,6 +97,9 @@ export function Dashboard() {
             >
               <Icon name="users" size={14} /> {t('dash.goCharacters')}
             </button>
+            <a className="btn" href="https://rannichan.github.io/Tavern-Harness/wiki.html" target="_blank" rel="noreferrer">
+              <Icon name="book" size={14} /> {t('dash.openWiki')}
+            </a>
           </div>
         </div>
 

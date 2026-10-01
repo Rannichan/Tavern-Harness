@@ -18,6 +18,10 @@
   --text: #F2EADC;
   --text-dim: #AA9C86;
   --text-faint: #6f6352;
+  --accent-text: #E8CFA0;
+  --code-text: #F2EADC;
+  --code-dim: #AA9C86;
+  --code-accent: #FFCB8B;
   --font-serif: 'Iowan Old Style', 'Palatino Linotype', 'Songti SC', 'Noto Serif SC',
     'Source Han Serif SC', 'STSong', serif;
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
@@ -26,6 +30,29 @@
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --radius: 14px;
   --maxw: 1080px;
+  --topbar-bg: linear-gradient(to bottom, rgba(21, 13, 7, 0.86), rgba(21, 13, 7, 0.55) 70%, transparent);
+  --topbar-bg-solid: linear-gradient(to bottom, rgba(21, 13, 7, 0.97), rgba(21, 13, 7, 0.9));
+  --vignette: rgba(10, 5, 2, 0.55);
+}
+
+:root[data-theme='light'] {
+  --amber: #8A4B08;
+  --amber-dim: #A05B12;
+  --amber-deep: #6E3905;
+  --bg: #F7F0E4;
+  --bg-deep: #E9DDCA;
+  --surface: #FFFDF8;
+  --surface-2: #F3E7D5;
+  --surface-3: #DFCFB8;
+  --border: rgba(92, 55, 22, 0.2);
+  --border-soft: rgba(92, 55, 22, 0.1);
+  --text: #30251C;
+  --text-dim: #66574A;
+  --text-faint: #887665;
+  --accent-text: #70400F;
+  --topbar-bg: linear-gradient(to bottom, rgba(247, 240, 228, 0.95), rgba(247, 240, 228, 0.72) 75%, transparent);
+  --topbar-bg-solid: linear-gradient(to bottom, rgba(247, 240, 228, 0.98), rgba(247, 240, 228, 0.94));
+  --vignette: rgba(118, 78, 34, 0.12);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -60,7 +87,7 @@ code {
   border: 1px solid var(--border-soft);
   padding: 0.12em 0.4em;
   border-radius: 6px;
-  color: #e8cfa0;
+  color: var(--accent-text);
 }
 
 /* ── 背景氛围：木纹噪点 + 琥珀辉光 + 暗角 ── */
@@ -84,7 +111,7 @@ code {
 .bg-vignette {
   position: absolute;
   inset: 0;
-  background: radial-gradient(110% 90% at 50% 40%, transparent 55%, rgba(10, 5, 2, 0.55) 100%);
+  background: radial-gradient(110% 90% at 50% 40%, transparent 55%, var(--vignette) 100%);
 }
 /* 火星粒子 */
 .bg-ember {
@@ -121,11 +148,27 @@ code {
   justify-content: space-between;
   gap: 24px;
   padding: 14px clamp(20px, 5vw, 56px);
-  background: linear-gradient(to bottom, rgba(21, 13, 7, 0.86), rgba(21, 13, 7, 0.55) 70%, transparent);
+  background: var(--topbar-bg);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   transition: background 0.3s ease;
 }
+.topbar-actions { display: flex; align-items: center; gap: 10px; flex: none; }
+.theme-toggle {
+  display: inline-grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  color: var(--amber);
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+.theme-toggle:hover { background: var(--surface-2); border-color: var(--amber-dim); transform: translateY(-1px); }
+.theme-toggle svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.theme-toggle svg[hidden] { display: none; }
 .brand {
   display: flex;
   align-items: center;
@@ -140,6 +183,7 @@ code {
 .brand-name {
   font-family: var(--font-serif);
   font-size: 21px;
+  font-weight: 700;
   letter-spacing: 0.04em;
 }
 .brand-sub {
@@ -265,7 +309,7 @@ code {
   font-size: 13.5px;
   border: 1px solid var(--border);
   border-radius: 999px;
-  color: #e8cfa0;
+  color: var(--accent-text);
   background: rgba(255, 203, 139, 0.06);
 }
 
@@ -409,8 +453,14 @@ main > section {
   overflow-x: auto;
   margin-bottom: 14px;
 }
-.c-am { color: var(--amber); }
-.c-dim { color: var(--text-faint); }
+.pre code, pre.code code {
+  color: var(--code-text);
+  background: none;
+  border: none;
+  padding: 0;
+}
+.pre .c-am, pre.code .c-am { color: var(--code-accent); }
+.pre .c-dim, pre.code .c-dim { color: var(--code-dim); }
 .step-note {
   font-size: 13px !important;
   color: var(--text-faint) !important;
@@ -480,7 +530,7 @@ main > section {
   margin: 2px 3px;
   border-radius: 999px;
   border: 1px solid var(--border);
-  color: #e8cfa0;
+  color: var(--accent-text);
   background: rgba(255, 203, 139, 0.05);
 }
 .magic-grid {
@@ -592,7 +642,7 @@ main > section {
 }
 .d-label {
   display: inline-block;
-  color: #e8cfa0;
+  color: var(--accent-text);
   font-weight: 600;
   margin-right: 6px;
   background: rgba(255, 203, 139, 0.08);

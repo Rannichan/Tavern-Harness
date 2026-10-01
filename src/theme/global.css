@@ -558,6 +558,7 @@ body.resizing .sidebar-resizer {
   color: var(--text);
   font-size: 13.2px;
   font-weight: 600;
+    text-decoration: none;
   transition: all 0.32s cubic-bezier(0.16, 1, 0.3, 1);
   user-select: none;
 }

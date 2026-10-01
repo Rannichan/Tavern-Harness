@@ -6,6 +6,7 @@
   <title>Tavern Harness · 酒馆助手 — 你来了！快坐下~</title>
   <meta name="description" content="Tavern Harness —— 本地优先的 AI 角色扮演酒馆。高自由度沙盒，构建任意你想要的世界：陪伴、探险、还是其他 Fantacy。" />
   <link rel="icon" href="favicon.png" />
+  <script src="assets/theme.js"></script>
   <link rel="stylesheet" href="assets/tavern.css" />
 </head>
 <body>
@@ -19,8 +20,7 @@
   <header class="topbar" id="topbar">
     <a class="brand" href="#" aria-label="Tavern Harness 首页">
       <img class="brand-mark" src="tavern-harness-logo.png" alt="Tavern Harness logo" />
-      <span class="brand-name">酒馆助手</span>
-      <span class="brand-sub">TAVERN&nbsp;HARNESS</span>
+      <span class="brand-name">Tavern Harness</span>
     </a>
     <nav class="nav" aria-label="主导航">
       <a href="#start">启动方式</a>
@@ -29,7 +29,13 @@
       <a href="wiki.html">使用 Wiki</a>
       <a href="#world">世界沙盒</a>
     </nav>
-    <a class="btn-enter" href="#start">进入酒馆&nbsp;→</a>
+    <div class="topbar-actions">
+      <button class="theme-toggle" type="button" data-theme-toggle aria-label="切换到日间模式">
+        <svg class="theme-icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg>
+        <svg class="theme-icon-moon" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </button>
+      <a class="btn-enter" href="#start">进入酒馆&nbsp;→</a>
+    </div>
   </header>
 
   <main>
