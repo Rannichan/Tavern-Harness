@@ -669,6 +669,14 @@ main > section {
 .footer-brand { display: flex; align-items: baseline; gap: 12px; }
 .footer-brand .brand-name { font-size: 24px; }
 .footer-note { color: var(--text-dim); font-size: 15px; }
+.footer-links { font-size: 13.5px; display: inline-flex; gap: 10px; align-items: center; }
+.footer-links a {
+  color: var(--amber-dim);
+  border-bottom: 1px dashed rgba(255, 203, 139, 0.35);
+  transition: color 0.25s ease, border-color 0.25s ease;
+  padding-bottom: 1px;
+}
+.footer-links a:hover { color: var(--amber); border-bottom-style: solid; }
 .footer-copy { color: var(--text-faint); font-size: 12.5px; letter-spacing: 0.06em; }
 
 /* ── 滚动进入动画 ── */
@@ -697,8 +705,7 @@ main > section {
   .hero-cta { flex-direction: column; width: 100%; }
   .btn { width: 100%; }
   .world-detail { padding: 30px 24px; }
-}
-@media (prefers-reduced-motion: reduce) {
+}@media (prefers-reduced-motion: reduce) {
   .ember { display: none; }
   .reveal { opacity: 1; transform: none; transition: none; }
   * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
