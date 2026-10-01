@@ -5,9 +5,23 @@ window.WIKI.chapters.push({
   group: '酒馆日常',
   num: '陆',
   kicker: 'Chat UI',
-  title: '聊天界面全解',
-  lead: '输入、思考、工具卡片、消息操作——每一个细节。',
+  title: '聊天界面',
+  lead: '从左上角 <span class="chip chip-main"><i class="ic" data-ic="send"></i> 对话</span> 进入 → 头部按钮、输入、思考、工具卡片、消息操作——每一个细节。',
   html: `
+    <h3>功能按钮</h3>
+    <p>对话页面右上角是一排五个功能按钮，悬停各自可看完整提示：</p>
+    <div class="tbl-wrap tbl-nowrap"><table>
+      <thead><tr><th>按钮</th><th>作用</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td><b><i class="ic" data-ic="folder"></i> 工作区文件</b></td><td>只读浏览本对话的专属工作目录</td><td>打开「<b>工作区文件</b>」管理器。详见「工作区与文件」章。</td></tr>
+        <tr><td><b><i class="ic" data-ic="pencil"></i> 编辑对话</b></td><td>打开与「创建对话」同款的设置弹窗</td><td>可改标题、参与角色与座位顺序、随机顺序、开场白开关、用户人设、世界书；保存即时生效（发言队列按新设置重建），消息历史保留。</td></tr>
+        <tr><td><b><i class="ic" data-ic="refresh"></i> 重置对话</b></td><td>清空消息重新开局</td><td>弹确认框后清空全部消息，按当前设置重建发言队列并重置开场白。会话设置保留，消息不可恢复。</td></tr>
+        <tr><td><b><i class="ic" data-ic="share"></i> 导出游戏</b></td><td>把整局游戏打包成 JSON</td><td>与侧栏会话右键「<b>导出游戏</b>」同一弹窗，默认勾选「<b>包含对话历史</b>」。详见「导出、分享与 Fork」章。</td></tr>
+        <tr><td><b><i class="ic" data-ic="trash"></i> 删除对话</b></td><td>彻底删除本局</td><td>红色危险按钮：确认后删除会话及全部消息，并清理专属工作目录 <code>sandbox_workspace/session-&lt;id&gt;/</code>，不可恢复。</td></tr>
+      </tbody>
+    </table></div>
+    <div class="co co-note reveal"><span class="co-ic">🧹</span><div class="co-body"><b>「重置」与「删除」的区别</b>：重置只清消息、设置与工作目录文件原样保留；删除则连磁盘上专属工作目录一起清掉。改玩法从头再来用重置，这一局不要了才用删除。</div></div>
+
     <h3>输入与发送</h3>
     <ul class="plain">
       <li><code>Enter</code> 发送 · <code>Shift+Enter</code> 换行。</li>
@@ -20,8 +34,8 @@ window.WIKI.chapters.push({
     <ul class="plain">
       <li><b>思考内容</b>：折叠块「🧠 思考」，生成过程中实时预览，完成后默认收起。</li>
       <li><b>工具调用卡片</b>：<code>调用工具: {name}</code>，可展开查看参数 JSON 与完整结果；执行中显示转圈，<code>file_display</code> 结果附「查看」按钮弹窗展示。<code>ERROR:</code> / <code>CANCELLED:</code> 结果会红色高亮独立展示。</li>
-      <li><b>指标行</b>：每条回复尾部有 <code>⏱️ 延迟 | ⚡ tokens/s | 📥 输入 | 📤 输出</code> 与所用模型名。</li>
-      <li><b>Markdown</b>：代码高亮、表格、行内/块级数学公式（KaTeX）均支持渲染。</li>
+      <li><b>指标行</b>：每条回复尾部有 <code>⏱️ 延迟 | ⚡ tokens/s | 📥 输入 | 📤 输出</code>。</li>
+      <li><b>Markdown</b>：代码高亮、表格、行内/块级数学公式均支持渲染。</li>
     </ul>
 
     <h3>消息右键菜单</h3>
@@ -35,8 +49,6 @@ window.WIKI.chapters.push({
       </tbody>
     </table></div>
 
-    <h3>滚动与队列联动</h3>
-    <p>进入会话定位到最新消息；新消息到达时自动平滑跟随（用户上滚回看不打断）。群聊右侧「<b>发言队列</b>」与对话区<b>双向联动</b>：点击队列项定位到对应发言，滚动对话区也会高亮当前发言人。</p>
     <div class="moat"></div>
   `,
 });

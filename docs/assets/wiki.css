@@ -194,6 +194,27 @@ code {
   background: rgba(255, 203, 139, 0.08);
   text-shadow: 0 0 12px rgba(255, 178, 96, 0.35);
 }
+/* 二级目录：章节内向右缩进的小节条目 */
+.toc-sub { list-style: none; margin: 2px 0 10px 16px; padding: 0; }
+.toc-sub a {
+  display: block;
+  font-size: 12.5px;
+  color: var(--text-faint);
+  padding: 3px 10px;
+  border-radius: 8px;
+  border-left: 2px solid transparent;
+  transition: all 0.22s ease;
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.toc-sub a:hover { color: var(--text); background: rgba(255, 203, 139, 0.06); }
+.toc-sub a.active {
+  color: var(--amber);
+  border-left-color: var(--amber-dim);
+  background: rgba(255, 203, 139, 0.06);
+}
 .wsb-foot {
   margin-top: 26px;
   padding: 14px;
@@ -261,6 +282,19 @@ code {
   color: #e8cfa0;
   background: rgba(255, 203, 139, 0.05);
 }
+/* 应用侧边栏「nav-chip」激活态同款：选用导入/入口按钮的样式直引 */
+.chip-main {
+  color: var(--amber);
+  border-color: rgba(255, 203, 139, 0.55);
+  background: color-mix(in srgb, var(--amber) 14%, var(--surface));
+  font-weight: 600;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 203, 139, 0.14),
+    inset 0 0 10px rgba(255, 178, 96, 0.18),
+    0 0 0 1px rgba(255, 203, 139, 0.16),
+    0 0 10px rgba(255, 178, 96, 0.28);
+}
+.chip-main i.ic { color: currentColor; vertical-align: -2px; margin-right: 2px; }
 .read-tip {
   margin-top: 26px;
   padding: 14px 18px;
@@ -334,6 +368,16 @@ h2:hover .anchor-link, h3:hover .anchor-link { opacity: 1; }
 
 .moat { height: 1px; background: linear-gradient(90deg, transparent, var(--border), transparent); margin: 30px 0 0; }
 
+/* 内联应用同源图标（wiki.js injectIcons 注入 SVG） */
+.wsec i.ic {
+  display: inline-block;
+  width: 15px;
+  height: 15px;
+  vertical-align: -2.5px;
+  color: var(--amber-dim);
+}
+.wsec i.ic svg { display: block; width: 15px; height: 15px; }
+
 /* 卡片与网格 */
 .card {
   background: var(--surface);
@@ -348,6 +392,8 @@ h2:hover .anchor-link, h3:hover .anchor-link { opacity: 1; }
 
 /* 表格 */
 .tbl-wrap { overflow-x: auto; margin: 4px 0 20px; border: 1px solid var(--border-soft); border-radius: 12px; }
+/* 首列（入口/名称等短语列）不换行 */
+.tbl-nowrap td:first-child { white-space: nowrap; }
 table {
   width: 100%;
   border-collapse: collapse;

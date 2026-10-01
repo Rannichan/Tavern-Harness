@@ -19,7 +19,7 @@ window.WIKI.chapters.push({
     <h3>Fork 分支</h3>
     <p>任意消息右键 → 「<b>创建分支 / Fork</b>」：同一段历史分岔出平行世界，每个分支拥有独立工作目录，互不打扰。适合「多种结局并行推进」或回滚实验。</p>
 
-    <div class="co co-note reveal"><span class="co-ic">🎁</span><div class="co-body">把 JSON 发给朋友，对方侧栏「导入」还原整个世界后即可继续游玩。<b>分享游戏的门槛=零配置</b>；唯一前提是对方也需要一个自己的 API Provider。</div></div>
+    <div class="co co-note reveal"><span class="co-ic">🎁</span><div class="co-body">把 JSON 发给朋友，对方侧栏「<i class="ic" data-ic="import"></i> 导入」还原整个世界后即可继续游玩。<b>分享游戏的门槛=零配置</b>；唯一前提是对方也需要一个自己的 API Provider。</div></div>
     <div class="moat"></div>
   `,
 });

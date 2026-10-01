@@ -12,7 +12,7 @@ window.WIKI.chapters.push({
       <span class="r-level">零门槛</span>
       <h3>深夜陪伴</h3>
       <ol class="steps">
-        <li>新建对话 → 选「NPC 对话」→ 角色「酒馆老板」（或任意自定义角色）。</li>
+        <li>「<i class="ic" data-ic="plus"></i> 新建」开一局单聊，角色选「酒馆老板」（或任意自定义角色）。</li>
         <li>直接开聊，像跟朋友一样。想听他内心盘算，用「Reasoning Effort」调思考强度，聊天区展开「🧠 思考」折叠块。</li>
         <li>长按 / 右键任意消息：编辑历史、重新生成、Fork 分支、查看原始日志。</li>
       </ol>
@@ -23,7 +23,7 @@ window.WIKI.chapters.push({
       <span class="r-level">零门槛</span>
       <h3>跑团掷骰</h3>
       <ol class="steps">
-        <li>新建「NPC 对话」，GM 人设写：「你是主持本团的 GM，用 roll_dice 决定命运」。</li>
+        <li>「<i class="ic" data-ic="plus"></i> 新建」开一局单聊，GM 人设写：「你是主持本团的 GM，用 roll_dice 决定命运」。</li>
         <li>开场白抛剧情钩子；老板自动调用 <code>roll_dice</code>，结果消息里呈现「大成功！/ 大失败！」。</li>
         <li>把团规、世界观写进<b>世界书</b>并绑定到该会话，人设即刻变成完整世界。</li>
       </ol>
@@ -35,7 +35,7 @@ window.WIKI.chapters.push({
       <h3>群聊剧本（最多 5 人一台戏）</h3>
       <ol class="steps">
         <li>「角色工坊」里建多个 NPC（如侦探、管家、女主）。</li>
-        <li>新建「群聊」添加 2–5 位角色，拖拽座位顺序或开启随机洗牌。</li>
+        <li>「<i class="ic" data-ic="plus"></i> 新建」开一局群聊：添加 2–5 位角色，拖拽座位顺序或开启随机洗牌。</li>
         <li>用 <code>@角色名</code> 点名下一个发言者；<code>/new</code> 开新话题；<code>/pass</code> 跳过自己。</li>
       </ol>
       <div class="r-feat"><b>要点</b>：发言队列实时高亮、双向联动定位；NPC 也能互相点名，形成接力。</div>
@@ -60,7 +60,7 @@ window.WIKI.chapters.push({
         <li>写一个 <code>$read</code> 的技能；再用 <code>file_write</code> 生成 HTML 仪表盘 <code>dashboard.html</code>。</li>
         <li><code>file_display</code> 直接弹窗展示数值变化——HTML 沙箱渲染、可缩放，还能开<b>画中画</b>边玩边看。</li>
       </ol>
-      <div class="r-feat"><b>要点</b>：删除会话时 <code>session-&lt;id&gt;</code> 目录自动清理；「酒馆老板」单人对话建议把仪表盘存到 <code>public/</code>（全酒馆可见）。</div>
+      <div class="r-feat"><b>要点</b>：删除会话时 <code>session-&lt;id&gt;</code> 目录自动清理；「酒馆老板」单聊建议把仪表盘存到 <code>public/</code>（全酒馆可见）。</div>
     </div>
 
     <div class="recipe reveal"><span class="r-num">六</span>
@@ -79,7 +79,7 @@ window.WIKI.chapters.push({
       <h3>携带整个世界（导入导出 / Fork）</h3>
       <ol class="steps">
         <li>一局玩到中期，「<b>导出游戏</b>」勾选「包含对话历史」，得到自包含 JSON。</li>
-        <li>发给朋友，对方「导入」一键还原角色与世界（冲突自动建副本）；分配全新工作目录后可直接续玩。</li>
+        <li>发给朋友，对方「<i class="ic" data-ic="import"></i> 导入」一键还原角色与世界（冲突自动建副本）；分配全新工作目录后可直接续玩。</li>
         <li>或自己「创建分支 / Fork」：同一段历史分岔出多个平行结局。</li>
       </ol>
       <div class="r-feat"><b>要点</b>：Fork 与导入都<b>不会覆盖</b>现有数据；游戏 JSON 会剔除调试字段，只留正文。</div>

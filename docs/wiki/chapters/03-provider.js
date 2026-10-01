@@ -6,7 +6,7 @@ window.WIKI.chapters.push({
   num: '叁',
   kicker: 'Providers & Parameters',
   title: '接入模型 Provider',
-  lead: '多端点可并存；测试连通、拉模型、生成参数，都在设置页。',
+  lead: '从左上角 <span class="chip chip-main"><i class="ic" data-ic="settings"></i> 设置</span> 进入 → 多端点可并存；测试连通、拉模型、生成参数，都在设置页。',
   html: `
     <h3>Provider 管理</h3>
     <ul class="plain">
@@ -15,7 +15,7 @@ window.WIKI.chapters.push({
       <li><b>编辑 / 删除</b>：删除前弹通用确认框。</li>
     </ul>
 
-    <h3>🎛 生成参数</h3>
+    <h3>生成参数</h3>
     <div class="tbl-wrap"><table>
       <thead><tr><th>参数</th><th>范围</th><th>作用</th></tr></thead>
       <tbody>
@@ -29,7 +29,7 @@ window.WIKI.chapters.push({
         <tr><td>Reasoning Effort</td><td>auto / off / low / medium / xhigh</td><td>思考强度</td></tr>
       </tbody>
     </table></div>
-    <div class="co co-note reveal"><span class="co-ic">💭</span><div class="co-body">流式输出与工具调用默认开启（无 UI 开关）；思考内容由 <b>Reasoning Effort</b> 控制强度。适配 deepseek / qwen 等模型时，应用会自动选择 <code>enable_thinking</code> 或 Qwen 专用的 <code>chat_template_kwargs</code> 参数。</div></div>
+    <div class="co co-note reveal"><span class="co-ic">💭</span><div class="co-body">不单独提供思考模式开关，如需关闭思考模式，请将 <b>Reasoning Effort</b> 设置为 <code>off</code>。适配 deepseek / qwen 等模型时，应用会自动选择 <code>enable_thinking</code> 或 Qwen 专用的 <code>chat_template_kwargs</code> 参数。</div></div>
     <div class="moat"></div>
   `,
 });

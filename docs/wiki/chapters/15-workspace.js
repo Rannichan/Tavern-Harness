@@ -13,13 +13,13 @@ window.WIKI.chapters.push({
       <thead><tr><th>目录</th><th>谁能用</th><th>权限</th></tr></thead>
       <tbody>
         <tr><td><span class="mono">sandbox_workspace/session-&lt;id&gt;/</span></td><td>对应会话</td><td>读写（400KB/条），专属游戏存档/CSS/脚本</td></tr>
-        <tr><td><span class="mono">sandbox_workspace/public/</span></td><td>所有会话</td><td>普通会话<b>只读</b>；仅「酒馆老板」单人对话可写——官方共享素材区</td></tr>
+        <tr><td><span class="mono">sandbox_workspace/public/</span></td><td>所有会话</td><td>普通会话<b>只读</b>；仅内置「酒馆老板」的 NPC 单聊可写——官方共享素材区</td></tr>
       </tbody>
     </table></div>
 
-    <h3>工作区文件 📁</h3>
+    <h3>工作区文件 <i class="ic" data-ic="folder"></i></h3>
     <ul class="plain">
-      <li>会话头部的 📁 按钮打开「<b>工作区文件</b>」管理器：<b>只读浏览</b>（不支持上传/下载/重命名/删除）。</li>
+      <li>会话头部的 <i class="ic" data-ic="folder"></i> 按钮打开「<b>工作区文件</b>」管理器：<b>只读浏览</b>（不支持上传/下载/重命名/删除）。</li>
       <li>支持目录进入、面包屑与 <code>..</code> 返回上级；点击文件复用 file_display 弹窗预览。</li>
     </ul>
 

@@ -6,7 +6,7 @@ window.WIKI.chapters.push({
   num: '拾柒',
   kicker: 'Career',
   title: '成就与生涯统计',
-  lead: '成就（Stats）页面陈列你的奖杯与生涯数据。',
+  lead: '<span class="chip chip-main"><i class="ic" data-ic="trophy"></i> 成就</span> → 奖杯陈列柜与生涯数据。',
   html: `
     <h3>🎖️ 奖杯陈列柜</h3>
     <div class="tbl-wrap"><table>

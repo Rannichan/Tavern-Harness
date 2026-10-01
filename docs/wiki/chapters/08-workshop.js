@@ -5,20 +5,20 @@ window.WIKI.chapters.push({
   group: '世界搭建',
   num: '捌',
   kicker: 'Workshop',
-  title: '角色工坊与世界观',
-  lead: '三个标签页：<span class="chip">👤 角色卡</span> <span class="chip">📖 世界书</span> <span class="chip">🛠 技能表</span>',
+  title: '角色工坊与世界书',
+  lead: '从左上角 <span class="chip chip-main"><i class="ic" data-ic="users"></i> 角色工坊</span> 进入 → 三个标签页：<span class="chip">👤 角色卡</span> <span class="chip">📖 世界书</span> <span class="chip">🛠 技能表</span>',
   html: `
     <h3>👤 角色卡</h3>
     <ul class="plain">
-      <li><b>字段</b>：上传头像（图片 → data URL，可清除）· 名称 · 人设 Prompt（注入 system prompt）· 开场白 Greeting · 启用技能（{a}/{b}，复选 tag）。</li>
+      <li><b>可编辑字段</b>：头像、角色名称、人设 Prompt、开场白 Greeting、启用技能。</li>
       <li><b>多开场白</b>：「添加开场白」可建备用版本，<span class="mono">每次新对话随机选择一条</span>。</li>
       <li><b>内置角色</b>「酒馆老板」默认启用全部内置技能、<span class="mono">受保护不可删除</span>。</li>
       <li>技能默认对新角色<b>未启用</b>——去编辑角色的「启用技能」里勾选生效。</li>
     </ul>
 
-    <h3>📖 世界书（Lorebook）</h3>
+    <h3>📖 世界书</h3>
     <ul class="plain">
-      <li>表单：<code>世界书名</code> + <code>内容（附加在角色人设之后）</code>，支持 Markdown 渲染预览。</li>
+      <li>可编辑字段：<code>世界书名</code> + <code>世界书内容</code>，支持 Markdown 渲染预览。</li>
       <li>内容会在系统提示词中以 <code>=== 世界书 ===</code> 分节附加在人设后，可<b>按会话绑定</b>。</li>
       <li>SillyTavern PNG 角色卡内嵌世界书导入时会自动解析为条目文本。</li>
     </ul>

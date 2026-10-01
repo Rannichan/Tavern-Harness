@@ -17,7 +17,7 @@ window.WIKI.chapters.push({
 
     <h3>游戏 JSON（本应用生态）</h3>
     <ul class="plain">
-      <li>侧栏「<b>导入</b>」→ <code>选择游戏 JSON 文件…</code> → 「<b>导入并重建</b>」。</li>
+      <li>侧栏「<b><i class="ic" data-ic="import"></i> 导入</b>」→ <code>选择游戏 JSON 文件…</code> → 「<b>导入并重建</b>」。</li>
       <li><b>冲突策略：绝不覆盖</b>——重名角色/世界书/技能自动建「(2)」副本，会话一律新建，消息按原顺序与相对时间间隔重建。</li>
       <li>成功提示会报数：<code>新角色 {n} 个、世界书 {n}、技能 {n} 个、对话 {n} 条</code>；导入内容分配<b>全新的独立工作目录</b>。</li>
     </ul>
