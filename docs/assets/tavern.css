@@ -249,24 +249,7 @@ code {
   width: 100%;
   text-align: center;
 }
-.hero-orn.left {
-  color: rgba(255, 203, 139, 0.5);
-  width: min(520px, 70%);
-  margin: 0 auto 34px;
-  animation: orn-pulse 5s ease-in-out infinite;
-}
-@keyframes orn-pulse {
-  0%, 100% { opacity: 0.7; }
-  50% { opacity: 1; }
-}
-
-.eyebrow {
-  font-size: 13px;
-  letter-spacing: 0.42em;
-  color: var(--amber-dim);
-  text-transform: uppercase;
-  margin-bottom: 26px;
-}
+.hero-intro-spacer { height: 48px; }
 
 .hero-title {
   font-family: var(--font-serif);
@@ -327,15 +310,24 @@ code {
 }
 .btn {
   display: inline-flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: 8px;
   padding: 15px 34px;
   border-radius: 12px;
   font-size: 16px;
   transition: all 0.35s var(--ease-out);
   will-change: transform;
+}
+.btn-icon {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .btn-primary {
   background: linear-gradient(135deg, #ffcb8b, #e8a95f);
