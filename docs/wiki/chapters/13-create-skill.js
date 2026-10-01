@@ -3,7 +3,7 @@ window.WIKI = window.WIKI || { chapters: [] };
 window.WIKI.chapters.push({
   id: 'create-skill',
   group: '技能魔法',
-  num: '拾叁',
+  num: '拾贰',
   kicker: 'create_skill',
   title: '现场造技能 create_skill',
   lead: '告诉老板你想要什么，他会写出一个新技能挂上技能架。',

@@ -8,6 +8,13 @@ window.WIKI.chapters.push({
   title: '角色工坊与世界书',
   lead: '从左上角 <span class="chip chip-main"><i class="ic" data-ic="users"></i> 角色工坊</span> 进入 → 三个标签页：<span class="chip">👤 角色卡</span> <span class="chip">📖 世界书</span> <span class="chip">🛠 技能表</span>',
   html: `
+    <h3>SillyTavern PNG 角色卡导入</h3>
+    <ul class="plain">
+      <li>入口在「角色工坊 → 👤 角色卡 / 📖 世界书」页顶部「<b>PNG 导入</b>」。</li>
+      <li>支持 <b>V2</b> 与 <b>V3</b> 两种格式；上限 8MB。</li>
+      <li>解析结果<b>先预填不落库</b>，检查确认后才保存；自动拆解人设分节（角色描述/性格/场景/示例对话/系统提示词）、多开场白（去重，取前 20 条）与内嵌世界书条目。</li>
+    </ul>
+
     <h3>👤 角色卡</h3>
     <ul class="plain">
       <li><b>可编辑字段</b>：头像、角色名称、人设 Prompt、开场白 Greeting、启用技能。</li>
@@ -25,11 +32,11 @@ window.WIKI.chapters.push({
 
     <h3>🛠 技能表</h3>
     <ul class="plain">
-      <li>分组：内置技能（{n}）/ 自定义技能（{n}）/ 导入技能（{n}）；组内<b>拖拽排序</b>（持久化）。</li>
-      <li>卡片显示名称 / 描述 / <code>实现类型: {t}</code>；「详情」弹窗展示描述、参数 Schema、声明式实现与原始 OpenAI Tool JSON。</li>
+      <li>分组：自定义技能 / 导入技能 / 内置技能（不可修改）；支持<b>拖拽排序</b>。</li>
+      <li>卡片显示名称 / 描述 / 实现类型；「详情」弹窗展示描述、参数 Schema、声明式实现与原始 OpenAI Tool JSON。</li>
       <li><b>内置技能受保护</b>：不可删除，使用 <code>update_skill</code> 修改亦被拒。</li>
     </ul>
-    <div class="co co-ok reveal"><span class="co-ic">🧩</span><div class="co-body">角色 = 人设 + 开场白 + 启用的技能。一个侦探角色可以是「推理人设 + roll_dice + file_read」的组合——世界观决定了他们<b>能做什么</b>，而不仅是说什么。</div></div>
+    <div class="co co-ok reveal"><span class="co-ic">🧩</span><div class="co-body">角色卡定义了角色的人设，世界书定义了世界观和游戏的玩法，技能则是赋予角色在世界观下进行游戏的能力。</div></div>
     <div class="moat"></div>
   `,
 });

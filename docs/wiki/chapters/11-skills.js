@@ -3,7 +3,7 @@ window.WIKI = window.WIKI || { chapters: [] };
 window.WIKI.chapters.push({
   id: 'skills',
   group: '技能魔法',
-  num: '拾壹',
+  num: '拾',
   kicker: 'Skills',
   title: '技能系统总览',
   lead: '技能让角色从「会说话」进化到「能行动」。',
@@ -21,7 +21,7 @@ window.WIKI.chapters.push({
     <h3>技能绑定</h3>
     <ul class="plain">
       <li>技能是<b>按角色启用</b>的：在角色编辑页「启用技能」里勾选；新创建的自定义技能默认未对任何角色生效。</li>
-      <li>修改 / 删除技能需要确认弹窗；<code>update/delete_skill</code> 前会展示完整参数（详见「确认门控与安全边界」）。</li>
+      <li>修改 / 删除技能需要确认弹窗；<code>update/delete_skill</code> 前会展示完整参数。</li>
       <li>生成式技能支持 <code>$read</code> / <code>$write</code> / <code>$append</code> / <code>$list</code> 桥接会话工作区，免重启即时生效。</li>
     </ul>
 

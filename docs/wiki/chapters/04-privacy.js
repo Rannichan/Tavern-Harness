@@ -13,7 +13,7 @@ window.WIKI.chapters.push({
       <li><b>和什么绑定</b>：浏览器 + 站点 + <span class="mono">端口</span>。换浏览器 / 开隐身窗 / 换端口都会看不到旧数据——这是浏览器安全机制，不是 Bug。</li>
       <li><b>如何迁移</b>：会话页右上角「分享对话」导出会话 JSON（自定义文件名与保存位置）；或整局「导出游戏」（见「导出、分享与 Fork」）。</li>
     </ul>
-    <div class="co co-warn reveal"><span class="co-ic">🔒</span><div class="co-body"><b>API Key 也存在本地</b>。提交 Issue 或分享日志时请务必注意脱敏 API Key。本地命令服务凭一次性票据与双 token 机制保护，仅监听 <code>127.0.0.1</code>，且会以当前用户权限运行命令——详细边界见「确认门控与安全边界」。</div></div>
+    <div class="co co-warn reveal"><span class="co-ic">🔒</span><div class="co-body"><b>API Key 也存在本地</b>。提交 Issue 或分享日志时请务必注意脱敏 API Key。本地命令服务凭一次性票据与双 token 机制保护，仅监听 <code>127.0.0.1</code>，且会以当前用户权限运行命令。</div></div>
     <div class="moat"></div>
   `,
 });

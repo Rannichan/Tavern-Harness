@@ -23,6 +23,11 @@
       <span class="wbrand-sub">WIKI</span>
     </a>
     <nav class="wnav">
+      <button class="wiki-search-toggle" id="wikiSearchToggle" type="button" aria-label="搜索 Wiki" aria-haspopup="dialog" aria-controls="wikiSearchDialog">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>
+        <span>搜索</span>
+        <kbd aria-hidden="true">⌘ K</kbd>
+      </button>
       <button class="theme-toggle" type="button" data-theme-toggle aria-label="切换到日间模式">
         <svg class="theme-icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg>
         <svg class="theme-icon-moon" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
@@ -30,6 +35,19 @@
       <a href="index.html">← 返回主页</a>
     </nav>
   </header>
+
+  <div class="wiki-search-dialog" id="wikiSearchDialog" role="dialog" aria-modal="true" aria-labelledby="wikiSearchTitle" hidden>
+    <div class="wiki-search-backdrop" data-search-close></div>
+    <section class="wiki-search-panel">
+      <div class="wiki-search-input-wrap">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>
+        <input id="wikiSearchInput" type="search" placeholder="搜索章节、功能或关键词" autocomplete="off" aria-describedby="wikiSearchHint" />
+        <button class="wiki-search-close" type="button" data-search-close aria-label="关闭搜索">×</button>
+      </div>
+      <p class="wiki-search-hint" id="wikiSearchHint"><span id="wikiSearchTitle">搜索 Wiki</span><span><kbd>Esc</kbd> 关闭</span></p>
+      <div class="wiki-search-results" id="wikiSearchResults" role="status" aria-live="polite"></div>
+    </section>
+  </div>
 
   <div class="layout">
     <!-- 侧栏目录（由 chapters/*.js 自动生成） -->
@@ -69,12 +87,10 @@
   <script src="wiki/chapters/06-chat.js"></script>
   <script src="wiki/chapters/07-groups.js"></script>
   <script src="wiki/chapters/08-workshop.js"></script>
-  <script src="wiki/chapters/09-import.js"></script>
   <script src="wiki/chapters/10-export.js"></script>
   <script src="wiki/chapters/11-skills.js"></script>
   <script src="wiki/chapters/12-builtin-skills.js"></script>
   <script src="wiki/chapters/13-create-skill.js"></script>
-  <script src="wiki/chapters/14-confirm-gates.js"></script>
   <script src="wiki/chapters/15-workspace.js"></script>
   <script src="wiki/chapters/16-recipes.js"></script>
   <script src="wiki/chapters/17-achievements.js"></script>

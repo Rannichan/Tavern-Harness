@@ -214,6 +214,10 @@ code {
 }
 .nav a:hover { color: var(--text); }
 .nav a:hover::after { width: 100%; }
+.nav a.active { color: var(--amber-deep); font-weight: 600; }
+.nav a.active::after { width: 100%; height: 2px; }
+
+:root:not([data-theme='light']) .nav a.active { color: var(--amber); }
 
 .btn-enter {
   font-size: 14px;
@@ -325,6 +329,7 @@ code {
   display: inline-flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 2px;
   padding: 15px 34px;
   border-radius: 12px;
@@ -673,7 +678,7 @@ main > section {
 
 /* ── Demo 视频 ── */
 .demo {
-  padding-top: 0 !important;
+  padding: 0 clamp(20px, 6vw, 64px) 120px;
 }
 .video-frame {
   position: relative;
@@ -749,6 +754,7 @@ main > section {
   .quote-card { padding: 40px 26px 32px 42px; }
   .quote-mark { left: 14px; font-size: 64px; }
   main > section { padding: 90px 22px; }
+  .demo { padding: 0 22px 90px; }
   .btn-enter { display: none; }
 }
 @media (max-width: 560px) {

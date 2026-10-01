@@ -3,7 +3,7 @@ window.WIKI = window.WIKI || { chapters: [] };
 window.WIKI.chapters.push({
   id: 'builtin-skills',
   group: '技能魔法',
-  num: '拾贰',
+  num: '拾壹',
   kicker: 'Builtins',
   title: '内置技能一览',
   lead: '全部 19 项内置技能，酒馆老板默认全开。',

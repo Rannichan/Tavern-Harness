@@ -78,10 +78,7 @@
           const link = map.get(en.target.id);
           if (!link) continue;
           links.forEach((a) => {
-            a.style.color = a === link ? '#F2EADC' : '';
-            a.style.textShadow = a === link ? '0 0 14px rgba(255,178,96,0.4)' : '';
-            const after = a.querySelector('::after');
-            if (after) after.style.width = a === link ? '100%' : '';
+            a.classList.toggle('active', a === link);
           });
         }
       },

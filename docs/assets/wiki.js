@@ -216,6 +216,90 @@
     });
   }
 
+  /* ── 全文搜索：索引已装配的章节与小节，保持内容源仍为章节文件 ── */
+  function initSearch() {
+    const dialog = document.getElementById('wikiSearchDialog');
+    const toggle = document.getElementById('wikiSearchToggle');
+    const input = document.getElementById('wikiSearchInput');
+    const results = document.getElementById('wikiSearchResults');
+    if (!dialog || !toggle || !input || !results) return;
+
+    const index = chapters.flatMap((chapter) => {
+      const section = document.getElementById(chapter.id);
+      if (!section) return [];
+      const items = [{
+        title: chapter.title,
+        context: chapter.group,
+        target: chapter.id,
+        text: section.textContent.replace(/\s+/g, ' ').trim()
+      }];
+      section.querySelectorAll('h3[id]').forEach((heading) => {
+        const content = [];
+        for (let node = heading.nextElementSibling; node && node.tagName !== 'H3'; node = node.nextElementSibling) {
+          content.push(node.textContent);
+        }
+        items.push({
+          title: heading.textContent.trim(),
+          context: chapter.title,
+          target: heading.id,
+          text: (heading.textContent + ' ' + content.join(' ')).replace(/\s+/g, ' ').trim()
+        });
+      });
+      return items;
+    });
+
+    const close = () => {
+      dialog.hidden = true;
+      toggle.focus();
+    };
+    const open = () => {
+      dialog.hidden = false;
+      input.value = '';
+      render('');
+      requestAnimationFrame(() => input.focus());
+    };
+    const excerpt = (text, query) => {
+      const offset = text.toLocaleLowerCase().indexOf(query.toLocaleLowerCase());
+      if (offset < 0) return text.slice(0, 118) + (text.length > 118 ? '…' : '');
+      const start = Math.max(0, offset - 36);
+      const end = Math.min(text.length, offset + query.length + 72);
+      return (start ? '…' : '') + text.slice(start, end) + (end < text.length ? '…' : '');
+    };
+    const render = (rawQuery) => {
+      const query = rawQuery.trim();
+      if (!query) {
+        results.innerHTML = '<p class="wiki-search-empty">输入关键词，搜索 ' + chapters.length + ' 个章节。</p>';
+        return;
+      }
+      const matches = index.filter((item) => item.text.toLocaleLowerCase().includes(query.toLocaleLowerCase())).slice(0, 12);
+      if (!matches.length) {
+        results.innerHTML = '<p class="wiki-search-empty">没有找到“' + escapeHtml(query) + '”相关内容。</p>';
+        return;
+      }
+      results.innerHTML = matches.map((item) =>
+        '<a class="wiki-search-result" href="#' + item.target + '">' +
+        '<span class="wiki-search-result-context">' + escapeHtml(item.context) + '</span>' +
+        '<strong>' + escapeHtml(item.title) + '</strong>' +
+        '<span>' + escapeHtml(excerpt(item.text, query)) + '</span></a>'
+      ).join('');
+    };
+    const escapeHtml = (value) => value.replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
+
+    toggle.addEventListener('click', open);
+    input.addEventListener('input', () => render(input.value));
+    dialog.addEventListener('click', (event) => {
+      if (event.target.closest('[data-search-close], .wiki-search-result')) close();
+    });
+    document.addEventListener('keydown', (event) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        dialog.hidden ? open() : close();
+      } else if (event.key === 'Escape' && !dialog.hidden) {
+        close();
+      }
+    });
+  }
+
   /* ── 代码块复制按钮 ── */
   function initCopy() {
     document.querySelectorAll('pre > code').forEach((code) => {
@@ -266,6 +350,7 @@
   initSpy();
   initAnchorFix();
   initDrawer();
+  initSearch();
   initCopy();
   initReveal();
 })();

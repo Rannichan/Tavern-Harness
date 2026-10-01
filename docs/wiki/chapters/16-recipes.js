@@ -3,7 +3,7 @@ window.WIKI = window.WIKI || { chapters: [] };
 window.WIKI.chapters.push({
   id: 'recipes',
   group: '高手进阶',
-  num: '拾陆',
+  num: '拾肆',
   kicker: 'Recipes',
   title: '玩法配方（7 例）',
   lead: '由浅入深：前三例零配置开箱即玩，后四例逐步解锁沙盒能力。',

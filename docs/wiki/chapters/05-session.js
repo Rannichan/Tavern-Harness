@@ -8,8 +8,8 @@ window.WIKI.chapters.push({
   title: '创建对话',
   lead: '开聊的两条路：侧栏「<i class="ic" data-ic="plus"></i> 新建」现开一局，或「<i class="ic" data-ic="import"></i> 导入」一键入馆整局游戏。',
   html: `
-    <h3>方式一：「<i class="ic" data-ic="plus"></i> 新建」→ 从零创建对话</h3>
-    <p>侧栏会话列表与仪表盘的按钮打开的是同一张弹窗：</p>
+    <h3>从零创建对话</h3>
+    <p>点击「<i class="ic" data-ic="plus"></i> 新建」打开创建对话弹窗：</p>
     <ol class="steps">
       <li><b>参与角色</b>：至少选一位角色；<span class="mono">玩家（用户）默认队首</span>，可拖拽排序发言顺序。选 1 位角色就是单聊，选 2–5 位自动成群聊。</li>
       <li><b>对话名称</b>：默认由角色名拼出，可自己改。</li>
@@ -19,7 +19,8 @@ window.WIKI.chapters.push({
       <li><b>世界书（可选）</b>：为这局对话绑定一份世界观。</li>
     </ol>
 
-    <h3>方式二：「<i class="ic" data-ic="import"></i> 导入」→ 从JSON重建游戏</h3>
+    <h3>从JSON重建游戏</h3>
+    <p>点击「<i class="ic" data-ic="import"></i> 导入」打开游戏导入弹窗：</p>
     <ul class="plain">
       <li><b>重建完整游戏</b>：会根据导入的JSON数据自动创建需要的角色卡 / 世界书 / 技能，并创建包含上述内容的对话。</li>
       <li><b>绝不覆盖</b>：重名角色卡 / 世界书 / 技能会自动以副本创建，不会覆盖已有的内容。</li>
