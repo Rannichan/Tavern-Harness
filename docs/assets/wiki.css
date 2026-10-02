@@ -154,12 +154,12 @@ code {
 .wtb a:focus-visible, .wtb button:focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; }
 .wbrand { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
 .wbrand-mark {
-  width: 26px; height: 26px;
+  width: 34px; height: 34px;
   align-self: center;
   filter: drop-shadow(0 0 8px rgba(255, 178, 96, 0.45));
 }
-.wbrand-name { font-family: var(--font-serif); font-size: 19px; font-weight: 700; letter-spacing: 0.04em; }
-.wbrand-sub { font-size: 10px; letter-spacing: 0.28em; color: var(--text-faint); }
+.wbrand-name { font-family: var(--font-serif); font-size: 19px; font-weight: 700; letter-spacing: 0.04em; white-space: nowrap; }
+.wbrand-sub { font-size: 10px; letter-spacing: 0.28em; color: var(--text-faint); white-space: nowrap; }
 .wnav { margin-left: auto; display: flex; gap: 22px; align-items: center; }
 .wnav a {
   font-size: 13.5px;
@@ -183,9 +183,16 @@ code {
   font: inherit;
   font-size: 12.5px;
   cursor: pointer;
-  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.12s ease;
 }
 .wiki-search-toggle:hover { background: var(--surface-2); border-color: var(--amber-dim); color: var(--text); }
+.wiki-search-toggle:active, .wburger:active, .wnav .wiki-home-link:active {
+  background: color-mix(in srgb, var(--amber) 20%, var(--surface));
+  border-color: var(--amber);
+  color: var(--amber);
+  transform: scale(0.92);
+  transition-duration: 0.08s;
+}
 .wiki-search-toggle svg, .wiki-search-input-wrap > svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
 kbd { font-family: var(--font-mono); font-size: 10px; line-height: 1; color: var(--text-faint); }
 .wiki-search-toggle kbd { padding: 3px 4px; border: 1px solid var(--border-soft); border-radius: 4px; }
@@ -202,6 +209,7 @@ kbd { font-family: var(--font-mono); font-size: 10px; line-height: 1; color: var
   transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
 }
 .theme-toggle:hover { background: var(--surface-2); border-color: var(--amber-dim); transform: translateY(-1px); }
+.theme-toggle:active { background: color-mix(in srgb, var(--amber) 20%, var(--surface)); border-color: var(--amber); transform: scale(0.92); transition-duration: 0.08s; }
 .theme-toggle svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .theme-toggle svg[hidden] { display: none; }
 
@@ -704,7 +712,7 @@ details.faq .faq-body code { color: var(--accent-text); }
   .wmain { margin-left: 0; }
   .grid2 { grid-template-columns: 1fr; }
 }
-@media (max-width: 560px) {
+@media (max-width: 640px) {
   .wtb { gap: 10px; padding-inline: 12px; }
   .wbrand { flex: 1; }
   .wbrand-name, .wbrand-sub { display: none; }
