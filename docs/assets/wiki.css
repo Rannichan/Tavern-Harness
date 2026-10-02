@@ -85,8 +85,8 @@ body {
 }
 
 a { color: inherit; text-decoration: none; }
-.wcontent a:not(.btn-mini) { color: var(--amber); border-bottom: 1px dashed rgba(255, 203, 139, 0.4); transition: all 0.2s ease; }
-.wcontent a:not(.btn-mini):hover { border-bottom-style: solid; text-shadow: 0 0 12px rgba(255, 178, 96, 0.4); }
+.wcontent a:not(.btn-mini):not(.chip) { color: var(--amber); border-bottom: 1px dashed rgba(255, 203, 139, 0.4); transition: all 0.2s ease; }
+.wcontent a:not(.btn-mini):not(.chip):hover { border-bottom-style: solid; text-shadow: 0 0 12px rgba(255, 178, 96, 0.4); }
 
 code {
   font-family: var(--font-mono);
@@ -384,6 +384,9 @@ kbd { font-family: var(--font-mono); font-size: 10px; line-height: 1; color: var
 }
 .wiki-chips { margin-top: 20px; display: flex; flex-wrap: wrap; gap: 8px; }
 .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: 12.5px;
   padding: 2px 12px;
   border: 1px solid var(--border);
@@ -391,6 +394,7 @@ kbd { font-family: var(--font-mono); font-size: 10px; line-height: 1; color: var
   color: var(--accent-text);
   background: rgba(255, 203, 139, 0.05);
 }
+.chip-icon { width: 14px; height: 14px; }
 /* 应用侧边栏「nav-chip」激活态同款：选用导入/入口按钮的样式直引 */
 .chip-main {
   color: var(--amber);
