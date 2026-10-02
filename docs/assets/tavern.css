@@ -142,25 +142,37 @@ code {
 .topbar {
   position: fixed;
   top: 0; left: 0; right: 0;
+  height: 60px;
   z-index: 50;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 24px;
-  padding: 14px clamp(20px, 5vw, 56px);
+  gap: 14px;
+  padding: 0 clamp(14px, 3vw, 28px);
   background: var(--topbar-bg);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   transition: background 0.3s ease;
 }
-.topbar-actions { display: flex; align-items: center; gap: 10px; flex: none; }
+.topbar-actions { display: flex; align-items: center; gap: 22px; flex: none; }
+.wiki-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13.5px;
+  color: var(--text-dim);
+  transition: color 0.25s ease;
+  white-space: nowrap;
+}
+.wiki-link:hover { color: var(--amber); }
+.wiki-link svg { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .topbar a, .topbar button { -webkit-tap-highlight-color: transparent; }
 .topbar a:focus-visible, .topbar button:focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; }
 .theme-toggle {
   display: inline-grid;
   place-items: center;
-  width: 38px;
-  height: 38px;
+  width: 34px;
+  height: 34px;
   border: 1px solid var(--border);
   border-radius: 50%;
   background: color-mix(in srgb, var(--surface) 72%, transparent);
@@ -170,7 +182,7 @@ code {
 }
 .theme-toggle:hover { background: var(--surface-2); border-color: var(--amber-dim); transform: translateY(-1px); }
 .theme-toggle:active { background: color-mix(in srgb, var(--amber) 20%, var(--surface)); border-color: var(--amber); transform: scale(0.92); transition-duration: 0.08s; }
-.theme-toggle svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.theme-toggle svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .theme-toggle svg[hidden] { display: none; }
 .brand {
   display: flex;
@@ -753,10 +765,31 @@ main > section {
   .btn-enter { display: none; }
 }
 @media (max-width: 560px) {
+  .topbar { gap: 10px; padding-inline: 12px; }
+  .brand { gap: 7px; }
+  .brand-mark { width: 32px; height: 32px; }
+  .brand-name { font-size: 17px; }
+  .topbar-actions { gap: 8px; }
+  .wiki-link {
+    display: inline-grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--surface) 72%, transparent);
+  }
+  .wiki-link:hover { background: var(--surface-2); border-color: var(--amber-dim); }
+  .wiki-link span { display: none; }
+  .wiki-link svg { width: 17px; height: 17px; }
   .hero-cta { flex-direction: column; width: 100%; }
   .btn { width: 100%; }
   .world-detail { padding: 30px 24px; }
-}@media (prefers-reduced-motion: reduce) {
+}
+@media (max-width: 360px) {
+  .brand-name { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
   .ember { display: none; }
   .reveal { opacity: 1; transform: none; transition: none; }
   * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
