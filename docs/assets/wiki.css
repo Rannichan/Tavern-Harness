@@ -417,17 +417,6 @@ kbd { font-family: var(--font-mono); font-size: 10px; line-height: 1; color: var
 /* 章节 */
 .wsec { padding-top: 64px; scroll-margin-top: calc(var(--topbar-h) + 18px); }
 .wsec-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
-.kick-no {
-  font-family: var(--font-serif);
-  font-size: 14px;
-  color: var(--amber);
-  border: 1px solid rgba(255, 203, 139, 0.4);
-  border-radius: 999px;
-  width: 34px; height: 34px;
-  display: inline-grid;
-  place-items: center;
-  flex: none;
-}
 .kick-text {
   font-size: 12px;
   letter-spacing: 0.3em;

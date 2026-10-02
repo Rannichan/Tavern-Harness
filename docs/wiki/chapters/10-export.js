@@ -4,8 +4,8 @@ window.WIKI.chapters.push({
   id: 'export-share',
   group: '世界搭建',
   num: '玖',
-  kicker: 'Export & Share',
-  title: '导出与分享',
+  kicker: 'Export & Import',
+  title: '导出 & 导入',
   lead: '轻松分享你创建的游戏。',
   html: `
     <h3>导出游戏</h3>
@@ -23,7 +23,14 @@ window.WIKI.chapters.push({
       <li>成功提示会报数：<code>新角色 {n} 个、世界书 {n}、技能 {n} 个、对话 {n} 条</code>；导入内容分配<b>全新的独立工作目录</b>。</li>
     </ul>
 
-    <div class="co co-note reveal"><span class="co-ic">🎁</span><div class="co-body">把 JSON 发给朋友，对方按上面的流程还原整个世界后即可继续游玩。</div></div>
+    <h3>⭐️ PNG 角色卡导入</h3>
+    <ul class="plain">
+      <li>入口在「角色工坊 → 👤 角色卡 / 📖 世界书」页顶部「<b>PNG 导入</b>」。</li>
+      <li>支持 <b>V2</b> 与 <b>V3</b> 两种格式；上限 8MB。</li>
+      <li>解析结果<b>先预填不落库</b>，检查确认后才保存；自动拆解人设分节（角色描述/性格/场景/示例对话/系统提示词）、多开场白（去重，取前 20 条）与内嵌世界书条目。</li>
+    </ul>
+
+    <div class="co co-note reveal"><span class="co-ic">🎁</span><div class="co-body">把 JSON 发给朋友，对方按上面的流程还原整个世界后即可继续游玩。同时我们也兼容 SillyTavern 的 PNG 生态。</div></div>
     <div class="moat"></div>
   `,
 });

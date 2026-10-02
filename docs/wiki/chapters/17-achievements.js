@@ -3,7 +3,7 @@ window.WIKI = window.WIKI || { chapters: [] };
 window.WIKI.chapters.push({
   id: 'achievements',
   group: '高手进阶',
-  num: '拾伍',
+  num: '拾贰',
   kicker: 'Career',
   title: '成就与生涯统计',
   lead: '<span class="chip chip-main"><i class="ic" data-ic="trophy"></i> 成就</span> → 奖杯陈列柜与生涯数据。',

@@ -88,8 +88,7 @@
       });
       return (
         '<section class="wsec" id="' + c.id + '">' +
-        '<div class="wsec-head reveal"><span class="kick-no">' + c.num + '</span>' +
-        '<span class="kick-text">' + c.kicker + '</span></div>' +
+        '<div class="wsec-head reveal"><span class="kick-text">' + c.kicker + '</span></div>' +
         '<h2 class="reveal">' + c.title + '<a class="anchor-link" href="#' + c.id + '">§</a></h2>' +
         '<p class="lead reveal">' + c.lead + '</p>' +
         body +

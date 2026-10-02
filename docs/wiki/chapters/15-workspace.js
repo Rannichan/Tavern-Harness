@@ -3,7 +3,7 @@ window.WIKI = window.WIKI || { chapters: [] };
 window.WIKI.chapters.push({
   id: 'workspace',
   group: '高手进阶',
-  num: '拾叁',
+  num: '拾',
   kicker: 'Workspace',
   title: '工作区与文件',
   lead: '每个会话都有自己的小隔间。',

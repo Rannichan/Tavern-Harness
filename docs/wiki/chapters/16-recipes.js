@@ -3,7 +3,7 @@ window.WIKI = window.WIKI || { chapters: [] };
 window.WIKI.chapters.push({
   id: 'recipes',
   group: '高手进阶',
-  num: '拾肆',
+  num: '拾壹',
   kicker: 'Recipes',
   title: '玩法配方（7 例）',
   lead: '由浅入深：前三例零配置开箱即玩，后四例逐步解锁沙盒能力。',
@@ -49,7 +49,7 @@ window.WIKI.chapters.push({
         <li>新技能默认未启用——去「角色工坊 → 技能表」为其角色勾选「启用技能」。</li>
         <li>技能免重启即时生效；<code>template</code> 模板、<code>http_get</code> 取数、<code>javascript</code> 计算都在可选之列。</li>
       </ol>
-      <div class="r-feat"><b>要点</b>：详细字段说明见「现场造技能」章；不想要时 <code>delete_skill</code> 删除（需确认）。</div>
+      <div class="r-feat"><b>要点</b>：详细说明见「角色工坊与世界书 → 构建自定义技能」；不想要时 <code>delete_skill</code> 删除（需确认）。</div>
     </div>
 
     <div class="recipe reveal"><span class="r-num">五</span>
