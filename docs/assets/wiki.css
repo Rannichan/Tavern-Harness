@@ -150,6 +150,8 @@ code {
   -webkit-backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--border-soft);
 }
+.wtb a, .wtb button { -webkit-tap-highlight-color: transparent; }
+.wtb a:focus-visible, .wtb button:focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; }
 .wbrand { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
 .wbrand-mark {
   width: 26px; height: 26px;

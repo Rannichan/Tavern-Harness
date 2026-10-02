@@ -154,6 +154,8 @@ code {
   transition: background 0.3s ease;
 }
 .topbar-actions { display: flex; align-items: center; gap: 10px; flex: none; }
+.topbar a, .topbar button { -webkit-tap-highlight-color: transparent; }
+.topbar a:focus-visible, .topbar button:focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; }
 .theme-toggle {
   display: inline-grid;
   place-items: center;
