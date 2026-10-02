@@ -166,6 +166,8 @@ code {
   white-space: nowrap;
 }
 .wnav a:hover { color: var(--amber); }
+.wiki-home-link { display: inline-flex; align-items: center; gap: 5px; }
+.wiki-home-link svg { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .wiki-search-toggle {
   display: inline-flex;
   align-items: center;
@@ -173,7 +175,7 @@ code {
   height: 34px;
   padding: 0 8px 0 10px;
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: 999px;
   background: color-mix(in srgb, var(--surface) 72%, transparent);
   color: var(--text-dim);
   font: inherit;
@@ -701,10 +703,29 @@ details.faq .faq-body code { color: var(--accent-text); }
   .grid2 { grid-template-columns: 1fr; }
 }
 @media (max-width: 560px) {
+  .wtb { gap: 10px; padding-inline: 12px; }
+  .wbrand { flex: 1; }
+  .wbrand-name, .wbrand-sub { display: none; }
+  .wnav { gap: 8px; }
+  .wiki-search-toggle { width: 34px; padding: 0; justify-content: center; }
+  .wiki-search-toggle span, .wiki-search-toggle kbd { display: none; }
+  .wnav .wiki-home-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--surface) 72%, transparent);
+    color: var(--text-dim);
+  }
+  .wiki-home-link svg { width: 18px; height: 18px; }
+  .wiki-home-link span { display: none; }
   .wcontent { padding: 34px 18px 70px; }
   .wsec { padding-top: 48px; }
   .wend-nav { flex-direction: column; }
-  .wnav a:first-child { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
