@@ -5,7 +5,6 @@ window.WIKI = window.WIKI || { chapters: [] };
 window.WIKI.chapters.push({
   id: 'overview',
   group: '开张准备',
-  num: '壹',
   kicker: 'The Beginning',
   title: '这间酒馆是什么',
   lead: 'AI 原生的角色扮演沙盒，构建任意你想要的世界。',

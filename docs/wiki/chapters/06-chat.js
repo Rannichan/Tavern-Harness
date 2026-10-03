@@ -3,7 +3,6 @@ window.WIKI = window.WIKI || { chapters: [] };
 window.WIKI.chapters.push({
   id: 'chat',
   group: '酒馆日常',
-  num: '陆',
   kicker: 'Chat UI',
   title: '聊天界面',
   lead: '从左上角 <span class="chip chip-main"><i class="ic" data-ic="send"></i> 对话</span> 进入 → 头部按钮、输入、思考、工具卡片、消息操作——每一个细节。',
@@ -16,7 +15,7 @@ window.WIKI.chapters.push({
         <tr><td><b><i class="ic" data-ic="folder"></i> 工作区文件</b></td><td>只读浏览本对话的专属工作目录</td><td>打开「<b>工作区文件</b>」管理器。详见「工作区与文件」章。</td></tr>
         <tr><td><b><i class="ic" data-ic="pencil"></i> 编辑对话</b></td><td>打开与「创建对话」同款的设置弹窗</td><td>可改标题、参与角色与座位顺序、随机顺序、开场白开关、用户人设、世界书；保存即时生效（发言队列按新设置重建），消息历史保留。</td></tr>
         <tr><td><b><i class="ic" data-ic="refresh"></i> 重置对话</b></td><td>清空消息重新开局</td><td>弹确认框后清空全部消息，按当前设置重建发言队列并重置开场白。会话设置保留，消息不可恢复。</td></tr>
-        <tr><td><b><i class="ic" data-ic="share"></i> 导出游戏</b></td><td>把整局游戏打包成 JSON</td><td>与侧栏会话右键「<b>导出游戏</b>」同一弹窗，默认勾选「<b>包含对话历史</b>」。详见「导出、分享与 Fork」章。</td></tr>
+        <tr><td><b><i class="ic" data-ic="share"></i> 导出游戏</b></td><td>把整局游戏打包成 JSON</td><td>与侧栏会话右键「<b>导出游戏</b>」同一弹窗，默认勾选「<b>包含对话历史</b>」。详见「导出 & 导入」章。</td></tr>
         <tr><td><b><i class="ic" data-ic="trash"></i> 删除对话</b></td><td>彻底删除本局</td><td>红色危险按钮：确认后删除会话及全部消息，并清理专属工作目录 <code>sandbox_workspace/session-&lt;id&gt;/</code>，不可恢复。</td></tr>
       </tbody>
     </table></div>

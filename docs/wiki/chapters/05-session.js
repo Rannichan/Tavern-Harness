@@ -3,7 +3,6 @@ window.WIKI = window.WIKI || { chapters: [] };
 window.WIKI.chapters.push({
   id: 'session',
   group: '酒馆日常',
-  num: '伍',
   kicker: 'Create',
   title: '创建对话',
   lead: '开聊的两条路：侧栏「<i class="ic" data-ic="plus"></i> 新建」现开一局，或「<i class="ic" data-ic="import"></i> 导入」一键入馆整局游戏。',
@@ -24,14 +23,14 @@ window.WIKI.chapters.push({
     <ul class="plain">
       <li><b>重建完整游戏</b>：会根据导入的JSON数据自动创建需要的角色卡 / 世界书 / 技能，并创建包含上述内容的对话。</li>
       <li><b>绝不覆盖</b>：重名角色卡 / 世界书 / 技能会自动以副本创建，不会覆盖已有的内容。</li>
-      <li>导入成功会提示：<code>新角色 {n} 个、世界书 {n}、技能 {n} 个、对话 {n} 条</code>——游戏导出分享详见「导入 PNG / 游戏」章。</li>
+      <li>导入成功会提示：<code>新角色 {n} 个、世界书 {n}、技能 {n} 个、对话 {n} 条</code>——游戏导出分享详见「导出 & 导入」章。</li>
     </ul>
 
     <h3>会话管理</h3>
     <ul class="plain">
       <li>侧栏会话列表支持<b>搜索</b>（标题 + 消息内容）、<b>置顶</b>、活动指示点（正在生成或有新回复）。</li>
       <li>会话右键菜单：<b>编辑会话</b> / <b>置顶对话</b> / <b>导出游戏</b> / <b>删除会话</b>。</li>
-      <li>删除会话会同时清理其专属工作目录 <code>sandbox_workspace/session-&lt;id&gt;/</code>；内置「酒馆老板」的公区对话例外，见「会话工作区」章。</li>
+      <li>删除会话会同时清理其专属工作目录 <code>sandbox_workspace/session-&lt;id&gt;/</code>；内置「酒馆老板」的公区对话例外，见「工作区与文件」章。</li>
     </ul>
     <div class="moat"></div>
   `,

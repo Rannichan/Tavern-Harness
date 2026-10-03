@@ -3,7 +3,6 @@ window.WIKI = window.WIKI || { chapters: [] };
 window.WIKI.chapters.push({
   id: 'groups',
   group: '酒馆日常',
-  num: '柒',
   kicker: 'Group Chat',
   title: '群聊与回合制',
   lead: '2–5 位 NPC + 玩家同台游戏。',

@@ -3,7 +3,6 @@ window.WIKI = window.WIKI || { chapters: [] };
 window.WIKI.chapters.push({
   id: 'workshop',
   group: '世界搭建',
-  num: '捌',
   kicker: 'Workshop',
   title: '角色工坊与世界书',
   lead: '从左上角 <span class="chip chip-main"><i class="ic" data-ic="users"></i> 角色工坊</span> 进入 → 三个标签页：<span class="chip">👤 角色卡</span> <span class="chip">📖 世界书</span> <span class="chip">🛠 技能表</span>',

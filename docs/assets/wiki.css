@@ -85,8 +85,18 @@ body {
 }
 
 a { color: inherit; text-decoration: none; }
-.wcontent a:not(.btn-mini):not(.chip) { color: var(--amber); border-bottom: 1px dashed rgba(255, 203, 139, 0.4); transition: all 0.2s ease; }
-.wcontent a:not(.btn-mini):not(.chip):hover { border-bottom-style: solid; text-shadow: 0 0 12px rgba(255, 178, 96, 0.4); }
+.wcontent a:not(.btn-mini):not(.chip):not(.end-link) { color: var(--amber); border-bottom: 1px dashed rgba(255, 203, 139, 0.4); transition: all 0.2s ease; }
+.wcontent a:not(.btn-mini):not(.chip):not(.end-link):hover { border-bottom-style: solid; text-shadow: 0 0 12px rgba(255, 178, 96, 0.4); }
+.wcontent a.xref { cursor: pointer; }
+.wcontent a.xref::after {
+  content: '↗';
+  font-size: 0.78em;
+  margin-left: 2px;
+  opacity: 0.55;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  display: inline-block;
+}
+.wcontent a.xref:hover::after { opacity: 1; transform: translate(1px, -1px); }
 
 code {
   font-family: var(--font-mono);
@@ -324,16 +334,6 @@ kbd { font-family: var(--font-mono); font-size: 10px; line-height: 1; color: var
   border-left-color: var(--amber-dim);
   background: rgba(255, 203, 139, 0.06);
 }
-.wsb-foot {
-  margin-top: 26px;
-  padding: 14px;
-  border: 1px solid var(--border-soft);
-  border-radius: 10px;
-  font-size: 12px;
-  color: var(--text-faint);
-  line-height: 1.7;
-}
-.wsb-foot a { color: var(--amber-dim); }
 
 .wsb-overlay {
   display: none;
@@ -587,39 +587,6 @@ pre:hover .copy-btn { opacity: 1; }
 .co .co-body strong { color: var(--text); }
 .co .co-body code { color: var(--accent-text); }
 .co .co-title { color: var(--text); font-weight: 600; display: block; margin-bottom: 2px; }
-
-/* 配方卡片 */
-.recipe {
-  background: var(--surface);
-  border: 1px solid var(--border-soft);
-  border-radius: 14px;
-  padding: 24px 26px;
-  margin-bottom: 22px;
-  position: relative;
-  transition: border-color 0.3s ease;
-}
-.recipe:hover { border-color: rgba(255, 203, 139, 0.3); }
-.recipe .r-num {
-  position: absolute;
-  top: 20px; right: 24px;
-  font-family: var(--font-serif);
-  font-size: 24px;
-  color: rgba(255, 203, 139, 0.2);
-}
-.recipe .r-level {
-  display: inline-block;
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  color: var(--amber-dim);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 1px 10px;
-  margin-bottom: 10px;
-}
-.recipe h3 { margin: 0 0 8px !important; font-size: 19px !important; }
-.recipe ol.steps { margin-bottom: 6px; }
-.recipe .r-feat { font-size: 13px; color: var(--text-faint); border-top: 1px dashed var(--border-soft); padding-top: 10px; margin-top: 4px; }
-.recipe .r-feat b { color: var(--amber-dim); font-weight: 600; }
 
 /* FAQ 折叠 */
 details.faq {

@@ -3,7 +3,6 @@ window.WIKI = window.WIKI || { chapters: [] };
 window.WIKI.chapters.push({
   id: 'export-share',
   group: '世界搭建',
-  num: '玖',
   kicker: 'Export & Import',
   title: '导出 & 导入',
   lead: '轻松分享你创建的游戏。',

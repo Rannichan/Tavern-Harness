@@ -3,9 +3,16 @@
    章节内容声明在 docs/wiki/chapters/*.js（一章一文件），本文件只负责装配与交互。 */
 (function () {
   'use strict';
-
   /* ── 装配：目录 + 章节 ── */
   var chapters = (window.WIKI && window.WIKI.chapters) || [];
+
+  /* 目录与正文共用同一阅读顺序：按 group 首次出现顺序排列，组内保持脚本装配顺序。
+     把章节移组后正文顺序自动跟随目录，无需再手动对齐 wiki.html 的加载顺序。 */
+  (function sortChaptersByGroup() {
+    var gi = new Map();
+    chapters.forEach(function (c) { if (!gi.has(c.group)) gi.set(c.group, gi.size); });
+    chapters.sort(function (a, b) { return gi.get(a.group) - gi.get(b.group); });
+  })();
 
   /* 章节里的内联图标：与应用同源（src/components/shared.tsx 的 ICONS 集合）。
      章节文件写 <i class="ic" data-ic="plus"></i>，装配时替换成应用同款描边 SVG。 */
@@ -62,10 +69,6 @@
         '</ul></div>'
       );
     }).join('');
-    html +=
-      '<div class="wsb-foot">Wiki 与应用同步演进。<br />发现问题？' +
-      '<a href="https://github.com/Rannichan/Tavern-Harness/issues">提交 Issue</a>，' +
-      '或在 <a href="https://discord.gg/kPSWGeaHx">Discord</a> 里找老板聊聊。</div>';
     aside.innerHTML = html;
   }
 
@@ -104,10 +107,82 @@
       '<a class="end-link" href="index.html"><span class="el-label">↩ 回到主线</span>' +
       '<span class="el-title">产品主页</span></a></nav>' +
       '<footer class="wfooter"><div class="wf-brand">酒馆助手 · Tavern Harness</div>' +
-      '<span>Wiki 与应用同步演进 · 章节内容见 <code>docs/wiki/chapters/</code>（一章一文件），' +
-      '发现纰漏欢迎 <a href="https://github.com/Rannichan/Tavern-Harness/issues">提 Issue</a></span>' +
       '<span>© 2026 Tavern Harness. All data stays in your browser.</span></footer>';
     top.insertAdjacentHTML('beforeend', html);
+    linkXrefs(top);
+  }
+
+  /* 交文跳转：把正文里的「章节名」「章节名 → 小节名」解析成锚点链接。
+     匹配特征：全角引号包裹，且其后紧跟「章 / 章节」，或引号内容精确等于
+     某章节标题 / 小节标题（可带「→」路径）。只命中真实标题才改写，
+     普通 UI 名称（如「新建」）不受影响；本章节内的提及不生成链接。 */
+  function makeXrefLink(text, href) {
+    return '<a class="xref" href="#' + href + '">' + text + '</a>';
+  }
+
+  function linkXrefs(container) {
+    if (!container || !chapters.length) return;
+    var byTitle = new Map(); // 标题 → { id, chapter }
+    chapters.forEach(function (c) {
+      byTitle.set(c.title, { id: c.id, chapter: c });
+    });
+    chapters.forEach(function (c) {
+      var holder = document.createElement('div');
+      holder.innerHTML = c.html || '';
+      Array.from(holder.querySelectorAll('h3')).forEach(function (h) {
+        var text = h.textContent.replace(/\s+/g, ' ').trim();
+        if (!text) return;
+        var bare = text.replace(/^[^A-Za-z0-9\s]+/, '').replace(/\s*$/, '').trim(); // 去掉「⭐️ / 🛠」类 emoji 前缀
+        if (bare && !byTitle.has(bare)) byTitle.set(bare, { id: c.id + ':' + slug(text), chapter: c });
+      });
+    });
+
+    /* 全角引号 + 后跟可选「章 / 章节」（紧跟句读/空白/结尾也可） */
+    var quoted = /「([^「」]+)」(章|章节)?(?=[)）。，；,.:：!?！？\s]|$)/g;
+    var walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, {
+      acceptNode: function (node) {
+        var p = node.parentElement;
+        if (!p) return NodeFilter.FILTER_REJECT;
+        var tag = p.tagName;
+        if (tag === 'CODE' || tag === 'PRE' || tag === 'SCRIPT' || tag === 'STYLE') return NodeFilter.FILTER_REJECT;
+        if (p.closest('.moat, .anchor-link')) return NodeFilter.FILTER_REJECT;
+        return quoted.test(node.nodeValue) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+      }
+    });
+    var nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+
+    nodes.forEach(function (node) {
+      var root = node.parentElement ? node.parentElement.closest('section.wsec') : null;
+      var curId = root ? root.id : null;
+      var text = node.nodeValue;
+      var frag = document.createDocumentFragment();
+      var last = 0;
+      var re = new RegExp(quoted.source, 'g');
+      var m;
+      while ((m = re.exec(text))) {
+        var raw = m[0].trim();
+        var inner = m[1].trim();
+        var hit = null;
+        var parts = inner.split('→').map(function (s) { return s.trim(); }).filter(Boolean);
+        if (parts.length > 1) {
+          var base = byTitle.get(parts[0]);
+          if (base && parts[1]) {
+            var sub = byTitle.get(parts[1]);
+            hit = sub && sub.chapter === base.chapter ? sub : base;
+          }
+        } else if (byTitle.has(inner)) {
+          hit = byTitle.get(inner);
+        }
+        if (!hit || (curId && hit.chapter.id === curId)) continue;
+        frag.appendChild(document.createTextNode(text.slice(last, m.index)));
+        frag.appendChild(document.createRange().createContextualFragment(makeXrefLink(raw, hit.id)));
+        last = m.index + m[0].length;
+      }
+      if (!last) return;
+      frag.appendChild(document.createTextNode(text.slice(last)));
+      node.parentNode.replaceChild(frag, node);
+    });
   }
 
   /* ── 阅读进度条 ── */

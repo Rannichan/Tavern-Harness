@@ -2,8 +2,7 @@
 window.WIKI = window.WIKI || { chapters: [] };
 window.WIKI.chapters.push({
   id: 'faq',
-  group: '高手进阶',
-  num: '拾叁',
+  group: '答疑解惑',
   kicker: 'FAQ',
   title: '常见问题',
   lead: '老板最常被问到的几件事。',

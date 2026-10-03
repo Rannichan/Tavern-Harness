@@ -3,7 +3,6 @@ window.WIKI = window.WIKI || { chapters: [] };
 window.WIKI.chapters.push({
   id: 'provider',
   group: '开张准备',
-  num: '叁',
   kicker: 'Providers & Parameters',
   title: '接入模型 Provider',
   lead: '从左上角 <span class="chip chip-main"><i class="ic" data-ic="settings"></i> 设置</span> 进入 → 多端点可并存；测试连通、拉模型、生成参数，都在设置页。',

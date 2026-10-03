@@ -3,8 +3,7 @@ window.WIKI = window.WIKI || { chapters: [] };
 window.WIKI.chapters.push({
   id: 'quickstart',
   group: '开张准备',
-  num: '贰',
-  kicker: 'Quick Start',
+  kicker: 'Quickstart',
   title: '三步开张',
   lead: '只需要 Node.js ≥ 18，无需外部harness、无需 Docker、无需数据库服务。',
   html: `
