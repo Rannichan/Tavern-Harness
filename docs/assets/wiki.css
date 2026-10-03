@@ -627,7 +627,7 @@ details.faq .faq-body code { color: var(--accent-text); }
   gap: 14px;
   margin-top: 60px;
   padding-top: 24px;
-  border-top: 1px dashed var(--border);
+  border-top: 1px solid var(--border-soft);
 }
 .end-link {
   display: inline-flex;

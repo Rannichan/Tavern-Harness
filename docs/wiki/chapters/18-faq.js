@@ -19,14 +19,8 @@ window.WIKI.chapters.push({
     <details class="faq reveal"><summary>面板/队列里模型一直重复同一个工具调用？</summary>
       <div class="faq-body">相同参数连续调用 3 次会触发「Agent 执行限制」弹窗；拒绝则终止本回合。确认后计数重置继续。避免方案：让模型在工具结果后先思考再行动。</div>
     </details>
-    <details class="faq reveal"><summary>群聊里 NPC 抢我台词 / 互相代写？</summary>
-      <div class="faq-body">群聊人设已包含「只以自己身份发言、不得代写他人台词」的约束；若仍越界，可在角色的「人设 Prompt」中重复强调这一约束，并在下次发言前用「编辑消息」清掉代写内容。</div>
-    </details>
     <details class="faq reveal"><summary>公开 <code>public/</code> 目录写不进去？</summary>
       <div class="faq-body">普通会话对 <code>public/</code> 只读——<b>只有内置「酒馆老板」的 NPC 单聊可以写入公共区</b>。这是有意设计：老板是唯一官方管理员/素材区守门人。</div>
-    </details>
-    <details class="faq reveal"><summary>生成了文件，点开预览不对劲？</summary>
-      <div class="faq-body">file_display 按扩展名推断渲染方式（.md 走 Markdown，html 走沙箱 iframe，其余文本原样展示）。内容不对就请老板 <code>file_edit</code> 修正或重写；想自己核对，用工作区 <i class="ic" data-ic="folder"></i> 或 <code>file_read</code> 直接看原文。</div>
     </details>
   `,
 });
