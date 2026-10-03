@@ -33,6 +33,8 @@
   --topbar-bg: linear-gradient(to bottom, rgba(21, 13, 7, 0.86), rgba(21, 13, 7, 0.55) 70%, transparent);
   --topbar-bg-solid: linear-gradient(to bottom, rgba(21, 13, 7, 0.97), rgba(21, 13, 7, 0.9));
   --vignette: rgba(10, 5, 2, 0.55);
+  --ember-filter: brightness(0) saturate(100%) invert(87%) sepia(44%) saturate(460%) hue-rotate(326deg) brightness(105%) contrast(102%);
+  --ember-shadow: rgba(255, 178, 96, 0.35);
 }
 
 :root[data-theme='light'] {
@@ -53,6 +55,8 @@
   --topbar-bg: linear-gradient(to bottom, rgba(247, 240, 228, 0.95), rgba(247, 240, 228, 0.72) 75%, transparent);
   --topbar-bg-solid: linear-gradient(to bottom, rgba(247, 240, 228, 0.98), rgba(247, 240, 228, 0.94));
   --vignette: rgba(118, 78, 34, 0.12);
+  --ember-filter: brightness(0) saturate(100%) invert(27%) sepia(45%) saturate(1835%) hue-rotate(3deg) brightness(91%) contrast(95%);
+  --ember-shadow: rgba(110, 57, 5, 0.3);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -113,7 +117,7 @@ code {
   inset: 0;
   background: radial-gradient(110% 90% at 50% 40%, transparent 55%, var(--vignette) 100%);
 }
-/* 火星粒子 */
+/* 向上漂浮的酒馆主题图标 */
 .bg-ember {
   position: absolute;
   inset: 0;
@@ -121,21 +125,20 @@ code {
 }
 .ember {
   position: absolute;
-  bottom: -12px;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: radial-gradient(circle, #ffcb8b 0%, rgba(255, 178, 96, 0.55) 40%, transparent 72%);
-  filter: blur(0.4px);
+  bottom: -32px;
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
   opacity: 0;
-  animation: ember-rise var(--dur, 9s) linear var(--delay, 0s) infinite;
+  filter: var(--ember-filter) drop-shadow(0 2px 4px var(--ember-shadow));
+  animation: ember-rise var(--dur, 12s) linear var(--delay, 0s) infinite;
   will-change: transform, opacity;
 }
 @keyframes ember-rise {
-  0%   { transform: translateY(0) translateX(0) scale(1); opacity: 0; }
-  8%   { opacity: var(--o, 0.8); }
-  55%  { transform: translateY(-46vh) translateX(var(--sway, 30px)) scale(1.15); opacity: var(--o, 0.8); }
-  100% { transform: translateY(-92vh) translateX(calc(var(--sway, 30px) * -0.4)) scale(0.6); opacity: 0; }
+  0%   { transform: translateY(0) translateX(0) rotate(0deg) scale(0.75); opacity: 0; }
+  8%   { opacity: var(--o, 0.55); }
+  55%  { transform: translateY(-46vh) translateX(var(--sway, 30px)) rotate(var(--rotate, 8deg)) scale(1); opacity: var(--o, 0.55); }
+  100% { transform: translateY(-92vh) translateX(calc(var(--sway, 30px) * -0.4)) rotate(calc(var(--rotate, 8deg) * -0.5)) scale(0.75); opacity: 0; }
 }
 
 /* ── 顶栏 ── */

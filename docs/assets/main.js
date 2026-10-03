@@ -1,25 +1,33 @@
 /* Tavern Harness — 主页交互
-   火星粒子 · 滚动进入动画 · 视频回退检测 · 导航高亮 */
+   漂浮图标 · 滚动进入动画 · 视频回退检测 · 导航高亮 */
 (function () {
   'use strict';
 
-  /* ── 火星粒子（烛火氛围） ── */
+  /* ── 漂浮图标（酒馆氛围） ── */
   function spawnEmbers() {
     const field = document.getElementById('ember-field');
     if (!field) return;
-    const count = window.innerWidth < 700 ? 22 : 36;
+
+    const icons = [
+      'assets/icons8-dice-90.png',
+      'assets/icons8-lantern-100.png',
+      'assets/icons8-quill-pen-96.png'
+    ];
+    const count = window.innerWidth < 700 ? 9 : 15;
+
     for (let i = 0; i < count; i++) {
-      const e = document.createElement('span');
-      e.className = 'ember';
-      const size = 3 + Math.random() * 4;
-      e.style.width = size + 'px';
-      e.style.height = size + 'px';
-      e.style.left = Math.random() * 100 + '%';
-      e.style.setProperty('--dur', (7 + Math.random() * 9).toFixed(2) + 's');
-      e.style.setProperty('--delay', (-Math.random() * 12).toFixed(2) + 's');
-      e.style.setProperty('--sway', (Math.random() * 90 - 45).toFixed(0) + 'px');
-      e.style.setProperty('--o', (0.35 + Math.random() * 0.5).toFixed(2));
-      field.appendChild(e);
+      const icon = document.createElement('img');
+      icon.className = 'ember';
+      icon.src = icons[i % icons.length];
+      icon.alt = '';
+      icon.decoding = 'async';
+      icon.style.left = Math.random() * 100 + '%';
+      icon.style.setProperty('--dur', (11 + Math.random() * 10).toFixed(2) + 's');
+      icon.style.setProperty('--delay', (-Math.random() * 18).toFixed(2) + 's');
+      icon.style.setProperty('--sway', (Math.random() * 120 - 60).toFixed(0) + 'px');
+      icon.style.setProperty('--rotate', (Math.random() * 24 - 12).toFixed(0) + 'deg');
+      icon.style.setProperty('--o', (0.3 + Math.random() * 0.3).toFixed(2));
+      field.appendChild(icon);
     }
   }
 
