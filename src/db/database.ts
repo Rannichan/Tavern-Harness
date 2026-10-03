@@ -8,6 +8,7 @@ import type {
   ChatMessage,
   ChatParticipant,
   ChatSession,
+  ContextCompression,
   McpTool,
   NpcCharacter,
   WorldBook,
@@ -23,6 +24,7 @@ export class TavernDB extends Dexie {
   sessions!: Table<ChatSession, number>;
   participants!: Table<ChatParticipant, number>;
   messages!: Table<ChatMessage, number>;
+  contextCompressions!: Table<ContextCompression, number>;
   tools!: Table<McpTool, number>;
   worldBooks!: Table<WorldBook, number>;
   careerStats!: Table<CareerStatsTotal, number>;
@@ -104,6 +106,36 @@ export class TavernDB extends Dexie {
       careerNpcStats: 'npcId',
       achievementUnlocks: '++id, achievementId, unlockedAt',
     });
+    // v6：新增上下文压缩记录。
+    this.version(6).stores({
+      settings: 'id',
+      providers: '++id, name, isEnabled',
+      npcs: '++id, name, isBuiltIn',
+      sessions: '++id, mode, updatedAt, associatedId, pinned, workspaceDir',
+      participants: '[sessionId+participantId], sessionId, participantId',
+      messages: '++id, [sessionId+timestamp], sessionId, timestamp',
+      contextCompressions: '++id, sessionId, endMessageId, createdAt',
+      tools: '++id, name, isBuiltIn',
+      worldBooks: '++id, name',
+      careerStats: 'id',
+      careerNpcStats: 'npcId',
+      achievementUnlocks: '++id, achievementId, unlockedAt',
+    });
+    // v7 已在本地运行，保留版本边界以避免 IndexedDB 降级导致 VersionError。
+    this.version(7).stores({
+      settings: 'id',
+      providers: '++id, name, isEnabled',
+      npcs: '++id, name, isBuiltIn',
+      sessions: '++id, mode, updatedAt, associatedId, pinned, workspaceDir',
+      participants: '[sessionId+participantId], sessionId, participantId',
+      messages: '++id, [sessionId+timestamp], sessionId, timestamp',
+      contextCompressions: '++id, sessionId, endMessageId, createdAt',
+      tools: '++id, name, isBuiltIn',
+      worldBooks: '++id, name',
+      careerStats: 'id',
+      careerNpcStats: 'npcId',
+      achievementUnlocks: '++id, achievementId, unlockedAt',
+    });
   }
 
   /** 打开数据库后立即执行：把 pinned 字段归一化为 0/1（旧记录为 undefined） */
@@ -139,6 +171,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   presencePenalty: 0,
   repetitionPenalty: 1,
   reasoningEffort: 'auto',
+  contextCompressionThreshold: 'off',
   seed: -1,
   stop: '',
   isStreaming: true,
@@ -171,6 +204,11 @@ export async function initDatabase(): Promise<void> {
   const count = await db.settings.count();
   if (count === 0) {
     await db.settings.add(DEFAULT_SETTINGS);
+  } else {
+    const settings = await db.settings.get(1);
+    if (settings && settings.contextCompressionThreshold === undefined) {
+      await db.settings.update(1, { contextCompressionThreshold: 'off' });
+    }
   }
   const statsCount = await db.careerStats.count();
   if (statsCount === 0) {

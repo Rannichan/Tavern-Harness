@@ -8,6 +8,7 @@ export type TurnOrderMode = 'PRESET' | 'RANDOM';
 export type Role = 'system' | 'user' | 'assistant' | 'tool';
 export type ThemeModeId = 'system' | 'light' | 'dark';
 export type ReasoningEffort = 'auto' | 'off' | 'low' | 'medium' | 'xhigh';
+export type ContextCompressionThreshold = 'off' | number;
 /** 界面语言：null = 跟随浏览器语言 */
 export type AppLanguage = 'zh-CN' | 'zh-TW' | 'en' | null;
 
@@ -45,6 +46,8 @@ export interface AppSettings {
   presencePenalty: number;
   repetitionPenalty: number;
   reasoningEffort: ReasoningEffort;
+  /** 'off' 或完整对话单元数（1–100）；每 N 个单元预压缩，再积累 N 个单元后生效。群聊按玩家发言批次计数。 */
+  contextCompressionThreshold: ContextCompressionThreshold;
   seed: number;
   stop: string;
   isStreaming: boolean;
@@ -154,6 +157,22 @@ export interface ChatMessage {
    */
   displayRef: string | null;
   rawRequestBody: string | null;
+  rawResponseBody: string | null;
+}
+
+/** 保留原始消息的上下文压缩记录，仅用于构建后续 LLM 请求。 */
+export interface ContextCompression {
+  id?: number;
+  sessionId: number;
+  summary: string;
+  endMessageId: number;
+  endTimestamp: number;
+  createdAt: number;
+  /** 生成该记录时使用的压缩轮数；旧记录缺失时回退到当前设置。 */
+  threshold?: number;
+  /** 请求上下文压缩时发送给模型的原始请求体。 */
+  rawRequestBody: string | null;
+  /** 上下文压缩模型返回的原始响应体。 */
   rawResponseBody: string | null;
 }
 

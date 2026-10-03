@@ -27,6 +27,7 @@ export default function App() {
   const activeSessionId = useStore((s) => s.activeSessionId);
   const sessions = useStore((s) => s.sessions);
   const messages = useStore((s) => s.messages);
+  const contextCompressions = useStore((s) => s.contextCompressions);
   const participants = useStore((s) => s.participants);
   const isStreaming = useStore((s) => s.streaming.sessionId != null);
   const t = useT();
@@ -89,6 +90,7 @@ export default function App() {
                     session={activeSession}
                     messages={sessionMessages}
                     participants={sessionParticipants}
+                    compressions={contextCompressions[activeSession.id!] ?? []}
                     streaming={isStreamingSession}
                   />
                   <ChatInput sessionId={activeSession.id!} />

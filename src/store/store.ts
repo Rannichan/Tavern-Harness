@@ -6,12 +6,13 @@ import type {
   ChatMessage,
   ChatParticipant,
   ChatSession,
+  ContextCompression,
   ToolConfirmationRequest,
   WorldBook,
   NpcCharacter,
   McpTool,
 } from '../types/models';
-import { streamChatCompletions, buildChatRequest } from '../core/openai';
+import { streamChatCompletions, buildChatRequest, summarizeContext } from '../core/openai';
 import {
   buildGroupSystemPrompt,
   buildNetworkMessagesForSession,
@@ -90,6 +91,7 @@ interface AppState {
   worldBooks: WorldBook[];
   tools: McpTool[];
   messages: Record<number, ChatMessage[]>;
+  contextCompressions: Record<number, ContextCompression[]>;
   participants: Record<number, ChatParticipant[]>;
   achievements: AchievementState[];
   /** 生涯总 token（输入 + 输出），实时刷新用于成就进度展示 */
@@ -175,6 +177,35 @@ let toastSeq = 0;
 let initLock: Promise<void> | null = null;
 /** 用户主动停止生成时置位，用于中断群聊循环 */
 let groupLoopStopped = false;
+const contextCompressionJobs = new Map<number, Promise<void>>();
+const contextCompressionControllers = new Map<number, AbortController>();
+const contextCompressionRevisions = new Map<number, number>();
+const queuedContextCompressionSessions = new Set<number>();
+
+function invalidateContextCompressionJob(sessionId: number): void {
+  contextCompressionRevisions.set(sessionId, (contextCompressionRevisions.get(sessionId) ?? 0) + 1);
+  contextCompressionControllers.get(sessionId)?.abort();
+  queuedContextCompressionSessions.delete(sessionId);
+}
+
+async function waitForContextCompressionIdle(sessionId: number): Promise<void> {
+  while (true) {
+    const job = contextCompressionJobs.get(sessionId);
+    if (!job) return;
+    await job;
+  }
+}
+
+async function deleteContextCompressionsFrom(sessionId: number, timestamp: number): Promise<void> {
+  invalidateContextCompressionJob(sessionId);
+  const affected = await db.contextCompressions
+    .where('sessionId').equals(sessionId)
+    .filter((compression) => compression.endTimestamp >= timestamp)
+    .toArray();
+  if (affected.length > 0) {
+    await db.contextCompressions.bulkDelete(affected.map((compression) => compression.id!));
+  }
+}
 
 /** 会话排序：置顶在前、其余在后，组内按 updatedAt 倒序（最新在前） */
 function sortSessionsPinnedFirst(sessions: ChatSession[]): ChatSession[] {
@@ -196,6 +227,7 @@ export const useStore = create<AppState>((set, get) => ({
   worldBooks: [],
   tools: [],
   messages: {},
+  contextCompressions: {},
   participants: {},
   achievements: [],
   careerTotalTokens: null,
@@ -358,6 +390,7 @@ export const useStore = create<AppState>((set, get) => ({
 
   loadMessages: async (sessionId) => {
     const messages = await db.messages.where('sessionId').equals(sessionId).sortBy('timestamp');
+    const compressions = await db.contextCompressions.where('sessionId').equals(sessionId).sortBy('createdAt');
     const participants = await db.participants.where('sessionId').equals(sessionId).toArray();
     set((s) => {
       // 流式过程中 publishDraft 已把最新内容写入内存与 DB；重新加载时以 DB 记录为基准、
@@ -378,6 +411,7 @@ export const useStore = create<AppState>((set, get) => ({
         : messages;
       return {
         messages: { ...s.messages, [sessionId]: loadedMessages },
+        contextCompressions: { ...s.contextCompressions, [sessionId]: compressions },
         participants: { ...s.participants, [sessionId]: participants },
       };
     });
@@ -473,6 +507,7 @@ export const useStore = create<AppState>((set, get) => ({
 
     // ---- 生成前快照：完整保留删除前的消息与队列状态，生成失败时整体回退 ----
     const snapshotMessages = await db.messages.where('sessionId').equals(sessionId).sortBy('timestamp');
+    const snapshotCompressions = await db.contextCompressions.where('sessionId').equals(sessionId).toArray();
     const snapshotSessionFields = {
       turnQueueJson: session.turnQueueJson,
       turnQueueHistoryJson: session.turnQueueHistoryJson,
@@ -485,6 +520,7 @@ export const useStore = create<AppState>((set, get) => ({
     // 随后重新生成该条回复（重新生成 = 旧回复连同后续内容一起被新回复替换）
     const messages = snapshotMessages;
     const toDelete = messages.filter((m) => m.timestamp >= message.timestamp);
+    await deleteContextCompressionsFrom(sessionId, message.timestamp);
     await db.messages.bulkDelete(toDelete.map((m) => m.id!));
     await get().loadMessages(sessionId);
 
@@ -515,9 +551,11 @@ export const useStore = create<AppState>((set, get) => ({
     if (result === 'failed') {
       // 生成失败（网络 / 超时 / 空回复等）→ 回退到原先的状态：
       // 恢复全部消息（含被删除的旧回复及其工具结果）与会话队列 / 预览。
-      await db.transaction('rw', db.messages, async () => {
+      await db.transaction('rw', db.messages, db.contextCompressions, async () => {
         await db.messages.where('sessionId').equals(sessionId).delete();
         await db.messages.bulkPut(snapshotMessages);
+        await db.contextCompressions.where('sessionId').equals(sessionId).delete();
+        if (snapshotCompressions.length > 0) await db.contextCompressions.bulkPut(snapshotCompressions);
       });
       await db.sessions.update(sessionId, snapshotSessionFields);
       await get().loadMessages(sessionId);
@@ -535,6 +573,7 @@ export const useStore = create<AppState>((set, get) => ({
     const toDelete = messages.filter(
       (m) => m.timestamp > message.timestamp || (m.timestamp === message.timestamp && m.id !== messageId)
     );
+    await deleteContextCompressionsFrom(sessionId, message.timestamp);
     await db.messages.bulkDelete(toDelete.map((m) => m.id!));
     const attachments = newAttachments ?? message.attachments;
     const attachmentInfos = (newAttachments != null ? newAttachments : message.attachments).map((_, i) => ({
@@ -611,6 +650,7 @@ export const useStore = create<AppState>((set, get) => ({
       displayName: (newAttachmentNames?.[i]?.trim()) || message.attachmentInfos?.[i]?.displayName || translate('common.attachment'),
     }));
     // 仅修改本条消息内容，不删除任何后续消息、不触发重新生成
+    await deleteContextCompressionsFrom(sessionId, message.timestamp);
     await db.messages.update(messageId, { content: newContent, attachments, attachmentInfos });
     await get().loadMessages(sessionId);
     await get().refreshSessions();
@@ -627,7 +667,9 @@ export const useStore = create<AppState>((set, get) => ({
   deleteSession: async (id) => {
     // 先取会话记录（工作目录在删除后不可查），再清理目录与数据
     const session = await db.sessions.get(id);
+    invalidateContextCompressionJob(id);
     await db.messages.where('sessionId').equals(id).delete();
+    await db.contextCompressions.where('sessionId').equals(id).delete();
     await db.participants.where('sessionId').equals(id).delete();
     await db.sessions.delete(id);
     // 删除会话的专属磁盘工作目录；沙箱不可用时静默跳过
@@ -658,8 +700,20 @@ export const useStore = create<AppState>((set, get) => ({
     const message = await db.messages.get(messageId);
     if (!message) return null;
     const sessionId = message.sessionId;
+    await waitForContextCompressionIdle(sessionId);
     const session = await db.sessions.get(sessionId);
     if (!session) return null;
+    const [allMessages, sourceCompressions] = await db.transaction(
+      'r',
+      db.messages,
+      db.contextCompressions,
+      async () => Promise.all([
+        db.messages.where('sessionId').equals(sessionId).sortBy('timestamp'),
+        db.contextCompressions.where('sessionId').equals(sessionId).sortBy('createdAt'),
+      ]),
+    );
+    const snapshotMessage = allMessages.find((candidate) => candidate.id === messageId);
+    if (!snapshotMessage) return null;
 
     // 复制会话（保留模式 / 角色 / 世界书 / 人设 / 队列设置；置顶与顺序“未置顶”）
     // 新 Fork 会话分配独立工作目录（session-<newId>），与原会话互不影响
@@ -697,8 +751,7 @@ export const useStore = create<AppState>((set, get) => ({
     // 消息 id 不可复用（自增），重新按时间顺序写库，保持展示顺序一致。
     // 若分叉点在带工具调用的 assistant 消息上，其 tool 结果消息的时间戳晚于分叉点，
     // 但属于该回合（缺失会导致模型侧 tool_calls 悬空）→ 一并复制。
-    const allMessages = await db.messages.where('sessionId').equals(sessionId).sortBy('timestamp');
-    const toCopy = allMessages.filter((m) => m.timestamp <= message.timestamp);
+    const toCopy = allMessages.filter((m) => m.timestamp <= snapshotMessage.timestamp);
     // 分叉点消息及其之前 assistant 声明的工具调用 id
     const declaredCallIds = new Set<string>();
     for (const m of toCopy) {
@@ -716,9 +769,22 @@ export const useStore = create<AppState>((set, get) => ({
       (m) => m.role === 'tool' && m.toolCallId != null && declaredCallIds.has(m.toolCallId) && !toCopy.includes(m)
     );
     const finalCopy = [...toCopy, ...toolResultsToInclude].sort((a, b) => a.timestamp - b.timestamp);
+    const copiedMessageIds = new Map<number, number>();
     for (const m of finalCopy) {
-      const { id: _oldId, ...rest } = m;
-      await db.messages.add({ ...rest, sessionId: newId });
+      const { id: oldId, ...rest } = m;
+      const copiedId = await db.messages.add({ ...rest, sessionId: newId });
+      if (oldId != null) copiedMessageIds.set(oldId, copiedId);
+    }
+
+    // 复制分叉范围内的完整压缩记录，并将压缩边界映射到新消息 id。
+    const copiedCompressions = sourceCompressions.flatMap((compression) => {
+      const endMessageId = copiedMessageIds.get(compression.endMessageId);
+      if (endMessageId == null) return [];
+      const { id: _oldId, ...rest } = compression;
+      return [{ ...rest, sessionId: newId, endMessageId }];
+    });
+    if (copiedCompressions.length > 0) {
+      await db.contextCompressions.bulkAdd(copiedCompressions);
     }
 
     // 新会话预览取最后一条可见消息（工具消息不计入）
@@ -770,9 +836,11 @@ export const useStore = create<AppState>((set, get) => ({
   resetSessionConversation: async (sessionId) => {
     const session = await db.sessions.get(sessionId);
     if (!session) return;
+    invalidateContextCompressionJob(sessionId);
     const participants = (await db.participants.where('sessionId').equals(sessionId).toArray()).sort((a, b) => a.seatOrder - b.seatOrder);
     const queue = initializeTurnQueue(participants, session.turnOrderMode);
     await db.messages.where('sessionId').equals(sessionId).delete();
+    await db.contextCompressions.where('sessionId').equals(sessionId).delete();
     const greetingSpeakerId = pickGreetingSpeakerId(session.mode, session.associatedId, queue, session.enableGreeting !== false);
     const lastMessage = await seedOpeningGreeting(sessionId, greetingSpeakerId);
     await db.sessions.update(sessionId, {
@@ -1268,12 +1336,212 @@ async function resolveActiveEndpoint(): Promise<{
  * 返回该回合结果：'ok' 已产出回复 / 'failed' 生成失败（调用方据此回退）
  * / 'stopped' 用户主动停止（视为成功保留部分内容，不回退）。
  */
+function toPromptMessage(message: ChatMessage) {
+  return {
+    role: message.role,
+    content: message.content,
+    speakerParticipantId: message.speakerParticipantId,
+    speakerName: message.speakerName,
+    thinkingContent: message.thinkingContent,
+    toolCallsJson: message.toolCallsJson,
+    toolCallId: message.toolCallId,
+    attachments: message.attachments,
+  };
+}
+
+type ConversationTurn = { start: number; end: number };
+
+function completedConversationTurns(messages: ChatMessage[]): ConversationTurn[] {
+  const turns: ConversationTurn[] = [];
+  let pendingTurn: { start: number; end: number; phase: 'user' | 'assistant' } | null = null;
+
+  for (let index = 0; index < messages.length; index++) {
+    const role = messages[index].role;
+    if (role === 'user') {
+      if (pendingTurn?.phase === 'assistant') turns.push({ start: pendingTurn.start, end: index - 1 });
+      if (pendingTurn?.phase !== 'user') pendingTurn = { start: index, end: index, phase: 'user' };
+      else pendingTurn.end = index;
+    } else if (role === 'assistant' && pendingTurn) {
+      pendingTurn.phase = 'assistant';
+      pendingTurn.end = index;
+    } else if (pendingTurn?.phase === 'assistant') {
+      pendingTurn.end = index;
+    }
+  }
+  if (pendingTurn?.phase === 'assistant') turns.push({ start: pendingTurn.start, end: pendingTurn.end });
+  return turns;
+}
+
+function messagesAfterLastNewTopic(messages: ChatMessage[]): ChatMessage[] {
+  for (let index = messages.length - 1; index >= 0; index--) {
+    if (messages[index].role === 'system' && messages[index].content === NEW_TOPIC_MARKER) {
+      return messages.slice(index + 1);
+    }
+  }
+  return messages;
+}
+
+function groupCurrentTurnHasAssistantReply(messages: ChatMessage[]): boolean {
+  for (let index = messages.length - 1; index >= 0; index--) {
+    if (messages[index].role === 'assistant') return true;
+    if (messages[index].role === 'user') return false;
+  }
+  return false;
+}
+
+function selectActiveContextCompression(
+  messages: ChatMessage[],
+  turns: ConversationTurn[],
+  compressions: ContextCompression[],
+  currentThreshold: AppSettings['contextCompressionThreshold'],
+  excludeCurrentGroupTurn: boolean,
+): ContextCompression | undefined {
+  if (typeof currentThreshold !== 'number') return undefined;
+
+  const turnIndexByMessageId = new Map<number, number>();
+  turns.forEach(({ start, end }, turnIndex) => {
+    for (let messageIndex = start; messageIndex <= end; messageIndex++) {
+      const messageId = messages[messageIndex].id;
+      if (messageId != null) turnIndexByMessageId.set(messageId, turnIndex);
+    }
+  });
+
+  for (let index = compressions.length - 1; index >= 0; index--) {
+    const candidate = compressions[index];
+    const compressedTurnIndex = turnIndexByMessageId.get(candidate.endMessageId);
+    const completedTurnCount = turns.length - (excludeCurrentGroupTurn && groupCurrentTurnHasAssistantReply(messages) ? 1 : 0);
+    if (compressedTurnIndex != null && completedTurnCount >= compressedTurnIndex + 1 + currentThreshold) {
+      return candidate;
+    }
+  }
+  return undefined;
+}
+
+function scheduleContextCompression(
+  sessionId: number,
+  settings: AppSettings,
+  baseUrl: string,
+  apiKey: string,
+  model: string,
+): void {
+  if (contextCompressionJobs.has(sessionId)) {
+    queuedContextCompressionSessions.add(sessionId);
+    return;
+  }
+  const controller = new AbortController();
+  const revision = contextCompressionRevisions.get(sessionId) ?? 0;
+  contextCompressionControllers.set(sessionId, controller);
+  const job = compressCompletedConversationIfNeeded(sessionId, settings, baseUrl, apiKey, model, revision, controller.signal)
+    .finally(async () => {
+      contextCompressionJobs.delete(sessionId);
+      if (contextCompressionControllers.get(sessionId) === controller) {
+        contextCompressionControllers.delete(sessionId);
+      }
+      if (queuedContextCompressionSessions.delete(sessionId)) {
+        const [currentSettings, endpoint] = [useStore.getState().settings, await resolveActiveEndpoint()];
+        if (currentSettings && endpoint) {
+          scheduleContextCompression(sessionId, currentSettings, endpoint.baseUrl, endpoint.apiKey, endpoint.model);
+        }
+      }
+    });
+  contextCompressionJobs.set(sessionId, job);
+}
+
+async function compressCompletedConversationIfNeeded(
+  sessionId: number,
+  settings: AppSettings,
+  baseUrl: string,
+  apiKey: string,
+  model: string,
+  revision: number,
+  signal: AbortSignal,
+): Promise<void> {
+  const threshold = settings.contextCompressionThreshold;
+  if (typeof threshold !== 'number' || threshold < 1) return;
+
+  const [messages, existingCompressions, session] = await Promise.all([
+    db.messages.where('sessionId').equals(sessionId).sortBy('timestamp'),
+    db.contextCompressions.where('sessionId').equals(sessionId).sortBy('createdAt'),
+    db.sessions.get(sessionId),
+  ]);
+  if (!session) return;
+  const topicMessages = messagesAfterLastNewTopic(messages);
+  const topicMessageIds = new Set(topicMessages.flatMap((message) => message.id == null ? [] : [message.id]));
+  const existingCompression = [...existingCompressions]
+    .reverse()
+    .find((compression) => topicMessageIds.has(compression.endMessageId));
+  const turns = completedConversationTurns(topicMessages);
+  const compressedTurnCount = existingCompression
+    ? turns.findIndex(({ start, end }) =>
+        topicMessages.slice(start, end + 1).some((message) => message.id === existingCompression.endMessageId)
+      ) + 1
+    : 0;
+  const nextCompressionTurnCount = compressedTurnCount + threshold;
+  if (turns.length < nextCompressionTurnCount) return;
+
+  const firstTurnIndex = compressedTurnCount;
+  const lastTurnIndex = nextCompressionTurnCount - 1;
+  const newMessages = topicMessages.slice(turns[firstTurnIndex].start, turns[lastTurnIndex].end + 1);
+
+  try {
+    const compressionResult = await summarizeContext(baseUrl, apiKey, model, [{
+      role: 'user',
+      content: [
+        'BEGIN_MEMORY_INPUT',
+        existingCompression ? `<prior_memory>\n${existingCompression.summary}\n</prior_memory>` : '',
+        `<conversation_history>\n${formatMessagesForContextSummary(newMessages, session.mode === 'GROUP')}\n</conversation_history>`,
+        'END_MEMORY_INPUT',
+      ].filter(Boolean).join('\n\n'),
+    }], signal);
+    if (signal.aborted || (contextCompressionRevisions.get(sessionId) ?? 0) !== revision) return;
+    const endMessage = await db.messages.get(newMessages[newMessages.length - 1].id!);
+    if (!endMessage || endMessage.sessionId !== sessionId) return;
+    const compression: ContextCompression = {
+      sessionId,
+      summary: compressionResult.summary,
+      endMessageId: newMessages[newMessages.length - 1].id!,
+      endTimestamp: newMessages[newMessages.length - 1].timestamp,
+      createdAt: Date.now(),
+      threshold,
+      rawRequestBody: compressionResult.rawRequestBody,
+      rawResponseBody: compressionResult.rawResponseBody,
+    };
+    const compressionId = await db.contextCompressions.add(compression);
+    compression.id = compressionId;
+    if (signal.aborted || (contextCompressionRevisions.get(sessionId) ?? 0) !== revision) {
+      await db.contextCompressions.delete(compressionId);
+      return;
+    }
+    useStore.setState((state) => ({
+      contextCompressions: {
+        ...state.contextCompressions,
+        [sessionId]: [...(state.contextCompressions[sessionId] ?? []), compression],
+      },
+    }));
+  } catch (error) {
+    if (signal.aborted) return;
+    useStore.getState().addToast(translate('toast.contextCompressionFailed', { msg: (error as Error).message || String(error) }), 'error');
+  }
+}
+
+function formatMessagesForContextSummary(messages: ChatMessage[], isGroup: boolean): string {
+  return messages.map((message) => {
+    const toolCalls = message.toolCallsJson && message.toolCallsJson !== '[]'
+      ? `\nTool calls: ${message.toolCallsJson}`
+      : '';
+    if (isGroup && message.speakerName) {
+      return `${message.speakerName}: ${message.content}${toolCalls}`;
+    }
+    return `${message.role}: ${message.content}${toolCalls}`;
+  }).join('\n\n');
+}
+
 async function streamAssistantTurn(
   session: ChatSession,
   npc: NpcCharacter | null,
   participantId: number | null = null,
   participant?: ChatParticipant,
-  turnLoopIndex: number | null = null
+  turnLoopIndex: number | null = null,
 ): Promise<TurnResult> {
   const settings = useStore.getState().settings;
   if (!settings) return 'failed';
@@ -1337,20 +1605,38 @@ async function streamAssistantTurn(
       if (!continued) break;
     }
     const allMessages = await db.messages.where('sessionId').equals(sessionId).sortBy('timestamp');
+    const currentCompressionThreshold = useStore.getState().settings?.contextCompressionThreshold ?? 'off';
+    const compressions = typeof currentCompressionThreshold === 'number'
+      ? await db.contextCompressions.where('sessionId').equals(sessionId).sortBy('createdAt')
+      : [];
+    const topicMessages = messagesAfterLastNewTopic(allMessages);
+    const activeCompression = selectActiveContextCompression(
+      topicMessages,
+      completedConversationTurns(topicMessages),
+      compressions,
+      currentCompressionThreshold,
+      session.mode === 'GROUP',
+    );
+    const requestMessages = activeCompression
+      ? [
+          {
+            role: 'user',
+            content: `[Context summary / long-term memory]\n${activeCompression.summary}`,
+            speakerParticipantId: null,
+            speakerName: null,
+            thinkingContent: null,
+            toolCallsJson: '[]',
+            toolCallId: null,
+            attachments: [],
+          },
+          ...allMessages.filter((message) => message.id! > activeCompression.endMessageId).map(toPromptMessage),
+        ]
+      : allMessages.map(toPromptMessage);
     const nmessages = buildNetworkMessagesForSession({
       session,
       participants,
       activeSpeakerParticipantId: activeParticipantId,
-      messages: allMessages.map((m) => ({
-        role: m.role,
-        content: m.content,
-        speakerParticipantId: m.speakerParticipantId,
-        speakerName: m.speakerName,
-        thinkingContent: m.thinkingContent,
-        toolCallsJson: m.toolCallsJson,
-        toolCallId: m.toolCallId,
-        attachments: m.attachments,
-      })),
+      messages: requestMessages,
     });
 
     // system prompt
@@ -1367,18 +1653,9 @@ async function streamAssistantTurn(
         .filter((p) => p.kind === 'NPC')
         .map((p) => p.displayName);
       const playerP = participants.find((p) => p.kind === 'PLAYER');
-      const queueOrder = safeParseQueue(session.turnQueueJson).map((id) => {
-        const p = participants.find((pp) => String(pp.participantId) === id);
-        return p
-          ? p.kind === 'PLAYER'
-            ? playerP?.displayName ?? translate('common.user')
-            : p.displayName
-          : id;
-      });
       systemPrompt = buildGroupSystemPrompt(name, npc?.prompt ?? '', worldBook?.content, userPersona?.prompt, {
         allSpeakerNames,
         playerName: playerP?.displayName ?? translate('common.user'),
-        currentTurnQueueOrder: queueOrder,
       });
     }
     nmessages.unshift({ role: 'system', content: systemPrompt });
@@ -1596,6 +1873,10 @@ async function streamAssistantTurn(
       updatedAt: Date.now(),
       lastMessage: preview || '…',
     });
+
+    if (finalToolCalls.length === 0 && session.mode !== 'GROUP') {
+      scheduleContextCompression(sessionId, settings, baseUrl, apiKey, model);
+    }
 
     if (errorMsg) {
       useStore.getState().addToast(translate('toast.genFailed', { msg: errorMsg }), 'error');
@@ -1872,6 +2153,7 @@ async function continueGroupConversation(sessionId: number): Promise<TurnResult>
   let guard = 0;
   let failed = false;
   let stopped = false;
+
   while (guard < 20) {
     if (groupLoopStopped) break;
     const session = await db.sessions.get(sessionId);
@@ -1917,6 +2199,12 @@ async function continueGroupConversation(sessionId: number): Promise<TurnResult>
     guard++;
     // 用户主动 stop 时中断
     if (groupLoopStopped) break;
+  }
+  if (!failed && !stopped && !groupLoopStopped) {
+    const [settings, endpoint] = [useStore.getState().settings, await resolveActiveEndpoint()];
+    if (settings && endpoint) {
+      scheduleContextCompression(sessionId, settings, endpoint.baseUrl, endpoint.apiKey, endpoint.model);
+    }
   }
   if (groupLoopStopped || stopped) return 'stopped';
   return failed ? 'failed' : 'ok';

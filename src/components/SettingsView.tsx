@@ -95,11 +95,32 @@ export function SettingsView() {
                 <td>{slider('presencePenalty', -2, 2, 0.05, (v) => v.toFixed(2))}</td>
               </tr>
               <tr>
-                <td style={{ borderBottom: 'none' }}>
+                <td>
                   <div className="s-label">Repetition Penalty</div>
                   <div className="s-desc">{t('settings.repDesc')}</div>
                 </td>
-                <td style={{ borderBottom: 'none' }}>{slider('repetitionPenalty', 0.5, 2, 0.05, (v) => v.toFixed(2))}</td>
+                <td>{slider('repetitionPenalty', 0.5, 2, 0.05, (v) => v.toFixed(2))}</td>
+              </tr>
+              <tr>
+                <td>
+                  <div className="s-label">{t('settings.contextCompression')}</div>
+                  <div className="s-desc">{t('settings.contextCompressionDesc')}</div>
+                </td>
+                <td>
+                  <label className="range-row" style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'center' }}>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value={settings.contextCompressionThreshold === 'off' ? 0 : settings.contextCompressionThreshold}
+                      onChange={(e) => setSettings({ contextCompressionThreshold: Number(e.target.value) || 'off' })}
+                    />
+                    <span className="range-val">
+                      {settings.contextCompressionThreshold === 'off' ? t('settings.off') : settings.contextCompressionThreshold}
+                    </span>
+                  </label>
+                </td>
               </tr>
               <tr>
                 <td style={{ borderBottom: 'none' }}>

@@ -1,6 +1,6 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useStore } from '../store/store';
-import type { ChatMessage, ChatParticipant, ChatSession, ToolCallRecord } from '../types/models';
+import type { ChatMessage, ChatParticipant, ChatSession, ContextCompression, ToolCallRecord } from '../types/models';
 import { Avatar, Icon, Markdown, Collapse, Modal, AttachCard } from './shared';
 import { FileDisplayViewButton, parseStoredDisplayRef } from './FileDisplayModal';
 import { formatMetrics } from '../core/stats';
@@ -77,17 +77,23 @@ export function ChatView({
   session,
   messages,
   participants,
+  compressions,
   streaming,
 }: {
   session: ChatSession;
   messages: ChatMessage[];
   participants: ChatParticipant[];
+  compressions: ContextCompression[];
   streaming: boolean;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const positionedSessionRef = useRef<{ id: number | undefined; messageCount: number } | null>(null);
   const updateStreaming = useStore((s) => s.streaming.sessionId === session.id);
   const t = useT();
+  const compressionsByEndMessageId = useMemo(
+    () => new Map(compressions.map((compression) => [compression.endMessageId, compression])),
+    [compressions],
+  );
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -169,15 +175,31 @@ export function ChatView({
           </div>
         )}
         {messages.map((m) => (
-          <MessageBubble 
-            key={m.id} 
-            msg={m} 
-            session={session} 
-            participants={participants} 
-            loopIndex={isGroup ? (m.loopIndex ?? 0) : null}
-            streaming={streaming && m.id === lastMsgId(messages)}
-            toolResultsByCallId={toolResultsByCallId}
-            suppressedResultIds={displayedToolCallIds} />
+          <Fragment key={m.id}>
+            <MessageBubble
+              msg={m}
+              session={session}
+              participants={participants}
+              loopIndex={isGroup ? (m.loopIndex ?? 0) : null}
+              streaming={streaming && m.id === lastMsgId(messages)}
+              toolResultsByCallId={toolResultsByCallId}
+              suppressedResultIds={displayedToolCallIds}
+            />
+            {compressionsByEndMessageId.has(m.id!) && (
+              <div className="compression-banner-wrap">
+                <div
+                  className="sys-banner fade-up compression-banner"
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    const compression = compressionsByEndMessageId.get(m.id!);
+                    if (compression) openCompressionMenu(e, compression.summary, compression, t('chat.contextCompressed'));
+                  }}
+                >
+                  ⟐ {t('chat.contextCompressed')}
+                </div>
+              </div>
+            )}
+          </Fragment>
         ))}
       </div>
     </div>
@@ -1022,8 +1044,17 @@ function readFileAsDataUrl(file: File): Promise<string> {
 // 消息操作菜单（右键：编辑 / 重新生成 / 原始日志 / 分叉）
 // ============================================================
 
+type CompressionMenuSource = {
+  x: number;
+  y: number;
+  summary?: string;
+  rawLog?: RawLogData;
+  title: string;
+};
+
 let msgMenuState:
   | { x: number; y: number; msg: ChatMessage; session: ChatSession }
+  | CompressionMenuSource
   | null = null;
 let msgMenuListeners: Array<() => void> = [];
 function notifyMsgMenu() {
@@ -1031,6 +1062,10 @@ function notifyMsgMenu() {
 }
 function openMsgMenu(e: React.MouseEvent, msg: ChatMessage, session: ChatSession) {
   msgMenuState = { x: e.clientX, y: e.clientY, msg, session };
+  notifyMsgMenu();
+}
+function openCompressionMenu(e: React.MouseEvent, summary: string | undefined, rawLog: RawLogData | undefined, title: string) {
+  msgMenuState = { x: e.clientX, y: e.clientY, summary, rawLog, title };
   notifyMsgMenu();
 }
 function closeMsgMenu() {
@@ -1057,7 +1092,8 @@ export function MessageMenu() {
   const regenerateMessage = useStore((s) => s.regenerateMessage);
   const forkSession = useStore((s) => s.forkSession);
   const addToast = useStore((s) => s.addToast);
-  const [rawLog, setRawLog] = useState<ChatMessage | null>(null);
+  const [rawLog, setRawLog] = useState<{ data: RawLogData; title: string; filename: string } | null>(null);
+  const [compressionSummary, setCompressionSummary] = useState<{ content: string; title: string } | null>(null);
 
   useEffect(() => {
     const fn = () => force((n) => n + 1);
@@ -1071,11 +1107,12 @@ export function MessageMenu() {
   if (rawLog) {
     return (
       <RawLogModal
-        msg={rawLog}
+        rawLog={rawLog.data}
+        title={rawLog.title}
         onClose={() => setRawLog(null)}
         onExport={async () => {
-          const raw = buildRawLog(rawLog);
-          const result = await saveTextFile(raw, 'text/plain', `raw-log-${rawLog.id}.txt`);
+          const raw = buildRawLog(rawLog.data);
+          const result = await saveTextFile(raw, 'text/plain', rawLog.filename);
           if (result === 'canceled') {
             addToast(t('toast.exportCanceled'));
           } else {
@@ -1087,7 +1124,49 @@ export function MessageMenu() {
     );
   }
 
+  if (compressionSummary) {
+    return (
+      <Modal onClose={() => setCompressionSummary(null)} width="min(680px, calc(100vw - 40px))">
+        <div className="modal-head">
+          <span>{compressionSummary.title}</span>
+          <button className="icon-btn" onClick={() => setCompressionSummary(null)} aria-label={t('common.close')}>×</button>
+        </div>
+        <div className="compression-summary-body"><Markdown text={compressionSummary.content} /></div>
+      </Modal>
+    );
+  }
+
   if (!msgMenuState) return null;
+  if (!('msg' in msgMenuState)) {
+    const { x, y, summary, rawLog: compressionRawLog, title } = msgMenuState;
+    return (
+      <>
+        <div className="overlay-msg" onClick={closeMsgMenu} />
+        <div className="msg-menu card" style={{ left: Math.min(x, window.innerWidth - 190), top: Math.min(y, window.innerHeight - 200) }}>
+          <button
+            className="msg-menu-item"
+            disabled={!summary}
+            onClick={() => {
+              if (summary) setCompressionSummary({ content: summary, title });
+              closeMsgMenu();
+            }}
+          >
+            <Icon name="eye" size={13} /> {t('chat.viewMemory')}
+          </button>
+          <button
+            className="msg-menu-item"
+            disabled={!compressionRawLog?.rawRequestBody && !compressionRawLog?.rawResponseBody}
+            onClick={() => {
+              if (compressionRawLog) setRawLog({ data: compressionRawLog, title, filename: 'raw-log-context-compression.txt' });
+              closeMsgMenu();
+            }}
+          >
+            <Icon name="file" size={13} /> {t('chat.viewRaw')}
+          </button>
+        </div>
+      </>
+    );
+  }
   const { x, y, msg } = msgMenuState;
 
   const actions: Array<{ label: string; icon: string; onClick: () => void; danger?: boolean }> = [];
@@ -1115,7 +1194,11 @@ export function MessageMenu() {
       label: t('chat.viewRaw'),
       icon: 'file',
       onClick: () => {
-        setRawLog(msg);
+        setRawLog({
+          data: msg,
+          title: t('chat.rawLogTitle', { id: msg.id ?? '' }),
+          filename: `raw-log-${msg.id}.txt`,
+        });
         closeMsgMenu();
       },
     });
@@ -1152,11 +1235,13 @@ export function MessageMenu() {
   );
 }
 
-/** 原始日志弹窗：将流式 SSE 分片拼装为完整回复 JSON，便于阅读 */
-function RawLogModal({ msg, onClose, onExport }: { msg: ChatMessage; onClose: () => void; onExport: () => void }) {
+type RawLogData = Pick<ChatMessage, 'rawRequestBody' | 'rawResponseBody'> & Partial<Pick<ChatMessage, 'id' | 'role'>>;
+
+/** 原始日志弹窗：将响应 JSON 展示为完整回复，便于阅读 */
+function RawLogModal({ rawLog, title, onClose, onExport }: { rawLog: RawLogData; title: string; onClose: () => void; onExport: () => void }) {
   const t = useT();
-  const req = msg.rawRequestBody ? prettyJson(msg.rawRequestBody) : '';
-  const merged = assembleFullResponseJson(msg.rawResponseBody);
+  const req = rawLog.rawRequestBody ? prettyJson(rawLog.rawRequestBody) : '';
+  const merged = parseRawResponse(rawLog.rawResponseBody);
 
   const [tab, setTab] = useState<'request' | 'merged'>('request');
   const [autoWrap, setAutoWrap] = useState(true);
@@ -1165,7 +1250,7 @@ function RawLogModal({ msg, onClose, onExport }: { msg: ChatMessage; onClose: ()
     <Modal onClose={onClose} width="min(760px, calc(100vw - 40px))">
       <div className="modal-head raw-modal-head">
         <span className="raw-modal-title">
-          <Icon name="file" size={15} /> {t('chat.rawLogTitle', { id: msg.id ?? '' })}
+          <Icon name="file" size={15} /> {title}
         </span>
         <div className="raw-tabs">
           <button className={`raw-tab ${tab === 'request' ? 'active' : ''}`} onClick={() => setTab('request')}>{t('chat.requestBody')}</button>
@@ -1314,14 +1399,23 @@ function assembleFullResponseJson(rawBody: string | null): Record<string, unknow
   return merged;
 }
 
-function buildRawLog(msg: ChatMessage): string {
-  const req = msg.rawRequestBody ? prettyJson(msg.rawRequestBody) : null;
-  const resp = msg.rawResponseBody ? prettyJson(msg.rawResponseBody) : null;
+function parseRawResponse(rawBody: string | null): Record<string, unknown> | null {
+  if (!rawBody) return null;
+  try {
+    return JSON.parse(rawBody) as Record<string, unknown>;
+  } catch {
+    return assembleFullResponseJson(rawBody);
+  }
+}
+
+function buildRawLog(rawLog: RawLogData): string {
+  const req = rawLog.rawRequestBody ? prettyJson(rawLog.rawRequestBody) : null;
+  const resp = rawLog.rawResponseBody ? prettyJson(rawLog.rawResponseBody) : null;
   return [
-    `# Raw Log — message #${msg.id}`,
-    `role: ${msg.role}`,
+    rawLog.id != null ? `# Raw Log — message #${rawLog.id}` : '# Raw Log — context compression',
+    rawLog.role ? `role: ${rawLog.role}` : '',
     req ? `\n## Request\n${req}` : '',
-    resp ? `\n## Response (SSE)\n${resp}` : '',
+    resp ? `\n## Response\n${resp}` : '',
   ].join('\n');
 }
 

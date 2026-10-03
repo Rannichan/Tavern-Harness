@@ -31,26 +31,21 @@ export function buildGroupSystemPrompt(
   requestPayload?: {
     allSpeakerNames: string[];
     playerName?: string | null;
-    currentTurnQueueOrder: string[];
   }
 ): string {
   const others = (requestPayload?.allSpeakerNames ?? []).filter((n) => n !== activeSpeakerName);
   const playerName = requestPayload?.playerName ?? '用户';
-  const orderHint =
-    requestPayload?.currentTurnQueueOrder && requestPayload.currentTurnQueueOrder.length > 0
-      ? `\nThe speaking order for the current round is: ${requestPayload.currentTurnQueueOrder.join(' → ')}`
-      : '';
 
   return (
     `You are participating in a multi-character conversation. Reply only as ${activeSpeakerName}.\n` +
     `Never write dialogue for another participant.\n` +
+    `Write only ${activeSpeakerName}'s message body. Do not begin your reply with a speaker label such as [${activeSpeakerName}], ${activeSpeakerName}:, or any other [name] prefix; the application already identifies the speaker.\n` +
     (others.length > 0
       ? `The other participants are: ${others.join(', ')}.\nThe user (a participant named "${playerName}") may speak at any moment — when they do, respond naturally as ${activeSpeakerName}.\n`
       : '') +
     `Messages prefixed with [${translate('prompt.roleTag')}] are utterances by that participant; messages prefixed with [${playerName}] are the user's.\n` +
     `When you need to direct the next speaker, you may use @${translate('prompt.roleTag')} in your reply to call on another participant.\n` +
-    orderHint +
-    `\n\n=== ${activeSpeakerName} ===\n` +
+    `\n=== ${activeSpeakerName} ===\n` +
     activeNpcPrompt +
     (worldBookContent ? `\n\n=== ${translate('prompt.worldBook')} ===\n${worldBookContent}` : '') +
     (userPersonaPrompt ? `\n\n=== ${translate('prompt.userInfo')} ===\n${userPersonaPrompt}` : '')
@@ -82,10 +77,18 @@ export function buildNetworkMessagesForSession(p: {
   const messages = trimMessagesForNewTopic(p.messages, session);
   const result: NetworkMessage[] = [];
   const participantMap = new Map(participants.map((pp) => [pp.participantId, pp]));
+  const isGroup = session?.mode === 'GROUP';
+  const omittedToolCallIds = new Set<string>();
+  if (isGroup) {
+    for (const m of messages) {
+      if (m.role !== 'assistant' || m.speakerParticipantId === activeSpeakerParticipantId) continue;
+      for (const toolCall of parseToolCalls(m.toolCallsJson)) omittedToolCallIds.add(toolCall.id);
+    }
+  }
 
   for (const m of messages) {
-    // 工具消息原样传递
     if (m.role === 'tool') {
+      if (m.toolCallId != null && omittedToolCallIds.has(m.toolCallId)) continue;
       result.push({
         role: 'tool',
         content: m.content,
@@ -98,23 +101,29 @@ export function buildNetworkMessagesForSession(p: {
       continue;
     }
 
+    const speakerIsActive =
+      m.speakerParticipantId != null && m.speakerParticipantId === activeSpeakerParticipantId;
     const toolCalls = parseToolCalls(m.toolCallsJson);
-    // 带工具调用的 assistant 消息始终为 assistant（不折叠）
     if (m.role === 'assistant' && toolCalls.length > 0) {
-      result.push({
-        role: 'assistant',
-        content: sanitizeHistoryContentForModel(m.content),
-        tool_calls: toolCalls,
-      });
+      if (!isGroup || speakerIsActive) {
+        result.push({
+          role: 'assistant',
+          content: sanitizeHistoryContentForModel(m.content),
+          tool_calls: toolCalls,
+        });
+      } else {
+        const content = sanitizeHistoryContentForModel(m.content);
+        if (content.length > 0) {
+          const hasLeadingLabel = /^\[[^\]\r\n]+\]/.test(content);
+          const speaker = m.speakerParticipantId != null ? participantMap.get(m.speakerParticipantId) : undefined;
+          const label = speaker?.displayName ?? m.speakerName ?? '用户';
+          result.push({ role: 'user', content: hasLeadingLabel ? content : `[${label}] ${content}` });
+        }
+      }
       continue;
     }
 
-    const isGroup = session?.mode === 'GROUP';
-    const speakerIsActive =
-      m.speakerParticipantId != null && m.speakerParticipantId === activeSpeakerParticipantId;
-
     if (isGroup) {
-      const isPlayer = m.role === 'user' && m.speakerParticipantId == null;
       if (m.role === 'assistant' && speakerIsActive) {
         result.push({
           role: 'assistant',
@@ -122,6 +131,12 @@ export function buildNetworkMessagesForSession(p: {
         });
         continue;
       }
+      const hasLeadingLabel = /^\[[^\]\r\n]+\]/.test(m.content);
+      if (hasLeadingLabel) {
+        result.push({ role: 'user', content: buildContentWithAttachments(m.content, m.attachments) });
+        continue;
+      }
+      const isPlayer = m.role === 'user' && m.speakerParticipantId == null;
       // 折叠成 user 消息，前缀 [标签]
       const speaker = m.speakerParticipantId != null ? participantMap.get(m.speakerParticipantId) : undefined;
       const label = isPlayer || m.speakerParticipantId == null ? '用户' : (speaker?.displayName ?? m.speakerName ?? '用户');

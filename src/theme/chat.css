@@ -198,6 +198,17 @@
   border-radius: 999px;
   max-width: 80%;
 }
+.compression-banner-wrap {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+.compression-summary-body {
+  padding: 20px;
+  max-height: min(65vh, 620px);
+  overflow: auto;
+  color: var(--text);
+}
 
 /* ---------- 附件 ---------- */
 .attachments {
