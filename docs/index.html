@@ -8,6 +8,7 @@
   <link rel="icon" href="favicon.png" />
   <script src="assets/theme.js"></script>
   <link rel="stylesheet" href="assets/tavern.css" />
+  <script src="assets/home-i18n.js" defer></script>
 </head>
 <body>
   <!-- 酒馆氛围背景 + 向上漂浮的主题图标 -->
@@ -18,22 +19,23 @@
 
   <!-- ══════════ 顶栏 ══════════ -->
   <header class="topbar" id="topbar">
-    <a class="brand" href="#" aria-label="Tavern Harness 首页">
+    <a class="brand" href="#" aria-label="Tavern Harness 首页" data-i18n-aria-label="brandHome">
       <img class="brand-mark" src="tavern-harness-logo.png" alt="Tavern Harness logo" />
       <span class="brand-name">Tavern Harness</span>
     </a>
-    <nav class="nav" aria-label="主导航">
-      <a href="#start">启动方式</a>
-      <a href="#magic">核心特点</a>
-      <a href="#world">世界沙盒</a>
-      <a href="#demo">试玩 Demo</a>
+    <nav class="nav" aria-label="主导航" data-i18n-aria-label="mainNavigation">
+      <a href="#start" data-i18n="navStart">启动方式</a>
+      <a href="#magic" data-i18n="navFeatures">核心特点</a>
+      <a href="#world" data-i18n="navWorld">世界沙盒</a>
+      <a href="#demo" data-i18n="navDemo">试玩 Demo</a>
     </nav>
     <div class="topbar-actions">
+      <button class="language-toggle" type="button" data-language-toggle aria-label="Switch to English" title="Switch to English">EN</button>
       <button class="theme-toggle" type="button" data-theme-toggle aria-label="切换到日间模式">
         <svg class="theme-icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg>
         <svg class="theme-icon-moon" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
       </button>
-      <a class="wiki-link" href="wiki.html" aria-label="阅读 Wiki" title="阅读 Wiki"><span>阅读 Wiki</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></a>
+      <a class="wiki-link" href="wiki.html" aria-label="阅读 Wiki" title="阅读 Wiki" data-i18n-aria-label="readWiki" data-i18n-title="readWiki"><span data-i18n="readWiki">阅读 Wiki</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></a>
     </div>
   </header>
 

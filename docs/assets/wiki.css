@@ -196,6 +196,8 @@ code {
   color: var(--text-dim);
   font: inherit;
   font-size: 12.5px;
+  white-space: nowrap;
+  flex: none;
   cursor: pointer;
   transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.12s ease;
 }
@@ -210,6 +212,22 @@ code {
 .wiki-search-toggle svg, .wiki-search-input-wrap > svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
 kbd { font-family: var(--font-mono); font-size: 10px; line-height: 1; color: var(--text-faint); }
 .wiki-search-toggle kbd { padding: 3px 4px; border: 1px solid var(--border-soft); border-radius: 4px; }
+.language-toggle {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  color: var(--text-dim);
+  cursor: pointer;
+  font: 600 12px/1 var(--font-sans);
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+.language-toggle:hover { background: var(--surface-2); border-color: var(--amber-dim); color: var(--amber); transform: translateY(-1px); }
+.language-toggle:active { transform: scale(0.92); }
 .theme-toggle {
   display: inline-grid;
   place-items: center;
@@ -678,10 +696,29 @@ details.faq .faq-body code { color: var(--accent-text); }
 }
 @media (max-width: 640px) {
   .wtb { gap: 10px; padding-inline: 12px; }
-  .wbrand { flex: 1; }
-  .wbrand-name, .wbrand-sub { display: none; }
-  .wnav { gap: 8px; }
-  .wiki-search-toggle { width: 34px; padding: 0; justify-content: center; }
+  .wbrand {
+    position: relative;
+    flex: 1 1 0;
+    min-width: 0;
+    gap: 6px;
+    align-items: center;
+    overflow: hidden;
+  }
+  .wbrand::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 32px;
+    pointer-events: none;
+    background: linear-gradient(90deg, transparent, var(--bg) 88%);
+  }
+  .wbrand-mark { flex: none; }
+  .wbrand-name { display: inline; flex: none; font-size: 15px; }
+  .wbrand-sub { display: inline; flex: none; font-size: 8px; letter-spacing: 0.16em; }
+  .wnav { gap: 8px; min-width: 0; }
+  .wiki-search-toggle { width: 34px; min-width: 34px; padding: 0; justify-content: center; }
   .wiki-search-toggle span, .wiki-search-toggle kbd { display: none; }
   .wnav .wiki-home-link {
     display: inline-flex;

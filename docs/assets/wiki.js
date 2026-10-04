@@ -341,13 +341,18 @@
     };
     const render = (rawQuery) => {
       const query = rawQuery.trim();
+      const isEnglish = document.documentElement.lang === 'en';
       if (!query) {
-        results.innerHTML = '<p class="wiki-search-empty">输入关键词，搜索 ' + chapters.length + ' 个章节。</p>';
+        results.innerHTML = '<p class="wiki-search-empty">' + (isEnglish
+          ? 'Enter a keyword to search ' + chapters.length + ' chapters.'
+          : '输入关键词，搜索 ' + chapters.length + ' 个章节。') + '</p>';
         return;
       }
       const matches = index.filter((item) => item.text.toLocaleLowerCase().includes(query.toLocaleLowerCase())).slice(0, 12);
       if (!matches.length) {
-        results.innerHTML = '<p class="wiki-search-empty">没有找到“' + escapeHtml(query) + '”相关内容。</p>';
+        results.innerHTML = '<p class="wiki-search-empty">' + (isEnglish
+          ? 'No results found for “' + escapeHtml(query) + '”.'
+          : '没有找到“' + escapeHtml(query) + '”相关内容。') + '</p>';
         return;
       }
       results.innerHTML = matches.map((item) =>

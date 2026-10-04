@@ -171,6 +171,22 @@ code {
 .wiki-link svg { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .topbar a, .topbar button { -webkit-tap-highlight-color: transparent; }
 .topbar a:focus-visible, .topbar button:focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; }
+.language-toggle {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  color: var(--text-dim);
+  cursor: pointer;
+  font: 600 12px/1 var(--font-sans);
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+.language-toggle:hover { background: var(--surface-2); border-color: var(--amber-dim); color: var(--amber); transform: translateY(-1px); }
+.language-toggle:active { transform: scale(0.92); }
 .theme-toggle {
   display: inline-grid;
   place-items: center;
