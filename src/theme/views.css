@@ -409,10 +409,16 @@
   white-space: pre-wrap;
   word-break: break-word;
 }
+.skill-detail-textarea,
+.skill-detail-json {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
 .skill-detail-json {
   margin: 0;
   max-height: 240px;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   font-family: var(--font-mono);
   font-size: 11.5px;
   line-height: 1.55;
@@ -421,7 +427,7 @@
   border: 1px solid var(--border-soft);
   border-radius: var(--radius-sm);
   padding: 10px 13px;
-  white-space: pre;
+  white-space: pre-wrap;
 }
 .skill-detail-json.err {
   color: var(--danger);

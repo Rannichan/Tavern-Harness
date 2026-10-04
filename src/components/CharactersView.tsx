@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   DndContext,
   PointerSensor,
@@ -697,7 +697,7 @@ function SkillSortItem({
           {tool.isBuiltIn && <span className="tag" style={{ marginLeft: 8 }}>{t('common.builtin')}</span>}
         </div>
         <div className="l-sub">{desc}</div>
-        {impl !== 'native' && <div style={{ fontSize: 10.5, marginTop: 2, color: 'var(--warn)' }}>{t('workshop.implType', { t: impl })}</div>}
+        {tool.isBuiltIn && impl !== 'native' && <div style={{ fontSize: 10.5, marginTop: 2, color: 'var(--warn)' }}>{t('workshop.implType', { t: impl })}</div>}
       </div>
       <div className="skill-item-actions">
         <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); onDetail(); }} title={t('workshop.viewDetails')}>
@@ -715,6 +715,8 @@ function SkillSortItem({
 
 function SkillDetailModal({ tool, onClose }: { tool: McpTool; onClose: () => void }) {
   const t = useT();
+  const refreshTools = useStore((s) => s.refreshTools);
+  const editable = !tool.isBuiltIn;
   let parsed: { function?: { name?: string; description?: string; parameters?: unknown } } | null = null;
   try {
     parsed = JSON.parse(tool.jsonContent) as { function?: { name?: string; description?: string; parameters?: unknown } };
@@ -727,51 +729,103 @@ function SkillDetailModal({ tool, onClose }: { tool: McpTool; onClose: () => voi
       execType = (exec as { type?: string }).type ?? 'unknown';
     } catch { exec = null; execType = 'invalid'; }
   }
-  const description = parsed?.function?.description ?? '';
-  const parameters = parsed?.function?.parameters;
+
+  const initialParameters = parsed?.function?.parameters ?? { type: 'object', properties: {} };
+  const [name, setName] = useState(parsed?.function?.name ?? tool.name);
+  const [description, setDescription] = useState(parsed?.function?.description ?? '');
+  const [parametersText, setParametersText] = useState(() => JSON.stringify(initialParameters, null, 2));
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const schema = useMemo(() => {
+    try {
+      const value: unknown = JSON.parse(parametersText);
+      if (!value || Array.isArray(value) || typeof value !== 'object' || (value as { type?: unknown }).type !== 'object') return { error: t('workshop.skillSchemaObject') };
+      return { value: value as Record<string, unknown> };
+    } catch {
+      return { error: t('workshop.skillSchemaJson') };
+    }
+  }, [parametersText, t]);
+  const rawJson = schema.value
+    ? JSON.stringify({ type: 'function', function: { name, description, parameters: schema.value } }, null, 2)
+    : null;
+
+  const save = async () => {
+    if (!schema.value) {
+      setError(schema.error ?? t('workshop.skillSchemaJson'));
+      return;
+    }
+    if (!/^[a-z][a-z0-9_]{2,39}$/.test(name)) {
+      setError(t('workshop.skillNameInvalid'));
+      return;
+    }
+    if (description.length > 500) {
+      setError(t('workshop.skillDescriptionLong'));
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const existing = await db.tools.where('name').equals(name).first();
+      if (existing && existing.id !== tool.id) {
+        setError(t('workshop.skillNameExists'));
+        return;
+      }
+      const updated = { ...tool, name, jsonContent: rawJson! };
+      await db.transaction('rw', db.tools, db.npcs, async () => {
+        await db.tools.put(updated);
+        if (name !== tool.name) {
+          const npcs = await db.npcs.toArray();
+          await Promise.all(npcs
+            .filter((npc) => npc.enabledToolNames.includes(tool.name))
+            .map((npc) => db.npcs.update(npc.id!, {
+              enabledToolNames: npc.enabledToolNames.map((toolName) => toolName === tool.name ? name : toolName),
+            })));
+        }
+      });
+      await refreshTools();
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <Modal onClose={onClose} width={620}>
       <div className="modal-head">
         <span style={{ fontWeight: 800, fontSize: 15 }}>
-          {t('workshop.skillDetails')} · <span className="mono">{tool.name}</span>
+          {t('workshop.skillDetails')}
           {tool.isBuiltIn && <span className="tag" style={{ marginLeft: 8 }}>{t('common.builtin')}</span>}
+          {!tool.isBuiltIn && execType !== 'native' && <span className="tag" style={{ marginLeft: 8 }}>{t('workshop.implType', { t: execType })}</span>}
         </span>
         <button className="icon-btn" onClick={onClose}><Icon name="x" /></button>
       </div>
       <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {execType !== 'native' && (
-          <div className="skill-detail-tag" style={{ alignSelf: 'flex-start' }}>
-            {t('workshop.implType', { t: execType })}
-          </div>
-        )}
+        <div className="field">
+          <label>{t('workshop.skillName')}</label>
+          {editable ? <input className="input mono" value={name} onChange={(e) => setName(e.target.value)} /> : <div className="skill-detail-text mono">{name}</div>}
+        </div>
         <div className="field">
           <label>{t('workshop.skillDescription')}</label>
-          <div className="skill-detail-text">{description || '—'}</div>
+          {editable ? <textarea className="textarea skill-detail-textarea" value={description} maxLength={500} wrap="soft" onChange={(e) => setDescription(e.target.value)} /> : <div className="skill-detail-text">{description || '—'}</div>}
         </div>
         <div className="field">
           <label>{t('workshop.skillParameters')}</label>
-          {parameters ? (
-            <pre className="skill-detail-json">{JSON.stringify(parameters, null, 2)}</pre>
-          ) : (
-            <div className="skill-detail-text" style={{ color: 'var(--text-faint)' }}>{t('workshop.skillNoParams')}</div>
-          )}
+          {editable ? <textarea className="textarea mono skill-detail-textarea" value={parametersText} wrap="soft" spellCheck={false} onChange={(e) => setParametersText(e.target.value)} /> : parametersText ? <pre className="skill-detail-json">{parametersText}</pre> : <div className="skill-detail-text" style={{ color: 'var(--text-faint)' }}>{t('workshop.skillNoParams')}</div>}
         </div>
         <div className="field">
           <label>{t('workshop.skillExecution')}</label>
-          {exec ? (
-            <pre className="skill-detail-json">{JSON.stringify(exec, null, 2)}</pre>
-          ) : (
-            <div className="skill-detail-text" style={{ color: 'var(--text-faint)' }}>{t('workshop.skillNoExecution')}</div>
-          )}
+          {exec ? <pre className="skill-detail-json">{JSON.stringify(exec, null, 2)}</pre> : <div className="skill-detail-text" style={{ color: 'var(--text-faint)' }}>{t('workshop.skillNoExecution')}</div>}
         </div>
         <div className="field">
           <label>{t('workshop.skillRawJson')}</label>
-          <pre className={`skill-detail-json${parsed ? '' : ' err'}`}>{parsed ? JSON.stringify(parsed, null, 2) : t('workshop.skillBadJson')}</pre>
+          <pre className={`skill-detail-json${rawJson ? '' : ' err'}`}>{rawJson ?? schema.error}</pre>
         </div>
+        {error && <div className="field-hint" style={{ color: 'var(--danger)' }}>{error}</div>}
       </div>
       <div className="modal-foot">
-        <button className="btn btn-primary" onClick={onClose}>{t('common.close')}</button>
+        <button className="btn" onClick={onClose}>{t('common.cancel')}</button>
+        <button className="btn btn-primary" disabled={!editable || saving} onClick={() => void save()}>{t('common.save')}</button>
       </div>
     </Modal>
   );

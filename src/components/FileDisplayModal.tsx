@@ -26,7 +26,6 @@ const CODE_EXTS = new Set([
 ]);
 // .txt 是纯文本原样展示；markdown 才走 MD 渲染
 const MD_EXTS = new Set(['md', 'markdown', 'mdx']);
-const PIP_ASPECT_RATIO = 11 / 9;
 const PIP_EDGE_GAP = 12;
 const PIP_MIN_WIDTH = 280;
 const PIP_MIN_HEIGHT = 180;
@@ -42,13 +41,11 @@ interface PipRect {
 }
 
 function createPipRect(): PipRect {
-  const maxWidth = Math.max(260, Math.min(560, window.innerWidth - PIP_EDGE_GAP * 2, (window.innerHeight - PIP_EDGE_GAP * 2) * PIP_ASPECT_RATIO));
-  const width = Math.min(440, maxWidth);
-  const height = width / PIP_ASPECT_RATIO;
+  const height = Math.max(0, window.innerHeight - PIP_EDGE_GAP * 2);
   return {
     x: PIP_EDGE_GAP,
-    y: window.innerHeight - height - PIP_EDGE_GAP,
-    width,
+    y: PIP_EDGE_GAP,
+    width: Math.min(440, Math.max(0, window.innerWidth - PIP_EDGE_GAP * 2)),
     height,
   };
 }
