@@ -379,6 +379,20 @@ async function diskFileWrite(
   }
 }
 
+async function diskFileDelete(path: string, workspaceDir: string): Promise<void> {
+  try {
+    const resp = await fetch('/api-v2/file_delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path, session: workspaceDir }),
+    });
+    const data = (await resp.json()) as { ok?: boolean; message?: string };
+    if (!resp.ok || !data.ok) throw new Error(data.message || `HTTP ${resp.status}`);
+  } catch (e) {
+    throw new Error(`Failed to delete from local workspace: ${(e as Error).message}`);
+  }
+}
+
 async function diskFileList(workspaceDir: string): Promise<string[]> {
   try {
     const resp = await fetch('/api-v2/file_list', {
@@ -423,7 +437,15 @@ export async function writeWorkspaceFileTextFor(
   return diskFileWrite(normalizedPath, content, false, workspaceDir);
 }
 
-// ---------- 会话工作区枚举（文件管理器只读浏览共用） ----------
+/** 删除工作区中的单个文件。 */
+export async function deleteWorkspaceFile(path: string, workspaceDir: string): Promise<void> {
+  const normalizedPath = normalizePath(path);
+  if (!normalizedPath) throw new Error('Invalid path');
+  await requireFileServer(workspaceDir);
+  await diskFileDelete(normalizedPath, workspaceDir);
+}
+
+// ---------- 会话工作区枚举（文件管理器浏览共用） ----------
 /**
  * 列出当前会话专属工作区内的全部文件相对路径。
  * 仅通过本地沙箱服务枚举；服务不可用时抛出明确错误。

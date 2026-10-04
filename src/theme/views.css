@@ -1334,13 +1334,29 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.ws-fm-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
 .ws-fm-open {
   display: inline-flex;
   align-items: center;
   opacity: 0.55;
 }
-.ws-fm-row:hover .ws-fm-open {
+.ws-fm-delete {
+  width: 26px;
+  height: 26px;
+  color: var(--text-faint);
+  opacity: 0;
+}
+.ws-fm-row:hover .ws-fm-open,
+.ws-fm-row:hover .ws-fm-delete,
+.ws-fm-delete:focus-visible {
   opacity: 1;
+}
+.ws-fm-delete:hover {
+  color: var(--danger);
 }
 .ws-fm-empty {
   padding: 22px;

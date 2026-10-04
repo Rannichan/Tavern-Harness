@@ -22,7 +22,7 @@ import { createServer } from 'node:http';
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import {
-  writeFileSync, existsSync, lstatSync, readlinkSync, readFile, writeFile, mkdirSync, mkdtempSync, readdir, statSync, symlinkSync, realpathSync, rmSync,
+  writeFileSync, existsSync, lstatSync, readlinkSync, readFile, writeFile, mkdirSync, mkdtempSync, readdir, statSync, symlinkSync, realpathSync, rmSync, unlink,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname, resolve, sep, delimiter } from 'node:path';
@@ -416,8 +416,8 @@ const server = createServer(async (req, res) => {
     return;
   }
 
-  // ---- 真实文件工作区端点（file_read / file_write / file_list） ----
-  if (req.url === '/file_read' || req.url === '/file_write' || req.url === '/file_list') {
+  // ---- 真实文件工作区端点（file_read / file_write / file_delete / file_list） ----
+  if (req.url === '/file_read' || req.url === '/file_write' || req.url === '/file_delete' || req.url === '/file_list') {
     let body = '';
     for await (const chunk of req) body += chunk;
     if (body.length > 512 * 1024) {
@@ -475,6 +475,21 @@ const server = createServer(async (req, res) => {
           await writeFilePromise(fp, content, 'utf8');
         }
         res.end(JSON.stringify({ ok: true, path: rel, mode, bytes: Buffer.byteLength(content, 'utf8') }));
+      } else if (req.url === '/file_delete') {
+        const rawPath = String(payload?.path ?? '').replace(/\\/g, '/').trim();
+        if (!rawPath) throw new Error('Invalid path');
+        const rel = sanitizeWorkspaceRelativePath(rawPath);
+        const deletingPublicLink = base !== PUBLIC_WORKSPACE && (rel === 'public' || rel.startsWith('public/'));
+        if (!deletingPublicLink && resolvesOutsideSession(rel, base)) {
+          throw new Error('Path is outside the workspace');
+        }
+        const fp = resolve(base, rel);
+        if (!existsSync(fp) || !lstatSync(fp).isFile()) throw new Error('File not found');
+        if (!deletingPublicLink) assertInside(base, realpathSync(fp));
+        await new Promise((resolveDelete, rejectDelete) => {
+          unlink(fp, (err) => (err ? rejectDelete(err) : resolveDelete()));
+        });
+        res.end(JSON.stringify({ ok: true, path: rel }));
       } else {
         // file_list：返回会话工作目录内的相对路径（分组目录）
         const files = [];

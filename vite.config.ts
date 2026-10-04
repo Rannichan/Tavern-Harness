@@ -209,7 +209,7 @@ function sandboxProxyPlugin(): Plugin {
       });
       server.middlewares.use((req: IncomingMessage, res: ServerResponse, next) => {
         // 转发与沙箱服务相关的端点：/exec 及真实工作区文件端点
-        const m = /^\/api-v2\/(exec|approve|file_read|file_write|file_list|session_create|session_delete)$/.exec(req.url || '');
+        const m = /^\/api-v2\/(exec|approve|file_read|file_write|file_delete|file_list|session_create|session_delete)$/.exec(req.url || '');
         if (!m || req.method !== 'POST') return next();
         const origin = req.headers.origin;
         if (!origin || req.headers['sec-fetch-site'] !== 'same-origin') {

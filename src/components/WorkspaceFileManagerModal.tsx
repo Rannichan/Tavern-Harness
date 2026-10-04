@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Modal, Icon } from './shared';
+import { DeleteConfirmDialog } from './DeleteConfirmDialog';
 import { useT } from '../core/i18n';
 import { applySessionWorkspace } from '../core/tools/toolExecutor';
-import { listSessionWorkspaceFiles } from '../core/tools/generatedSkillExecutor';
+import { deleteWorkspaceFile, listSessionWorkspaceFiles } from '../core/tools/generatedSkillExecutor';
 import { useStore } from '../store/store';
 
 // ============================================================
-// 会话工作区文件管理器（只读浏览）
+// 会话工作区文件管理器
 //  - 会话头部的工作目录标签点击打开
 //  - 只展示当前会话专属磁盘工作区（sandbox_workspace/）
-//  - 目录点击进入、支持返回上级与面包屑；文件点击复用 file_display 弹窗预览（只读）
+//  - 目录点击进入、支持返回上级与面包屑；文件点击复用 file_display 弹窗预览
+//  - 可在确认后删除文件（不删除目录）
 // ============================================================
 
 function extOf(path: string): string {
@@ -55,6 +57,7 @@ export function WorkspaceFileManagerModal({ sessionId, onClose }: { sessionId: n
   const rootLabel = usesPublicWorkspace ? t('header.workspaceRoot') : session?.workspaceDir?.trim() || `session-${sessionId}`;
   const [files, setFiles] = useState<string[] | null>(null);
   const [loadState, setLoadState] = useState<'loading' | 'ok' | 'empty' | 'error'>('loading');
+  const [pendingDelete, setPendingDelete] = useState<Node | null>(null);
   // 当前浏览目录（'' = 根；否则为以 / 结尾的会话内相对路径）
   const [dir, setDir] = useState('');
 
@@ -101,7 +104,6 @@ export function WorkspaceFileManagerModal({ sessionId, onClose }: { sessionId: n
   };
 
   const openFile = (node: Node) => {
-    // 复用 file_display 展示弹窗（按所属会话解析工作区，只读预览）
     setActiveDisplay({
       path: node.path,
       kind: kindFromPath(node.path),
@@ -110,6 +112,17 @@ export function WorkspaceFileManagerModal({ sessionId, onClose }: { sessionId: n
       presentation: 'modal',
     });
     onClose();
+  };
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
+    const workspaceDir = await applySessionWorkspace(sessionId);
+    await deleteWorkspaceFile(pendingDelete.path, workspaceDir);
+    setFiles((current) => {
+      const next = (current ?? []).filter((path) => path !== pendingDelete.path);
+      setLoadState(next.length === 0 ? 'empty' : 'ok');
+      return next;
+    });
   };
 
   return (
@@ -140,7 +153,7 @@ export function WorkspaceFileManagerModal({ sessionId, onClose }: { sessionId: n
       </div>
       <div className="modal-body ws-fm-body">
         <div className="ws-fm-note">
-          <Icon name="eye" size={12} /> {t('header.fileManagerReadonly')}
+          <Icon name="eye" size={12} /> {t('header.fileManagerHint')}
         </div>
         {loadState === 'loading' && (
           <div className="ws-fm-empty">
@@ -171,7 +184,18 @@ export function WorkspaceFileManagerModal({ sessionId, onClose }: { sessionId: n
                   <span className="ws-fm-arrow" />
                   <Icon name="file" size={14} />
                   <span className="ws-fm-name mono">{n.name}</span>
-                  <span className="ws-fm-open"><Icon name="eye" size={12} /></span>
+                  <span className="ws-fm-actions">
+                    <span className="ws-fm-open"><Icon name="eye" size={12} /></span>
+                    <button
+                      className="icon-btn ws-fm-delete"
+                      title={t('common.delete')}
+                      aria-label={t('common.delete')}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setPendingDelete(n);
+                      }}
+                    ><Icon name="trash" size={13} /></button>
+                  </span>
                 </div>
               )
             )}
@@ -179,6 +203,14 @@ export function WorkspaceFileManagerModal({ sessionId, onClose }: { sessionId: n
           </div>
         )}
       </div>
+      {pendingDelete && (
+        <DeleteConfirmDialog
+          title={t('header.fileManagerDeleteTitle')}
+          itemName={pendingDelete.path}
+          onCancel={() => setPendingDelete(null)}
+          onConfirm={confirmDelete}
+        />
+      )}
     </Modal>
   );
 }

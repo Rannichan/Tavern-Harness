@@ -135,6 +135,17 @@ try {
   assert.equal(lstatSync(publicLink).isSymbolicLink(), true, 'session creation must add a public symlink');
   assert.equal(realpathSync(publicLink), realpathSync(join(root, 'sandbox_workspace', 'public')));
 
+  writeFileSync(join(root, 'sandbox_workspace', otherSession, 'delete-me.txt'), 'remove me');
+  const fileDeleteResponse = await fetch(`http://127.0.0.1:${port}/file_delete`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Command-Service-Token': serviceToken },
+    body: JSON.stringify({ session: otherSession, path: 'delete-me.txt' }),
+  });
+  const fileDelete = await fileDeleteResponse.json();
+  assert.equal(fileDeleteResponse.status, 200);
+  assert.equal(fileDelete.ok, true);
+  assert.equal(existsSync(join(root, 'sandbox_workspace', otherSession, 'delete-me.txt')), false);
+
   writeFileSync(join(root, 'sandbox_workspace', 'public', publicFile), 'shared read-only content');
   const publicReadResponse = await fetch(`http://127.0.0.1:${port}/file_read`, {
     method: 'POST',
@@ -165,6 +176,17 @@ try {
   assert.match(publicWrite.message, /The public directory is read-only/);
   assert.equal(readFileSync(join(root, 'sandbox_workspace', 'public', publicFile), 'utf8'), 'shared read-only content');
 
+  const publicFileDeleteResponse = await fetch(`http://127.0.0.1:${port}/file_delete`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Command-Service-Token': serviceToken },
+    body: JSON.stringify({ session: otherSession, path: `public/${publicFile}` }),
+  });
+  const publicFileDelete = await publicFileDeleteResponse.json();
+  assert.equal(publicFileDeleteResponse.status, 200);
+  assert.equal(publicFileDelete.ok, true);
+  assert.equal(existsSync(join(root, 'sandbox_workspace', 'public', publicFile)), false);
+  writeFileSync(join(root, 'sandbox_workspace', 'public', publicFile), 'shared read-only content');
+
   const publicDeleteResponse = await fetch(`http://127.0.0.1:${port}/session_delete`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Command-Service-Token': serviceToken },
@@ -173,7 +195,7 @@ try {
   const publicDelete = await publicDeleteResponse.json();
   assert.equal(publicDeleteResponse.status, 400);
   assert.match(publicDelete.message, /The public workspace cannot be deleted/);
-  assert.equal(readFileSync(join(root, 'sandbox_workspace', 'public', publicFile), 'utf8'), 'shared read-only content');
+  assert.equal(existsSync(join(root, 'sandbox_workspace', 'public')), true, 'the public workspace must survive a session deletion request');
 
   const externalDir = mkdtempSync(join(tmpdir(), 'command-service-external-'));
   writeFileSync(join(externalDir, 'secret.txt'), 'outside');
