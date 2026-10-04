@@ -15,8 +15,8 @@ import { AchievementModal, showAchievementUnlock } from './components/Achievemen
 import { GameplayExportModal, GameplayImportModal } from './components/GameplayDialogs';
 import { Icon, SessionVisual, Modal } from './components/shared';
 import type { NpcCharacter } from './types/models';
-import { useT } from './core/i18n';
 import { registerUnlockDispatcher } from './core/achievements';
+import { useT } from './core/i18n';
 import './theme/chat.css';
 import './theme/views.css';
 
@@ -30,7 +30,6 @@ export default function App() {
   const contextCompressions = useStore((s) => s.contextCompressions);
   const participants = useStore((s) => s.participants);
   const isStreaming = useStore((s) => s.streaming.sessionId != null);
-  const t = useT();
 
   useEffect(() => {
     registerUnlockDispatcher(async (achievement, total) => {
@@ -60,19 +59,7 @@ export default function App() {
   const isStreamingSession = useStore((s) => s.streaming.sessionId === activeSessionId);
 
   if (!initialized) {
-    return (
-      <>
-        <div className="tav-bg" />
-        <div style={{ height: '100dvh', display: 'grid', placeItems: 'center', position: 'relative', zIndex: 1 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
-            <div className="brand-logo" style={{ width: 56, height: 56, fontSize: 26 }}>
-              <img src="/tavern-harness-logo.png" alt="Tavern Harness" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
-            </div>
-            <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>{t('nav.loading')}</div>
-          </div>
-        </div>
-      </>
-    );
+    return <div className="tav-bg" />;
   }
 
   return (

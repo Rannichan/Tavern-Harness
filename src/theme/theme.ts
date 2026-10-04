@@ -76,6 +76,7 @@ export function applyTheme(mode: ThemeMode): void {
   const is = (light: string, darkV: string) => (dark ? darkV : light);
 
   root.dataset.theme = dark ? 'dark' : 'light';
+  root.style.colorScheme = dark ? 'dark' : 'light';
 
   const vars: Record<string, string> = {
     // 主色：浅色模式用深色变体（羊皮纸底上对比足够），深色模式用烛光浅亮色
@@ -136,15 +137,7 @@ export function applyThemeFromCache(): void {
     (typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches
       ? 'dark'
       : 'light');
-  const dark = mode === 'dark' || (mode === 'system' && isDarkMode('system'));
-  const root = document.documentElement;
-  root.dataset.theme = dark ? 'dark' : 'light';
-  // 设置最小必要变量，让首帧立即呈现正确的底色与文字色
-  root.style.setProperty('--bg', dark ? '#20160E' : '#F7F2E9');
-  root.style.setProperty('--surface', dark ? '#211A10' : '#FDFBF5');
-  root.style.setProperty('--text', dark ? '#F2EADC' : '#241c10');
-  root.style.setProperty('--text-dim', dark ? '#AA9C86' : '#7a6a50');
-  root.style.setProperty('--border', dark ? 'rgba(255,214,160,0.13)' : 'rgba(60,40,10,0.14)');
+  applyTheme(mode);
   // 背景在 body 上，确保首帧背景色一致
-  root.style.backgroundColor = dark ? '#20160E' : '#F7F2E9';
+  document.documentElement.style.backgroundColor = isDarkMode(mode) ? '#20160E' : '#F7F2E9';
 }

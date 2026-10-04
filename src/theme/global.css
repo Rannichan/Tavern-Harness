@@ -4,7 +4,8 @@
    ============================================================ */
 
 :root {
-  color-scheme: light dark;
+  background: #F7F2E9;
+  color-scheme: light;
   --radius: 14px;
   --radius-lg: 18px;
   --radius-sm: 9px;
@@ -27,6 +28,11 @@ body,
 #root {
   height: 100%;
   margin: 0;
+}
+
+html,
+body {
+  background: var(--bg, #F7F2E9);
 }
 
 body {

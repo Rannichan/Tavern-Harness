@@ -5,6 +5,27 @@
     <link rel="icon" type="image/png" href="/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#17120A" />
+    <script>
+      (() => {
+        try {
+          const mode = localStorage.getItem('tav-theme-mode');
+          const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          const dark = mode === 'dark' || (mode !== 'light' && systemDark);
+          const root = document.documentElement;
+          const background = dark ? '#20160E' : '#F7F2E9';
+          root.dataset.theme = dark ? 'dark' : 'light';
+          root.style.colorScheme = dark ? 'dark' : 'light';
+          root.style.backgroundColor = background;
+          root.style.setProperty('--bg', background);
+          root.style.setProperty('--surface', dark ? '#211A10' : '#FDFBF5');
+          root.style.setProperty('--text', dark ? '#F2EADC' : '#241c10');
+          root.style.setProperty('--text-dim', dark ? '#AA9C86' : '#7a6a50');
+          document.querySelector('meta[name="theme-color"]').content = background;
+        } catch {
+          // Use the CSS fallback when browser storage is unavailable.
+        }
+      })();
+    </script>
     <title>Tavern Harness · 酒馆助手</title>
   </head>
   <body>
