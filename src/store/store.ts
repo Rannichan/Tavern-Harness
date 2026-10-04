@@ -1,8 +1,11 @@
 import { create } from 'zustand';
 import { db } from '../db/database';
-import type {
-  ApiProvider,
-  AppSettings,
+import {
+  type ApiProvider,
+  type AppSettings,
+  type ProviderModelOption,
+  enabledModelIds,
+  modelAliases,
   ChatMessage,
   ChatParticipant,
   ChatSession,
@@ -164,10 +167,10 @@ interface AppState {
   /** 重新加载当前活动会话的参与者（语言切换后刷新内置角色显示名） */
   refreshParticipants: () => Promise<void>;
 
-  /** 聚合所有启用 Provider 的模型列表（与 App 的 aggregateEnabledProviderModels 一致） */
-  modelsList: string[];
+  /** 聚合所有启用 Provider 的模型列表，每个 Provider 的条目独立保留。 */
+  modelsList: ProviderModelOption[];
   refreshModelsList: () => Promise<void>;
-  selectModel: (model: string) => Promise<void>;
+  selectModel: (option: ProviderModelOption) => Promise<void>;
 
   addToast: (message: string, kind?: 'info' | 'error') => void;
   removeToast: (id: number) => void;
@@ -364,8 +367,10 @@ export const useStore = create<AppState>((set, get) => ({
         next.defaultProviderId = enabledProviders[0].id ?? null;
       }
       const selected = current.defaultModel.trim();
-      if ((!selected || !models.includes(selected)) && models.length > 0) {
-        next.defaultModel = models[0];
+      const selectedProviderId = current.defaultProviderId;
+      if (!models.some((option) => option.providerId === selectedProviderId && option.modelId === selected) && models.length > 0) {
+        next.defaultModel = models[0].modelId;
+        next.defaultProviderId = models[0].providerId;
       }
       if (Object.keys(next).length > 0) {
         const updated = { ...current, ...next };
@@ -380,10 +385,12 @@ export const useStore = create<AppState>((set, get) => ({
     set({ modelsList: aggregateEnabledProviderModels(providers) });
   },
 
-  selectModel: async (model) => {
+  selectModel: async (option) => {
     const current = get().settings;
     if (!current) return;
-    const next = { ...current, defaultModel: model };
+    const provider = await db.providers.get(option.providerId);
+    if (!provider || !isEnabledProviderModel(provider, option.modelId)) return;
+    const next = { ...current, defaultModel: option.modelId, defaultProviderId: option.providerId };
     await db.settings.put(next);
     set({ settings: next });
   },
@@ -922,18 +929,27 @@ export const useStore = create<AppState>((set, get) => ({
 
 const confirmationDeferreds = new Map<ToolConfirmationRequest, { resolve: (v: boolean) => void }>();
 
-/** 聚合启用 Provider 的模型列表（对应 App 的 aggregateEnabledProviderModels） */
-function aggregateEnabledProviderModels(providers: ApiProvider[]): string[] {
+function isEnabledProviderModel(provider: ApiProvider, modelId: string): boolean {
+  return provider.isEnabled &&
+    Boolean(provider.baseUrl.trim()) &&
+    enabledModelIds(provider).has(modelId) &&
+    provider.cachedModelsCsv.split(',').some((candidateModel) => candidateModel.trim() === modelId);
+}
+
+/** 聚合启用 Provider 的模型列表，每个 Provider 保留独立的选择项。 */
+function aggregateEnabledProviderModels(providers: ApiProvider[]): ProviderModelOption[] {
   return providers
-    .filter((p) => p.isEnabled && p.baseUrl.trim())
-    .flatMap((p) =>
-      (p.cachedModelsCsv || '')
+    .flatMap((provider) => {
+      if (provider.id == null || !provider.isEnabled || !provider.baseUrl.trim()) return [];
+      const aliases = modelAliases(provider);
+      const enabledModels = enabledModelIds(provider);
+      return provider.cachedModelsCsv
         .split(',')
-        .map((m) => m.trim())
-        .filter(Boolean)
-    )
-    .filter((v, i, arr) => arr.indexOf(v) === i)
-    .sort();
+        .map((modelId) => modelId.trim())
+        .filter((modelId) => modelId && enabledModels.has(modelId))
+        .map((modelId) => ({ providerId: provider.id!, modelId, label: aliases[modelId]?.trim() || modelId }));
+    })
+    .sort((left, right) => left.label.localeCompare(right.label) || left.providerId - right.providerId);
 }
 
 /** 创建会话（公开给 UI 用） */
@@ -1311,24 +1327,15 @@ async function resolveActiveEndpoint(): Promise<{
   const settings = useStore.getState().settings;
   if (!settings) return null;
   const providers = await db.providers.toArray();
-  const defaultProvider =
-    settings.defaultProviderId != null
-      ? providers.find((p) => p.id === settings.defaultProviderId && p.isEnabled)
-      : null;
-
-  // 未指定默认 Provider 时：若存在唯一启用的 Provider，自动使用
-  const activeProvider =
-    defaultProvider ??
-    (providers.filter((p) => p.isEnabled && p.baseUrl.trim()).length === 1
-      ? providers.find((p) => p.isEnabled && p.baseUrl.trim()) ?? null
-      : null);
-
-  const baseUrl = activeProvider?.baseUrl || settings.baseUrl;
-  const apiKey = activeProvider?.apiKey || settings.apiKey;
   const model = settings.defaultModel?.trim() || '';
+  if (!model) return null;
 
-  if (!baseUrl || !model) return null;
-  return { baseUrl, apiKey, model };
+  const activeProvider = settings.defaultProviderId != null
+    ? providers.find((provider) => provider.id === settings.defaultProviderId && isEnabledProviderModel(provider, model))
+    : null;
+
+  if (!activeProvider) return null;
+  return { baseUrl: activeProvider.baseUrl, apiKey: activeProvider.apiKey, model };
 }
 
 /**

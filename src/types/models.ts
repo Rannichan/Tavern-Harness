@@ -63,7 +63,49 @@ export interface ApiProvider {
   apiKey: string;
   isEnabled: boolean;
   cachedModelsCsv: string;
+  /** JSON object mapping API model IDs to user-facing aliases. */
+  modelAliasesJson?: string;
+  /** JSON array of model IDs enabled for use. Missing values keep legacy models enabled. */
+  enabledModelIdsJson?: string;
   createdAt: number;
+}
+
+/** 可在对话模型选择器中选择的模型，模型 id 在不同 Provider 中可重复。 */
+export interface ProviderModelOption {
+  providerId: number;
+  modelId: string;
+  label: string;
+}
+
+export function enabledModelIds(provider: ApiProvider): Set<string> {
+  const availableModels = provider.cachedModelsCsv.split(',').map((model) => model.trim()).filter(Boolean);
+  if (!provider.enabledModelIdsJson) return new Set(availableModels);
+  try {
+    const modelIds: unknown = JSON.parse(provider.enabledModelIdsJson);
+    if (!Array.isArray(modelIds)) return new Set(availableModels);
+    return new Set(modelIds.filter((model): model is string => typeof model === 'string' && availableModels.includes(model)));
+  } catch {
+    return new Set(availableModels);
+  }
+}
+
+export function modelAliases(provider: ApiProvider): Record<string, string> {
+  try {
+    const aliases: unknown = JSON.parse(provider.modelAliasesJson || '{}');
+    if (!aliases || typeof aliases !== 'object' || Array.isArray(aliases)) return {};
+    return Object.fromEntries(
+      Object.entries(aliases).filter(([model, alias]) => model.trim() && typeof alias === 'string' && alias.trim()),
+    );
+  } catch {
+    return {};
+  }
+}
+
+export function displayModelName(providers: ApiProvider[], model: string, providerId?: number | null): string {
+  const provider = providerId == null
+    ? providers.find((candidate) => candidate.isEnabled && enabledModelIds(candidate).has(model))
+    : providers.find((candidate) => candidate.id === providerId && candidate.isEnabled && enabledModelIds(candidate).has(model));
+  return provider ? modelAliases(provider)[model]?.trim() || model : model;
 }
 
 export interface NpcCharacter {

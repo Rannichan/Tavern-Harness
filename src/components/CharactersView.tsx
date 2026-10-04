@@ -803,7 +803,7 @@ function SkillDetailModal({ tool, onClose }: { tool: McpTool; onClose: () => voi
       <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div className="field">
           <label>{t('workshop.skillName')}</label>
-          {editable ? <input className="input mono" value={name} onChange={(e) => setName(e.target.value)} /> : <div className="skill-detail-text mono">{name}</div>}
+          {editable ? <input className="input" value={name} onChange={(e) => setName(e.target.value)} /> : <div className="skill-detail-text">{name}</div>}
         </div>
         <div className="field">
           <label>{t('workshop.skillDescription')}</label>

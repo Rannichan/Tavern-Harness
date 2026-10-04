@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useStore } from '../store/store';
-import type { ChatMessage, ChatParticipant, ChatSession, ContextCompression, ToolCallRecord } from '../types/models';
+import { type ChatMessage, type ChatParticipant, type ChatSession, type ContextCompression, type ToolCallRecord, displayModelName } from '../types/models';
 import { Avatar, Icon, Markdown, Collapse, Modal, AttachCard } from './shared';
 import { FileDisplayViewButton, parseStoredDisplayRef } from './FileDisplayModal';
 import { formatMetrics } from '../core/stats';
@@ -235,6 +235,7 @@ function MessageBubble({
   suppressedResultIds: Set<string>;
 }) {
   const t = useT();
+  const providers = useStore((s) => s.providers);
   const turnStreaming = useStore((s) => s.streaming.sessionId === session.id);
   // System 消息（/new 标记）
   if (msg.role === 'system') {
@@ -336,7 +337,7 @@ function MessageBubble({
       <div className="msg-body">
         <div className="msg-head">
           <span className="msg-name">{speakerName}</span>
-          {msg.modelUsed && !msg.modelUsed.startsWith('scheduled:') && <span className="msg-model" title={msg.modelUsed}>{msg.modelUsed}</span>}
+          {msg.modelUsed && !msg.modelUsed.startsWith('scheduled:') && <span className="msg-model" title={msg.modelUsed}>{displayModelName(providers, msg.modelUsed)}</span>}
           <span className="msg-time">{fmtTime(msg.timestamp)}</span>
         </div>
         {msg.thinkingContent && streaming && (
@@ -617,7 +618,9 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
   const streaming = useStore((s) => s.streaming.sessionId != null);
   const stopStreaming = useStore((s) => s.stopStreaming);
   const session = useStore((s) => s.sessions.find((x) => x.id === sessionId));
+  const providers = useStore((s) => s.providers);
   const defaultModel = useStore((s) => s.settings?.defaultModel?.trim() || '');
+  const defaultProviderId = useStore((s) => s.settings?.defaultProviderId ?? null);
 
   const canSend = text.trim().length > 0 || attachments.length > 0;
 
@@ -810,7 +813,7 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
             disabled={streaming}
             onClick={() => setShowModels(!showModels)}
           >
-            <span className="composer-model-label">{defaultModel || t('chat.chooseModel')}</span>
+            <span className="composer-model-label" title={defaultModel}>{defaultModel ? displayModelName(providers, defaultModel, defaultProviderId) : t('chat.chooseModel')}</span>
           </button>
           {showModels && (
             <ModelPickerPanel onClose={() => setShowModels(false)} />
@@ -997,9 +1000,10 @@ function ModelPickerPanel({ onClose }: { onClose: () => void }) {
   }, [onClose]);
 
   const selected = settings?.defaultModel?.trim() || '';
+  const selectedProviderId = settings?.defaultProviderId ?? null;
 
-  const pick = async (m: string) => {
-    await selectModel(m);
+  const pick = async (option: (typeof models)[number]) => {
+    await selectModel(option);
     onClose();
   };
 
@@ -1015,16 +1019,19 @@ function ModelPickerPanel({ onClose }: { onClose: () => void }) {
         </div>
       ) : (
         <div className="model-popover-list">
-          {models.map((m) => (
-            <button
-              key={m}
-              className={`model-option ${m === selected ? 'active' : ''}`}
-              onClick={() => pick(m)}
-            >
-              <span className="model-option-dot">{m === selected ? '●' : '○'}</span>
-              <span className="model-option-name">{m}</span>
-            </button>
-          ))}
+          {models.map((option) => {
+            const active = option.providerId === selectedProviderId && option.modelId === selected;
+            return (
+              <button
+                key={`${option.providerId}:${option.modelId}`}
+                className={`model-option ${active ? 'active' : ''}`}
+                onClick={() => pick(option)}
+              >
+                <span className="model-option-dot">{active ? '●' : '○'}</span>
+                <span className="model-option-name" title={option.modelId}>{option.label}</span>
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
