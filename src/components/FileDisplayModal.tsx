@@ -93,6 +93,7 @@ export function FileDisplayModal() {
   const contentRef = useRef<string | null>(null);
   const htmlRevealGenerationRef = useRef(0);
   const htmlIframeRef = useRef<HTMLIFrameElement>(null);
+  const wasDisplayOpenRef = useRef(false);
   const pipGestureRef = useRef<
     | { type: 'move'; pointerX: number; pointerY: number; startX: number; startY: number }
     | { type: 'resize'; pointerX: number; pointerY: number; startWidth: number; startHeight: number }
@@ -142,6 +143,13 @@ export function FileDisplayModal() {
   }, [htmlPreview]);
 
   useLayoutEffect(() => {
+    if (!active) {
+      wasDisplayOpenRef.current = false;
+      return;
+    }
+
+    const isNewDisplay = !wasDisplayOpenRef.current;
+    wasDisplayOpenRef.current = true;
     setLoadState('loading');
     contentRef.current = null;
     setContent(null);
@@ -151,8 +159,10 @@ export function FileDisplayModal() {
     setHtmlZoom(1);
     hideHtml();
     setTextWrap(true);
-    setPipRect(createPipRect());
-    setIsPictureInPicture(active?.presentation !== 'modal');
+    if (isNewDisplay) {
+      setPipRect(createPipRect());
+      setIsPictureInPicture(active.presentation !== 'modal');
+    }
   }, [active]);
 
   useEffect(() => {
