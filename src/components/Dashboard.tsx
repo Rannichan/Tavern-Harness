@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createSession, useStore } from '../store/store';
 import { db } from '../db/database';
-import { Icon, SessionVisual } from './shared';
+import { Icon, MasonryGrid, SessionVisual } from './shared';
 import { NewSessionMenu } from './NewSessionMenu';
 import { useT, currentLocale } from '../core/i18n';
 import type { SessionMember } from './shared';
@@ -154,7 +154,7 @@ export function Dashboard() {
 
         <div>
           <span className="section-title">{t('dash.regulars')}</span>
-          <div className="char-grid">
+          <MasonryGrid>
             {npcs.map((n) => (
               <div key={n.id} className="char-card">
                 <div className="cname">
@@ -170,7 +170,7 @@ export function Dashboard() {
                 </div>
               </div>
             ))}
-          </div>
+          </MasonryGrid>
         </div>
       </div>
 

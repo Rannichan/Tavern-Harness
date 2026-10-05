@@ -19,7 +19,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { useStore } from '../store/store';
 import { db } from '../db/database';
 import type { NpcCharacter, WorldBook, McpTool } from '../types/models';
-import { Avatar, Icon, Markdown, Modal } from './shared';
+import { Avatar, Icon, MasonryGrid, Markdown, Modal } from './shared';
 import { DeleteConfirmDialog } from './DeleteConfirmDialog';
 import { parseSillyTavernCardFile, type ParsedSillyTavernCard } from '../core/sillyTavernImporter';
 import { ALL_BUILTIN_TOOL_NAMES } from '../core/toolDefinitions';
@@ -196,7 +196,7 @@ function CharacterGrid({ npcs, onEdit, onImportPng }: { npcs: NpcCharacter[]; on
           </button>
         </div>
       </div>
-      <div className="char-grid">
+      <MasonryGrid>
         {npcs.map((n) => (
           <div key={n.id} className="char-card fade-up">
             <div className="cname">
@@ -219,7 +219,7 @@ function CharacterGrid({ npcs, onEdit, onImportPng }: { npcs: NpcCharacter[]; on
             </div>
           </div>
         ))}
-      </div>
+      </MasonryGrid>
       {pendingDelete && (
         <DeleteConfirmDialog
           title={t('workshop.deleteCharTitle')}
@@ -449,7 +449,7 @@ function WorldBookList({ books, onChanged, onImportPng, importDraft, onImportDra
           {t('workshop.wbEmpty')}
         </div>
       )}
-      <div className="char-grid">
+      <MasonryGrid>
         {books.map((b) => (
           <div key={b.id} className="char-card wb-card fade-up">
             <div className="cname">
@@ -464,7 +464,7 @@ function WorldBookList({ books, onChanged, onImportPng, importDraft, onImportDra
             </div>
           </div>
         ))}
-      </div>
+      </MasonryGrid>
 
       {pendingDelete && (
         <DeleteConfirmDialog

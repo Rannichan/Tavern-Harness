@@ -24,6 +24,7 @@ import type {
 } from '../types/models';
 import { saveJsonFile, type SaveResult } from './fileDownload';
 import { ensureSessionWorkspaceDir } from './tools/generatedSkillExecutor';
+import { seedOpeningGreeting } from './openingGreeting';
 
 const GAMEPLAY_EXPORT_VERSION = 1;
 const GAMEPLAY_FORMAT = 'tavern-harness-gameplay';
@@ -396,15 +397,41 @@ export async function importGameplay(payload: unknown): Promise<ImportGameplayRe
 
   // 会话关联角色（NPC 模式）
   const npcParts = participants.filter((p) => p.kind === 'NPC');
+  const sessionMode = npcParts.length === 1 ? 'NPC' : 'GROUP';
   await db.sessions.update(sessionId, {
-    associatedId: npcParts.length === 1 ? npcParts[0].npcId : null,
-    mode: npcParts.length === 1 ? 'NPC' : 'GROUP',
+    associatedId: sessionMode === 'NPC' ? npcParts[0].npcId : null,
+    mode: sessionMode,
   });
+
+  // 导出文件未包含对话时，按新建对话的规则写入角色开场白。
+  let importedMessages = 0;
+  if (data.messages.length === 0 && src.enableGreeting !== false) {
+    const remappedQueue = (() => {
+      try {
+        const queue = JSON.parse(remapQueueJson(src.turnQueueJson || '[]', sourceNpcIdToNew));
+        return Array.isArray(queue) ? queue.map(Number) : [];
+      } catch {
+        return [];
+      }
+    })();
+    const greetingParticipant = sessionMode === 'NPC'
+      ? npcParts[0]
+      : npcParts.find((participant) => participant.participantId === remappedQueue[0]);
+    if (greetingParticipant?.npcId != null) {
+      const greetingNpc = await db.npcs.get(greetingParticipant.npcId);
+      if (greetingNpc) {
+        const preview = await seedOpeningGreeting(sessionId, greetingNpc, greetingParticipant.displayName || greetingNpc.name);
+        if (preview) {
+          await db.sessions.update(sessionId, { lastMessage: preview });
+          importedMessages = 1;
+        }
+      }
+    }
+  }
 
   // ---- 6. 消息（保留顺序与相对间隔，id 重建） ----
   // 注意：导出时已剔除性能/调试字段（tokens、latency、model、raw body、attachmentInfos），
   // 此处为所有非导出字段补齐默认值，兼容旧版导出文件。
-  let importedMessages = 0;
   if (data.messages.length > 0) {
     const sorted = [...data.messages].sort((a, b) => a.timestamp - b.timestamp);
     const firstTs = sorted[0]?.timestamp ?? Date.now();

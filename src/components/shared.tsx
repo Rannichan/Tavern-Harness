@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Children, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import DOMPurify from 'dompurify';
 import { renderMarkdown, highlightMentions } from '../core/markdown';
@@ -54,6 +54,87 @@ export function Markdown({ text, mathEnabled = true, mentionNames = [] }: MdProp
   }, [text, mathEnabled, mentionNames]);
 
   return <div className="md" dangerouslySetInnerHTML={{ __html: html }} />;
+}
+
+// ============================================================
+// 统一瀑布流（按当前最短列放置，避免浏览器多栏布局分配差异）
+// ============================================================
+
+function sameLayout(left: number[][], right: number[][]): boolean {
+  return left.length === right.length
+    && left.every((column, index) => column.length === right[index].length
+      && column.every((item, itemIndex) => item === right[index][itemIndex]));
+}
+
+export function MasonryGrid({ children }: { children: React.ReactNode }) {
+  const gridRef = useRef<HTMLDivElement>(null);
+  const items = Children.toArray(children);
+  const [columnCount, setColumnCount] = useState(1);
+  const [revision, setRevision] = useState(0);
+  const [layout, setLayout] = useState<number[][]>([]);
+
+  const updateColumnCount = useCallback(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    const styles = getComputedStyle(grid);
+    const minColumnWidth = Number.parseFloat(styles.getPropertyValue('--masonry-column-min-width'));
+    const gap = Number.parseFloat(styles.getPropertyValue('--masonry-gap'));
+    if (!Number.isFinite(minColumnWidth) || !Number.isFinite(gap)) return;
+    setColumnCount(Math.max(1, Math.floor((grid.clientWidth + gap) / (minColumnWidth + gap))));
+  }, []);
+
+  useLayoutEffect(() => {
+    updateColumnCount();
+    const grid = gridRef.current;
+    if (!grid) return;
+    const observer = new ResizeObserver(() => {
+      updateColumnCount();
+      setRevision((current) => current + 1);
+    });
+    observer.observe(grid);
+    return () => observer.disconnect();
+  }, [updateColumnCount]);
+
+  useLayoutEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    const gap = Number.parseFloat(getComputedStyle(grid).getPropertyValue('--masonry-gap'));
+    const heights = Array.from({ length: columnCount }, () => 0);
+    const nextLayout = Array.from({ length: columnCount }, () => [] as number[]);
+    for (const element of grid.querySelectorAll<HTMLElement>('.masonry-item')) {
+      const index = Number(element.dataset.index);
+      const targetColumn = heights.reduce((shortest, height, column) => height < heights[shortest] ? column : shortest, 0);
+      nextLayout[targetColumn].push(index);
+      heights[targetColumn] += element.offsetHeight + gap;
+    }
+    setLayout((current) => sameLayout(current, nextLayout) ? current : nextLayout);
+  }, [children, columnCount, revision]);
+
+  useLayoutEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    const observer = new ResizeObserver(() => setRevision((current) => current + 1));
+    for (const item of grid.querySelectorAll('.masonry-item')) observer.observe(item);
+    return () => observer.disconnect();
+  }, [layout]);
+
+  const visibleLayout = layout.flat().length === items.length
+    ? layout
+    : [items.map((_, index) => index)];
+
+  return (
+    <div ref={gridRef} className="char-grid">
+      {visibleLayout.map((column, index) => (
+        <div key={index} className="char-grid-column">
+          {column.map((itemIndex) => (
+            <div key={itemIndex} className="masonry-item" data-index={itemIndex}>
+              {items[itemIndex]}
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 // ============================================================

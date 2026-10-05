@@ -50,6 +50,7 @@ import { setLanguage, translate } from '../core/i18n';
 import { trimEdgeNewlines } from '../core/strings';
 import { localizeBuiltinNpc } from '../db/database';
 import { estimateTokensFromChars, accumulateStats, sessionPreviewText } from '../core/stats';
+import { seedOpeningGreeting } from '../core/openingGreeting';
 import { ACHIEVEMENTS, type AchievementDef } from '../core/achievements';
 
 // ============================================================
@@ -849,7 +850,7 @@ export const useStore = create<AppState>((set, get) => ({
     await db.messages.where('sessionId').equals(sessionId).delete();
     await db.contextCompressions.where('sessionId').equals(sessionId).delete();
     const greetingSpeakerId = pickGreetingSpeakerId(session.mode, session.associatedId, queue, session.enableGreeting !== false);
-    const lastMessage = await seedOpeningGreeting(sessionId, greetingSpeakerId);
+    const lastMessage = await seedOpeningGreetingForSpeaker(sessionId, greetingSpeakerId);
     await db.sessions.update(sessionId, {
       turnQueueJson: queueJson(session.mode === 'GROUP' && greetingSpeakerId != null ? completeTurn(queue, greetingSpeakerId, []) : queue),
       turnQueueHistoryJson: queueHistoryJson([queue]),
@@ -1066,7 +1067,7 @@ export async function createSession(
 
   const enableGreeting = opts?.enableGreeting !== false;
   const greetingSpeakerId = pickGreetingSpeakerId(mode, mode === 'NPC' ? (requestedNpcIds[0] ?? null) : null, queue, enableGreeting);
-  const greetingPreview = await seedOpeningGreeting(id, greetingSpeakerId);
+  const greetingPreview = await seedOpeningGreetingForSpeaker(id, greetingSpeakerId);
   if (greetingPreview) {
     const patch: Partial<ChatSession> = { lastMessage: greetingPreview };
     if (mode === 'GROUP' && greetingSpeakerId != null) {
@@ -1126,40 +1127,13 @@ async function buildSessionParticipants(sessionId: number, npcIds: number[], par
     .filter(Boolean) as ChatParticipant[];
 }
 
-async function seedOpeningGreeting(
+async function seedOpeningGreetingForSpeaker(
   sessionId: number,
-  greetingSpeakerId: number | null
+  greetingSpeakerId: number | null,
 ): Promise<string> {
   if (greetingSpeakerId == null) return '';
   const npc = await db.npcs.get(greetingSpeakerId);
-  if (!npc) return '';
-  const all = [npc.greeting, ...(npc.alternateGreetings ?? [])].filter(Boolean);
-  const greeting = all.length > 0 ? all[Math.floor(Math.random() * all.length)] : '';
-  if (!greeting) return '';
-  await db.messages.add({
-    sessionId,
-    role: 'assistant',
-    speakerParticipantId: greetingSpeakerId,
-    speakerName: npc.name,
-    content: greeting,
-    toolCallsJson: '[]',
-    toolCallId: null,
-    thinkingContent: null,
-    loopIndex: 0,
-    timestamp: Date.now(),
-    latencyMs: null,
-    promptTokens: 0,
-    completionTokens: 0,
-    totalTokens: 0,
-    tokensPerSec: null,
-    modelUsed: null,
-    attachments: [],
-    attachmentInfos: [],
-    displayRef: null,
-    rawRequestBody: null,
-    rawResponseBody: null,
-  });
-  return sessionPreviewText(greeting);
+  return npc ? seedOpeningGreeting(sessionId, npc) : '';
 }
 
 function pickGreetingSpeakerId(

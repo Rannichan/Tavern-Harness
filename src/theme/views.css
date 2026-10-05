@@ -171,6 +171,9 @@
   padding: 22px 28px;
 }
 .workshop-page {
+  /* Safari 尚未稳定支持 scrollbar-gutter；始终保留纵向滚动条槽，
+     防止切换内容高度不同的 Tab 时居中的标题和导航横向跳动。 */
+  overflow-y: scroll;
   scrollbar-gutter: stable;
 }
 .view-col {
@@ -195,8 +198,21 @@
 
 /* ---------- 卡片多列瀑布流（角色） ---------- */
 .char-grid {
-  columns: 190px; /* 每列最小宽度，自适应列数；190px 使 4 列只需 802px 宽，桌面下更稳定 */
-  column-gap: 14px;
+  --masonry-column-min-width: 190px;
+  --masonry-gap: 14px;
+  display: flex;
+  gap: var(--masonry-gap);
+  align-items: flex-start;
+}
+.char-grid-column {
+  flex: 1 1 var(--masonry-column-min-width);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--masonry-gap);
+}
+.masonry-item {
+  min-width: 0;
 }
 .char-card {
   border: 1px solid var(--border);
@@ -204,12 +220,12 @@
   background: var(--surface);
   padding: 16px;
   display: flex;
+  width: 100%;
+  box-sizing: border-box;
   flex-direction: column;
   gap: 10px;
   transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
   position: relative;
-  break-inside: avoid; /* 卡片不被拆分到两列 */
-  margin-bottom: 14px; /* 列内纵向间距（column-gap 只管横向） */
 }
 .char-card:hover {
   z-index: 1;
