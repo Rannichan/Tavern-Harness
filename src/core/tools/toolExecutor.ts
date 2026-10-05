@@ -8,6 +8,7 @@ import type {
   ToolConfirmationRequest,
 } from '../../types/models';
 import { BUILTIN_TOOL_NAMES } from '../toolDefinitions';
+import { translate } from '../i18n';
 import { rollDice } from './builtinTools';
 import {
   createSessionWorkspaceDir,
@@ -297,7 +298,7 @@ async function handleFileDisplay(args: Record<string, unknown>, ctx: ToolExecuti
     const payload: DisplayPayload = { path: rawPath, kind, title };
     // 第一行携带展示引用（store 解析并写入 displayRef / 自动弹窗）。
     // 不做内容摘要：完整内容在展示弹窗里，模型如需阅读应改用 file_read。
-    return `${DISPLAY_REF_PREFIX}${JSON.stringify(payload)}\nOK: 已在弹窗中展示 ${rawPath}（kind=${kind}）`;
+    return `${DISPLAY_REF_PREFIX}${JSON.stringify(payload)}\n${translate('tool.fileDisplaySuccess', { path: rawPath, kind })}`;
   } catch (e) {
     return `ERROR: ${(e as Error).message}`;
   }
@@ -356,7 +357,7 @@ async function handleFileEdit(args: Record<string, unknown>, ctx: ToolExecutionC
       content.split(oldText).join(newText),
       workspaceDir,
     );
-    return `OK: 已编辑 ${path}，替换 ${matches} 处`;
+    return translate('tool.fileEditSuccess', { path, count: matches });
   } catch (e) {
     return `ERROR: ${(e as Error).message}`;
   }
@@ -408,7 +409,7 @@ async function handleCreateSkill(args: Record<string, unknown>): Promise<string>
   if (exists) return `ERROR: Skill ${name} already exists`;
   const tool = await createSkillTool(name, String(args.description ?? ''), (args.parameters as Record<string, unknown>) ?? {}, args.execution);
   await db.tools.add(tool);
-  return `OK: 已创建技能 ${name}。注意：新技能默认未对任何角色启用，可用 update_character 的 enable_skills 启用。`;
+  return translate('tool.skillCreated', { name });
 }
 
 async function handleUpdateSkill(args: Record<string, unknown>): Promise<string> {
@@ -446,7 +447,7 @@ async function handleUpdateSkill(args: Record<string, unknown>): Promise<string>
       }
     }
   }
-  return `OK: 已更新技能 ${name}`;
+  return translate('tool.skillUpdated', { name });
 }
 
 async function handleDeleteSkill(args: Record<string, unknown>): Promise<string> {
@@ -462,7 +463,7 @@ async function handleDeleteSkill(args: Record<string, unknown>): Promise<string>
       await db.npcs.update(n.id!, { enabledToolNames: n.enabledToolNames.filter((t) => t !== name) });
     }
   }
-  return `OK: 已删除技能 ${name}`;
+  return translate('tool.skillDeleted', { name });
 }
 
 // ---------- 角色 CRUD ----------
@@ -492,7 +493,7 @@ async function handleCreateCharacter(args: Record<string, unknown>): Promise<str
     isBuiltIn: false,
     createdAt: Date.now(),
   });
-  return `OK: 已创建角色 ${name}`;
+  return translate('tool.characterCreated', { name });
 }
 
 async function handleUpdateCharacter(args: Record<string, unknown>): Promise<string> {
@@ -532,7 +533,7 @@ async function handleUpdateCharacter(args: Record<string, unknown>): Promise<str
     updates.enabledToolNames = [...enabled];
   }
   if (Object.keys(updates).length > 0) await db.npcs.update(npc.id!, updates);
-  return `OK: 已更新角色 ${name}`;
+  return translate('tool.characterUpdated', { name });
 }
 
 async function handleDeleteCharacter(args: Record<string, unknown>): Promise<string> {
@@ -547,7 +548,7 @@ async function handleDeleteCharacter(args: Record<string, unknown>): Promise<str
     await db.sessions.update(s.id!, { associatedId: null });
     await db.participants.where('[sessionId+participantId]').equals([s.id!, npc.id!]).delete();
   }
-  return `OK: 已删除角色 ${name}`;
+  return translate('tool.characterDeleted', { name });
 }
 
 async function handleCreateConversation(args: Record<string, unknown>): Promise<string> {
@@ -635,7 +636,7 @@ async function handleCreateLorebook(args: Record<string, unknown>): Promise<stri
   if (!name || !content) return 'ERROR: name and content are required';
   if (await db.worldBooks.where('name').equals(name).first()) return `ERROR: Lorebook ${name} already exists`;
   await db.worldBooks.add({ name, content: content.slice(0, 10_000), imageUri: null, createdAt: Date.now() });
-  return `OK: 已创建世界书 ${name}`;
+  return translate('tool.lorebookCreated', { name });
 }
 
 async function handleUpdateLorebook(args: Record<string, unknown>): Promise<string> {
@@ -649,7 +650,7 @@ async function handleUpdateLorebook(args: Record<string, unknown>): Promise<stri
   }
   if (args.content != null) updates.content = String(args.content).slice(0, 10_000);
   await db.worldBooks.update(book.id!, updates);
-  return `OK: 已更新世界书 ${name}`;
+  return translate('tool.lorebookUpdated', { name });
 }
 
 async function handleDeleteLorebook(args: Record<string, unknown>): Promise<string> {
@@ -662,7 +663,7 @@ async function handleDeleteLorebook(args: Record<string, unknown>): Promise<stri
   for (const s of sessions) {
     if (s.worldBookId === book.id) await db.sessions.update(s.id!, { worldBookId: null });
   }
-  return `OK: 已删除世界书 ${name}`;
+  return translate('tool.lorebookDeleted', { name });
 }
 
 // ---------- 工具列举 ----------

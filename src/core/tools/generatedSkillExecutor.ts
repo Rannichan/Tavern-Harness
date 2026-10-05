@@ -398,7 +398,7 @@ async function diskFileWrite(
     });
     const data = (await resp.json()) as { ok?: boolean; message?: string };
     if (!resp.ok || !data.ok) throw new Error(data?.message || `HTTP ${resp.status}`);
-    return `OK: 已写入 ${path} (${content.length} 字符)`;
+    return translate('tool.fileWriteSuccess', { path, count: content.length });
   } catch (e) {
     throw new Error(`Failed to write to disk: ${(e as Error).message}`);
   }
