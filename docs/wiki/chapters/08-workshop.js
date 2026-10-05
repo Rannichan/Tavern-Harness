@@ -11,13 +11,14 @@ window.WIKI.chapters.push({
     <ul class="plain">
       <li><b>可编辑字段</b>：头像、角色名称、人设 Prompt、开场白 Greeting、启用技能。</li>
       <li><b>多开场白</b>：「添加开场白」可建备用版本，<span class="mono">每次新对话随机选择一条</span>。</li>
-      <li><b>内置角色</b>「酒馆老板」默认启用全部内置技能、<span class="mono">受保护不可删除</span>。</li>
+      <li><b>内置角色</b>「酒馆老板」默认置顶、启用全部内置技能；名称不可编辑且受保护不可删除。编辑页可「恢复默认」人设、开场白和装备技能。</li>
       <li>技能默认对新角色<b>未启用</b>——去编辑角色的「启用技能」里勾选生效。</li>
     </ul>
 
     <h3>📖 世界书</h3>
     <ul class="plain">
-      <li>可编辑字段：<code>世界书名</code> + <code>世界书内容</code>，支持 Markdown 渲染预览。</li>
+      <li>内置世界书「酒馆经营手册（精华版）」默认置顶：<b>名称不可编辑或删除</b>，内容可编辑，并可随时「恢复默认」。开发者可在 <code>src/assets/tavern-handbook.md</code> 直接维护默认文案。</li>
+      <li>其他世界书可编辑字段：<code>世界书名</code> + <code>世界书内容</code>；全部支持 Markdown 渲染预览。</li>
       <li>内容会在系统提示词中以 <code>=== 世界书 ===</code> 分节附加在人设后，可<b>按会话绑定</b>。</li>
       <li>SillyTavern PNG 角色卡内嵌世界书导入时会自动解析为条目文本。</li>
     </ul>

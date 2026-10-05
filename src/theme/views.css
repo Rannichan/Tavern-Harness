@@ -246,11 +246,8 @@
 .char-card .cname .cname-text {
   min-width: 0;
   flex: 1 1 auto;
-  /* 名称完整显示，允许换行，长词强制断行 */
-  white-space: normal;
-  overflow-wrap: break-word;
-  word-break: break-word;
-  line-height: 1.35;
+  overflow: hidden;
+  white-space: nowrap;
 }
 .char-card .cname .tag {
   flex-shrink: 0;
@@ -294,10 +291,29 @@
 .wb-card .cname .cname-text {
   min-width: 0;
   flex: 1 1 auto;
-  white-space: normal;
-  overflow-wrap: break-word;
-  word-break: break-word;
-  line-height: 1.35;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.card-name-scroll {
+  display: block;
+}
+.card-name-scroll-text {
+  display: inline-block;
+}
+.card-name-scroll.is-overflowing .card-name-scroll-text {
+  animation: card-name-marquee 8s linear infinite;
+}
+.card-name-scroll-copy {
+  margin-left: 2.5rem;
+}
+@keyframes card-name-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(calc(-100% - 1.25rem)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card-name-scroll.is-overflowing .card-name-scroll-text {
+    animation: none;
+  }
 }
 .wb-card .cname .tag {
   flex-shrink: 0;

@@ -16,6 +16,7 @@ import type {
 } from '../types/models';
 import { BUILTIN_TOOLS, ALL_BUILTIN_TOOL_NAMES } from '../core/toolDefinitions';
 import { currentLanguage, translate } from '../core/i18n';
+import BUILTIN_TAVERN_HANDBOOK_CONTENT from '../assets/tavern-handbook.md?raw';
 
 export class TavernDB extends Dexie {
   settings!: Table<AppSettings, number>;
@@ -150,6 +151,34 @@ export class TavernDB extends Dexie {
       careerNpcStats: 'npcId',
       achievementUnlocks: '++id, achievementId, unlockedAt',
     });
+    this.version(9).stores({
+      settings: 'id',
+      providers: '++id, name, isEnabled',
+      npcs: '++id, name, isBuiltIn',
+      sessions: '++id, mode, updatedAt, associatedId, pinned, workspaceDir',
+      participants: '[sessionId+participantId], sessionId, participantId',
+      messages: '++id, [sessionId+timestamp], sessionId, timestamp',
+      contextCompressions: '++id, sessionId, endMessageId, createdAt',
+      tools: '++id, name, isBuiltIn',
+      worldBooks: '++id, name, isBuiltIn',
+      careerStats: 'id',
+      careerNpcStats: 'npcId',
+      achievementUnlocks: '++id, achievementId, unlockedAt',
+    });
+    this.version(10).stores({
+      settings: 'id',
+      providers: '++id, name, isEnabled',
+      npcs: '++id, name, isBuiltIn, isTavernKeeper',
+      sessions: '++id, mode, updatedAt, associatedId, pinned, workspaceDir',
+      participants: '[sessionId+participantId], sessionId, participantId',
+      messages: '++id, [sessionId+timestamp], sessionId, timestamp',
+      contextCompressions: '++id, sessionId, endMessageId, createdAt',
+      tools: '++id, name, isBuiltIn',
+      worldBooks: '++id, name, isBuiltIn',
+      careerStats: 'id',
+      careerNpcStats: 'npcId',
+      achievementUnlocks: '++id, achievementId, unlockedAt',
+    });
   }
 
   /** 打开数据库后立即执行：把 pinned 字段归一化为 0/1（旧记录为 undefined） */
@@ -168,6 +197,20 @@ export class TavernDB extends Dexie {
 }
 
 export const db = new TavernDB();
+
+export { BUILTIN_TAVERN_HANDBOOK_CONTENT };
+
+export function builtinTavernHandbookName(): string {
+  return translate('builtinWorldbook.name');
+}
+
+export function isBuiltinTavernHandbook(book: Pick<WorldBook, 'name' | 'isBuiltIn'>): boolean {
+  return book.isBuiltIn === true;
+}
+
+export function isTavernKeeper(npc: Pick<NpcCharacter, 'isTavernKeeper'>): boolean {
+  return npc.isTavernKeeper === true;
+}
 
 const DEFAULT_SETTINGS: AppSettings = {
   id: 1,
@@ -210,6 +253,7 @@ const DEFAULT_NPC: NpcCharacter = {
   avatarDataUrl: null,
   enabledToolNames: [...ALL_BUILTIN_TOOL_NAMES],
   isBuiltIn: true,
+  isTavernKeeper: true,
   createdAt: Date.now(),
 };
 
@@ -233,10 +277,15 @@ export async function initDatabase(): Promise<void> {
     await db.npcs.add(DEFAULT_NPC);
   }
 
-  // 确保默认 NPC 是内置且受保护的
-  const boss = await db.npcs.filter((n) => n.isBuiltIn).first();
-  if (boss && !boss.isBuiltIn) {
-    await db.npcs.update(boss.id!, { isBuiltIn: true });
+  // 为旧数据中的唯一内置角色补充酒馆老板标识；多个内置角色时不猜测其身份。
+  const tavernKeeper = await db.npcs.filter(isTavernKeeper).first();
+  if (tavernKeeper && !tavernKeeper.isBuiltIn) {
+    await db.npcs.update(tavernKeeper.id!, { isBuiltIn: true });
+  } else if (!tavernKeeper) {
+    const builtinNpcs = await db.npcs.filter((n) => n.isBuiltIn).toArray();
+    if (builtinNpcs.length === 1) {
+      await db.npcs.update(builtinNpcs[0].id!, { isTavernKeeper: true });
+    }
   }
   // 内置技能改名迁移：display_file → file_display（须在 seedBuiltinTools 之前，
   // 否则种子先写入 file_display、迁移再把旧 display_file 改同名，会产生重复记录）
@@ -252,6 +301,8 @@ export async function initDatabase(): Promise<void> {
   await backfillToolOrigins();
   // 内置角色「酒馆老板」默认启用所有内置技能（老数据升级）
   await ensureBossDefaultSkills();
+  // 内置世界书始终存在，名称随当前界面语言本地化，内容可由用户编辑。
+  await localizeBuiltinTavernHandbook();
   // v2 升级：把存量会话的 pinned 归一化为 0/1
   await db.normalizePinned();
 }
@@ -263,7 +314,7 @@ export async function initDatabase(): Promise<void> {
  * 用户手动编辑过的内容不会被覆盖。
  */
 export async function localizeBuiltinNpc(): Promise<void> {
-  const boss = await db.npcs.filter((n) => n.isBuiltIn).first();
+  const boss = await db.npcs.filter(isTavernKeeper).first();
   if (!boss) return;
 
   const lang = currentLanguage();
@@ -328,6 +379,23 @@ export async function localizeBuiltinNpc(): Promise<void> {
   if (prevLang !== lang) {
     localStorage.setItem(LOCALIZE_LANG_KEY, lang);
   }
+}
+
+/** 内置世界书：识别任意已知语言名称，避免升级或语言切换时创建重复条目。 */
+export async function localizeBuiltinTavernHandbook(): Promise<void> {
+  const book = await db.worldBooks.filter(isBuiltinTavernHandbook).first();
+  const name = builtinTavernHandbookName();
+  if (book) {
+    if (!book.isBuiltIn || book.name !== name) await db.worldBooks.update(book.id!, { isBuiltIn: true, name });
+    return;
+  }
+  await db.worldBooks.add({
+    name,
+    content: BUILTIN_TAVERN_HANDBOOK_CONTENT,
+    imageUri: null,
+    isBuiltIn: true,
+    createdAt: Date.now(),
+  });
 }
 
 /** 内置角色本地化标记：记录上次写入内置角色文本时使用的语言 */
@@ -449,7 +517,7 @@ async function seedBuiltinTools(): Promise<void> {
 
 /** 内置角色「酒馆老板」默认启用全部内置技能（老数据只启用了 roll_dice 等） */
 async function ensureBossDefaultSkills(): Promise<void> {
-  const boss = await db.npcs.filter((n) => n.isBuiltIn).first();
+  const boss = await db.npcs.filter(isTavernKeeper).first();
   if (!boss) return;
   const enabled = new Set(Array.isArray(boss.enabledToolNames) ? boss.enabledToolNames : []);
   let changed = false;

@@ -17,7 +17,12 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useStore } from '../store/store';
-import { db } from '../db/database';
+import {
+  BUILTIN_TAVERN_HANDBOOK_CONTENT,
+  builtinTavernHandbookName,
+  db,
+  isBuiltinTavernHandbook,
+} from '../db/database';
 import type { NpcCharacter, WorldBook, McpTool } from '../types/models';
 import { Avatar, Icon, MasonryGrid, Markdown, Modal } from './shared';
 import { DeleteConfirmDialog } from './DeleteConfirmDialog';
@@ -201,7 +206,7 @@ function CharacterGrid({ npcs, onEdit, onImportPng }: { npcs: NpcCharacter[]; on
           <div key={n.id} className="char-card fade-up">
             <div className="cname">
               <Avatar name={n.name} colorOrdinal={n.avatarColorOrdinal} imageUrl={n.avatarDataUrl} size="xs" />
-              <span className="cname-text">{n.name}</span>
+              <ScrollingCardName name={n.name} />
               {n.isBuiltIn && <span className="tag">{t('common.builtin')}</span>}
             </div>
             <div className="cgreet">{n.greeting || t('workshop.noGreeting')}</div>
@@ -256,6 +261,13 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
     setTools(storeTools);
   }, [storeTools]);
 
+  const resetToDefault = () => {
+    setName(npc.name);
+    setPrompt(t('builtinNpc.prompt'));
+    setGreetings([t('builtinNpc.greeting')]);
+    setEnabledToolNames([...ALL_DEFAULT_SKILLS]);
+  };
+
   const save = async () => {
     if (!name.trim()) {
       addToast(t('toast.nameRequired'), 'error');
@@ -264,7 +276,7 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
     // 清理空白/重复项：第一项作为主开场白，其余作为备用
     const cleaned = greetings.map((g) => g.trim()).filter((g, i, arr) => g && arr.indexOf(g) === i);
     const npcData = {
-      name: name.trim(),
+      name: npc.isBuiltIn ? npc.name : name.trim(),
       prompt,
       greeting: cleaned[0] ?? '',
       alternateGreetings: cleaned.slice(1),
@@ -318,7 +330,9 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
             </div>
             <div className="field">
               <label>{t('workshop.name')}</label>
-              <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('workshop.charNamePh')} />
+              {npc.isBuiltIn
+                ? <div className="skill-detail-text">{name}</div>
+                : <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('workshop.charNamePh')} />}
             </div>
             <div className="field prompt-field">
               <label>{t('workshop.promptLabel')}</label>
@@ -368,6 +382,11 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
             </div>
           </div>
           <div className="modal-foot">
+            {npc.isBuiltIn && (
+              <button className="btn" type="button" onClick={resetToDefault} title={t('workshop.resetCharTip')}>
+                <Icon name="refresh" size={12} /> {t('workshop.resetChar')}
+              </button>
+            )}
             <button className="btn" onClick={onClose}>{t('common.cancel')}</button>
             <button className="btn btn-primary" onClick={save}>{t('common.save')}</button>
           </div>
@@ -425,6 +444,7 @@ function WorldBookList({ books, onChanged, onImportPng, importDraft, onImportDra
   };
 
   const deleteWb = async (b: WorldBook) => {
+    if (isBuiltinTavernHandbook(b)) return;
     await db.worldBooks.delete(b.id!);
     addToast(t('toast.wbDeleted'));
     onChanged();
@@ -450,20 +470,31 @@ function WorldBookList({ books, onChanged, onImportPng, importDraft, onImportDra
         </div>
       )}
       <MasonryGrid>
-        {books.map((b) => (
-          <div key={b.id} className="char-card wb-card fade-up">
-            <div className="cname">
-              <span style={{ fontSize: 16 }}>📖</span>
-              <span className="cname-text">{b.name}</span>
+        {books.map((b) => {
+          const isBuiltin = isBuiltinTavernHandbook(b);
+          return (
+            <div key={b.id} className="char-card wb-card fade-up">
+              <div className="cname">
+                <span style={{ fontSize: 16 }}>📖</span>
+                <ScrollingCardName name={b.name} />
+                {isBuiltin && <span className="tag">{t('common.builtin')}</span>}
+              </div>
+              <div className="wcontent">{b.content}</div>
+              <div className="cmeta">{t('workshop.wbChars', { n: b.content.length })}</div>
+              <div className="cactions">
+                <button className="btn btn-sm" onClick={() => setEditing(b)}><Icon name="settings" size={12} /> {t('workshop.browseEdit')}</button>
+                <button
+                  className="btn btn-sm btn-danger"
+                  onClick={() => setPendingDelete(b)}
+                  disabled={isBuiltin}
+                  title={isBuiltin ? t('workshop.protectedTip') : t('common.delete')}
+                >
+                  <Icon name="trash" size={12} />
+                </button>
+              </div>
             </div>
-            <div className="wcontent">{b.content}</div>
-            <div className="cmeta">{t('workshop.wbChars', { n: b.content.length })}</div>
-            <div className="cactions">
-              <button className="btn btn-sm" onClick={() => setEditing(b)}><Icon name="settings" size={12} /> {t('workshop.browseEdit')}</button>
-              <button className="btn btn-sm btn-danger" onClick={() => setPendingDelete(b)}><Icon name="trash" size={12} /></button>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </MasonryGrid>
 
       {pendingDelete && (
@@ -492,17 +523,53 @@ function WorldBookList({ books, onChanged, onImportPng, importDraft, onImportDra
   );
 }
 
+function ScrollingCardName({ name }: { name: string }) {
+  const containerRef = useRef<HTMLSpanElement>(null);
+  const textRef = useRef<HTMLSpanElement>(null);
+  const [overflowing, setOverflowing] = useState(false);
+
+  useEffect(() => {
+    const updateOverflow = () => {
+      setOverflowing((textRef.current?.scrollWidth ?? 0) > (containerRef.current?.clientWidth ?? 0));
+    };
+    updateOverflow();
+    const observer = new ResizeObserver(updateOverflow);
+    if (containerRef.current) observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, [name]);
+
+  return (
+    <span ref={containerRef} className={`cname-text card-name-scroll${overflowing ? ' is-overflowing' : ''}`}>
+      <span ref={textRef} className="card-name-scroll-text">{name}</span>
+      {overflowing && <span className="card-name-scroll-text card-name-scroll-copy" aria-hidden="true">{name}</span>}
+    </span>
+  );
+}
+
 function WorldBookForm({ initial, onSave, onCancel }: { initial: WorldBook | { name: string; content: string; imageUri: null; createdAt: number }; onSave: (n: string, c: string) => void; onCancel: () => void }) {
   const t = useT();
   const [name, setName] = useState(initial.name);
   const [content, setContent] = useState(initial.content);
   const [renderMarkdown, setRenderMarkdown] = useState(false);
+  const isBuiltin = isBuiltinTavernHandbook(initial);
+
+  const resetToDefault = () => {
+    setName(builtinTavernHandbookName());
+    setContent(BUILTIN_TAVERN_HANDBOOK_CONTENT);
+  };
   return (
     <>
       <div className="modal-body">
         <div className="field">
           <label>{t('workshop.wbName')}</label>
-          <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('workshop.wbNamePh')} />
+          {isBuiltinTavernHandbook(initial)
+            ? <div className="skill-detail-text">{name}</div>
+            : <input
+                className="input"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder={t('workshop.wbNamePh')}
+              />}
         </div>
         <div className="field" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
@@ -525,6 +592,11 @@ function WorldBookForm({ initial, onSave, onCancel }: { initial: WorldBook | { n
         </div>
       </div>
       <div className="modal-foot">
+        {isBuiltin && (
+          <button className="btn" type="button" onClick={resetToDefault} title={t('workshop.resetWbTip')}>
+            <Icon name="refresh" size={12} /> {t('workshop.resetWb')}
+          </button>
+        )}
         <button className="btn" onClick={onCancel}>{t('common.cancel')}</button>
         <button className="btn btn-primary" onClick={() => onSave(name, content)}>{t('common.save')}</button>
       </div>

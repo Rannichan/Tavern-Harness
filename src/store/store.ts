@@ -48,7 +48,12 @@ import { ensureSessionWorkspaceDir, deleteSessionWorkspace } from '../core/tools
 import { applyTheme as applyThemeManual, cacheThemeMode, watchSystemTheme } from '../theme/theme';
 import { setLanguage, translate } from '../core/i18n';
 import { trimEdgeNewlines } from '../core/strings';
-import { localizeBuiltinNpc } from '../db/database';
+import {
+  isBuiltinTavernHandbook,
+  isTavernKeeper,
+  localizeBuiltinNpc,
+  localizeBuiltinTavernHandbook,
+} from '../db/database';
 import { estimateTokensFromChars, accumulateStats, sessionPreviewText } from '../core/stats';
 import { seedOpeningGreeting } from '../core/openingGreeting';
 import { ACHIEVEMENTS, type AchievementDef } from '../core/achievements';
@@ -219,6 +224,14 @@ function sortSessionsPinnedFirst(sessions: ChatSession[]): ChatSession[] {
   return [...pinned, ...rest];
 }
 
+function sortWorldBooks(worldBooks: WorldBook[]): WorldBook[] {
+  return [...worldBooks].sort((a, b) => Number(Boolean(b.isBuiltIn)) - Number(Boolean(a.isBuiltIn)) || a.createdAt - b.createdAt);
+}
+
+function sortNpcs(npcs: NpcCharacter[]): NpcCharacter[] {
+  return [...npcs].sort((a, b) => Number(b.isBuiltIn) - Number(a.isBuiltIn) || a.createdAt - b.createdAt);
+}
+
 /** 单回合生成结果：ok 成功 / failed 失败（应回退） / stopped 用户主动停止（不回退） */
 type TurnResult = 'ok' | 'failed' | 'stopped';
 
@@ -255,11 +268,12 @@ export const useStore = create<AppState>((set, get) => ({
     initLock = (async () => {
       const settings = (await db.settings.get(1))!;
       setLanguage(settings.language ?? null);
-      // 内置角色「酒馆老板」按当前语言本地化（未编辑过的字段才会更新）
+      // 内置角色与世界书按当前语言本地化。
       await localizeBuiltinNpc();
-      const npcs = await db.npcs.toArray();
+      await localizeBuiltinTavernHandbook();
+      const npcs = sortNpcs(await db.npcs.toArray());
       const sessions = sortSessionsPinnedFirst(await db.sessions.toArray());
-      const worldBooks = await db.worldBooks.toArray();
+      const worldBooks = sortWorldBooks(await db.worldBooks.toArray());
       const tools = [...(await db.tools.toArray())].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
       set({ initialized: true, settings, npcs, sessions, worldBooks, tools });
       await get().refreshProviders();
@@ -285,9 +299,11 @@ export const useStore = create<AppState>((set, get) => ({
     set({ settings: next });
     if (partial.language !== undefined) {
       setLanguage(next.language ?? null);
-      // 切换语言后：内置角色文本 / 相关会话元数据一并本地化并刷新
+      // 切换语言后：内置角色与世界书文本一并本地化并刷新。
       await localizeBuiltinNpc();
+      await localizeBuiltinTavernHandbook();
       await get().refreshNpcs();
+      await get().refreshWorldBooks();
       await get().refreshSessions();
       await get().refreshParticipants();
     }
@@ -326,11 +342,11 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   refreshNpcs: async () => {
-    set({ npcs: await db.npcs.toArray() });
+    set({ npcs: sortNpcs(await db.npcs.toArray()) });
   },
 
   refreshWorldBooks: async () => {
-    set({ worldBooks: await db.worldBooks.toArray() });
+    set({ worldBooks: sortWorldBooks(await db.worldBooks.toArray()) });
   },
 
   refreshTools: async () => {
@@ -976,13 +992,21 @@ export async function createSession(
    ? (opts?.associatedId != null ? [opts.associatedId] : [])
    : [...new Set((opts?.npcIds ?? []).filter((id) => Number.isFinite(id)).map(Number))].slice(0, 5);
  const now = Date.now();
+ const npcId = mode === 'NPC' ? (requestedNpcIds[0] ?? null) : null;
+ const npc = npcId != null ? await db.npcs.get(npcId) : null;
+ let worldBookId = opts?.worldBookId ?? null;
+ // 默认将内置经营手册附加到酒馆老板的单聊；保留显式指定的世界书。
+ if (worldBookId == null && npc && isTavernKeeper(npc)) {
+   const handbook = await db.worldBooks.filter(isBuiltinTavernHandbook).first();
+   if (handbook?.id != null) worldBookId = handbook.id;
+ }
  // 会话专属工作目录：先写入会话拿自增 id，再用 id 生成目录并回填。
  // 该会话的所有工具调用（shell / 文件读写 / 脚本执行等）都在此目录下进行，会话间互相隔离。
  const id = await db.sessions.add({
    title,
    mode,
-   associatedId: mode === 'NPC' ? (requestedNpcIds[0] ?? null) : null,
-   worldBookId: opts?.worldBookId ?? null,
+   associatedId: npcId,
+   worldBookId,
    userPersonaNpcId: opts?.userPersonaNpcId ?? null,
    enableGreeting: opts?.enableGreeting !== false,
    turnOrderMode,

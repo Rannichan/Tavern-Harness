@@ -119,6 +119,8 @@ export interface NpcCharacter {
   avatarDataUrl?: string | null;
   enabledToolNames: string[]; // CSV in DB; array in memory
   isBuiltIn: boolean;
+  /** 标识默认内置角色「酒馆老板」，与其他内置角色区分。 */
+  isTavernKeeper?: boolean;
   createdAt: number;
 }
 
@@ -255,6 +257,8 @@ export interface WorldBook {
   name: string;
   content: string;
   imageUri: string | null;
+  /** 内置世界书的名称受保护，但内容允许编辑和重置。 */
+  isBuiltIn?: boolean;
   createdAt: number;
 }
 

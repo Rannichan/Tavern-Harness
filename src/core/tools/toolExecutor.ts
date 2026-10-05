@@ -1,4 +1,4 @@
-import { db } from '../../db/database';
+import { builtinTavernHandbookName, db, isBuiltinTavernHandbook } from '../../db/database';
 import { createSession } from '../../store/store';
 import type {
   ChatCompletionTool,
@@ -500,6 +500,7 @@ async function handleUpdateCharacter(args: Record<string, unknown>): Promise<str
   if (!npc) return `ERROR: Character ${name} does not exist`;
   const updates: Partial<import('../../types/models').NpcCharacter> = {};
   if (args.new_name) {
+    if (npc.isBuiltIn) return `ERROR: Built-in character ${name} cannot be renamed`;
     const n = String(args.new_name);
     if (await db.npcs.where('name').equals(n).first()) return `ERROR: Character ${n} already exists`;
     updates.name = n;
@@ -641,7 +642,10 @@ async function handleUpdateLorebook(args: Record<string, unknown>): Promise<stri
   const book = await db.worldBooks.where('name').equals(name).first();
   if (!book) return `ERROR: Lorebook ${name} does not exist`;
   const updates: Partial<import('../../types/models').WorldBook> = {};
-  if (args.new_name) updates.name = String(args.new_name).slice(0, 60);
+  if (args.new_name) {
+    if (isBuiltinTavernHandbook(book)) return `ERROR: 内置世界书「${builtinTavernHandbookName()}」名称不可修改`;
+    updates.name = String(args.new_name).slice(0, 60);
+  }
   if (args.content != null) updates.content = String(args.content).slice(0, 10_000);
   await db.worldBooks.update(book.id!, updates);
   return `OK: 已更新世界书 ${name}`;
@@ -651,6 +655,7 @@ async function handleDeleteLorebook(args: Record<string, unknown>): Promise<stri
   const name = String(args.name ?? '');
   const book = await db.worldBooks.where('name').equals(name).first();
   if (!book) return `ERROR: Lorebook ${name} does not exist`;
+  if (isBuiltinTavernHandbook(book)) return `ERROR: 内置世界书「${builtinTavernHandbookName()}」不可删除`;
   await db.worldBooks.delete(book.id!);
   const sessions = await db.sessions.toArray();
   for (const s of sessions) {
