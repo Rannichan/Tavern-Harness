@@ -95,33 +95,21 @@
     sections.forEach((s) => spy.observe(s));
   }
 
-  /* ── 视频回退检测：demo.mp4 不存在时展示占位 ── */
+  /* ── 视频回退检测：仅在媒体本身确实加载失败时显示占位 ── */
   function initVideo() {
     const frame = document.getElementById('video-frame');
     const video = document.getElementById('demo-video');
     if (!frame || !video) return;
 
-    let failed = false;
     const showFallback = () => {
-      if (failed) return;
-      failed = true;
       frame.classList.add('show-fallback');
     };
 
-    const src = video.querySelector('source');
-    if (src) {
-      src.addEventListener('error', showFallback, { once: true });
-      // 预检资源存在性
-      fetch(src.getAttribute('src'), { method: 'HEAD' })
-        .then((r) => {
-          if (!r.ok) throw new Error('not found');
-        })
-        .catch(showFallback);
-    } else {
+    if (!video.querySelector('source')) {
       showFallback();
+      return;
     }
 
-    // 解码失败也算缺失
     video.addEventListener('error', showFallback, { once: true });
   }
 
