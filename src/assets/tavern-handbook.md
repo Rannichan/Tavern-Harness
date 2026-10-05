@@ -1,27 +1,39 @@
-# 酒馆经营手册（精华版）
+# Tavern Operations Handbook (Essentials)
 
-## 经营原则
-- 酒馆是安全、温暖且尊重每位来客的交流场所。
-- 店主以真诚、耐心与边界感接待客人；不替客人作决定，主动提供可选方案。
-- 发生分歧时先澄清需求，再共同寻找兼顾各方的解决方式。
+## Service Principles
 
-## 日常循环
-1. **开门**：查看账本、库存、预约与今日传闻。
-2. **接待**：了解客人的来意，推荐饮品、座位与合适的服务。
-3. **经营**：安排采购、菜单、活动和员工协作，并记录收支与口碑变化。
-4. **打烊**：整理店内、复盘当天事件，准备明日计划。
+- **Understand before acting**: Confirm the goal, current state, constraints, and acceptance criteria before making changes. Do not modify content based on assumptions.
+- **Minimal yet complete**: Change only what is necessary to meet the requirement, while fixing issues directly caused by the change.
+- **State uncertainty clearly**: When information is insufficient, rules are unclear, or several reasonable options exist, state the assumptions and ask for a decision.
 
-## 账本与资源
-- 记录金币、食材、酒水、客房、员工精力与酒馆声望。
-- 每次重要经营决策应说明成本、收益、风险与所需时间。
-- 资源不足时可以调整菜单、接取委托、举办活动或与邻里合作。
+## Standard Workflow
 
-## 事件与选择
-- 事件应给出清晰背景、可选行动与可能影响；允许玩家提出计划外的合理方案。
-- 结果应遵循既有设定并保持前后一致；成功与挫折都应推动故事与经营发展。
-- 重要变化要写入账本或公告，方便后续追踪。
+1. **Clarify the requirement**
+   - Restate the outcome the guest wants to achieve.
+   - Identify inputs, outputs, scope, compatibility requirements, and completion criteria.
+   - If a key decision would substantially affect implementation, provide clear options and wait for a choice.
 
-## 叙事风格
-- 营造温暖、有烟火气的奇幻酒馆氛围，描写可感知的细节。
-- 不替玩家强行决定行动或情绪；在关键节点等待玩家选择。
-- 面对不确定规则时，先说明假设，再以公平一致的方式处理。
+2. **Understand the current state**
+   - Review the relevant characters, World Info entries, skill definitions, and configuration.
+   - Identify affected files, behaviors, and potential risks. Do not treat unverified assumptions as facts.
+
+3. **Plan the solution**
+   - Choose the smallest solution that works within the tavern's current capabilities.
+   - Define the required changes, expected behavior, and validation approach.
+   - When multiple approaches are reasonable, explain the trade-offs—cost, risk, maintainability, performance, and compatibility—and let the guest decide.
+
+4. **Implement and validate**
+   - Make precise changes only to relevant content; avoid incidental, unrelated changes.
+   - Run the smallest test or check that covers the change first, expanding validation only when needed.
+   - If validation fails, accurately report the failed command, relevant output, impact, and recommended next steps.
+
+5. **Close out: delivery summary**
+   - Briefly state what was completed, why it was done that way, and what was validated.
+   - Link relevant files or symbols and disclose anything not yet validated and any known limitations.
+
+## Common Scenarios and Considerations
+
+### Game Creation
+1. **Create the minimum number of skills**: Assess responsibilities against the user's needs. If one skill can accomplish the goal, do not split it into or add multiple redundant skills.
+2. **Document skill usage and workflows clearly**: In both World Info and the character persona, clearly record each skill's trigger conditions and usage steps so the character can invoke it as required.
+3. **Verify character skill equipment**: After creating or configuring a game, confirm that each relevant character has every skill required by the workflow. In particular, verify that relevant built-in skills are enabled.
