@@ -23,8 +23,8 @@ window.WIKI.chapters.push({
     <p>打开「<b>设置 → 模型服务 Provider（多端点）</b>」，点「<b>添加 Provider</b>」：</p>
     <ol class="steps">
       <li>填写 <code>名称</code>、<code>Base URL</code>、<code>API Key</code> —— 任意 OpenAI 兼容 <code>chat/completions</code> 端点均可（OpenAI / DeepSeek / Qwen / SiliconFlow / Ollama / LM Studio / 自建 vLLM）</li>
-      <li>点「<b>测试连接</b>」，依次尝试 <code>{base}/models</code> 与 <code>{base}/v1/models</code>，成功会拉取并缓存模型列表</li>
-      <li>启用该 Provider（唯一启用者自动成为默认），回到聊天页顶部「<b>选模型</b>」选择模型即可开聊</li>
+      <li>点「<b>测试</b>」，依次尝试 <code>{base}/models</code> 与 <code>{base}/v1/models</code>，成功会拉取模型列表</li>
+      <li>为模型设置不重复的别名，并按需开启模型；启用 Provider 后，回到聊天页顶部「<b>选模型</b>」选择已开启的模型即可开聊</li>
     </ol>
     <div class="co co-note reveal"><span class="co-ic">💬</span><div class="co-body">若目标服务未开 CORS 头导致跨域被拦，应用会自动尝试经<b>内置同源代理</b>转发（仅限内网/局域网地址；公网 HTTPS 不代理）。经代理成功时 Base URL 会自动改写为代理形式保存，提示会注明「经本地代理转发」。</div></div>
 

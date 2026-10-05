@@ -5,12 +5,14 @@ window.WIKI.chapters.push({
   group: '开张准备',
   kicker: 'Providers & Parameters',
   title: '接入模型 Provider',
-  lead: '从左上角 <span class="chip chip-main"><i class="ic" data-ic="settings"></i> 设置</span> 进入 → 多端点可并存；测试连通、拉模型、生成参数，都在设置页。',
+  lead: '从左上角 <span class="chip chip-main"><i class="ic" data-ic="settings"></i> 设置</span> 进入 → 多端点可并存；创建 Provider 后先获取模型列表并完成模型配置，随后即可在对话中使用。',
   html: `
     <h3>Provider 管理</h3>
     <ul class="plain">
-      <li><b>启用/停用</b>：每张 Provider 卡片带开关；<span class="mono">唯一启用的 Provider 自动成为默认端点</span>。</li>
-      <li><b>测试连接</b>：成功提示 <code>✅ 连通正常，拉取到 {n} 个模型</code>；失败会给出 CORS 排查提示。</li>
+      <li><b>启用/停用</b>：每张 Provider 卡片带开关；停用后，该 Provider 下的模型不会出现在对话模型选择器中。</li>
+      <li><b>获取模型列表</b>：创建或编辑 Provider 后，点击 <b>测试</b> 获取该端点的模型列表。获取成功后，才可配置并使用其中的模型。</li>
+      <li><b>模型别名</b>：为每个模型设置便于识别的显示名称；<span class="mono">别名在所有 Provider 间必须唯一</span>，不可与其他模型的名称或别名重复。</li>
+      <li><b>单模型开关</b>：可逐个开启或关闭已获取的模型。关闭的模型不会出现在对话模型选择器中。</li>
       <li><b>编辑 / 删除</b>：删除前弹通用确认框。</li>
     </ul>
 
@@ -25,6 +27,7 @@ window.WIKI.chapters.push({
         <tr><td>Frequency Penalty</td><td>-2 – 2</td><td>重复惩罚</td></tr>
         <tr><td>Presence Penalty</td><td>-2 – 2</td><td>话题新颖度</td></tr>
         <tr><td>Repetition Penalty</td><td>0.5 – 2</td><td>重复惩罚</td></tr>
+        <tr><td>Context Window Size</td><td>0 – 100</td><td>上下文压缩触发窗口阈值；0 = 关闭</td></tr>
         <tr><td>Reasoning Effort</td><td>auto / off / low / medium / xhigh</td><td>思考强度</td></tr>
       </tbody>
     </table></div>
