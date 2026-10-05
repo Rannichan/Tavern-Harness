@@ -134,10 +134,10 @@ export interface ChatSession {
   enableGreeting?: boolean;
   turnOrderMode: TurnOrderMode;
   /**
-   * 会话专属沙箱工作目录名（以会话 id 为名，如 "session-12"）。
+   * 会话专属沙箱工作目录名（含当前酒馆实例标识和会话 id）。
    * 该会话的所有工具调用（shell / file_read / file_write / 脚本执行等）
-   * 都在这个独立目录下进行，会话之间相互隔离。
-  * 内置酒馆老板的 NPC 单人会话例外地固定使用 public；旧会话未设置时按 session-<id> 使用专属目录。
+   * 都在这个独立目录下进行，会话和酒馆实例之间相互隔离。
+   * 内置酒馆老板的 NPC 单人会话例外地固定使用 public；旧会话未设置时使用当前酒馆实例的专属目录。
    */
   workspaceDir?: string | null;
   turnQueueJson: string;

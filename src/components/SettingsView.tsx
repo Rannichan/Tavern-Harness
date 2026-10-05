@@ -3,7 +3,7 @@ import { useStore } from '../store/store';
 import { db } from '../db/database';
 import { type ThemeMode } from '../theme/theme';
 import { type ApiProvider, type AppLanguage, type ReasoningEffort, enabledModelIds, modelAliases } from '../types/models';
-import { Icon } from './shared';
+import { Icon, Modal } from './shared';
 import { DeleteConfirmDialog } from './DeleteConfirmDialog';
 import { isProxyUrl, isNetworkLikeError, toProxyUrl } from '../core/proxy';
 import { useT } from '../core/i18n';
@@ -15,8 +15,11 @@ import { useT } from '../core/i18n';
 export function SettingsView() {
   const settings = useStore((s) => s.settings);
   const setSettings = useStore((s) => s.setSettings);
+  const resetTavern = useStore((s) => s.resetTavern);
   const providers = useStore((s) => s.providers);
   const refreshProviders = useStore((s) => s.refreshProviders);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const t = useT();
 
   if (!settings) return null;
@@ -183,7 +186,45 @@ export function SettingsView() {
             </p>
           </div>
         </div>
+
+        <div className="set-section settings-reset-section">
+          <div>
+            <h3>{t('settings.resetTitle')}</h3>
+            <p className="settings-reset-desc">{t('settings.resetDesc')}</p>
+          </div>
+          <button className="btn btn-danger settings-reset-button" onClick={() => setShowResetConfirm(true)}>
+            <Icon name="refresh" size={14} /> {t('settings.resetBtn')}
+          </button>
+        </div>
       </div>
+
+      {showResetConfirm && (
+        <Modal onClose={() => !resetting && setShowResetConfirm(false)} width="min(420px, calc(100vw - 32px))">
+          <div className="modal-head">
+            <span style={{ fontWeight: 800, fontSize: 15 }}>{t('settings.resetConfirmTitle')}</span>
+            <button className="icon-btn" disabled={resetting} onClick={() => setShowResetConfirm(false)}><Icon name="x" /></button>
+          </div>
+          <div className="modal-body">{t('settings.resetConfirm')}</div>
+          <div className="modal-foot">
+            <button className="btn" disabled={resetting} onClick={() => setShowResetConfirm(false)}>{t('common.cancel')}</button>
+            <button
+              className="btn btn-danger"
+              disabled={resetting}
+              onClick={async () => {
+                setResetting(true);
+                try {
+                  await resetTavern();
+                } catch {
+                  setResetting(false);
+                }
+              }}
+            >
+              {resetting && <span className="spinner" style={{ width: 11, height: 11 }} />}
+              <Icon name="refresh" size={13} /> {t('settings.resetBtn')}
+            </button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

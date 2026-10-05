@@ -10,6 +10,7 @@ import type {
 import { BUILTIN_TOOL_NAMES } from '../toolDefinitions';
 import { rollDice } from './builtinTools';
 import {
+  createSessionWorkspaceDir,
   executeGeneratedSkill,
   normalizeWorkspaceDir,
   readWorkspaceFileText,
@@ -85,11 +86,11 @@ export async function executeToolCall(
 /**
  * 把工具调用工作目录切到当前会话的沙箱目录。
  * 内置酒馆老板的 NPC 单人会话固定使用 public；其他会话使用专属目录。
- * 会话记录上的 workspaceDir（如 "session-12"）由创建会话时生成；
- * 旧会话没有该字段或数据库读取失败时，也回退到 session-<id>，避免意外扩大权限。
+ * 会话记录上的 workspaceDir 由创建会话时生成；
+ * 旧会话没有该字段或数据库读取失败时，也回退到当前酒馆实例专属目录，避免意外扩大权限。
  */
 export async function applySessionWorkspace(sessionId: number, npcId?: number | null): Promise<string> {
-  let dir = `session-${sessionId}`;
+  let dir = createSessionWorkspaceDir(sessionId);
   try {
     const session = await db.sessions.get(sessionId);
     if (session?.mode === 'NPC' && session.associatedId != null) {
@@ -102,9 +103,9 @@ export async function applySessionWorkspace(sessionId: number, npcId?: number | 
       dir = (session as ChatSession).workspaceDir!;
     }
   } catch {
-    dir = `session-${sessionId}`;
+    dir = createSessionWorkspaceDir(sessionId);
   }
-  return normalizeWorkspaceDir(dir) ?? `session-${sessionId}`;
+  return normalizeWorkspaceDir(dir) ?? createSessionWorkspaceDir(sessionId);
 }
 
 async function runNativeTool(

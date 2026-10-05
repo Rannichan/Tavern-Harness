@@ -193,6 +193,11 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'settings.language': '🌐 界面语言/Language',
     'settings.languageLabel': '界面语言/Language',
     'settings.followBrowser': '跟随系统语言',
+    'settings.resetTitle': '⚠️ 重置当前酒馆',
+    'settings.resetDesc': '清除当前酒馆的全部本地数据并恢复初始状态，不影响其他端口或浏览器中打开的酒馆。',
+    'settings.resetBtn': '重置当前酒馆',
+    'settings.resetConfirmTitle': '重置当前酒馆',
+    'settings.resetConfirm': '确定重置当前酒馆吗？所有对话、角色、世界书、技能、模型服务与统计数据都会被删除，且无法恢复。其他端口或浏览器中打开的酒馆不受影响。',
 
     // ---- 内置角色「酒馆老板」（首次启动种子数据，随语言切换） ----
     'builtinNpc.name': '酒馆老板',
@@ -614,6 +619,11 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'settings.language': '🌐 介面語言/Language',
     'settings.languageLabel': '介面語言/Language',
     'settings.followBrowser': '跟隨系統語言',
+    'settings.resetTitle': '⚠️ 重設目前酒館',
+    'settings.resetDesc': '清除目前酒館的所有本機資料並還原為初始狀態，不影響其他連接埠或瀏覽器中開啟的酒館。',
+    'settings.resetBtn': '重設目前酒館',
+    'settings.resetConfirmTitle': '重設目前酒館',
+    'settings.resetConfirm': '確定要重設目前酒館嗎？所有對話、角色、世界書、技能、模型服務與統計資料都會被刪除，且無法復原。其他連接埠或瀏覽器中開啟的酒館不受影響。',
 
     // ---- 內建角色「酒館老闆」（首次啟動種子資料，隨語言切換） ----
     'builtinNpc.name': '酒館老闆',
@@ -1026,6 +1036,11 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'settings.language': '🌐 Interface Language',
     'settings.languageLabel': 'Interface Language',
     'settings.followBrowser': 'Follow system language',
+    'settings.resetTitle': '⚠️ Reset this tavern',
+    'settings.resetDesc': 'Clear all local data for this tavern and restore its initial state. Other ports and browser instances are unaffected.',
+    'settings.resetBtn': 'Reset this tavern',
+    'settings.resetConfirmTitle': 'Reset this tavern',
+    'settings.resetConfirm': 'Reset this tavern? All conversations, characters, lorebooks, skills, model providers, and statistics will be deleted and cannot be restored. Other ports and browser instances are unaffected.',
 
     // ---- Built-in NPC "Tavern Keeper" (seeded on first launch, follows language) ----
     'builtinNpc.name': 'Tavern Keeper',

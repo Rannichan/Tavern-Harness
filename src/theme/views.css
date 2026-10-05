@@ -494,6 +494,24 @@
   align-items: center;
   gap: 8px;
 }
+.settings-reset-section {
+  align-items: flex-start;
+  border-color: color-mix(in srgb, var(--danger) 58%, var(--border));
+  background: color-mix(in srgb, var(--danger) 14%, var(--surface));
+}
+.settings-reset-section:hover {
+  border-color: color-mix(in srgb, var(--danger) 78%, var(--border));
+  background: color-mix(in srgb, var(--danger) 19%, var(--surface));
+}
+.settings-reset-desc {
+  margin: 5px 0 0;
+  color: var(--text-dim);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+.settings-reset-button {
+  margin-top: 2px;
+}
 
 /* ---------- 成就陈列柜 ---------- */
 .ach-shelf {

@@ -9,6 +9,31 @@ import { translate } from '../i18n';
 const MAX_OUTPUT_CHARS = 20_000;
 /** 单文件读写字符上限（与沙箱服务 file_read/file_write 对齐） */
 const MAX_READ_CHARS = 100_000;
+const WORKSPACE_SCOPE_KEY = 'th-workspace-scope';
+let cachedWorkspaceScope: string | undefined;
+
+function workspaceScope(): string {
+  if (cachedWorkspaceScope) return cachedWorkspaceScope;
+  try {
+    const existing = localStorage.getItem(WORKSPACE_SCOPE_KEY);
+    if (existing && /^[a-z0-9-]+$/i.test(existing)) return (cachedWorkspaceScope = existing);
+    const scope = crypto.randomUUID();
+    localStorage.setItem(WORKSPACE_SCOPE_KEY, scope);
+    return (cachedWorkspaceScope = scope);
+  } catch {
+    return (cachedWorkspaceScope = crypto.randomUUID());
+  }
+}
+
+/** 为当前浏览器酒馆实例生成独立的会话工作目录名。 */
+export function createSessionWorkspaceDir(sessionId: number): string {
+  return `instance-${workspaceScope()}-session-${sessionId}`;
+}
+
+/** 工作目录是否属于当前浏览器酒馆实例。 */
+export function isCurrentInstanceWorkspaceDir(dir: string | null | undefined): boolean {
+  return typeof dir === 'string' && dir.startsWith(`instance-${workspaceScope()}-session-`);
+}
 
 /** 会话工作目录名是否合规（仅允许相对目录、不允许 .. / 绝对路径 / 危险字符） */
 function isValidWorkspaceDirName(dir: string): boolean {

@@ -44,7 +44,7 @@ import {
   NEW_TOPIC_MARKER,
 } from '../core/toolDefinitions';
 import { getEnabledToolsForSession, executeToolCall, parseDisplayRef, applySessionWorkspace } from '../core/tools/toolExecutor';
-import { ensureSessionWorkspaceDir, deleteSessionWorkspace } from '../core/tools/generatedSkillExecutor';
+import { createSessionWorkspaceDir, ensureSessionWorkspaceDir, deleteSessionWorkspace, isCurrentInstanceWorkspaceDir } from '../core/tools/generatedSkillExecutor';
 import { applyTheme as applyThemeManual, cacheThemeMode, watchSystemTheme } from '../theme/theme';
 import { setLanguage, translate } from '../core/i18n';
 import { trimEdgeNewlines } from '../core/strings';
@@ -133,6 +133,8 @@ interface AppState {
 
   init: () => Promise<void>;
   setSettings: (partial: Partial<AppSettings>) => Promise<void>;
+  /** 删除当前浏览器源上的酒馆数据并重新载入初始状态。 */
+  resetTavern: () => Promise<void>;
   setActiveSession: (id: number | null) => void;
   setActiveView: (v: ActiveView) => void;
 
@@ -309,6 +311,25 @@ export const useStore = create<AppState>((set, get) => ({
     }
     cacheThemeMode(next.themeMode);
     applyThemeManual(next.themeMode);
+  },
+
+  resetTavern: async () => {
+    const streaming = get().streaming;
+    if (streaming.abort) {
+      groupLoopStopped = true;
+      streaming.abort.abort();
+    }
+    for (const session of await db.sessions.toArray()) {
+      invalidateContextCompressionJob(session.id!);
+      if (isCurrentInstanceWorkspaceDir(session.workspaceDir)) await deleteSessionWorkspace(session.workspaceDir);
+    }
+    confirmationDeferreds.forEach(({ resolve }) => resolve(false));
+    confirmationDeferreds.clear();
+    await db.delete();
+    localStorage.removeItem('tav-theme-mode');
+    localStorage.removeItem('th-builtin-npc-lang');
+    localStorage.removeItem('th-workspace-scope');
+    window.location.reload();
   },
 
   setActiveSession: (id) => {
@@ -740,7 +761,7 @@ export const useStore = create<AppState>((set, get) => ({
     if (!snapshotMessage) return null;
 
     // 复制会话（保留模式 / 角色 / 世界书 / 人设 / 队列设置；置顶与顺序“未置顶”）
-    // 新 Fork 会话分配独立工作目录（session-<newId>），与原会话互不影响
+    // 新 Fork 会话分配当前酒馆实例专属的独立工作目录，与原会话互不影响
     const now = Date.now();
     const newSession: ChatSession = {
       ...session,
@@ -755,9 +776,10 @@ export const useStore = create<AppState>((set, get) => ({
       createdAt: now,
     };
     const newId = await db.sessions.add(newSession);
-    await db.sessions.update(newId, { workspaceDir: `session-${newId}` });
+    const workspaceDir = createSessionWorkspaceDir(newId);
+    await db.sessions.update(newId, { workspaceDir });
     // 创建对话的同时预建其专属工作目录（会话间隔离，Fork 后互不影响）
-    await ensureSessionWorkspaceDir(`session-${newId}`);
+    await ensureSessionWorkspaceDir(workspaceDir);
 
     // 复制参与者（PLAYER 保留 -1 编号，NPC 按 npcId 映射；重建 seatOrder 保持一致）
     const participants = await db.participants.where('sessionId').equals(sessionId).sortBy('seatOrder');
@@ -1000,8 +1022,8 @@ export async function createSession(
    const handbook = await db.worldBooks.filter(isBuiltinTavernHandbook).first();
    if (handbook?.id != null) worldBookId = handbook.id;
  }
- // 会话专属工作目录：先写入会话拿自增 id，再用 id 生成目录并回填。
- // 该会话的所有工具调用（shell / 文件读写 / 脚本执行等）都在此目录下进行，会话间互相隔离。
+ // 会话专属工作目录：先写入会话拿自增 id，再用 id 生成当前酒馆实例专属目录并回填。
+ // 该会话的所有工具调用（shell / 文件读写 / 脚本执行等）都在此目录下进行，会话间及酒馆实例间互相隔离。
  const id = await db.sessions.add({
    title,
    mode,
@@ -1019,8 +1041,8 @@ export async function createSession(
    updatedAt: now,
    createdAt: now,
   });
- // 用会话 id 作为专属工作目录名（session-<id>），单层目录、不嵌套，确保唯一且会话间互不影响
- const workspaceDir = `session-${id}`;
+ // 用当前酒馆实例标识和会话 id 生成单层工作目录，确保不同酒馆实例间互不影响。
+ const workspaceDir = createSessionWorkspaceDir(id);
  await db.sessions.update(id, { workspaceDir });
  // 创建对话的同时预建其专属工作目录（磁盘沙箱启动时会真实创建；
  // 未启动/失败时静默跳过，首次工具调用时仍会自动补建）
