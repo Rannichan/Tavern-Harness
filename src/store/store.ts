@@ -1737,10 +1737,8 @@ async function streamAssistantTurn(
       const allSpeakerNames = participants
         .filter((p) => p.kind === 'NPC')
         .map((p) => p.displayName);
-      const playerP = participants.find((p) => p.kind === 'PLAYER');
       systemPrompt = buildGroupSystemPrompt(name, npc?.prompt ?? '', worldBook?.content, userPersona?.prompt, {
         allSpeakerNames,
-        playerName: playerP?.displayName ?? translate('common.user'),
         mentionOnlyMode: session.mentionOnlyMode === true,
       });
     }

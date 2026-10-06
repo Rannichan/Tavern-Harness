@@ -298,9 +298,12 @@ function MessageBubble({
   const npcHue = speaker?.npcId ? useStore((s) => s.npcs.find((n) => n.id === speaker.npcId)?.avatarColorOrdinal ?? 0) : 0;
   const npcAvatar = speaker?.npcId ? useStore((s) => s.npcs.find((n) => n.id === speaker.npcId)?.avatarDataUrl ?? null) : null;
   const visibleContent = isUser ? msg.content : trimEdgeNewlines(msg.content);
-  const displayContent = msg.displayHandoffMention
-    ? `${visibleContent}${visibleContent ? ' ' : ''}@${t('common.user')}`
+  const displayVisibleContent = session.mode === 'GROUP'
+    ? visibleContent.replace(/@(?:用户|用戶)(?=\s|[，。！？,.!?]|$)/g, '@User')
     : visibleContent;
+  const displayContent = msg.displayHandoffMention
+    ? `${displayVisibleContent}${displayVisibleContent ? ' ' : ''}@User`
+    : displayVisibleContent;
 
   if (isUser) {
     return <UserBubble msg={msg} session={session} editing={isEditing} loopIndex={loopIndex} />;
@@ -313,7 +316,7 @@ function MessageBubble({
   const mentionNames = session.mode === 'GROUP'
     ? participants
       .filter((p) => p.participantId !== msg.speakerParticipantId)
-      .map((p) => p.kind === 'PLAYER' ? t('common.user') : p.displayName)
+      .map((p) => p.kind === 'PLAYER' ? 'User' : p.displayName)
     : [];
 
   if (isEditing) {

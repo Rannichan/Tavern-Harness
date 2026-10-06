@@ -30,12 +30,11 @@ export function buildGroupSystemPrompt(
   userPersonaPrompt?: string | null,
   requestPayload?: {
     allSpeakerNames: string[];
-    playerName?: string | null;
     mentionOnlyMode?: boolean;
   }
 ): string {
   const others = (requestPayload?.allSpeakerNames ?? []).filter((n) => n !== activeSpeakerName);
-  const playerName = requestPayload?.playerName ?? '用户';
+  const playerName = 'User';
 
   return (
     `You are participating in a multi-character conversation. Reply only as ${activeSpeakerName}.\n` +

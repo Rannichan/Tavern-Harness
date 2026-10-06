@@ -68,7 +68,9 @@ export function mentionedParticipantIds(
 ): number[] {
   const mentionables = participants
     .filter((p) => p.participantId !== speakerParticipantId)
-    .map((p) => ({ id: p.participantId, name: p.displayName }))
+    .flatMap((p) => p.kind === 'PLAYER'
+      ? ['User', '用户', '用戶'].map((name) => ({ id: p.participantId, name }))
+      : [{ id: p.participantId, name: p.displayName }])
     .sort((a, b) => b.name.length - a.name.length);
   const hits: Array<{ id: number; index: number; length: number }> = [];
   for (const p of mentionables) {
