@@ -299,7 +299,7 @@ function MessageBubble({
   const npcAvatar = speaker?.npcId ? useStore((s) => s.npcs.find((n) => n.id === speaker.npcId)?.avatarDataUrl ?? null) : null;
   const visibleContent = isUser ? msg.content : trimEdgeNewlines(msg.content);
   const displayContent = msg.displayHandoffMention
-    ? `${visibleContent}${visibleContent ? ' ' : ''}${msg.displayHandoffMention}`
+    ? `${visibleContent}${visibleContent ? ' ' : ''}@${t('common.user')}`
     : visibleContent;
 
   if (isUser) {
@@ -311,7 +311,9 @@ function MessageBubble({
 
   // 群聊：NPC 发言的 @台词 高亮（斜体加粗 + 特殊颜色）
   const mentionNames = session.mode === 'GROUP'
-    ? participants.filter((p) => p.participantId !== msg.speakerParticipantId).map((p) => p.displayName)
+    ? participants
+      .filter((p) => p.participantId !== msg.speakerParticipantId)
+      .map((p) => p.kind === 'PLAYER' ? t('common.user') : p.displayName)
     : [];
 
   if (isEditing) {
@@ -1102,6 +1104,8 @@ export function MessageMenu() {
   const regenerateMessage = useStore((s) => s.regenerateMessage);
   const forkSession = useStore((s) => s.forkSession);
   const addToast = useStore((s) => s.addToast);
+  const messages = useStore((s) => s.messages);
+  const npcs = useStore((s) => s.npcs);
   const [rawLog, setRawLog] = useState<{ data: RawLogData; title: string; filename: string } | null>(null);
   const [compressionSummary, setCompressionSummary] = useState<{ content: string; title: string } | null>(null);
 
@@ -1189,7 +1193,11 @@ export function MessageMenu() {
       },
     });
   }
-  if (msg.role === 'assistant') {
+  const isOpeningGreeting = msg.isOpeningGreeting
+    ?? (msg.role === 'assistant'
+      && messages[msg.sessionId]?.find((message) => message.role === 'assistant')?.id === msg.id
+      && npcs.some((npc) => npc.id === msg.speakerParticipantId && [npc.greeting, ...(npc.alternateGreetings ?? [])].includes(msg.content)));
+  if (msg.role === 'assistant' && !isOpeningGreeting) {
     actions.push({
       label: t('chat.regenerate'),
       icon: 'refresh',

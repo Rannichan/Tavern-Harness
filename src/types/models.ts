@@ -181,6 +181,8 @@ export interface ChatMessage {
   speakerParticipantId: number | null;
   speakerName: string | null;
   content: string;
+  /** 会话初始化时写入的角色开场白；不支持重新生成。 */
+  isOpeningGreeting?: boolean;
   /** 仅供界面显示与群聊转交的自动 @ 提示；不会进入模型上下文。 */
   displayHandoffMention?: string | null;
   /** 持久化用 JSON 字符串数组 */

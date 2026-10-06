@@ -18,6 +18,7 @@ export async function seedOpeningGreeting(
     speakerParticipantId: npc.id!,
     speakerName,
     content: greeting,
+    isOpeningGreeting: true,
     displayHandoffMention,
     toolCallsJson: '[]',
     toolCallId: null,
