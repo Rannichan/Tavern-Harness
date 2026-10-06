@@ -1257,7 +1257,7 @@ function RawLogModal({ rawLog, title, onClose, onExport }: { rawLog: RawLogData;
   const [autoWrap, setAutoWrap] = useState(true);
 
   return (
-    <Modal onClose={onClose} width="min(760px, calc(100vw - 40px))">
+    <Modal onClose={onClose} className="raw-log-modal" width="min(760px, calc(100vw - 40px))">
       <div className="modal-head raw-modal-head">
         <span className="raw-modal-title">
           <Icon name="file" size={15} /> {title}

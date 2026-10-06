@@ -936,6 +936,9 @@
 }
 
 /* ---------- 原始日志弹窗 ---------- */
+.raw-log-modal {
+  overflow: hidden;
+}
 .raw-modal-head {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
