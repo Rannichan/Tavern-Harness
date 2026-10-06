@@ -67,6 +67,17 @@
       ? 'Tavern Harness is a local-first AI role-playing tavern. Build any world you imagine in a flexible sandbox.'
       : originalDescription;
 
+    var video = document.querySelector('#demo-video');
+    if (video) {
+      var source = video.querySelector('source');
+      var videoSource = video.getAttribute(language === 'en' ? 'data-video-en' : 'data-video-zh');
+      if (source && source.getAttribute('src') !== videoSource) {
+        video.pause();
+        source.setAttribute('src', videoSource);
+        video.load();
+      }
+    }
+
     // Replacing localized markup creates new reveal nodes after the observer was initialized.
     // Mark them visible immediately so translated headings cannot remain transparent.
     document.querySelectorAll('.reveal').forEach(function (element) {
