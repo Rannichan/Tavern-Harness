@@ -319,7 +319,7 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
         },
         user_persona: { type: 'string', description: 'Optional character name used as the user persona' },
         random_order: { type: 'boolean', default: false, description: 'Whether to randomize speaking order each round' },
-        mention_only_mode: { type: 'boolean', default: false, description: 'In group chats, require the player to @ a character and return control to the player when a character does not @ anyone.' },
+        mention_only_mode: { type: 'boolean', default: false, description: 'In group chats, require characters to pass speaking control by @mentioning another character. Useful for reasoning games and other scenarios that require strict turn control.' },
         enable_greeting: {
           type: 'boolean',
           default: true,
