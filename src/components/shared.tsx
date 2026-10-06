@@ -87,10 +87,7 @@ export function MasonryGrid({ children }: { children: React.ReactNode }) {
     updateColumnCount();
     const grid = gridRef.current;
     if (!grid) return;
-    const observer = new ResizeObserver(() => {
-      updateColumnCount();
-      setRevision((current) => current + 1);
-    });
+    const observer = new ResizeObserver(updateColumnCount);
     observer.observe(grid);
     return () => observer.disconnect();
   }, [updateColumnCount]);
@@ -101,8 +98,12 @@ export function MasonryGrid({ children }: { children: React.ReactNode }) {
     const gap = Number.parseFloat(getComputedStyle(grid).getPropertyValue('--masonry-gap'));
     const heights = Array.from({ length: columnCount }, () => 0);
     const nextLayout = Array.from({ length: columnCount }, () => [] as number[]);
-    for (const element of grid.querySelectorAll<HTMLElement>('.masonry-item')) {
-      const index = Number(element.dataset.index);
+    const elementsByIndex = new Map(
+      Array.from(grid.querySelectorAll<HTMLElement>('.masonry-item')).map((element) => [Number(element.dataset.index), element])
+    );
+    for (let index = 0; index < items.length; index += 1) {
+      const element = elementsByIndex.get(index);
+      if (!element) return;
       const targetColumn = heights.reduce((shortest, height, column) => height < heights[shortest] ? column : shortest, 0);
       nextLayout[targetColumn].push(index);
       heights[targetColumn] += element.offsetHeight + gap;
@@ -116,7 +117,7 @@ export function MasonryGrid({ children }: { children: React.ReactNode }) {
     const observer = new ResizeObserver(() => setRevision((current) => current + 1));
     for (const item of grid.querySelectorAll('.masonry-item')) observer.observe(item);
     return () => observer.disconnect();
-  }, [layout]);
+  }, [items.length, layout]);
 
   const visibleLayout = layout.flat().length === items.length
     ? layout
