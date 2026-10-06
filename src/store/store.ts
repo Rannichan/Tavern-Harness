@@ -157,6 +157,7 @@ interface AppState {
     turnOrderMode?: TurnOrderMode;
     participantOrder?: number[];
     enableGreeting?: boolean;
+    mentionOnlyMode?: boolean;
   }) => Promise<void>;
   resetSessionConversation: (sessionId: number) => Promise<void>;
   resolveConfirmation: (approved: boolean) => void;
@@ -477,6 +478,13 @@ export const useStore = create<AppState>((set, get) => ({
     if (get().streaming.sessionId != null) {
       get().addToast(translate('toast.busy'), 'error');
       return;
+    }
+    if (session.mode === 'GROUP' && session.mentionOnlyMode) {
+      const participants = await db.participants.where('sessionId').equals(sessionId).toArray();
+      if (mentionedParticipantIds(text, participants, -1).length === 0) {
+        get().addToast(translate('toast.mentionRequired'), 'error');
+        return;
+      }
     }
 
     // 魔法命令（有附件时不生效）
@@ -858,9 +866,23 @@ export const useStore = create<AppState>((set, get) => ({
       .map((p) => p.displayName)
       .join('、');
     const turnOrderMode = opts.turnOrderMode === 'RANDOM' ? 'RANDOM' : 'PRESET';
-    const queue = initializeTurnQueue(participants, turnOrderMode);
-    await db.participants.where('sessionId').equals(sessionId).delete();
-    await db.participants.bulkAdd(participants);
+    const existingParticipants = (await db.participants.where('sessionId').equals(sessionId).toArray())
+      .sort((left, right) => left.seatOrder - right.seatOrder);
+    const queueSettingsChanged = turnOrderMode !== session.turnOrderMode
+      || existingParticipants.length !== participants.length
+      || existingParticipants.some((existing, index) => {
+        const next = participants[index];
+        return existing.participantId !== next.participantId
+          || existing.kind !== next.kind
+          || existing.npcId !== next.npcId
+          || existing.displayName !== next.displayName
+          || existing.seatOrder !== next.seatOrder;
+      });
+    const queue = queueSettingsChanged ? initializeTurnQueue(participants, turnOrderMode) : safeParseQueue(session.turnQueueJson);
+    if (queueSettingsChanged) {
+      await db.participants.where('sessionId').equals(sessionId).delete();
+      await db.participants.bulkAdd(participants);
+    }
     await db.sessions.update(sessionId, {
       title: finalTitle,
       mode: finalNpcIds.length === 1 ? 'NPC' : 'GROUP',
@@ -868,10 +890,13 @@ export const useStore = create<AppState>((set, get) => ({
       worldBookId: opts.worldBookId ?? null,
       userPersonaNpcId: opts.userPersonaNpcId ?? null,
       enableGreeting: opts.enableGreeting !== false,
+      mentionOnlyMode: opts.mentionOnlyMode === true && finalNpcIds.length > 1,
       turnOrderMode,
-      turnQueueJson: queueJson(queue),
-      turnQueueHistoryJson: queueHistoryJson([queue]),
-      loopIndex: 0,
+      ...(queueSettingsChanged ? {
+        turnQueueJson: queueJson(queue),
+        turnQueueHistoryJson: queueHistoryJson([queue]),
+        loopIndex: 0,
+      } : {}),
       updatedAt: Date.now(),
     });
     await get().loadMessages(sessionId);
@@ -889,8 +914,16 @@ export const useStore = create<AppState>((set, get) => ({
     await db.contextCompressions.where('sessionId').equals(sessionId).delete();
     const greetingSpeakerId = pickGreetingSpeakerId(session.mode, session.associatedId, queue, session.enableGreeting !== false);
     const lastMessage = await seedOpeningGreetingForSpeaker(sessionId, greetingSpeakerId);
+    const greeting = greetingSpeakerId != null
+      ? (await db.messages.where('sessionId').equals(sessionId).sortBy('timestamp')).at(-1)
+      : null;
+    const greetingMentions = greeting && greetingSpeakerId != null
+      ? mentionedParticipantIds(greeting.content, participants, greetingSpeakerId)
+      : [];
     await db.sessions.update(sessionId, {
-      turnQueueJson: queueJson(session.mode === 'GROUP' && greetingSpeakerId != null ? completeTurn(queue, greetingSpeakerId, []) : queue),
+      turnQueueJson: queueJson(session.mode === 'GROUP' && greetingSpeakerId != null
+        ? completeTurn(queue, greetingSpeakerId, greetingMentions.length > 0 ? greetingMentions : (session.mentionOnlyMode ? [-1] : []))
+        : queue),
       turnQueueHistoryJson: queueHistoryJson([queue]),
       loopIndex: 0,
       lastMessage,
@@ -1003,6 +1036,7 @@ export async function createSession(
     turnOrderMode?: TurnOrderMode;
     participantOrder?: number[];
     enableGreeting?: boolean;
+    mentionOnlyMode?: boolean;
   }
 ): Promise<number> {
  let title = opts?.title;
@@ -1031,6 +1065,7 @@ export async function createSession(
    worldBookId,
    userPersonaNpcId: opts?.userPersonaNpcId ?? null,
    enableGreeting: opts?.enableGreeting !== false,
+   mentionOnlyMode: opts?.mentionOnlyMode === true && mode === 'GROUP',
    turnOrderMode,
    workspaceDir: null,
    turnQueueJson: '[]',
@@ -1117,7 +1152,15 @@ export async function createSession(
   if (greetingPreview) {
     const patch: Partial<ChatSession> = { lastMessage: greetingPreview };
     if (mode === 'GROUP' && greetingSpeakerId != null) {
-      patch.turnQueueJson = queueJson(completeTurn(queue, greetingSpeakerId, []));
+      const greeting = (await db.messages.where('sessionId').equals(id).sortBy('timestamp')).at(-1);
+      const mentions = greeting
+        ? mentionedParticipantIds(greeting.content, participants, greetingSpeakerId)
+        : [];
+      patch.turnQueueJson = queueJson(completeTurn(
+        queue,
+        greetingSpeakerId,
+        mentions.length > 0 ? mentions : (opts?.mentionOnlyMode ? [-1] : []),
+      ));
     }
     await db.sessions.update(id, patch);
   }
@@ -1178,8 +1221,23 @@ async function seedOpeningGreetingForSpeaker(
   greetingSpeakerId: number | null,
 ): Promise<string> {
   if (greetingSpeakerId == null) return '';
-  const npc = await db.npcs.get(greetingSpeakerId);
-  return npc ? seedOpeningGreeting(sessionId, npc) : '';
+  const [session, npc, participants] = await Promise.all([
+    db.sessions.get(sessionId),
+    db.npcs.get(greetingSpeakerId),
+    db.participants.where('sessionId').equals(sessionId).toArray(),
+  ]);
+  if (!npc) return '';
+  const preview = await seedOpeningGreeting(sessionId, npc);
+  const player = participants.find((participant) => participant.kind === 'PLAYER');
+  if (session?.mentionOnlyMode && player) {
+    const greeting = (await db.messages.where('sessionId').equals(sessionId).sortBy('timestamp'))
+      .filter((message) => message.role === 'assistant' && message.speakerParticipantId === greetingSpeakerId)
+      .at(-1);
+    if (greeting?.id != null && mentionedParticipantIds(greeting.content, participants, greetingSpeakerId).length === 0) {
+      await db.messages.update(greeting.id, { displayHandoffMention: `@${player.displayName}` });
+    }
+  }
+  return preview;
 }
 
 function pickGreetingSpeakerId(
@@ -1683,6 +1741,7 @@ async function streamAssistantTurn(
       systemPrompt = buildGroupSystemPrompt(name, npc?.prompt ?? '', worldBook?.content, userPersona?.prompt, {
         allSpeakerNames,
         playerName: playerP?.displayName ?? translate('common.user'),
+        mentionOnlyMode: session.mentionOnlyMode === true,
       });
     }
     nmessages.unshift({ role: 'system', content: systemPrompt });
@@ -2215,10 +2274,28 @@ async function continueGroupConversation(sessionId: number): Promise<TurnResult>
     }
     // 先不推进队列：让流式发言期间队列首位 = 正在发言的角色（面板实时高亮）
     const turnResult = await streamAssistantTurn(session, npc, nextId, next, loopIndex);
-    if (turnResult === 'failed') failed = true;
-    const mentioned = mentionedParticipantIds(lastAssistantTextBySpeaker(sessionId, nextId), players, nextId);
-    // 回合结束：移出该发言者 + 被 @ 点名者插入/移到队首（历史轮次不受影响）
-    await persistQueue(sessionId, completeTurn(queue, nextId, mentioned), loopIndex, false);
+    if (turnResult === 'failed') {
+      failed = true;
+      break;
+    }
+    const responseText = lastAssistantTextBySpeaker(sessionId, nextId);
+    const mentioned = mentionedParticipantIds(responseText, players, nextId);
+    if (session.mentionOnlyMode && mentioned.length === 0) {
+      const player = players.find((participant) => participant.kind === 'PLAYER');
+      const playerName = player?.displayName ?? translate('common.user');
+      const message = [...(useStore.getState().messages[sessionId] ?? [])]
+        .reverse()
+        .find((candidate) => candidate.role === 'assistant' && candidate.speakerParticipantId === nextId);
+      if (message?.id != null) {
+        await db.messages.update(message.id, { displayHandoffMention: `@${playerName}` });
+        await useStore.getState().loadMessages(sessionId);
+      }
+      // 未点名时自动将对话权交还给玩家。
+      await persistQueue(sessionId, completeTurn(queue, nextId, [player?.participantId ?? -1]), loopIndex, false);
+    } else {
+      // 回合结束：移出该发言者 + 被 @ 点名者插入/移到队首（历史轮次不受影响）
+      await persistQueue(sessionId, completeTurn(queue, nextId, mentioned), loopIndex, false);
+    }
     if (turnResult === 'stopped') {
       stopped = true;
       break;

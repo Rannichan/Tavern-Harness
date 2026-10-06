@@ -6,6 +6,7 @@ export async function seedOpeningGreeting(
   sessionId: number,
   npc: NpcCharacter,
   speakerName = npc.name,
+  displayHandoffMention: string | null = null,
 ): Promise<string> {
   const greetings = [npc.greeting, ...(npc.alternateGreetings ?? [])].filter(Boolean);
   const greeting = greetings.length > 0 ? greetings[Math.floor(Math.random() * greetings.length)] : '';
@@ -17,6 +18,7 @@ export async function seedOpeningGreeting(
     speakerParticipantId: npc.id!,
     speakerName,
     content: greeting,
+    displayHandoffMention,
     toolCallsJson: '[]',
     toolCallId: null,
     thinkingContent: null,

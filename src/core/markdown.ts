@@ -162,7 +162,8 @@ export function highlightMentions(html: string, names: string[]): string {
   let result = html;
   for (const name of sorted) {
     // 仅在非 code 区域高亮（简化处理：直接替换 @名字）
-    const re = new RegExp(`(@${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})(?=\\s|[，。！？,.!?]|$)`, 'g');
+    // Markdown conversion normally leaves a closing HTML tag after a terminal mention (for example @用户</p>).
+    const re = new RegExp(`(@${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})(?=\\s|[，。！？,.!?]|<|$)`, 'g');
     result = result.replace(re, '<span class="mention" title="点名该角色">$1</span>');
   }
   return result;

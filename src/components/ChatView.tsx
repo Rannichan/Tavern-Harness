@@ -298,6 +298,9 @@ function MessageBubble({
   const npcHue = speaker?.npcId ? useStore((s) => s.npcs.find((n) => n.id === speaker.npcId)?.avatarColorOrdinal ?? 0) : 0;
   const npcAvatar = speaker?.npcId ? useStore((s) => s.npcs.find((n) => n.id === speaker.npcId)?.avatarDataUrl ?? null) : null;
   const visibleContent = isUser ? msg.content : trimEdgeNewlines(msg.content);
+  const displayContent = msg.displayHandoffMention
+    ? `${visibleContent}${visibleContent ? ' ' : ''}${msg.displayHandoffMention}`
+    : visibleContent;
 
   if (isUser) {
     return <UserBubble msg={msg} session={session} editing={isEditing} loopIndex={loopIndex} />;
@@ -362,7 +365,7 @@ function MessageBubble({
             ))}
           </div>
         )}
-        {(visibleContent || msg.attachments.length > 0) && (
+        {(displayContent || msg.attachments.length > 0) && (
           <div className={`bubble ${isUser ? 'bubble-user' : ''}`}>
             {msg.attachments.length > 0 && (
               <div className="attachments">
@@ -373,7 +376,7 @@ function MessageBubble({
             )}
             <div className="bubble-content-row">
               <div className="bubble-text">
-                {visibleContent ? <Markdown text={visibleContent} mentionNames={mentionNames} /> : streaming && <span className="stream-cursor" />}
+                {displayContent ? <Markdown text={displayContent} mentionNames={mentionNames} /> : streaming && <span className="stream-cursor" />}
               </div>
               {/* 编辑按钮：位于正文气泡内最右侧，铅笔图标 */}
               <button className="msg-edit-btn" title={t('chat.editMsg')} onClick={() => startEditingMsg(msg.id!)}>

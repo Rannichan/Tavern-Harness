@@ -132,6 +132,8 @@ export interface ChatSession {
   worldBookId: number | null;
   userPersonaNpcId: number | null;
   enableGreeting?: boolean;
+  /** 群聊仅 @ 模式：玩家必须点名角色，角色未点名时自动把话题交还给玩家。 */
+  mentionOnlyMode?: boolean;
   turnOrderMode: TurnOrderMode;
   /**
    * 会话专属沙箱工作目录名（含当前酒馆实例标识和会话 id）。
@@ -179,6 +181,8 @@ export interface ChatMessage {
   speakerParticipantId: number | null;
   speakerName: string | null;
   content: string;
+  /** 仅供界面显示与群聊转交的自动 @ 提示；不会进入模型上下文。 */
+  displayHandoffMention?: string | null;
   /** 持久化用 JSON 字符串数组 */
   toolCallsJson: string;
   toolCallId: string | null;

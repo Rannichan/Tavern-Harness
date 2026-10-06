@@ -297,7 +297,7 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
   ),
   fn(
     'create_conversation',
-    'Create a new conversation. The player is always included automatically; you only need to specify the characters to add, plus optional Lorebook, speaking order, random-order switch, and user persona.',
+    'Create a new conversation. The player is always included automatically; you only need to specify the characters to add, plus optional Lorebook, speaking order, random-order switch, mention-only mode, and user persona.',
     {
       type: 'object',
       properties: {
@@ -319,6 +319,7 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
         },
         user_persona: { type: 'string', description: 'Optional character name used as the user persona' },
         random_order: { type: 'boolean', default: false, description: 'Whether to randomize speaking order each round' },
+        mention_only_mode: { type: 'boolean', default: false, description: 'In group chats, require the player to @ a character and return control to the player when a character does not @ anyone.' },
         enable_greeting: {
           type: 'boolean',
           default: true,

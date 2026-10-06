@@ -54,6 +54,7 @@ export function NewSessionMenu({ onClose, editingSession }: { onClose: () => voi
   const [userPersonaNpcId, setUserPersonaNpcId] = useState<number | null>(editingSession?.userPersonaNpcId ?? null);
   const [worldBookId, setWorldBookId] = useState<number | null>(editingSession?.worldBookId ?? null);
   const [turnOrderMode, setTurnOrderMode] = useState<'PRESET' | 'RANDOM'>(editingSession?.turnOrderMode ?? 'PRESET');
+  const [mentionOnlyMode, setMentionOnlyMode] = useState(editingSession?.mentionOnlyMode === true);
   const [enableGreeting, setEnableGreeting] = useState(editingSession?.enableGreeting !== false);
   const selectedNpcIds = participantOrder.filter((id) => id !== -1);
   const modeLabel = selectedNpcIds.length === 0 ? t('newSession.notSelected') : selectedNpcIds.length === 1 ? t('newSession.npcChat') : t('newSession.groupChat', { n: selectedNpcIds.length });
@@ -72,6 +73,7 @@ export function NewSessionMenu({ onClose, editingSession }: { onClose: () => voi
         setUserPersonaNpcId(editingSession.userPersonaNpcId ?? null);
         setWorldBookId(editingSession.worldBookId ?? null);
         setTurnOrderMode(editingSession.turnOrderMode);
+        setMentionOnlyMode(editingSession.mentionOnlyMode === true);
         setEnableGreeting(editingSession.enableGreeting !== false);
         setParticipantOrder(participants.map((p) => p.participantId));
       }
@@ -95,6 +97,7 @@ export function NewSessionMenu({ onClose, editingSession }: { onClose: () => voi
         userPersonaNpcId,
         turnOrderMode,
         participantOrder,
+        mentionOnlyMode,
         enableGreeting,
       });
       await useStore.getState().refreshSessions();
@@ -112,6 +115,7 @@ export function NewSessionMenu({ onClose, editingSession }: { onClose: () => voi
         userPersonaNpcId,
         turnOrderMode,
         participantOrder,
+        mentionOnlyMode,
         enableGreeting,
       });
     } else {
@@ -122,6 +126,7 @@ export function NewSessionMenu({ onClose, editingSession }: { onClose: () => voi
         userPersonaNpcId,
         turnOrderMode,
         participantOrder,
+        mentionOnlyMode,
         enableGreeting,
       });
     }
@@ -207,20 +212,32 @@ export function NewSessionMenu({ onClose, editingSession }: { onClose: () => voi
               selectedNpcIds.length < 5 && <SlotPicker excluded={selectedNpcIds} onPick={addParticipant} />
             )}
             {selectedNpcIds.length >= 2 && (
-              <div className="new-session-random-row">
-                <div className="field" style={{ gap: 3 }}>
-                  <label>{t('chat.sortRandom')}</label>
-                  <span className="field-hint">{t('newSession.orderHint')}</span>
+              <>
+                <div className="new-session-random-row">
+                  <div className="field" style={{ gap: 3 }}>
+                    <label>{t('chat.sortRandom')}</label>
+                    <span className="field-hint">{t('newSession.orderHint')}</span>
+                  </div>
+                  <label className="switch">
+                    <input
+                      type="checkbox"
+                      checked={turnOrderMode === 'RANDOM'}
+                      onChange={(e) => setTurnOrderMode(e.target.checked ? 'RANDOM' : 'PRESET')}
+                    />
+                    <span className="switch-slider" />
+                  </label>
                 </div>
-                <label className="switch">
-                  <input
-                    type="checkbox"
-                    checked={turnOrderMode === 'RANDOM'}
-                    onChange={(e) => setTurnOrderMode(e.target.checked ? 'RANDOM' : 'PRESET')}
-                  />
-                  <span className="switch-slider" />
-                </label>
-              </div>
+                <div className="new-session-random-row">
+                  <div className="field" style={{ gap: 3 }}>
+                    <label>{t('newSession.mentionOnly')}</label>
+                    <span className="field-hint">{t('newSession.mentionOnlyHint')}</span>
+                  </div>
+                  <label className="switch">
+                    <input type="checkbox" checked={mentionOnlyMode} onChange={(e) => setMentionOnlyMode(e.target.checked)} />
+                    <span className="switch-slider" />
+                  </label>
+                </div>
+              </>
             )}
             <div className="new-session-random-row">
               <div className="field" style={{ gap: 3 }}>

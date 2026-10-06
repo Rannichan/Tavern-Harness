@@ -616,6 +616,7 @@ async function handleCreateConversation(args: Record<string, unknown>): Promise<
     worldBookId,
     userPersonaNpcId,
     turnOrderMode: args.random_order === true ? 'RANDOM' : 'PRESET',
+    mentionOnlyMode: args.mention_only_mode === true,
     participantOrder,
     enableGreeting: args.enable_greeting !== false,
   });
@@ -624,6 +625,7 @@ async function handleCreateConversation(args: Record<string, unknown>): Promise<
     mode,
     participant_count: npcIds.length + 1,
     random_order: args.random_order === true,
+    mention_only_mode: args.mention_only_mode === true && mode === 'GROUP',
     greeting_enabled: args.enable_greeting !== false,
   }, null, 2);
 }
