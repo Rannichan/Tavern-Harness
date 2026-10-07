@@ -44,9 +44,7 @@ export function buildGroupSystemPrompt(
       ? `The other participants are: ${others.join(', ')}.\nThe user (a participant named "${playerName}") may speak at any moment — when they do, respond naturally as ${activeSpeakerName}.\n`
       : '') +
     `Messages prefixed with [${translate('prompt.roleTag')}] are utterances by that participant; messages prefixed with [${playerName}] are the user's.\n` +
-    (requestPayload?.mentionOnlyMode
-      ? `End your reply by mentioning exactly one next participant with @name. If your reply already mentions a participant, do not add another mention.\n`
-      : `When you need to direct the next speaker, you may use @${translate('prompt.roleTag')} in your reply to call on another participant.\n`) +
+    `When you need to direct the next speaker, you may use @${translate('prompt.roleTag')} in your reply to call on another participant.\n` +
     `\n=== ${activeSpeakerName} ===\n` +
     activeNpcPrompt +
     (worldBookContent ? `\n\n=== ${translate('prompt.worldBook')} ===\n${worldBookContent}` : '') +
