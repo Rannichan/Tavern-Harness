@@ -1,6 +1,17 @@
-# Tavern Harness · AI 原生的角色扮演沙盒
+<p align="center">
+  <a href="https://rannichan.github.io/Tavern-Harness/">
+    <img alt="Tavern Harness logo" src="https://raw.githubusercontent.com/Rannichan/Tavern-Harness/main/public/tavern-harness-logo.png" width="128">
+  </a>
+</p>
+<p align="center">
+  <a href="https://rannichan.github.io/Tavern-Harness/"><img alt="产品主页" src="https://img.shields.io/badge/product-site-8B5CF6?style=flat-square" /></a>
+  <a href="https://rannichan.github.io/Tavern-Harness/wiki.html"><img alt="Wiki" src="https://img.shields.io/badge/wiki-documentation-2563EB?style=flat-square" /></a>
+  <a href="https://github.com/Rannichan/Tavern-Harness"><img alt="GitHub 仓库" src="https://img.shields.io/badge/github-repository-181717?style=flat-square&logo=github&logoColor=white" /></a>
+  <a href="https://discord.gg/kPSWGeaHx"><img alt="Discord" src="https://img.shields.io/badge/discord-community-5865F2?style=flat-square&logo=discord&logoColor=white" /></a>
+  <a href="https://www.npmjs.com/package/tavern-harness"><img alt="npm" src="https://img.shields.io/npm/v/tavern-harness?style=flat-square" /></a>
+</p>
 
- [产品主页](https://rannichan.github.io/Tavern-Harness/) ·  [Wiki](https://rannichan.github.io/Tavern-Harness/wiki.html) · [GitHub 仓库](https://github.com/Rannichan/Tavern-Harness) · [Discord 交流](https://discord.gg/kPSWGeaHx)
+# Tavern Harness · AI 原生的角色扮演沙盒
 
 ## 开源协议
 
