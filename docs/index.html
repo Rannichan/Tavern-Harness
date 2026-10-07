@@ -57,9 +57,9 @@
         </h1>
 
         <p class="hero-sub reveal">
-          推开木门，烛火摇曳——酒馆老板早已为你备好一个<span class="hl">任意你想构建的世界</span>。
-          无论是<span class="tag">陪伴</span><span class="tag">探险</span><span class="tag">其他 Fantacy</span>，
-          一切由你主宰，数据只留在你自己的浏览器里。
+          推开木门，烛火摇曳——酒馆老板早已为你备好一个<span class="hl">任意你想象构建的世界</span>。
+          无论是<span class="tag">陪伴</span><span class="tag">探险</span>，还是<span class="tag">其他 Fantacy</span>，
+          一切由你主宰！
         </p>
 
         <div class="hero-cta reveal">
@@ -72,29 +72,25 @@
           </a>
           <a class="btn btn-ghost" href="#demo">▶&nbsp; 先看一段 Demo</a>
         </div>
-
-        <div class="hero-ribbon reveal" aria-hidden="true">✦ 本地运行 · 无需服务器 · 数据不出浏览器 ✦</div>
       </div>
     </section>
 
     <!-- ══════════ 1 · 启动方式 ══════════ -->
     <section class="start" id="start">
       <div class="section-head kicker reveal">
-        <span class="kicker-no">壹</span>
         <span class="kicker-text">先从一壶热酒开始</span>
       </div>
       <h2 class="section-title reveal">启动方式</h2>
-      <p class="section-sub reveal">把你自己的 API 密钥带来即可，其余一切都在本地。</p>
 
       <div class="start-grid">
         <div class="step-card reveal">
           <div class="step-no">①</div>
           <h3>安装与启动</h3>
-          <p>克隆仓库后，只需三条命令，酒馆即刻开张：</p>
-          <pre class="code"><code><span class="c-dim"># 启动酒馆</span>
-<span class="c-am">npm install</span>
-<span class="c-am">npm run dev</span></code></pre>
-          <p class="step-note">开发服务器会自动拉起本地沙箱服务（默认 <code>127.0.0.1:17891</code>），生成式技能 `shell` 即可真实执行本地命令。</p>
+          <p>全局安装后，可从任意目录一条命令启动酒馆：</p>
+          <pre class="code"><code><span class="c-dim"># 安装并启动酒馆</span>
+<span class="c-am">npm install -g tavern-harness</span>
+<span class="c-am">tavern-harness</span></code></pre>
+          <p class="step-note">首次启动会拉起本地服务并自动打开浏览器。</p>
         </div>
 
         <div class="step-card reveal">
@@ -111,8 +107,7 @@
         <div class="step-card reveal">
           <div class="step-no">③</div>
           <h3>数据留在本地</h3>
-          <p>所有数据存入浏览器 <strong>IndexedDB</strong>——会话、角色、Lorebook 全部不出你的浏览器，无需自建服务端。</p>
-          <p class="step-note">换浏览器 / 换端口看不到旧数据？这是浏览器安全机制；用「分享对话」导出 JSON 即可随身带走。</p>
+          <p>本应用不提供任何联网能力，所有产生的数据都保存在本地。你可以使用自己的 API Key，也可以使用自己本地部署的模型服务以保护你的隐私。</p>
         </div>
       </div>
     </section>
@@ -120,10 +115,9 @@
     <!-- ══════════ 2 · 核心特点 1 ══════════ -->
     <section class="wrapper" id="magic">
       <div class="section-head kicker reveal">
-        <span class="kicker-no">贰</span>
         <span class="kicker-text">代劳一切的大管家</span>
       </div>
-      <h2 class="section-title reveal">核心特点一</h2>
+      <h2 class="section-title reveal">酒馆老板</h2>
 
       <div class="quote-card reveal">
         <div class="quote-mark" aria-hidden="true">“</div>
@@ -132,37 +126,36 @@
       </div>
 
       <p class="center-text reveal">
-        老板有一整排 <strong>生成式技能</strong> 听你差遣：从 <span class="skill-chip">web_search</span>、
-        <span class="skill-chip">roll_dice</span> <span class="skill-chip">create_skill</span>
-        <span class="skill-chip">manage_timer</span> 到 <span class="skill-chip">file_read</span>、
-        <span class="skill-chip">file_write</span> <span class="skill-chip">shell</span>
-        <span class="skill-chip">http_get</span>、<span class="skill-chip">javascript</span> …
+        老板有一整排 <strong>内置技能</strong> 听你差遣：<span class="skill-chip">run_shell_script</span>、
+        <span class="skill-chip">roll_dice</span>、<span class="skill-chip">file_read</span>、
+        <span class="skill-chip">file_write</span>、<span class="skill-chip">file_edit</span>、
+        <span class="skill-chip">file_display</span>、<span class="skill-chip">create_character</span>……
       </p>
       <p class="center-text reveal">
-        你可以用「<span class="hl">生成式技能</span>」现场写新技能<em>喂给他</em>——搜索、掷骰、定时提醒、
-        读写文件、真机执行命令，乃至读写游戏状态。老板挂上橡皮围裙，系上围裙带，<strong>什么都能干</strong>。
+        你还可以让老板现场创建新技能<em>并为角色配置</em>——运行本地命令、掷骰、读写和展示文件，
+        乃至管理角色、对话与世界设定。老板挂上橡皮围裙，系上围裙带，<strong>什么都能干</strong>。
       </p>
 
       <div class="magic-grid">
         <div class="magic-item reveal">
-          <span class="magic-icon">🛠️</span>
-          <h4>原生工具调用</h4>
-          <p>OpenAI<code>tools</code> 协议，本地真实执行，最多 4 层 ReAct 链式调用，<code>role=tool</code> 结果自动回灌。</p>
+          <span class="magic-icon">🎲</span>
+          <h4>骰子检定</h4>
+          <p>让老板调用 <code>roll_dice</code> 掷出命运，在冒险的关键时刻做出公正判定。</p>
         </div>
         <div class="magic-item reveal">
-          <span class="magic-icon">💭</span>
-          <h4>思考模式</h4>
-          <p>独立展示 thinking 内容，兼容 Qwen <code>chat_template_kwargs</code> 适配，老板的盘算你看得见。</p>
+          <span class="magic-icon">📊</span>
+          <h4>游戏看板</h4>
+          <p>读写并展示游戏文件，随时查看角色状态、任务进度与世界中的重要变化。</p>
         </div>
         <div class="magic-item reveal">
-          <span class="magic-icon">⏱️</span>
-          <h4>定时消息</h4>
-          <p>让老板到点提醒你——课堂、开会、魔药出锅，一个都别错过。</p>
+          <span class="magic-icon">🧑</span>
+          <h4>构建新角色</h4>
+          <p>让老板根据设定创建新角色，为你的世界补上独一无二的伙伴、对手或路人。</p>
         </div>
         <div class="magic-item reveal">
-          <span class="magic-icon">📎</span>
-          <h4>多模态附件</h4>
-          <p>粘贴或选择图片随消息发送，把世界草图直接丢给老板看。</p>
+          <span class="magic-icon">🧩</span>
+          <h4>构建自定义技能</h4>
+          <p>把重复的玩法封装成技能，再为角色配置它，让世界按你自己的规则运转。</p>
         </div>
       </div>
     </section>
@@ -177,36 +170,20 @@
       </div>
 
       <div class="section-head kicker reveal">
-        <span class="kicker-no">叁</span>
         <span class="kicker-text">你的世界，你做主</span>
       </div>
-      <h2 class="section-title reveal">核心特点二 · 高自由度沙盒</h2>
+      <h2 class="section-title reveal">高自由度角色扮演</h2>
       <p class="section-sub reveal">构建任意你想要的世界——这是你的酒馆，规则由你写。</p>
 
       <div class="world-grid">
         <div class="world-card reveal">
-          <div class="world-cat">陪伴</div>
-          <p>深夜有人听你说话，记得你说过的每一句小事。</p>
+          <div class="world-cat">多人模式</div>
+          <p>多人群聊支持角色相互 @、自动发言。无论是作为上帝视角观察角色行为，还是代入角色参与其中，都有丰富的玩法等你解锁。</p>
         </div>
         <div class="world-card reveal">
-          <div class="world-cat">探险</div>
-          <p>推开地牢大门，掷骰子决定命运，你的选择导向不同结局。</p>
+          <div class="world-cat">全能沙盒</div>
+          <p>沙盒设计为所有角色赋予文件读写、代码执行的能力，因此可以编码复杂的游戏玩法，解锁无限的游戏自由度。</p>
         </div>
-        <div class="world-card reveal">
-          <div class="world-cat">其他 Fantacy</div>
-          <p>魔法学院、赛博都市、中世纪酒馆……任何想象，皆可成真。</p>
-        </div>
-      </div>
-
-      <div class="world-detail reveal">
-        <h3>沙盒，凭什么「高自由度」？</h3>
-        <ul class="detail-list">
-          <li><span class="d-label">角色工坊</span> 对标 SillyTavern：角色卡（NPC）人设、开场白、彩色首字母头像 / 选图，内置「酒馆老板」默认启用全部内置技能。</li>
-          <li><span class="d-label">SillyTavern 导入</span> chara V2 / ccv3 V3 一键导入，自动解析人设、开场白与内嵌 Lorebook。</li>
-          <li><span class="d-label">Lorebook</span> 世界观设定附加在人设之后，可绑定到具体会话。</li>
-          <li><span class="d-label">群聊回合制</span> 2~5 位 NPC 同场，PRESET 按座位 / RANDOM 随机，<code>@角色名</code> 指定下一个发言者。</li>
-          <li><span class="d-label">生成式技能</span> <code>template</code> / <code>http_get</code> / <code>javascript</code>（Web Worker 沙箱，支持 async/await，可注入 <code>$read</code> / <code>$write</code> / <code>$append</code> / <code>$list</code> 持久化游戏状态）、<code>file_read</code> / <code>file_write</code> / <code>shell</code>（真实执行，白名单直执 + 高危弹窗）。</li>
-        </ul>
       </div>
     </section>
   </main>
@@ -214,14 +191,13 @@
   <!-- ══════════ DEMO 视频 ══════════ -->
   <section class="demo" id="demo">
     <div class="section-head kicker reveal">
-      <span class="kicker-no">肆</span>
       <span class="kicker-text">眼见为实</span>
     </div>
     <h2 class="section-title reveal">玩法展示</h2>
     <p class="section-sub reveal">看看酒馆里的不同玩法。</p>
 
     <div class="demo-video-group" id="affinity-demo">
-      <h3 class="demo-video-title reveal">好感度玩法</h3>
+      <h3 class="demo-video-title reveal">从零构建好感度玩法</h3>
       <div class="video-frame reveal">
         <video class="demo-video" controls playsinline preload="metadata" data-video-zh="https://pub-4a7642254acb4acab664899f1443324c.r2.dev/demo/th-demo-affinity-zh.mp4" data-video-en="https://pub-4a7642254acb4acab664899f1443324c.r2.dev/demo/th-demo-affinity-en.mp4">
           <source src="https://pub-4a7642254acb4acab664899f1443324c.r2.dev/demo/th-demo-affinity-zh.mp4" type="video/mp4" />
@@ -269,7 +245,6 @@
       <div class="footer-brand">
         <span class="brand-name serif">Tavern Harness</span>
       </div>
-      <p class="footer-note">本地优先 · 数据在自己手里 · 现在就来构建你的世界</p>
       <nav class="footer-links" aria-label="项目链接">
         <a class="chip" href="https://github.com/Rannichan/Tavern-Harness" target="_blank" rel="noopener noreferrer"><img class="chip-icon" src="https://cdn.simpleicons.org/github/ffcb8b" alt="" />项目 Github 地址</a>
         <a class="chip" href="https://discord.gg/kPSWGeaHx" target="_blank" rel="noopener noreferrer"><img class="chip-icon" src="https://cdn.simpleicons.org/discord/ffcb8b" alt="" />Discord 讨论社区</a>
