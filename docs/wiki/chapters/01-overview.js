@@ -9,7 +9,7 @@ window.WIKI.chapters.push({
   title: '这间酒馆是什么',
   lead: 'AI 原生的角色扮演沙盒，构建任意你想要的世界。',
   html: `
-    <p><strong>Tavern Harness（酒馆助手）</strong>是一个<strong>AI 原生的角色扮演沙盒</strong>。它跑在你自己的浏览器里：会话、角色卡、世界书、技能、生涯统计，全部存在浏览器 <code>IndexedDB</code>，<strong>不上传任何服务器</strong>。</p>
+    <p><strong>Tavern Harness</strong>是一个<strong>AI 原生的角色扮演沙盒</strong>。它跑在你自己的浏览器里：会话、角色卡、世界书、技能、生涯统计，全部存在浏览器 <code>IndexedDB</code>，<strong>不上传任何服务器</strong>。</p>
     <p class="dim">你可以从零搭建世界，让具备技能的智能体在其中行动、协作与成长。以下是 Tavern Harness 的部分特性：</p>
 
     <div class="grid2">

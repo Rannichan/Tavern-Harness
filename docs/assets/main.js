@@ -97,20 +97,45 @@
 
   /* ── 视频回退检测：仅在媒体本身确实加载失败时显示占位 ── */
   function initVideo() {
-    const frame = document.getElementById('video-frame');
-    const video = document.getElementById('demo-video');
-    if (!frame || !video) return;
+    document.querySelectorAll('.video-frame').forEach((frame) => {
+      const video = frame.querySelector('.demo-video');
+      if (!video) return;
 
-    const showFallback = () => {
-      frame.classList.add('show-fallback');
-    };
+      const showFallback = () => {
+        frame.classList.add('show-fallback');
+      };
 
-    if (!video.querySelector('source')) {
-      showFallback();
-      return;
-    }
+      if (!video.querySelector('source')) {
+        showFallback();
+        return;
+      }
 
-    video.addEventListener('error', showFallback, { once: true });
+      video.addEventListener('error', showFallback, { once: true });
+    });
+  }
+
+  /* ── 游戏文件下载：用 Blob 强制下载，避免浏览器直接展示 JSON ── */
+  function initGameplayDownloads() {
+    document.querySelectorAll('.demo-download-link').forEach((link) => {
+      link.addEventListener('click', async (event) => {
+        event.preventDefault();
+        const href = link.href;
+        try {
+          const response = await fetch(href);
+          if (!response.ok) throw new Error('Unable to download gameplay file.');
+          const blobUrl = URL.createObjectURL(await response.blob());
+          const download = document.createElement('a');
+          download.href = blobUrl;
+          download.download = new URL(href).pathname.split('/').pop() || 'gameplay.json';
+          document.body.appendChild(download);
+          download.click();
+          download.remove();
+          URL.revokeObjectURL(blobUrl);
+        } catch (_error) {
+          window.location.assign(href);
+        }
+      });
+    });
   }
 
   /* ── 启动 ── */
@@ -119,4 +144,5 @@
   initTopbar();
   initNavSpy();
   initVideo();
+  initGameplayDownloads();
 })();

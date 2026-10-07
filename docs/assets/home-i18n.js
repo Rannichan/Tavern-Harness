@@ -30,8 +30,8 @@
     ['#magic .center-text:nth-of-type(2)', 'Use <span class="hl">generative skills</span> to write new skills <em>for the keeper</em> on the spot—search, roll dice, set reminders, read and write files, run real commands, and manage game state. Apron on, sleeves rolled up: <strong>they can do it all</strong>.'],
     ['#magic .magic-item:nth-child(1) h4', 'Native tool calling'], ['#magic .magic-item:nth-child(1) p', 'OpenAI <code>tools</code> protocol with real local execution, up to four layers of chained ReAct calls, and automatic <code>role=tool</code> result feedback.'], ['#magic .magic-item:nth-child(2) h4', 'Thinking mode'], ['#magic .magic-item:nth-child(2) p', 'Shows thinking content independently and supports Qwen <code>chat_template_kwargs</code>, so the keeper’s reasoning is visible.'], ['#magic .magic-item:nth-child(3) h4', 'Scheduled messages'], ['#magic .magic-item:nth-child(3) p', 'Ask the keeper to remind you on time—classes, meetings, or potions coming out of the oven.'], ['#magic .magic-item:nth-child(4) h4', 'Multimodal attachments'], ['#magic .magic-item:nth-child(4) p', 'Paste or select images to send with a message, and show the keeper your world sketches directly.'],
     ['#world .kicker-no', 'III'], ['#world .kicker-text', 'Your world, your rules'], ['#world .section-title', 'Feature two · a highly flexible sandbox'], ['#world .section-sub', 'Build any world you can imagine—this is your tavern, and you write the rules.'], ['#world .world-card:nth-child(1) .world-cat', 'Companionship'], ['#world .world-card:nth-child(1) p', 'Someone to talk to late at night, who remembers every small thing you share.'], ['#world .world-card:nth-child(2) .world-cat', 'Adventure'], ['#world .world-card:nth-child(2) p', 'Open the dungeon door, roll the dice for fate, and make choices that lead to different endings.'], ['#world .world-card:nth-child(3) .world-cat', 'Other fantasy'], ['#world .world-card:nth-child(3) p', 'Magic academies, cyber cities, medieval taverns—any imagined place can come alive.'], ['#world .world-detail h3', 'What makes this sandbox so flexible?'],
-    ['#demo .kicker-no', 'IV'], ['#demo .kicker-text', 'Seeing is believing'], ['#demo .section-title', 'Affinity system demo'], ['#demo .section-sub', 'Watch a short video of the affinity system in the tavern.'], ['#video-fallback > p:first-child', '🎬 <strong>Affinity system demo</strong>'], ['#video-fallback .fallback-note', 'The video is temporarily unavailable. Please try again later.'],
-    ['.footer-brand .brand-name', 'Tavern Harness'], ['.footer-note', 'Local first · Your data stays in your hands · Build your world now'], ['.footer-links', '<a href="wiki.html">📖 Documentation Wiki</a> · <a href="https://github.com/Rannichan/Tavern-Harness/issues">Report an issue</a> · <a href="https://discord.gg/kPSWGeaHx">Discord community</a>']
+    ['#demo .kicker-no', 'IV'], ['#demo .kicker-text', 'Seeing is believing'], ['#demo > .section-title', 'Gameplay showcase'], ['#demo > .section-sub', 'See different ways to play in the tavern.'], ['#affinity-demo .demo-video-title', 'Affinity system'], ['#affinity-demo .video-fallback > p:first-child', '🎬 <strong>Affinity system demo</strong>'], ['#affinity-demo .demo-download strong', 'Want to try it yourself?'], ['#affinity-demo .demo-download span', 'Download the game file, then select “Import” in the tavern sidebar to recreate it.'], ['#affinity-demo .demo-download-link', 'Download affinity game file'], ['#multiplayer-demo .demo-video-title', 'Multiplayer group chat'], ['#multiplayer-demo .video-fallback > p:first-child', '🎬 <strong>Multiplayer group-chat demo</strong>'], ['#multiplayer-demo .demo-download strong', 'Want to try it yourself?'], ['#multiplayer-demo .demo-download span', 'Download the game file, then select “Import” in the tavern sidebar to recreate it.'], ['#multiplayer-demo .demo-download-link', 'Download multiplayer game file'], ['#demo .video-fallback .fallback-note', 'The video is temporarily unavailable. Please try again later.'],
+    ['.footer-brand .brand-name', 'Tavern Harness'], ['.footer-note', 'Local first · Your data stays in your hands · Build your world now'], ['.footer-links .chip:nth-child(1)', '<img class="chip-icon" src="https://cdn.simpleicons.org/github/ffcb8b" alt="" />Project on GitHub'], ['.footer-links .chip:nth-child(2)', '<img class="chip-icon" src="https://cdn.simpleicons.org/discord/ffcb8b" alt="" />Discord community'], ['.footer-links .chip:nth-child(3)', '<img class="chip-icon" src="https://cdn.simpleicons.org/bilibili/ffcb8b" alt="" />Bilibili introduction video']
   ]);
 
   function storeLanguage(language) {
@@ -67,8 +67,7 @@
       ? 'Tavern Harness is a local-first AI role-playing tavern. Build any world you imagine in a flexible sandbox.'
       : originalDescription;
 
-    var video = document.querySelector('#demo-video');
-    if (video) {
+    document.querySelectorAll('.demo-video').forEach(function (video) {
       var source = video.querySelector('source');
       var videoSource = video.getAttribute(language === 'en' ? 'data-video-en' : 'data-video-zh');
       if (source && source.getAttribute('src') !== videoSource) {
@@ -76,7 +75,10 @@
         source.setAttribute('src', videoSource);
         video.load();
       }
-    }
+    });
+    document.querySelectorAll('.demo-download-link').forEach(function (link) {
+      link.setAttribute('href', link.getAttribute(language === 'en' ? 'data-game-en' : 'data-game-zh'));
+    });
 
     // Replacing localized markup creates new reveal nodes after the observer was initialized.
     // Mark them visible immediately so translated headings cannot remain transparent.

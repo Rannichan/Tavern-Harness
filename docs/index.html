@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Tavern Harness · 酒馆助手 — 你来了！快坐下~</title>
+  <title>Tavern Harness — 你来了！快坐下~</title>
   <meta name="description" content="Tavern Harness —— 本地优先的 AI 角色扮演酒馆。高自由度沙盒，构建任意你想要的世界：陪伴、探险、还是其他 Fantacy。" />
   <link rel="icon" href="favicon.png" />
   <script src="assets/theme.js"></script>
@@ -217,17 +217,48 @@
       <span class="kicker-no">肆</span>
       <span class="kicker-text">眼见为实</span>
     </div>
-    <h2 class="section-title reveal">好感度玩法 Demo</h2>
-    <p class="section-sub reveal">一段视频，看看酒馆里的好感度玩法。</p>
+    <h2 class="section-title reveal">玩法展示</h2>
+    <p class="section-sub reveal">看看酒馆里的不同玩法。</p>
 
-    <div class="video-frame reveal" id="video-frame">
-      <video id="demo-video" controls playsinline preload="metadata" data-video-zh="https://pub-4a7642254acb4acab664899f1443324c.r2.dev/demo/th-demo-affinity-zh.mp4" data-video-en="https://pub-4a7642254acb4acab664899f1443324c.r2.dev/demo/th-demo-affinity-en.mp4">
-        <source src="https://pub-4a7642254acb4acab664899f1443324c.r2.dev/demo/th-demo-affinity-zh.mp4" type="video/mp4" />
-        你的浏览器不支持视频播放。
-      </video>
-      <div class="video-fallback" id="video-fallback">
-        <p>🎬 <strong>好感度玩法 Demo</strong></p>
-        <p class="fallback-note">视频暂时无法播放，请稍后再试。</p>
+    <div class="demo-video-group" id="affinity-demo">
+      <h3 class="demo-video-title reveal">好感度玩法</h3>
+      <div class="video-frame reveal">
+        <video class="demo-video" controls playsinline preload="metadata" data-video-zh="https://pub-4a7642254acb4acab664899f1443324c.r2.dev/demo/th-demo-affinity-zh.mp4" data-video-en="https://pub-4a7642254acb4acab664899f1443324c.r2.dev/demo/th-demo-affinity-en.mp4">
+          <source src="https://pub-4a7642254acb4acab664899f1443324c.r2.dev/demo/th-demo-affinity-zh.mp4" type="video/mp4" />
+          你的浏览器不支持视频播放。
+        </video>
+        <div class="video-fallback">
+          <p>🎬 <strong>好感度玩法 Demo</strong></p>
+          <p class="fallback-note">视频暂时无法播放，请稍后再试。</p>
+        </div>
+      </div>
+      <div class="demo-download reveal">
+        <div>
+          <strong>想亲自试玩？</strong>
+          <span>下载游戏文件后，在酒馆侧栏选择「导入」即可一键复现。</span>
+        </div>
+        <a class="demo-download-link" href="assets/gameplay/th-demo-affinity-gameplay-zh.json" data-game-zh="assets/gameplay/th-demo-affinity-gameplay-zh.json" data-game-en="assets/gameplay/th-demo-affinity-gameplay-en.json" download>下载好感度玩法游戏文件</a>
+      </div>
+    </div>
+
+    <div class="demo-video-group" id="multiplayer-demo">
+      <h3 class="demo-video-title reveal">多人群聊玩法</h3>
+      <div class="video-frame reveal">
+        <video class="demo-video" controls playsinline preload="metadata" data-video-zh="https://pub-4a7642254acb4acab664899f1443324c.r2.dev/demo/th-demo-multiplayer-zh.mp4" data-video-en="https://pub-4a7642254acb4acab664899f1443324c.r2.dev/demo/th-demo-multiplayer-en.mp4">
+          <source src="https://pub-4a7642254acb4acab664899f1443324c.r2.dev/demo/th-demo-multiplayer-zh.mp4" type="video/mp4" />
+          你的浏览器不支持视频播放。
+        </video>
+        <div class="video-fallback">
+          <p>🎬 <strong>多人群聊玩法 Demo</strong></p>
+          <p class="fallback-note">视频暂时无法播放，请稍后再试。</p>
+        </div>
+      </div>
+      <div class="demo-download reveal">
+        <div>
+          <strong>想亲自试玩？</strong>
+          <span>下载游戏文件后，在酒馆侧栏选择「导入」即可一键复现。</span>
+        </div>
+        <a class="demo-download-link" href="assets/gameplay/th-demo-multiplayer-gameplay-zh.json" data-game-zh="assets/gameplay/th-demo-multiplayer-gameplay-zh.json" data-game-en="assets/gameplay/th-demo-multiplayer-gameplay-en.json" download>下载多人群聊玩法游戏文件</a>
       </div>
     </div>
   </section>
@@ -236,15 +267,18 @@
   <footer class="footer">
     <div class="footer-inner">
       <div class="footer-brand">
-        <span class="brand-name serif">酒馆助手</span>
-        <span class="brand-sub">TAVERN&nbsp;HARNESS</span>
+        <span class="brand-name serif">Tavern Harness</span>
       </div>
       <p class="footer-note">本地优先 · 数据在自己手里 · 现在就来构建你的世界</p>
-      <p class="footer-links"><a href="wiki.html">📖 使用 Wiki</a> · <a href="https://github.com/Rannichan/Tavern-Harness/issues">问题反馈</a> · <a href="https://discord.gg/kPSWGeaHx">Discord 社区</a></p>
+      <nav class="footer-links" aria-label="项目链接">
+        <a class="chip" href="https://github.com/Rannichan/Tavern-Harness" target="_blank" rel="noopener noreferrer"><img class="chip-icon" src="https://cdn.simpleicons.org/github/ffcb8b" alt="" />项目 Github 地址</a>
+        <a class="chip" href="https://discord.gg/kPSWGeaHx" target="_blank" rel="noopener noreferrer"><img class="chip-icon" src="https://cdn.simpleicons.org/discord/ffcb8b" alt="" />Discord 讨论社区</a>
+        <a class="chip" href="https://www.bilibili.com/" target="_blank" rel="noopener noreferrer"><img class="chip-icon" src="https://cdn.simpleicons.org/bilibili/ffcb8b" alt="" />Bilibili 介绍视频</a>
+      </nav>
       <p class="footer-copy">© 2026 Tavern Harness. All data stays in your browser.</p>
     </div>
   </footer>
 
-  <script src="assets/main.js?v=20261005"></script>
+  <script src="assets/main.js?v=20261007"></script>
 </body>
 </html>

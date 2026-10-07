@@ -106,7 +106,7 @@
       (chapters[0] ? chapters[0].title : '') + '</span></a>' +
       '<a class="end-link" href="index.html"><span class="el-label">↩ 回到主线</span>' +
       '<span class="el-title">产品主页</span></a></nav>' +
-      '<footer class="wfooter"><div class="wf-brand">酒馆助手 · Tavern Harness</div>' +
+      '<footer class="wfooter"><div class="wf-brand">Tavern Harness</div>' +
       '<span>© 2026 Tavern Harness. All data stays in your browser.</span></footer>';
     top.insertAdjacentHTML('beforeend', html);
     linkXrefs(top);
