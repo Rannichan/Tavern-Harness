@@ -9,9 +9,9 @@
     if (!field) return;
 
     const icons = [
-      'assets/icons8-dice-90.png',
-      'assets/icons8-lantern-100.png',
-      'assets/icons8-quill-pen-96.png'
+      'assets/icons/icons8-dice-90.png',
+      'assets/icons/icons8-lantern-100.png',
+      'assets/icons/icons8-quill-pen-96.png'
     ];
     const count = window.innerWidth < 700 ? 9 : 15;
 
