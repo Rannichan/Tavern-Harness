@@ -16,17 +16,7 @@
 <a id="demo"></a>
 ## 1 · Gameplay Demos
 
-### Build an Affinity System from Scratch
-
-<video controls playsinline preload="metadata" src="https://pub-4a7642254acb4acab664899f1443324c.r2.dev/demo/th-demo-affinity-en.mp4">
-  Your browser does not support video playback. Download it from the [product site](https://rannichan.github.io/Tavern-Harness/#demo).
-</video>
-
-### Multiplayer Group Chat
-
-<video controls playsinline preload="metadata" src="https://pub-4a7642254acb4acab664899f1443324c.r2.dev/demo/th-demo-multiplayer-en.mp4">
-  Your browser does not support video playback. Download it from the [product site](https://rannichan.github.io/Tavern-Harness/#demo).
-</video>
+[![Gameplay demos](docs/assets/demo-link-en.png)](https://rannichan.github.io/Tavern-Harness/index.html#demo)
 
 <a id="run"></a>
 ## 2 · Getting Started

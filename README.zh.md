@@ -16,17 +16,7 @@
 <a id="demo"></a>
 ## 1 · 玩法演示
 
-### 从零构建好感度玩法
-
-<video controls playsinline preload="metadata" src="https://pub-4a7642254acb4acab664899f1443324c.r2.dev/demo/th-demo-affinity-zh.mp4">
-  您的浏览器不支持视频播放。请前往[产品主页](https://rannichan.github.io/Tavern-Harness/#demo)观看。
-</video>
-
-### 多人群聊玩法
-
-<video controls playsinline preload="metadata" src="https://pub-4a7642254acb4acab664899f1443324c.r2.dev/demo/th-demo-multiplayer-zh.mp4">
-  您的浏览器不支持视频播放。请前往[产品主页](https://rannichan.github.io/Tavern-Harness/#demo)观看。
-</video>
+[![玩法演示](docs/assets/demo-link-zh.png)](https://rannichan.github.io/Tavern-Harness/index.html#demo)
 
 <a id="run"></a>
 ## 2 · 如何运行

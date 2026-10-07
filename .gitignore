@@ -1,5 +1,6 @@
 node_modules/
 dist/
+tmp/
 .DS_Store
 *.local
 .sandbox-port
@@ -8,7 +9,8 @@ sandbox_workspace/
 # 本地开发辅助内容（技能文件、规范图等）
 skills/
 *.png
-# 文档站图标需要入库（例外）
+# 文档站图标与 README 预览图需要入库（例外）
 !docs/assets/icons/*.png
+!docs/assets/demo-link-*.png
 # 个人笔记（notebook 目录）
 notebook/
