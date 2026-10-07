@@ -262,6 +262,9 @@ function sandboxProxyPlugin(): Plugin {
 
 export default defineConfig({
   plugins: [react(), corsProxyPlugin(), sandboxProxyPlugin()],
+  optimizeDeps: {
+    include: ['zustand', 'use-sync-external-store/shim/with-selector'],
+  },
   server: {
     port: 5173,
     open: false,

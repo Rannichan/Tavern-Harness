@@ -1,142 +1,138 @@
-# Tavern Harness · 酒馆助手
+# Tavern Harness · An AI-Native Role-Playing Sandbox
 
-MyAgent-Android（Mioo）的 Web 版复刻——一个本地优先的 AI 助手 / Agent 聊天客户端，跑在你自己的浏览器里。
+[GitHub Repository](https://github.com/Rannichan/Tavern-Harness) · [Product Site](https://rannichan.github.io/Tavern-Harness/) · [Open Sandbox](https://rannichan.github.io/Tavern-Harness/#world) · [Report an Issue](https://github.com/Rannichan/Tavern-Harness/issues) · [Discussions](https://github.com/Rannichan/Tavern-Harness/discussions) · [Discord](https://discord.gg/kPSWGeaHx) · [Skill Sandbox Design](./notebook/skill-sandbox-design.md)
 
-**Tavern Harness** 提供与 Android 版一致的功能：任意 OpenAI 兼容 API、多 Provider 管理、角色卡（NPC）、Lorebook、生成式技能、群聊回合制、多模态附件、定时消息、生涯统计等。所有数据通过 IndexedDB 存储在本地，无需自建服务端。
+<a id="run"></a>
+## 1 · Getting Started
 
-> ⚠️ **数据说明**：全部数据（会话、配置、角色等）保存在浏览器 IndexedDB 中，**与浏览器、端口、站点绑定**。换浏览器（如 Chrome → Safari）、开隐私窗口、或换端口访问会看不到旧数据——这是浏览器安全机制，属于正常现象。如需迁移，可在对话页右上角「分享对话」导出会话 JSON（可自定义保存位置与文件名）。
+> Requires **Node.js 18 or later**. Tavern Harness is a frontend web app with an optional local sandbox service—no Docker or database server required.
 
-## ✨ 功能
+### Option 1: One-Command Start (Recommended)
 
-### 对话
-- 任意 OpenAI 兼容 `chat/completions` 接口，**流式输出**（SSE）
-- **多 Provider 管理**：Base URL / API Key，连通性测试与模型列表拉取
-- **思考模式**：独立展示 thinking 内容（`reasoning` / `reasoning_content` / `thinking_content`），支持 Qwen `chat_template_kwargs` 适配
-- **原生工具调用**：OpenAI `tools` 协议，本地真实执行，`role=tool` 结果回灌，最多 4 层 ReAct 链式调用
-- **多模态附件**：图片（粘贴 / 选择）随消息发送为 data URL
-- **消息管理**：右键编辑历史消息、重新生成回复、查看原始请求/响应日志（自动脱敏）
-- **中断生成**：可随时停止流式输出，已生成部分自动持久化
-- **魔法命令**：`/new` 开始新话题（截断上下文）、`/pass` 跳过本轮发言（群聊）
-- **Markdown 渲染**：代码高亮、表格、行内/块级数学公式（KaTeX）
-- 每条消息记录延迟、token 用量、tokens/s、所用模型等指标
-
-### 会话模式
-- **标准对话（STANDARD）**：与助手一对一
-- **NPC 对话**：与单个角色卡对话，独立人设、开场白、技能配置
-- **群聊（GROUP）**：2~5 位 NPC 同场对话
-  - 回合制：PRESET（按座位顺序）/ RANDOM（随机）
-  - `@角色名` 直接指定下一个发言者
-  - 玩家可扮演角色（User Persona）
-
-### 角色工坊（对标 SillyTavern）
-- **角色卡（NPC）**：人设、开场白、彩色首字母头像 / 选图，编辑页内按角色启用技能（内置角色「酒馆老板」默认启用全部内置技能）
-- **SillyTavern PNG 导入**：chara V2 / ccv3 V3 一键导入，解析人设、开场白、内嵌Lorebook
-- **Lorebook**：世界观设定附加在人设后，可绑定到会话
-- **技能表（工具）**：
-  - 内置：`run_shell_script`（受控本地命令执行）、`roll_dice`、`create_skill` / `update_skill` / `delete_skill`、`get_tavern_info`、角色与Lorebook CRUD
-  - **生成式技能**：`template` / `http_get` / `javascript`（Web Worker 沙箱，支持 async/await，可注入 `$read`/`$write`/`$append`/`$list` 持久化游戏状态）/ `file_read` / `file_write` / `shell`（真实执行，白名单直执 + 其余命令确认）/ `device_action`（通知 / 震动）
-  - **确认门控**：更新/删除类操作、以及所有**非白名单 shell 命令**均弹出确认框
-
-## 🚀 使用
+No repository clone or global installation is required:
 
 ```bash
+npx tavern-harness
+```
+
+The first run downloads the package, starts the local service, and opens your browser automatically. Optional arguments:
+
+```bash
+npx tavern-harness --no-open
+npx tavern-harness --port 5273
+```
+
+The service listens only on the local machine. When using shell skills, commands run locally with the permissions of the user who started the command. Run only versions from trusted sources and review every command-confirmation dialog.
+
+### Option 2: Develop from Source
+
+```bash
+git clone https://github.com/Rannichan/Tavern-Harness.git
+cd Tavern-Harness
 npm install
-npm run dev      # 开发
-npm run build    # 构建
-npm run preview  # 预览
+npm run dev      # Defaults to port 5173 and automatically tries the next port if occupied
 ```
 
-然后在「设置 → 模型服务 Provider」中：
+### Configure a Model Provider on First Launch
 
-1. 添加 Provider：名称、Base URL、API Key，启用后点击「测试连接」拉取模型列表
-2. 在聊天页顶部点击模型名选择模型
-3. 回到对话，开聊！
+After starting the app, open **Settings → Model Service Provider**:
 
-## 生成式技能 `shell` 的受控本地执行
+1. **Add a provider**: enter a name, Base URL, and API Key. Any OpenAI-compatible `chat/completions` API is supported, including OpenAI, DeepSeek, Qwen, SiliconFlow, Ollama, LM Studio, and self-hosted vLLM.
+2. **Test the connection**: the app fetches the model list automatically. If the target service does not expose CORS headers, requests are forwarded through the built-in same-origin proxy for private-network or LAN addresses. On success, the Base URL is rewritten to its proxy form and saved.
+3. **Select a model**: click the model name at the top of the chat page, then return to the conversation and start chatting.
 
-`shell` 技能通过独立的本地命令服务执行**真实本地命令**。开发服务器（`npm run dev`）会在首次收到 `/api-v2/exec` 请求时自动拉起该服务（`sandbox-server.mjs`，默认为本机 `127.0.0.1:17891`）。Vite 代理会为每次运行生成彼此独立的服务密钥和批准密钥并注入内部请求；无密钥的本地直连请求会被拒绝，待确认请求也必须先由专用批准端点授权才能执行。
+### Data Privacy
 
-> **这不是 OS 沙箱。** 命令以启动服务的当前用户权限执行，能够使用该用户拥有的文件、进程和网络权限。会话工作目录只作为命令的初始 `cwd`，不是文件系统安全边界。安全控制来自命令白名单和执行前的用户许可。
+- **All data is stored in browser IndexedDB**: conversations, character cards, lorebooks, skills, statistics, and API keys are not uploaded to any server.
+- Data is tied to the browser, port, and site origin. Switching browsers, opening a private window, or using a different port will not show existing data. This is expected browser security behavior; use the same browser and port each time.
 
-```bash
-npm start          # 或 npm run dev —— 本地命令服务按需自动启动
-```
+<a id="features"></a>
+## 2 · Features
 
-如需脱离 Vite 调试服务，必须显式提供仅用于该次调试的服务密钥和批准密钥，并分别在请求的 `X-Command-Service-Token`、`X-Command-Approval-Token` 头中携带：
+### 🍺 The Tavern Keeper Is Always Ready to Help
 
-```bash
-COMMAND_SERVICE_TOKEN=临时随机值 COMMAND_APPROVAL_TOKEN=另一临时随机值 node sandbox-server.mjs
-```
+Whether you are creating a character card, designing a tabletop RPG scenario, or simply unsure where to begin, ask the Tavern Keeper.
 
-启用后：
+The tavern is designed around AI assistance to make creating and playing games easier.
 
-- 开发服务器（`npm run dev`）会自动把 `/api-v2/exec` 转发给该服务；已编译产物（`npm run preview` / 静态部署）需在同一站点额外部署该服务（或手动代理）。
-- Vite 代理覆盖内部认证头，浏览器不能自行指定服务密钥；服务不开放跨域访问。
-- **权限模型（命令分级）**：
-  - **直接执行命令 → 不需确认**：白名单按能力分类维护：
-    - 基础信息：`pwd`、`date`、`whoami`、`uname`、`hostname`、`uptime`、`which`
-    - 文件与目录：`ls`、`touch`、`mkdir`、`cp`、`basename`、`dirname`、`du`、`stat`、`file`
-    - 文本与结构化数据：`echo`、`printf`、`cat`、`head`、`tail`、`wc`、`uniq`、`grep`、`cut`、`tr`、`diff`、`cmp`、`od`、`xxd`、`hexdump`、`strings`、`tee`、`jq`
-    - 系统配置 / 查询：`localectl`、`timedatectl`、`ffprobe`
-    - 逻辑 / 数学 / 校验：`true`、`false`、`seq`、`factor`、`bc`、`sha256sum`、`md5sum`、`cksum`、`sum`
-  - 解释器、命令启动器、带 exec / 外部程序 / 动态插件能力的工具，以及所有压缩工具均不在白名单中；包括 `node`、`npm`、`npx`、`git`、`env`、`xargs`、`awk`、`find`、`sed`、`tar`、`zip`、`sort`、`openssl`、`calc`、`gzip`、`gunzip`、`xz`、`unzip`，执行前必须取得用户许可。
-  - **任何非白名单命令 → 弹窗确认后执行**：服务端先签发绑定脚本与会话、60 秒有效且只能使用一次的确认票据；前端展示整段脚本并在用户批准后携票据重发。裸 `confirmed` 标记无效；拒绝返回 `CANCELLED`。
-- 其余规范：单条命令 5s 超时、输出截断、脚本 ≤ 8000 字符 / ≤ 20 条命令；无 shell 解释器，不支持管道、重定向、变量展开或命令替换。
-- 该服务仅监听 `127.0.0.1`，不对外暴露；未启动时返回明确错误提示。
+### 🛠️ Skill System
 
-### 会话隔离的工作目录
+Characters are more than chat partners: they are **agents with extensible skills**. Equip each character with the abilities needed for richer gameplay.
 
-每个对话（会话）在创建时都会分配一个**以会话 id 命名的专属工作目录**：`sandbox_workspace/session-<会话id>/`（单层目录，直接位于工作区根下，不再嵌套）。文件工具在这个目录内读写；本地命令以它作为初始 `cwd`：
+The tavern includes essential skills such as dice rolling. You can also ask the Tavern Keeper to **create any skill you need**.
 
-- **创建对话时即预建其工作目录**（沙箱服务运行时真实建目录；未启动则静默跳过，首次工具调用时自动补建）；
-- 删除对话时会**一并删除其专属工作目录**（磁盘目录 + 沙箱未启动时写入浏览器虚拟工作区 IndexedDB 的数据一并清理）；
-- shell 命令以该目录为 `cwd` 执行；读写路径必须留在当前会话工作目录内（普通会话仅允许通过 `public` 软链读取公共目录，写入仍拒绝）；
-- 文件读写 / 文件列表只对该目录可见（无法访问其它会话或外部目录）；
-- 浏览器虚拟工作区（沙箱未启动时的回退）同样按会话隔离：`generated_skill_workspace/sessions/session-<会话id>/…`；
-- 通过文件工具维护的不同会话数据互不可见、互不影响；本地命令读写也受同一目录边界约束。
+### 💬 Multi-Character Group Chats
 
-旧会话（在本功能上线前创建）如果没有工作目录字段，会自动回退到 `session-<会话id>` 专属目录，避免共享根目录带来的权限扩大。会话头部副标题会显示当前会话的工作目录名（如 `session-12`）。
+Each room supports up to **six characters** and provides a turn-order board for managing group conversations.
 
-### 生成式技能 `file_read` / `file_write` 的真实磁盘工作区
+Use **@mentions** and **skip** to create natural multi-character scenes—whether observing from above or role-playing as part of the group.
 
-当本地工作区服务运行（开发服务器自动拉起）时，技能的 `file_read` / `file_write` 会读写项目根目录下的 **`sandbox_workspace/`** 真实文件夹（首次写入自动创建，已被 `.gitignore` 忽略）。技能可以：
+### 🎁 Share Your Game with Friends
 
-- 读取工作区相对路径文件（普通会话可直接读取 `public/...`，单文件 ≤ 100KB，超出截断）
-- 写入 / 追加工作区相对路径文件（单文件 ≤ 400KB）；普通会话对 `public/...` 写入会被直接拒绝
-- 通过 `file_list` 端点列出工作区文件（上限 500 个）
+Compatible with the **Tavern ecosystem**, including one-click PNG character-card imports.
 
-> **文件 API 权限边界**：`file_read` / `file_write` 仅允许工作区相对路径（拒绝绝对路径与 `..`）；普通会话可读 `public` 软链但不可写；`public` 会话（如酒馆老板）可在公共目录正常读写；`file_list` 只枚举当前会话工作区。
+You can also export and share an entire game: recipients can import it and play immediately without manually creating characters, skills, or conversation settings.
 
-### 本地 / 局域网服务（CORS）
+### 🍃 Fully Local and Clean
 
-浏览器出于安全会拦截跨域请求。若你的 OpenAI 兼容服务（如局域网内 `http://192.168.x.x:8788/`）**未开放 CORS 头**，请求会自动回退到内置代理：Vite 开发服务器在**服务端**把 `/api/<host:port>/` 转发到目标服务，浏览器同源不再受限（`npm run build` 后的静态部署不包含此代理）。
+The app supports **OpenAI-format APIs**. Use a hosted API plan or run a model locally; your data remains on your device.
 
-- `测试连接` 与对话请求均会自动尝试直连，CORS 被拦时自动改用代理（仅内网/局域网地址）
-- 代理连通后，Provider 的 Base URL 会被自动改写为同源代理形式并保存，无需手动填写
+The project has no external harness dependency, and its UI is designed for a clean, focused experience.
 
-## 🛠 技术栈
+<a id="gameplay"></a>
+## 3 · Gameplay Examples
 
-- React 18 + TypeScript + Vite
-- Zustand（全局状态）
-- Dexie.js（IndexedDB ORM，对应 Room）
-- KaTeX（数学渲染）
-- marked（Markdown 解析）
-- Web Worker 沙箱（JavaScript 技能隔离执行）
+> These examples progress from simple to advanced: the first three work out of the box, while the remaining four gradually introduce sandbox capabilities. In every example, “the Keeper” means the built-in **Tavern Keeper** character, which exists on first launch and has all built-in skills enabled by default.
 
-## 📁 结构
+### Example 1: Late-Night Company (No Setup)
 
-```
-src/
-├── core/               # 领域逻辑（提示词组装 / 回合循环 / OpenAI 客户 / 工具引擎 / 统计）
-│   └── tools/          # 内置工具 + 生成式技能执行器 + 虚拟文件系统
-├── db/                 # Dexie 数据库与种子数据
-├── store/              # Zustand 全局状态（对应 MainViewModel）
-├── components/         # React UI
-├── theme/              # 主题系统（4 主题 × 明暗）
-└── types/              # 领域模型
-```
+1. Create a new conversation → select **NPC Chat** → choose **Tavern Keeper** or any custom character.
+2. Chat naturally as you would with a friend. Enable **thinking mode** to see the Keeper's reasoning.
+3. Long-press or right-click any message to edit history, regenerate, inspect raw logs, or fork a branch.
 
-## 📝 说明
+### Example 2: Tabletop Dice Rolls (Role-Playing)
 
-- Web 版将设备专属功能映射为等效实现：震动 → `navigator.vibrate`；通知 → Notification API；shell 命令 → 白名单模拟；本地端口转发 → 不适用（浏览器环境）
-- API Key 只存储在浏览器本地 IndexedDB，不上传任何服务器
+1. Create an **NPC Chat** for a GM and give the character a prompt such as: “You are the GM for this campaign; use `roll_dice` to decide fate.”
+2. Use the opening message to introduce a story hook. The Keeper can call `roll_dice` and display results such as critical successes or failures.
+3. Add campaign rules and world setting to a Lorebook, then bind it to the conversation to turn the character into a complete world.
+
+### Example 3: A Group-Chat Script (Up to Six Characters)
+
+1. Create multiple NPCs in the **Character Workshop**, such as a detective, butler, and protagonist.
+2. Create a **Group Chat**, add up to six characters, drag to set their speaking order, or enable random ordering.
+3. Use `@character-name` to choose the next speaker. Enter `/new` to begin a new topic with truncated context, or `/pass` to skip your turn.
+
+### Example 4: Create Skills in the Moment
+
+1. Ask the Keeper: “Create a skill that accepts a city and returns the weather.” It can call `create_skill` to create a new `template` or `http_get` skill.
+2. New skills are disabled for all characters by default. Enable them for the desired character in **Character Workshop → Skills**.
+3. Skills can use `$read`, `$write`, `$append`, and `$list` to work with the conversation workspace, with no restart required.
+
+### Example 5: A Persistent Mini-Game (Advanced Sandbox)
+
+1. Ask the Keeper to write a `javascript` skill for an affinity system, saving each turn's value to `state.json` with `$write`.
+2. Create another skill that reads with `$read` and uses `file_write` to generate an HTML dashboard, `dashboard.html`.
+3. Use `file_display` to visualize value changes in a pop-up; workspace files can be previewed in an isolated, resizable HTML view.
+4. Deleting the conversation also removes its `sandbox_workspace/session-<id>/` directory.
+
+### Example 6: Organize Files with Shell Skills
+
+1. Ask the Keeper in chat to use `ls` to inspect the workspace, `cat` to read files, and `cp` to archive creative work.
+2. Reads and writes must remain in the current conversation workspace. Non-allowlisted commands such as `node` and `git`, plus modifying operations such as `mv` and `rm`, require confirmation.
+3. Regular conversations have read-only access to `public/`. Only the built-in Tavern Keeper can write to the public area, allowing shared assets across conversations.
+
+### Example 7: Take an Entire World with You (Import, Export, and Fork)
+
+1. Mid-game, choose **Export Game** and decide whether to include conversation history to create a self-contained JSON file.
+2. Send the JSON to a friend, who can use **Import Game** to restore your characters and world in one step. Conflicts create copies instead of overwriting data.
+3. Or create a branch / fork to explore multiple endings from the same history.
+
+<a id="feedback"></a>
+## 4 · Community and Feedback
+
+- 🐛 Found a bug or have a feature request? Open a [GitHub Issue](https://github.com/Rannichan/Tavern-Harness/issues). You are welcome to attach exported game JSON or browser-console logs, but always remove API keys first.
+- 🟣 For usage discussions, gameplay ideas, character and skill sharing, or development updates, join the [Discord community](https://discord.gg/kPSWGeaHx).
+- 🤝 Pull requests are welcome.
+- 📣 Star or watch the repository to receive updates.
+
+> The tavern is open 24 hours a day, and the Keeper is always here to help.

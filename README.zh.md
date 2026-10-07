@@ -9,7 +9,22 @@
 
 ### 方式一：一键启动（推荐）
 
-### 方式一：从源码编译
+无需克隆仓库或全局安装：
+
+```bash
+npx tavern-harness
+```
+
+首次运行会下载包、启动本地服务，并自动打开浏览器。可选参数：
+
+```bash
+npx tavern-harness --no-open
+npx tavern-harness --port 5273
+```
+
+服务仅监听本机。使用 shell 技能时，命令会以启动命令的当前用户权限在本机执行；请仅运行来自可信来源的版本，并审阅每次命令确认弹窗。
+
+### 方式二：从源码开发
 
 ```bash
 git clone https://github.com/Rannichan/Tavern-Harness.git
