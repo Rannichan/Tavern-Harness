@@ -263,6 +263,7 @@ function sandboxProxyPlugin(): Plugin {
 export default defineConfig({
   plugins: [react(), corsProxyPlugin(), sandboxProxyPlugin()],
   optimizeDeps: {
+    force: true,
     include: [
       '@dnd-kit/core',
       '@dnd-kit/sortable',
@@ -272,7 +273,10 @@ export default defineConfig({
       'katex',
       'marked',
       'react',
+      'react/jsx-runtime',
+      'react/jsx-dev-runtime',
       'react-dom',
+      'react-dom/client',
       'use-sync-external-store/shim/with-selector',
       'zustand',
     ],
