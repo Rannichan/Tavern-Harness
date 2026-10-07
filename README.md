@@ -1,11 +1,9 @@
 # Tavern Harness · An AI-Native Role-Playing Sandbox
 
-[GitHub Repository](https://github.com/Rannichan/Tavern-Harness) · [Product Site](https://rannichan.github.io/Tavern-Harness/) · [Open Sandbox](https://rannichan.github.io/Tavern-Harness/#world) · [Report an Issue](https://github.com/Rannichan/Tavern-Harness/issues) · [Discussions](https://github.com/Rannichan/Tavern-Harness/discussions) · [Discord](https://discord.gg/kPSWGeaHx) · [Skill Sandbox Design](./notebook/skill-sandbox-design.md)
+[Product Site](https://rannichan.github.io/Tavern-Harness/) ·  [Wiki](https://rannichan.github.io/Tavern-Harness/wiki.html) · [GitHub Repository](https://github.com/Rannichan/Tavern-Harness) · [Discord](https://discord.gg/kPSWGeaHx)
 
 <a id="run"></a>
 ## 1 · Getting Started
-
-> Requires **Node.js 18 or later**. Tavern Harness is a frontend web app with an optional local sandbox service—no Docker or database server required.
 
 ### Option 1: One-Command Start (Recommended)
 
@@ -22,9 +20,28 @@ npx tavern-harness --no-open
 npx tavern-harness --port 5273
 ```
 
-The service listens only on the local machine. When using shell skills, commands run locally with the permissions of the user who started the command. Run only versions from trusted sources and review every command-confirmation dialog.
+### Option 2: Global Installation (Recommended for Regular Use)
 
-### Option 2: Develop from Source
+Install once, then start Tavern Harness from any directory:
+
+```bash
+npm install -g tavern-harness
+tavern-harness
+```
+
+To update it:
+
+```bash
+npm update -g tavern-harness
+```
+
+To uninstall it:
+
+```bash
+npm uninstall -g tavern-harness
+```
+
+### Option 3: Build from Source
 
 ```bash
 git clone https://github.com/Rannichan/Tavern-Harness.git
@@ -82,50 +99,7 @@ The project has no external harness dependency, and its UI is designed for a cle
 <a id="gameplay"></a>
 ## 3 · Gameplay Examples
 
-> These examples progress from simple to advanced: the first three work out of the box, while the remaining four gradually introduce sandbox capabilities. In every example, “the Keeper” means the built-in **Tavern Keeper** character, which exists on first launch and has all built-in skills enabled by default.
-
-### Example 1: Late-Night Company (No Setup)
-
-1. Create a new conversation → select **NPC Chat** → choose **Tavern Keeper** or any custom character.
-2. Chat naturally as you would with a friend. Enable **thinking mode** to see the Keeper's reasoning.
-3. Long-press or right-click any message to edit history, regenerate, inspect raw logs, or fork a branch.
-
-### Example 2: Tabletop Dice Rolls (Role-Playing)
-
-1. Create an **NPC Chat** for a GM and give the character a prompt such as: “You are the GM for this campaign; use `roll_dice` to decide fate.”
-2. Use the opening message to introduce a story hook. The Keeper can call `roll_dice` and display results such as critical successes or failures.
-3. Add campaign rules and world setting to a Lorebook, then bind it to the conversation to turn the character into a complete world.
-
-### Example 3: A Group-Chat Script (Up to Six Characters)
-
-1. Create multiple NPCs in the **Character Workshop**, such as a detective, butler, and protagonist.
-2. Create a **Group Chat**, add up to six characters, drag to set their speaking order, or enable random ordering.
-3. Use `@character-name` to choose the next speaker. Enter `/new` to begin a new topic with truncated context, or `/pass` to skip your turn.
-
-### Example 4: Create Skills in the Moment
-
-1. Ask the Keeper: “Create a skill that accepts a city and returns the weather.” It can call `create_skill` to create a new `template` or `http_get` skill.
-2. New skills are disabled for all characters by default. Enable them for the desired character in **Character Workshop → Skills**.
-3. Skills can use `$read`, `$write`, `$append`, and `$list` to work with the conversation workspace, with no restart required.
-
-### Example 5: A Persistent Mini-Game (Advanced Sandbox)
-
-1. Ask the Keeper to write a `javascript` skill for an affinity system, saving each turn's value to `state.json` with `$write`.
-2. Create another skill that reads with `$read` and uses `file_write` to generate an HTML dashboard, `dashboard.html`.
-3. Use `file_display` to visualize value changes in a pop-up; workspace files can be previewed in an isolated, resizable HTML view.
-4. Deleting the conversation also removes its `sandbox_workspace/session-<id>/` directory.
-
-### Example 6: Organize Files with Shell Skills
-
-1. Ask the Keeper in chat to use `ls` to inspect the workspace, `cat` to read files, and `cp` to archive creative work.
-2. Reads and writes must remain in the current conversation workspace. Non-allowlisted commands such as `node` and `git`, plus modifying operations such as `mv` and `rm`, require confirmation.
-3. Regular conversations have read-only access to `public/`. Only the built-in Tavern Keeper can write to the public area, allowing shared assets across conversations.
-
-### Example 7: Take an Entire World with You (Import, Export, and Fork)
-
-1. Mid-game, choose **Export Game** and decide whether to include conversation history to create a self-contained JSON file.
-2. Send the JSON to a friend, who can use **Import Game** to restore your characters and world in one step. Conflicts create copies instead of overwriting data.
-3. Or create a branch / fork to explore multiple endings from the same history.
+See the [interactive gameplay demos](https://rannichan.github.io/Tavern-Harness/#demo).
 
 <a id="feedback"></a>
 ## 4 · Community and Feedback
