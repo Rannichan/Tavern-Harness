@@ -263,7 +263,19 @@ function sandboxProxyPlugin(): Plugin {
 export default defineConfig({
   plugins: [react(), corsProxyPlugin(), sandboxProxyPlugin()],
   optimizeDeps: {
-    include: ['zustand', 'use-sync-external-store/shim/with-selector'],
+    include: [
+      '@dnd-kit/core',
+      '@dnd-kit/sortable',
+      '@dnd-kit/utilities',
+      'dexie',
+      'dompurify',
+      'katex',
+      'marked',
+      'react',
+      'react-dom',
+      'use-sync-external-store/shim/with-selector',
+      'zustand',
+    ],
   },
   server: {
     port: 5173,
