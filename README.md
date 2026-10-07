@@ -2,6 +2,10 @@
 
 [Product Site](https://rannichan.github.io/Tavern-Harness/) ·  [Wiki](https://rannichan.github.io/Tavern-Harness/wiki.html) · [GitHub Repository](https://github.com/Rannichan/Tavern-Harness) · [Discord](https://discord.gg/kPSWGeaHx)
 
+## License
+
+This project is licensed under the [MIT License](LICENSE).
+
 <a id="run"></a>
 ## 1 · Getting Started
 

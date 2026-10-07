@@ -2,6 +2,10 @@
 
  [产品主页](https://rannichan.github.io/Tavern-Harness/) ·  [Wiki](https://rannichan.github.io/Tavern-Harness/wiki.html) · [GitHub 仓库](https://github.com/Rannichan/Tavern-Harness) · [Discord 交流](https://discord.gg/kPSWGeaHx)
 
+## 开源协议
+
+本项目采用 [MIT License](LICENSE) 开源协议。
+
 <a id="run"></a>
 ## 1 · 如何运行
 
