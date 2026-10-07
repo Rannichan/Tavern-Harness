@@ -13,12 +13,23 @@
 
 # Tavern Harness · An AI-Native Role-Playing Sandbox
 
-## License
+<a id="demo"></a>
+## 1 · Gameplay Demos
 
-This project is licensed under the [MIT License](LICENSE).
+### Build an Affinity System from Scratch
+
+<video controls playsinline preload="metadata" src="https://pub-4a7642254acb4acab664899f1443324c.r2.dev/demo/th-demo-affinity-en.mp4">
+  Your browser does not support video playback. Download it from the [product site](https://rannichan.github.io/Tavern-Harness/#demo).
+</video>
+
+### Multiplayer Group Chat
+
+<video controls playsinline preload="metadata" src="https://pub-4a7642254acb4acab664899f1443324c.r2.dev/demo/th-demo-multiplayer-en.mp4">
+  Your browser does not support video playback. Download it from the [product site](https://rannichan.github.io/Tavern-Harness/#demo).
+</video>
 
 <a id="run"></a>
-## 1 · Getting Started
+## 2 · Getting Started
 
 ### Option 1: One-Command Start (Recommended)
 
@@ -79,7 +90,7 @@ After starting the app, open **Settings → Model Service Provider**:
 - Data is tied to the browser, port, and site origin. Switching browsers, opening a private window, or using a different port will not show existing data. This is expected browser security behavior; use the same browser and port each time.
 
 <a id="features"></a>
-## 2 · Features
+## 3 · Features
 
 ### 🍺 The Tavern Keeper Is Always Ready to Help
 
@@ -111,11 +122,6 @@ The app supports **OpenAI-format APIs**. Use a hosted API plan or run a model lo
 
 The project has no external harness dependency, and its UI is designed for a clean, focused experience.
 
-<a id="gameplay"></a>
-## 3 · Gameplay Examples
-
-See the [interactive gameplay demos](https://rannichan.github.io/Tavern-Harness/#demo).
-
 <a id="feedback"></a>
 ## 4 · Community and Feedback
 
@@ -125,3 +131,7 @@ See the [interactive gameplay demos](https://rannichan.github.io/Tavern-Harness/
 - 📣 Star or watch the repository to receive updates.
 
 > The tavern is open 24 hours a day, and the Keeper is always here to help.
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).

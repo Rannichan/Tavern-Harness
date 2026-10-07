@@ -13,12 +13,23 @@
 
 # Tavern Harness · AI 原生的角色扮演沙盒
 
-## 开源协议
+<a id="demo"></a>
+## 1 · 玩法演示
 
-本项目采用 [MIT License](LICENSE) 开源协议。
+### 从零构建好感度玩法
+
+<video controls playsinline preload="metadata" src="https://pub-4a7642254acb4acab664899f1443324c.r2.dev/demo/th-demo-affinity-zh.mp4">
+  您的浏览器不支持视频播放。请前往[产品主页](https://rannichan.github.io/Tavern-Harness/#demo)观看。
+</video>
+
+### 多人群聊玩法
+
+<video controls playsinline preload="metadata" src="https://pub-4a7642254acb4acab664899f1443324c.r2.dev/demo/th-demo-multiplayer-zh.mp4">
+  您的浏览器不支持视频播放。请前往[产品主页](https://rannichan.github.io/Tavern-Harness/#demo)观看。
+</video>
 
 <a id="run"></a>
-## 1 · 如何运行
+## 2 · 如何运行
 
 ### 方式一：一键启动（推荐）
 
@@ -80,7 +91,7 @@ npm run dev      # 开发服务器默认端口 5173，被占用时自动顺延
 - 数据与浏览器、端口、站点绑定：换浏览器 / 开隐身窗 / 换端口看不到旧数据——这是浏览器安全机制，属正常现象。请确保每次在同一个端口启动、并在同一个浏览器打开。
 
 <a id="features"></a>
-## 2 · 产品特色
+## 3 · 产品特色
 
 ### 🍺 酒馆老板随时为您服务
 
@@ -112,11 +123,6 @@ npm run dev      # 开发服务器默认端口 5173，被占用时自动顺延
 
 项目不依赖任何外部 harness，UI 也经过了精细打磨，提供简洁干净的体验。
 
-<a id="gameplay"></a>
-## 3 · 玩法示例
-
-请查看[互动玩法演示](https://rannichan.github.io/Tavern-Harness/#demo)。
-
 <a id="feedback"></a>
 ## 4 · 交流反馈
 
@@ -126,3 +132,7 @@ npm run dev      # 开发服务器默认端口 5173，被占用时自动顺延
 - 📣 想第一时间收到更新，点个 Star / Watch 就好
 
 > 酒馆24小时营业，老板随时为您服务！
+
+## 开源协议
+
+本项目采用 [MIT License](LICENSE) 开源协议。
