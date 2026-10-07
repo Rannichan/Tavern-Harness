@@ -8,10 +8,7 @@ sandbox_workspace/
 # 本地开发辅助内容（技能文件、规范图等）
 skills/
 *.png
-# 应用图标/logo 需要入库（例外）
-!public/favicon.png
-!public/tavern-harness-logo.png
-!docs/favicon.png
-!docs/tavern-harness-logo.png
+# 文档站图标需要入库（例外）
+!docs/assets/icons/*.png
 # 个人笔记（notebook 目录）
 notebook/
