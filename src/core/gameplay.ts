@@ -371,18 +371,21 @@ export async function importGameplay(payload: unknown): Promise<ImportGameplayRe
   // 创建对话的同时预建其专属工作目录
   await ensureSessionWorkspaceDir(workspaceDir);
 
-  // ---- 5. 参与者（玩家恒定 -1；NPC participantId = 新 npc id，保持座位顺序） ----
+  // ---- 5. 参与者（玩家恒定 -1；NPC participantId = 新 npc id，保留源座位顺序） ----
   const participants: ChatParticipant[] = [];
-  participants.push({
-    sessionId,
-    participantId: -1,
-    kind: 'PLAYER',
-    npcId: null,
-    displayName: '用户',
-    seatOrder: 0,
-  });
   const sortedSrcParticipants = [...data.sessionParticipants].sort((a, b) => a.seatOrder - b.seatOrder);
   for (const sp of sortedSrcParticipants) {
+    if (sp.kind === 'PLAYER') {
+      participants.push({
+        sessionId,
+        participantId: -1,
+        kind: 'PLAYER',
+        npcId: null,
+        displayName: sp.displayName || '用户',
+        seatOrder: sp.seatOrder,
+      });
+      continue;
+    }
     if (sp.kind !== 'NPC' || sp.npcId == null) continue;
     const newNpcId = sourceNpcIdToNew.get(sp.npcId) ?? null;
     if (newNpcId == null) continue;
@@ -392,7 +395,17 @@ export async function importGameplay(payload: unknown): Promise<ImportGameplayRe
       kind: 'NPC',
       npcId: newNpcId,
       displayName: sp.displayName || '',
-      seatOrder: participants.length,
+      seatOrder: sp.seatOrder,
+    });
+  }
+  if (!participants.some((p) => p.kind === 'PLAYER')) {
+    participants.push({
+      sessionId,
+      participantId: -1,
+      kind: 'PLAYER',
+      npcId: null,
+      displayName: '用户',
+      seatOrder: 0,
     });
   }
   await db.participants.bulkAdd(participants);
