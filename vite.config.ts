@@ -6,8 +6,11 @@ import net from 'node:net';
 import { randomBytes } from 'node:crypto';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { readFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+
+const projectRoot = dirname(fileURLToPath(import.meta.url));
 
 /**
  * CORS 转发中间件：为本地（无 CORS 头）的 OpenAI 兼容服务提供同源代理。
@@ -71,8 +74,8 @@ function sandboxProxyPlugin(): Plugin {
   let childPort: number | null = null;
   const serviceToken = randomBytes(32).toString('base64url');
   const approvalToken = randomBytes(32).toString('base64url');
-  const lockPath = join(process.cwd(), '.sandbox-port');
-  const SANDBOX_SCRIPT = join(process.cwd(), 'sandbox-server.mjs');
+  const lockPath = join(projectRoot, '.sandbox-port');
+  const SANDBOX_SCRIPT = join(projectRoot, 'sandbox-server.mjs');
   const DEFAULT_PORT = 17891;
 
   const loadPort = () => {
@@ -160,7 +163,7 @@ function sandboxProxyPlugin(): Plugin {
         if (availablePort == null) return null;
         childPort = availablePort;
         const child = spawn(process.execPath, [SANDBOX_SCRIPT, String(availablePort)], {
-          cwd: process.cwd(),
+          cwd: projectRoot,
           stdio: 'ignore',
           windowsHide: true,
           env: {
