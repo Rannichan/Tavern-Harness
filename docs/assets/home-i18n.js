@@ -8,10 +8,10 @@
   var original = new Map();
   var text = {
     en: {
-      brandHome: 'Tavern Harness home', mainNavigation: 'Main navigation', navStart: 'Get started', navFeatures: 'Features', navWorld: 'World sandbox', navDemo: 'Demo', readWiki: 'Read the Wiki'
+      brandHome: 'Tavern Harness home', mainNavigation: 'Main navigation', navStart: 'Get started', navFeatures: 'Feature 1', navWorld: 'Feature 2', navDemo: 'Gameplay showcase', readWiki: 'Read the Wiki'
     },
     zh: {
-      brandHome: 'Tavern Harness 首页', mainNavigation: '主导航', navStart: '启动方式', navFeatures: '核心特点', navWorld: '世界沙盒', navDemo: '试玩 Demo', readWiki: '阅读 Wiki'
+      brandHome: 'Tavern Harness 首页', mainNavigation: '主导航', navStart: '启动方式', navFeatures: '核心特点1', navWorld: '核心特点2', navDemo: '玩法展示', readWiki: '阅读 Wiki'
     }
   };
   var englishHtml = new Map([
