@@ -8,13 +8,13 @@ window.WIKI.chapters.push({
   lead: '只需要 Node.js ≥ 18，无需外部harness、无需 Docker、无需数据库服务。',
   html: `
     <h3>启动酒馆</h3>
-    <p>两种方式任选其一：</p>
+    <p>三种方式任选其一：</p>
     <div class="tbl-wrap"><table>
       <thead><tr><th>方式</th><th>命令</th><th>说明</th></tr></thead>
       <tbody>
-        <tr><td><b>一键启动（推荐）</b></td><td><span class="mono">npx tavern-harness</span></td><td>启动并自动打开浏览器，<span class="mono">--no-open</span>/<span class="mono">--port 5273</span> 可选</td></tr>
-        <tr><td>从源码运行</td><td><span class="mono">git clone … &amp;&amp; npm install &amp;&amp; npm run dev</span></td><td>开发服务器默认 5173，被占用自动顺延</td></tr>
-        <tr><td>生产访问</td><td><span class="mono">npm run build &amp;&amp; npm run preview</span></td><td>构建 dist 后本地预览</td></tr>
+        <tr><td><b>一键启动（推荐）</b></td><td><span class="mono">npx tavern-harness</span></td><td>无需克隆仓库或全局安装；首次运行会下载包、启动本地服务并自动打开浏览器，<span class="mono">--no-open</span>/<span class="mono">--port 5273</span> 可选</td></tr>
+        <tr><td>全局安装（推荐长期使用）</td><td><span class="mono">npm install -g tavern-harness<br>tavern-harness</span></td><td>安装一次后，可从任意目录启动；可用 <span class="mono">npm update -g tavern-harness</span> 更新</td></tr>
+        <tr><td>从源码安装</td><td><span class="mono">git clone … &amp;&amp; npm install &amp;&amp; npm run dev</span></td><td>开发服务器默认 5173，被占用自动顺延</td></tr>
       </tbody>
     </table></div>
     <p class="dim">首次启动时内置角色<b>「酒馆老板」</b>已经做好在柜台后等你——他默认启用全部 19 项内置技能，开局就能交办杂活。</p>
