@@ -371,6 +371,7 @@ kbd { font-family: var(--font-mono); font-size: 10px; line-height: 1; color: var
 }
 .wcontent {
   max-width: 860px;
+  margin: 0 auto;
   padding: 46px clamp(20px, 4vw, 56px) 88px;
 }
 
