@@ -80,17 +80,18 @@
   padding: 12px 14px;
   max-height: none;
   height: 100%;
+  border-top-left-radius: 10px;
 }
-/* 角色卡：人设 Prompt 所在的 field 容器弹性增长，textaarea 填满 */
+/* 角色卡：允许 Prompt 输入框扩展，同时让后续字段在正常文档流中下移。 */
 .modal-editor .prompt-field {
-  flex: 3;
-  min-height: 220px;
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
 }
 .modal-editor .prompt-field .grow-textarea {
-  flex: 1;
-  min-height: 0;
+  flex: none;
+  height: min(35dvh, 360px);
+  min-height: 220px;
 }
 .modal-editor .greeting-grow {
   min-height: 88px;
