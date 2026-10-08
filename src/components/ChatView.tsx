@@ -239,8 +239,9 @@ function MessageBubble({
   const turnStreaming = useStore((s) => s.streaming.sessionId === session.id);
   // System 消息（/new 标记）
   if (msg.role === 'system') {
+    const content = msg.content === '开始新话题' ? t('chat.newTopicMarker') : msg.content;
     return (
-      <div className="sys-banner fade-up" data-loop={loopIndex ?? undefined}>⟐ {msg.content}</div>
+      <div className="sys-banner fade-up" data-loop={loopIndex ?? undefined}>⟐ {content}</div>
     );
   }
 
