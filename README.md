@@ -4,10 +4,9 @@
   </a>
 </p>
 <p align="center">
-  <a href="https://rannichan.github.io/Tavern-Harness/"><img alt="Product Site" src="https://img.shields.io/badge/product-site-8B5CF6?style=flat-square" /></a>
-  <a href="https://rannichan.github.io/Tavern-Harness/wiki.html"><img alt="Wiki" src="https://img.shields.io/badge/wiki-documentation-2563EB?style=flat-square" /></a>
   <a href="https://github.com/Rannichan/Tavern-Harness"><img alt="GitHub Repository" src="https://img.shields.io/badge/github-repository-181717?style=flat-square&logo=github&logoColor=white" /></a>
   <a href="https://discord.gg/kPSWGeaHx"><img alt="Discord" src="https://img.shields.io/badge/discord-community-5865F2?style=flat-square&logo=discord&logoColor=white" /></a>
+  <a href="https://rannichan.github.io/Tavern-Harness/wiki.html"><img alt="Wiki" src="https://img.shields.io/badge/wiki-documentation-2563EB?style=flat-square" /></a>
   <a href="https://www.npmjs.com/package/tavern-harness"><img alt="npm" src="https://img.shields.io/npm/v/tavern-harness?style=flat-square" /></a>
 </p>
 

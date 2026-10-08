@@ -17,9 +17,9 @@
   var englishHtml = new Map([
     ['.hero-title', '<span class="line line-1 reveal"><span class="serif">You are here!</span><span class="em">Take a seat~</span></span><span class="line line-2 reveal">Let the tavern keeper</span><span class="line line-3 reveal"><span class="em2 serif">handle everything</span><span class="dim">....</span></span>'],
     ['.hero-sub', 'Push open the wooden door, where candlelight flickers—the tavern keeper has prepared <span class="hl">any world your imagination can build</span>. Whether it is <span class="tag">companionship</span><span class="tag">adventure</span>, or <span class="tag">other fantasy</span>, it is yours to command!'],
-    ['.hero-cta .btn-primary .btn-label', '→ Enter the tavern (quick start)'],
-    ['.hero-cta .btn-ghost:nth-child(2) .btn-label', 'Tavern Keeper’s Handbook (Wiki)'],
-    ['.hero-cta .btn-ghost:nth-child(3)', '▶&nbsp; Watch a demo first'],
+    ['.hero-cta .btn-primary .btn-label', 'Enter the tavern'],
+    ['.hero-cta .btn-ghost:nth-child(2) .btn-label', 'Project on GitHub'],
+    ['.hero-cta .btn-ghost:nth-child(3) .btn-label', 'Watch a demo first'],
 ['#start .kicker-text', 'Begin with a warm drink'], ['#start .section-title', 'Getting started'],
     ['#start .step-card:nth-child(1) h3', 'Install and start'], ['#start .step-card:nth-child(1) > p:not(.step-note)', 'Install globally, then start the tavern from any directory:'], ['#start .step-card:nth-child(1) .c-dim', '# Install and start the tavern'], ['#start .step-card:nth-child(1) .step-note', 'The first launch starts a local server and opens your browser automatically.'],
     ['#start .step-card:nth-child(2) h3', 'Connect your model'], ['#start .step-card:nth-child(2) > p', 'In <strong>Settings → Model Provider</strong>, add any <strong>OpenAI-compatible</strong> endpoint:'], ['#start .step-card:nth-child(2) li:nth-child(1)', 'Enter a name, Base URL, and API key'], ['#start .step-card:nth-child(2) li:nth-child(2)', 'Select “Test connection” to retrieve models'], ['#start .step-card:nth-child(2) li:nth-child(3)', 'Choose a model at the top of chat and start talking!'],

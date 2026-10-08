@@ -666,16 +666,42 @@ details.faq .faq-body code { color: var(--accent-text); }
 .end-link .el-title { font-family: var(--font-serif); font-size: 16px; color: var(--amber); }
 
 .wfooter {
-  margin-top: 70px;
-  padding-top: 30px;
+  margin-top: 40px;
+  padding: 56px 24px 40px;
   border-top: 1px solid var(--border-soft);
   text-align: center;
-  color: var(--text-faint);
-  font-size: 12.5px;
-  display: grid;
-  gap: 8px;
 }
-.wfooter .wf-brand { font-family: var(--font-serif); font-size: 16px; color: var(--text-dim); letter-spacing: 0.06em; }
+.wfooter-inner {
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+}
+.wfooter-brand { display: flex; align-items: baseline; gap: 12px; }
+.wfooter-brand-name {
+  font-family: var(--font-serif);
+  font-size: 24px;
+  color: var(--text-dim);
+  letter-spacing: 0.06em;
+}
+.wfooter-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.wfooter-links .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--accent-text);
+  background: rgba(255, 203, 139, 0.05);
+  font-size: 12.5px;
+  transition: background 0.25s ease, border-color 0.25s ease;
+}
+.wfooter-links .chip:hover {
+  border-color: rgba(255, 203, 139, 0.5);
+  background: rgba(255, 203, 139, 0.1);
+}
+.wfooter-links .chip-icon { width: 14px; height: 14px; }
+.wfooter-copy { margin: 0; color: var(--text-faint); font-size: 12.5px; letter-spacing: 0.06em; }
 
 /* 入场动画 */
 .reveal { opacity: 0; transform: translateY(20px); transition: opacity 0.7s var(--ease-out), transform 0.7s var(--ease-out); transition-delay: var(--rd, 0s); }

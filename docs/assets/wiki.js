@@ -106,8 +106,14 @@
       (chapters[0] ? chapters[0].title : '') + '</span></a>' +
       '<a class="end-link" href="index.html"><span class="el-label">↩ 回到主线</span>' +
       '<span class="el-title">产品主页</span></a></nav>' +
-      '<footer class="wfooter"><div class="wf-brand">Tavern Harness</div>' +
-      '<span>© 2026 Tavern Harness. All data stays in your browser.</span></footer>';
+      '<footer class="wfooter"><div class="wfooter-inner">' +
+      '<div class="wfooter-brand"><span class="wfooter-brand-name">Tavern Harness</span></div>' +
+      '<nav class="wfooter-links" aria-label="Project links">' +
+      '<a class="chip" href="https://github.com/Rannichan/Tavern-Harness" target="_blank" rel="noopener noreferrer"><img class="chip-icon" src="https://cdn.simpleicons.org/github/ffcb8b" alt="" />Project on GitHub</a>' +
+      '<a class="chip" href="https://discord.gg/kPSWGeaHx" target="_blank" rel="noopener noreferrer"><img class="chip-icon" src="https://cdn.simpleicons.org/discord/ffcb8b" alt="" />Discord community</a>' +
+      '<a class="chip" href="https://www.bilibili.com/" target="_blank" rel="noopener noreferrer"><img class="chip-icon" src="https://cdn.simpleicons.org/bilibili/ffcb8b" alt="" />Bilibili introduction video</a>' +
+      '</nav><p class="wfooter-copy">© 2026 Tavern Harness. All data stays in your browser.</p>' +
+      '</div></footer>';
     top.insertAdjacentHTML('beforeend', html);
     linkXrefs(top);
   }

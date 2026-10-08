@@ -61,7 +61,7 @@
     var end = document.querySelector('.wend-nav');
     if (end) end.innerHTML = '<a class="end-link" href="#overview"><span class="el-label">↑ Back to the beginning</span><span class="el-title">What is this tavern?</span></a><a class="end-link" href="index.html"><span class="el-label">↩ Back to the main path</span><span class="el-title">Product home</span></a>';
     var footer = document.querySelector('.wfooter');
-    if (footer) footer.innerHTML = '<div class="wf-brand">Tavern Harness</div><span>© 2026 Tavern Harness. All data stays in your browser.</span>';
+    if (footer) footer.innerHTML = '<div class="wfooter-inner"><div class="wfooter-brand"><span class="wfooter-brand-name">Tavern Harness</span></div><nav class="wfooter-links" aria-label="Project links"><a class="chip" href="https://github.com/Rannichan/Tavern-Harness" target="_blank" rel="noopener noreferrer"><img class="chip-icon" src="https://cdn.simpleicons.org/github/ffcb8b" alt="" />Project on GitHub</a><a class="chip" href="https://discord.gg/kPSWGeaHx" target="_blank" rel="noopener noreferrer"><img class="chip-icon" src="https://cdn.simpleicons.org/discord/ffcb8b" alt="" />Discord community</a><a class="chip" href="https://www.bilibili.com/" target="_blank" rel="noopener noreferrer"><img class="chip-icon" src="https://cdn.simpleicons.org/bilibili/ffcb8b" alt="" />Bilibili introduction video</a></nav><p class="wfooter-copy">© 2026 Tavern Harness. All data stays in your browser.</p></div>';
   }
   document.addEventListener('DOMContentLoaded', function () { chrome(); setTimeout(localizeGeneratedChrome, 0); });
   window.TavernHarnessI18n = { key: KEY, locale: function () { return locale; } };

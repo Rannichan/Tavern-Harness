@@ -363,6 +363,12 @@ code {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+.cdn-icon {
+  display: inline-block;
+  background-color: currentColor;
+  mask: var(--icon-url) center / contain no-repeat;
+  -webkit-mask: var(--icon-url) center / contain no-repeat;
+}
 .btn-primary {
   background: linear-gradient(135deg, #ffcb8b, #e8a95f);
   color: #241c10;
