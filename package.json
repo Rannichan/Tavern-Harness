@@ -1,6 +1,6 @@
 {
   "name": "tavern-harness",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Tavern Harness — 酒馆模式下的本地 AI Agent 助手（MyAgent-Android 的 Web 复刻）",
   "private": false,
   "type": "module",
