@@ -31,7 +31,7 @@
   function text(node, zh, english) { node.setAttribute('data-zh', zh); node.setAttribute('data-en', english); node.textContent = locale === 'en' ? english : zh; }
   function chrome() {
     document.documentElement.lang = locale === 'en' ? 'en' : 'zh-CN';
-    document.title = locale === 'en' ? 'Wiki Manual · Tavern Harness' : 'Wiki 使用手册 · Tavern Harness';
+    document.title = 'Wiki·Tavern Harness';
     var pairs = [['#wikiSearchToggle span', '搜索', 'Search'], ['.wiki-home-link span', '返回主页', 'Home']];
     pairs.forEach(function (pair) { var node = document.querySelector(pair[0]); if (node) text(node, pair[1], pair[2]); });
     var nav = document.querySelector('.wnav');

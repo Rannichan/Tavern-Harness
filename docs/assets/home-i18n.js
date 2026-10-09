@@ -61,7 +61,7 @@
       element.innerHTML = language === 'en' ? english : original.get(element);
     });
     document.documentElement.lang = language === 'zh' ? 'zh-CN' : 'en';
-    document.title = language === 'en' ? 'Tavern Harness — You are here. Take a seat.' : originalTitle;
+    document.title = language === 'en' ? 'Introdution·Tavern Harness' : originalTitle;
     document.querySelector('meta[name="description"]').content = language === 'en'
       ? 'Tavern Harness is a local-first AI role-playing tavern. Build any world you imagine in a flexible sandbox.'
       : originalDescription;
