@@ -455,8 +455,7 @@
 .composer {
   padding: 8px 22px 12px;
   border-top: 1px solid var(--border);
-  background: color-mix(in srgb, var(--surface) 62%, transparent);
-  backdrop-filter: blur(16px);
+  background: transparent;
 }
 .composer-box {
   position: relative;
