@@ -50,6 +50,26 @@ export function SettingsView() {
         {/* 模型服务 Provider（置顶） */}
         <ProviderManager providers={providers} onChanged={refreshProviders} />
 
+        <div className="set-section">
+          <h3>{t('settings.toolExecution')}</h3>
+          <div className="set-row settings-tool-row">
+            <div>
+              <div className="s-label" id="yolo-mode-label">{t('settings.yoloMode')}</div>
+              <div className="s-desc" id="yolo-mode-desc">{t('settings.yoloModeDesc')}</div>
+            </div>
+            <label className="switch">
+              <input
+                type="checkbox"
+                aria-labelledby="yolo-mode-label"
+                aria-describedby="yolo-mode-desc"
+                checked={settings.yoloMode === true}
+                onChange={(e) => setSettings({ yoloMode: e.target.checked })}
+              />
+              <span className="switch-slider" />
+            </label>
+          </div>
+        </div>
+
         {/* 生成参数 */}
         <div className="set-section">
           <h3>{t('settings.genParams')}</h3>

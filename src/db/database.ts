@@ -249,6 +249,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   isStreaming: true,
   isThinkingModeEnabled: true,
   isToolCallsEnabled: true,
+  yoloMode: false,
   statsResetTime: null,
 };
 
@@ -281,6 +282,9 @@ export async function initDatabase(): Promise<void> {
     const settings = await db.settings.get(1);
     if (settings && settings.contextCompressionThreshold === undefined) {
       await db.settings.update(1, { contextCompressionThreshold: 'off' });
+    }
+    if (settings && settings.yoloMode === undefined) {
+      await db.settings.update(1, { yoloMode: false });
     }
   }
   const statsCount = await db.careerStats.count();

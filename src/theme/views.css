@@ -603,6 +603,14 @@
   font-size: 11px;
   color: var(--text-faint);
 }
+.settings-tool-row {
+  padding: 9px 4px;
+}
+.set-row.settings-tool-row .s-label {
+  font-size: 13px;
+  font-weight: normal;
+  color: var(--text);
+}
 .range-row {
   display: flex;
   align-items: center;
