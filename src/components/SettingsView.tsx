@@ -52,7 +52,7 @@ export function SettingsView() {
 
         <div className="set-section">
           <h3>{t('settings.toolExecution')}</h3>
-          <div className="set-row">
+          <div className="set-row settings-tool-row">
             <div>
               <div className="s-label" id="yolo-mode-label">{t('settings.yoloMode')}</div>
               <div className="s-desc" id="yolo-mode-desc">{t('settings.yoloModeDesc')}</div>
