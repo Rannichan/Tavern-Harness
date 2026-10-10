@@ -93,6 +93,8 @@ Characters are more than chat partners: they are **agents with extensible skills
 
 The tavern includes essential skills such as dice rolling. You can also ask the Tavern Keeper to **create any skill you need**.
 
+If a file-writing tool reports invalid JSON arguments, ask the model to resend a complete JSON object with escaped string content. For large files, ask it to write smaller chunks with `file_write`, using `append: true` after the first chunk. If output reaches its token limit, pending tool calls are stopped; increase the maximum output tokens in Settings or reduce the size of each write.
+
 ### 💬 Multi-Character Group Chats
 
 Each room supports up to **six characters** and provides a turn-order board for managing group conversations.

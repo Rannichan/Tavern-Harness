@@ -6,8 +6,17 @@ import type {
 import { fallbackToolCallId } from './turnLoop';
 import { isNetworkLikeError, toProxyUrl } from './proxy';
 import { translate } from './i18n';
+import { parseToolArguments, TOOL_ARGUMENTS_INSTRUCTIONS } from './toolArguments';
 
 const OPENAI_TIMEOUTS = { read: 60_000 };
+
+interface ToolDelta {
+  id: string;
+  name: string;
+  args: string;
+  snapshotArgs: string;
+  lastEmitted: string;
+}
 
 /**
  * 计算请求 URL 候选：先直连，若失败且开发服务器可用（存在 /api/ 代理），
@@ -92,9 +101,17 @@ async function attemptStream(
     const decoder = new TextDecoder();
 
     // Delta 工具调用按 index 组装
-    const toolDeltas = new Map<number, { id: string; name: string; args: string; lastEmitted: string }>();
+    const toolDeltas = new Map<number, ToolDelta>();
+    let finishReason: string | null = null;
+    let streamDone = false;
+    const consumeLine = (line: string) => {
+      if (!line.startsWith('data:')) return;
+      const data = line.slice(5).trim();
+      if (data === '[DONE]') streamDone = true;
+      else if (data) finishReason = handleDataLine(data, onChunk, toolDeltas) ?? finishReason;
+    };
     let buffer = '';
-    while (true) {
+    while (!streamDone) {
       const { done, value } = await reader.read();
       if (done) break;
       resetReadTimeout();
@@ -105,29 +122,26 @@ async function attemptStream(
       while ((idx = buffer.indexOf('\n')) >= 0) {
         const line = buffer.slice(0, idx).replace(/\r$/, '');
         buffer = buffer.slice(idx + 1);
-        if (line.startsWith('data:')) {
-          const data = line.slice(5).trim();
-          if (data === '[DONE]') break;
-          if (data) {
-            handleDataLine(data, onChunk, toolDeltas);
-          }
-        }
+        consumeLine(line);
+        if (streamDone) break;
       }
+    }
+    if (streamDone) await reader.cancel();
+    else {
+      // Some compatible endpoints close after the final data line without a newline.
+      buffer += decoder.decode();
+      if (buffer) consumeLine(buffer.replace(/\r$/, ''));
+    }
+
+    if (toolDeltas.size > 0 && (finishReason === 'length' || finishReason === 'content_filter')) {
+      onChunk({ type: 'error', message: translate(
+        finishReason === 'length' ? 'tool.argumentsTruncated' : 'tool.argumentsFiltered'
+      ) });
+      return true;
     }
 
     // 收尾：补发未完成的工具调用
-    for (const [idx, td] of toolDeltas) {
-      const id = td.id || fallbackToolCallId(idx);
-      const nextEmit = `${id}\n${td.name}\n${td.args}`;
-      if (td.lastEmitted === nextEmit) continue;
-      td.lastEmitted = nextEmit;
-      onChunk({
-        type: 'tool_call',
-        id,
-        name: td.name,
-        argJson: td.args,
-      });
-    }
+    emitFinalToolCalls(toolDeltas, onChunk);
     onChunk({ type: 'done' });
     return true;
   } catch (e) {
@@ -154,8 +168,9 @@ async function attemptStream(
 function handleDataLine(
   data: string,
   onChunk: (c: ChatStreamChunk) => void,
-  toolDeltas: Map<number, { id: string; name: string; args: string; lastEmitted: string }>,
-): void {
+  toolDeltas: Map<number, ToolDelta>,
+): string | null {
+  let finishReason: string | null = null;
   try {
     const json = JSON.parse(data);
     onChunk({ type: 'raw', line: data });
@@ -184,10 +199,10 @@ function handleDataLine(
       };
       finish_reason?: string | null;
     }>;
-    if (!choices) return;
+    if (!choices) return null;
     for (const choice of choices) {
-      const delta = choice.delta;
-      if (!delta) continue;
+      if (choice.finish_reason) finishReason = choice.finish_reason;
+      const delta = choice.delta ?? {};
 
       const thinking =
         delta.reasoning ?? delta.reasoning_content ?? delta.thinking_content ?? null;
@@ -206,7 +221,7 @@ function handleDataLine(
       if (delta.tool_calls) {
         for (const tc of delta.tool_calls) {
           const idx = tc.index ?? 0;
-          const cur = toolDeltas.get(idx) ?? { id: '', name: '', args: '', lastEmitted: '' };
+          const cur = toolDeltas.get(idx) ?? { id: '', name: '', args: '', snapshotArgs: '', lastEmitted: '' };
           if (tc.id) cur.id = tc.id;
           if (!cur.id) cur.id = fallbackToolCallId(idx);
           if (tc.function?.name) {
@@ -216,7 +231,11 @@ function handleDataLine(
             }
           }
           if (tc.function?.arguments) {
-            cur.args = mergeToolArguments(cur.args, tc.function.arguments);
+            // Standard arguments are deltas. Repeated braces and prefixes are data.
+            cur.args += tc.function.arguments;
+            // Keep a separate candidate for providers that send growing snapshots.
+            // It is considered only at completion if the lossless delta JSON is invalid.
+            cur.snapshotArgs = mergeArgumentSnapshot(cur.snapshotArgs, tc.function.arguments);
           }
           toolDeltas.set(idx, cur);
           if (cur.name) {
@@ -234,35 +253,42 @@ function handleDataLine(
         }
       }
       if (choice.finish_reason === 'tool_calls') {
-        // 立即发出发射工具调用事件
-        for (const [idx, td] of toolDeltas) {
-          const id = td.id || fallbackToolCallId(idx);
-          const nextEmit = `${id}\n${td.name}\n${td.args}`;
-          if (td.lastEmitted === nextEmit) continue;
-          td.lastEmitted = nextEmit;
-          onChunk({
-            type: 'tool_call',
-            id,
-            name: td.name,
-            argJson: td.args,
-          });
-        }
+        emitFinalToolCalls(toolDeltas, onChunk);
         toolDeltas.clear();
-      } else if (choice.finish_reason && choice.finish_reason !== 'stop') {
-        // stop/reasoning/content_filter 等
       }
     }
   } catch {
     // 非 JSON 行（如注释），忽略
   }
+  return finishReason;
 }
 
-function mergeToolArguments(current: string, incoming: string): string {
+function mergeArgumentSnapshot(current: string, incoming: string): string {
   if (!current) return incoming;
-  if (!incoming || incoming === current) return current;
   if (incoming.startsWith(current)) return incoming;
-  if (current.startsWith(incoming)) return current;
   return current + incoming;
+}
+
+function emitFinalToolCalls(toolDeltas: Map<number, ToolDelta>, onChunk: (c: ChatStreamChunk) => void): void {
+  for (const [idx, td] of toolDeltas) {
+    let argJson = td.args;
+    try {
+      argJson = parseToolArguments(argJson).json;
+    } catch {
+      if (td.snapshotArgs !== argJson) {
+        try {
+          // Require a complete object; never repair the ambiguous snapshot candidate.
+          const snapshot: unknown = JSON.parse(td.snapshotArgs);
+          if (snapshot && typeof snapshot === 'object' && !Array.isArray(snapshot)) argJson = td.snapshotArgs;
+        } catch { /* Keep invalid arguments for the executor's actionable error. */ }
+      }
+    }
+    const id = td.id || fallbackToolCallId(idx);
+    const nextEmit = `${id}\n${td.name}\n${argJson}`;
+    if (td.lastEmitted === nextEmit) continue;
+    td.lastEmitted = nextEmit;
+    onChunk({ type: 'tool_call', id, name: td.name, argJson });
+  }
 }
 
 /** 拆分 deepseek / kimi 风格的 思考→回答 标记 */
@@ -433,6 +459,12 @@ request.frequency_penalty = Math.round(p.frequencyPenalty * 100) / 100;
   if (p.tools && p.tools.length > 0) {
     request.tools = p.tools;
     request.tool_choice = 'auto';
+    const systemIndex = p.messages.findIndex((message) => message.role === 'system' && typeof message.content === 'string');
+    request.messages = systemIndex < 0
+      ? [{ role: 'system', content: TOOL_ARGUMENTS_INSTRUCTIONS }, ...p.messages]
+      : p.messages.map((message, index) => index === systemIndex
+        ? { ...message, content: `${message.content}\n\n${TOOL_ARGUMENTS_INSTRUCTIONS}` }
+        : message);
   }
 
   return request;

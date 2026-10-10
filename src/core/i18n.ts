@@ -417,6 +417,8 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
 
     // ---- 工具执行输出（用户可见部分） ----
     'tool.timeout': '请求超时',
+    'tool.argumentsTruncated': '模型输出达到长度上限，工具调用未执行。请提高最大输出 Token 数，或让模型分批写入文件。',
+    'tool.argumentsFiltered': '模型输出被过滤，工具调用未执行。请调整请求后重试。',
     'tool.diceRoll': '掷骰 {expr}: [{rolls}] = {total}{crit}',
     'tool.diceCrit20': ' 大成功！',
     'tool.diceCrit1': ' 大失败！',
@@ -851,6 +853,8 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'toast.canceled': 'CANCELLED: 使用者取消了 {name}',
 
     'tool.timeout': '請求逾時',
+    'tool.argumentsTruncated': '模型輸出達到長度上限，工具呼叫未執行。請提高最大輸出 Token 數，或讓模型分批寫入檔案。',
+    'tool.argumentsFiltered': '模型輸出被過濾，工具呼叫未執行。請調整請求後重試。',
     'tool.diceRoll': '擲骰 {expr}: [{rolls}] = {total}{crit}',
     'tool.diceCrit20': ' 大成功！',
     'tool.diceCrit1': ' 大失敗！',
@@ -1284,6 +1288,8 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'toast.canceled': 'CANCELLED: user canceled {name}',
 
     'tool.timeout': 'Request timed out',
+    'tool.argumentsTruncated': 'Model output reached its length limit; tools were not executed. Increase max output tokens or ask the model to write files in smaller chunks.',
+    'tool.argumentsFiltered': 'Model output was filtered; tools were not executed. Adjust the request and try again.',
     'tool.diceRoll': '{expr}: [{rolls}] = {total}{crit}',
     'tool.diceCrit20': ' Critical hit!',
     'tool.diceCrit1': ' Critical fail!',
