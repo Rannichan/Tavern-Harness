@@ -33,6 +33,7 @@ npx tavern-harness
 ```bash
 npx tavern-harness --no-open
 npx tavern-harness --port 5273
+npx tavern-harness --workspace /absolute/path/to/workspace
 ```
 
 

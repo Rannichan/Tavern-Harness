@@ -33,6 +33,7 @@ The first run downloads the package, starts the local service, and opens your br
 ```bash
 npx tavern-harness --no-open
 npx tavern-harness --port 5273
+npx tavern-harness --workspace /absolute/path/to/workspace
 ```
 
 ### Option 2: Global Installation (Recommended for Regular Use)

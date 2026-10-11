@@ -22,10 +22,10 @@ import { createServer } from 'node:http';
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import {
-  writeFileSync, existsSync, lstatSync, readlinkSync, readFile, writeFile, mkdirSync, mkdtempSync, readdir, statSync, symlinkSync, realpathSync, rmSync, unlink,
+  writeFileSync, existsSync, lstatSync, readlinkSync, readFile, writeFile, mkdirSync, mkdtempSync, readdir, statSync, symlinkSync, realpathSync, rmSync, unlink, cpSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join, dirname, resolve, sep, delimiter } from 'node:path';
+import { tmpdir, homedir } from 'node:os';
+import { join, dirname, resolve, sep, delimiter, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -299,11 +299,40 @@ function consumeApprovedConfirmation(requestId, operation, sessionBase) {
 }
 
 // ---- 真实文件工作区（generate_skill 的 file_read / file_write 落盘区） ----
-// 项目根目录下 sandbox_workspace/，仅允许读写该目录内文件（虚拟磁盘）。
-// 会话隔离：每次请求必须携带会话工作目录（session 字段，如 "session-12"），
-// 所有读写/执行都锁定在该目录内，不允许回退到共享根工作区。
-const WORKSPACE_ROOT = resolve(__dirname, 'sandbox_workspace');
-const PUBLIC_WORKSPACE = join(WORKSPACE_ROOT, 'public');
+// 默认放在用户数据目录，避免 npm 更新或重装删除用户创建的文件。
+// 可通过 TAVERN_HARNESS_WORKSPACE 指向自定义绝对路径。
+function defaultWorkspaceRoot() {
+  if (process.platform === 'darwin') return join(homedir(), 'Library', 'Application Support', 'Tavern Harness', 'sandbox_workspace');
+  if (process.platform === 'win32') return join(process.env.APPDATA || join(homedir(), 'AppData', 'Roaming'), 'Tavern Harness', 'sandbox_workspace');
+  return join(process.env.XDG_DATA_HOME || join(homedir(), '.local', 'share'), 'tavern-harness', 'sandbox_workspace');
+}
+
+function resolveWorkspaceRoot() {
+  const configured = process.env.TAVERN_HARNESS_WORKSPACE?.trim();
+  if (configured) {
+    if (!isAbsolute(configured)) throw new Error('TAVERN_HARNESS_WORKSPACE must be an absolute path');
+    return resolve(configured);
+  }
+  return defaultWorkspaceRoot();
+}
+
+const WORKSPACE_ROOT = resolveWorkspaceRoot();
+const LEGACY_WORKSPACE_ROOT = resolve(__dirname, 'sandbox_workspace');
+
+function migrateLegacyWorkspace() {
+  if (WORKSPACE_ROOT === LEGACY_WORKSPACE_ROOT || existsSync(WORKSPACE_ROOT) || !existsSync(LEGACY_WORKSPACE_ROOT)) return;
+  try {
+    mkdirSync(dirname(WORKSPACE_ROOT), { recursive: true });
+    cpSync(LEGACY_WORKSPACE_ROOT, WORKSPACE_ROOT, { recursive: true, dereference: false, errorOnExist: true });
+    console.log(`[command-service] migrated workspace to ${WORKSPACE_ROOT}`);
+  } catch (error) {
+    console.warn(`[command-service] could not migrate legacy workspace: ${error.message}`);
+  }
+}
+
+migrateLegacyWorkspace();
+const RESOLVED_WORKSPACE_ROOT = existsSync(WORKSPACE_ROOT) ? realpathSync(WORKSPACE_ROOT) : WORKSPACE_ROOT;
+const PUBLIC_WORKSPACE = join(RESOLVED_WORKSPACE_ROOT, 'public');
 const MAX_FILE_READ_CHARS = 100_000;   // 单文件读取上限（与前端虚拟工作区一致）
 const MAX_FILE_WRITE_BYTES = 400 * 1024; // 单文件写入上限 400KB
 const MAX_LIST_ENTRIES = 500;
@@ -320,7 +349,7 @@ function resolveSessionBase(session) {
   if (!raw || raw.startsWith('/') || raw === '.' || raw === '..' || !SESSION_DIR_RE.test(raw)) {
     throw new Error('A valid session workspace is required');
   }
-  return join(WORKSPACE_ROOT, raw);
+  return join(RESOLVED_WORKSPACE_ROOT, raw);
 }
 
 /** 创建会话目录，并为普通会话提供固定的只读公共目录入口。 */

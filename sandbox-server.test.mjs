@@ -18,6 +18,7 @@ const port = 19000 + Math.floor(Math.random() * 1000);
 const serviceToken = `test-token-${process.pid}`;
 const approvalToken = `test-approval-token-${process.pid}`;
 const fakeBin = mkdtempSync(join(tmpdir(), 'command-service-path-'));
+const workspaceRoot = realpathSync(mkdtempSync(join(tmpdir(), 'tavern-harness-workspace-')));
 writeFileSync(join(fakeBin, 'echo'), '#!/bin/sh\nprintf "PATH_HIJACKED\\n"\n');
 chmodSync(join(fakeBin, 'echo'), 0o755);
 const session = `confirmation-test-${process.pid}`;
@@ -38,6 +39,7 @@ const server = spawn(process.execPath, ['sandbox-server.mjs', String(port)], {
     HOST_SECRET_SENTINEL: hostSecret,
     SSH_AUTH_SOCK: `/tmp/test-ssh-agent-${process.pid}`,
     GIT_ASKPASS: `/tmp/test-git-askpass-${process.pid}`,
+    TAVERN_HARNESS_WORKSPACE: workspaceRoot,
   },
 });
 
@@ -107,11 +109,11 @@ try {
   const sessionCreate = await sessionCreateResponse.json();
   assert.equal(sessionCreateResponse.status, 200);
   assert.equal(sessionCreate.ok, true);
-  const createdPublicLink = join(root, 'sandbox_workspace', createdSession, 'public');
+  const createdPublicLink = join(workspaceRoot, createdSession, 'public');
   assert.equal(lstatSync(createdPublicLink).isSymbolicLink(), true, 'session_create must add a public symlink');
-  assert.equal(realpathSync(createdPublicLink), realpathSync(join(root, 'sandbox_workspace', 'public')));
+  assert.equal(realpathSync(createdPublicLink), realpathSync(join(workspaceRoot, 'public')));
 
-  rmSync(join(root, 'sandbox_workspace', otherSession), { recursive: true, force: true });
+  rmSync(join(workspaceRoot, otherSession), { recursive: true, force: true });
   const missingDirectoryListResponse = await fetch(`http://127.0.0.1:${port}/file_list`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Command-Service-Token': serviceToken },
@@ -120,7 +122,7 @@ try {
   const missingDirectoryList = await missingDirectoryListResponse.json();
   assert.equal(missingDirectoryListResponse.status, 200);
   assert.deepEqual(missingDirectoryList.files, []);
-  assert.equal(existsSync(join(root, 'sandbox_workspace', otherSession)), false, 'listing must not create a missing session directory');
+  assert.equal(existsSync(join(workspaceRoot, otherSession)), false, 'listing must not create a missing session directory');
 
   const createOnWriteResponse = await fetch(`http://127.0.0.1:${port}/file_write`, {
     method: 'POST',
@@ -130,12 +132,12 @@ try {
   const createOnWrite = await createOnWriteResponse.json();
   assert.equal(createOnWriteResponse.status, 200);
   assert.equal(createOnWrite.ok, true);
-  assert.equal(readFileSync(join(root, 'sandbox_workspace', otherSession, 'created.txt'), 'utf8'), 'created on write');
-  const publicLink = join(root, 'sandbox_workspace', otherSession, 'public');
+  assert.equal(readFileSync(join(workspaceRoot, otherSession, 'created.txt'), 'utf8'), 'created on write');
+  const publicLink = join(workspaceRoot, otherSession, 'public');
   assert.equal(lstatSync(publicLink).isSymbolicLink(), true, 'session creation must add a public symlink');
-  assert.equal(realpathSync(publicLink), realpathSync(join(root, 'sandbox_workspace', 'public')));
+  assert.equal(realpathSync(publicLink), realpathSync(join(workspaceRoot, 'public')));
 
-  writeFileSync(join(root, 'sandbox_workspace', otherSession, 'delete-me.txt'), 'remove me');
+  writeFileSync(join(workspaceRoot, otherSession, 'delete-me.txt'), 'remove me');
   const fileDeleteResponse = await fetch(`http://127.0.0.1:${port}/file_delete`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Command-Service-Token': serviceToken },
@@ -144,9 +146,9 @@ try {
   const fileDelete = await fileDeleteResponse.json();
   assert.equal(fileDeleteResponse.status, 200);
   assert.equal(fileDelete.ok, true);
-  assert.equal(existsSync(join(root, 'sandbox_workspace', otherSession, 'delete-me.txt')), false);
+  assert.equal(existsSync(join(workspaceRoot, otherSession, 'delete-me.txt')), false);
 
-  writeFileSync(join(root, 'sandbox_workspace', 'public', publicFile), 'shared read-only content');
+  writeFileSync(join(workspaceRoot, 'public', publicFile), 'shared read-only content');
   const publicReadResponse = await fetch(`http://127.0.0.1:${port}/file_read`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Command-Service-Token': serviceToken },
@@ -174,7 +176,7 @@ try {
   assert.equal(publicWriteResponse.status, 400);
   assert.equal(publicWrite.ok, false);
   assert.match(publicWrite.message, /The public directory is read-only/);
-  assert.equal(readFileSync(join(root, 'sandbox_workspace', 'public', publicFile), 'utf8'), 'shared read-only content');
+  assert.equal(readFileSync(join(workspaceRoot, 'public', publicFile), 'utf8'), 'shared read-only content');
 
   const publicFileDeleteResponse = await fetch(`http://127.0.0.1:${port}/file_delete`, {
     method: 'POST',
@@ -184,8 +186,8 @@ try {
   const publicFileDelete = await publicFileDeleteResponse.json();
   assert.equal(publicFileDeleteResponse.status, 200);
   assert.equal(publicFileDelete.ok, true);
-  assert.equal(existsSync(join(root, 'sandbox_workspace', 'public', publicFile)), false);
-  writeFileSync(join(root, 'sandbox_workspace', 'public', publicFile), 'shared read-only content');
+  assert.equal(existsSync(join(workspaceRoot, 'public', publicFile)), false);
+  writeFileSync(join(workspaceRoot, 'public', publicFile), 'shared read-only content');
 
   const publicDeleteResponse = await fetch(`http://127.0.0.1:${port}/session_delete`, {
     method: 'POST',
@@ -195,12 +197,12 @@ try {
   const publicDelete = await publicDeleteResponse.json();
   assert.equal(publicDeleteResponse.status, 400);
   assert.match(publicDelete.message, /The public workspace cannot be deleted/);
-  assert.equal(existsSync(join(root, 'sandbox_workspace', 'public')), true, 'the public workspace must survive a session deletion request');
+  assert.equal(existsSync(join(workspaceRoot, 'public')), true, 'the public workspace must survive a session deletion request');
 
   const externalDir = mkdtempSync(join(tmpdir(), 'command-service-external-'));
   writeFileSync(join(externalDir, 'secret.txt'), 'outside');
   // Windows 用 junction（无需管理员/开发者模式，目标须为绝对路径）；Unix 用目录符号链接
-  symlinkSync(externalDir, join(root, 'sandbox_workspace', otherSession, 'external'), IS_WIN ? 'junction' : 'dir');
+  symlinkSync(externalDir, join(workspaceRoot, otherSession, 'external'), IS_WIN ? 'junction' : 'dir');
   const externalReadResponse = await fetch(`http://127.0.0.1:${port}/file_read`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Command-Service-Token': serviceToken },
@@ -244,7 +246,7 @@ try {
   assert.equal(allowlisted.ok, true, 'allowlisted commands must execute directly');
   assert.equal(allowlisted.output, 'allowlisted');
 
-  const internalAbsoluteFile = join(root, 'sandbox_workspace', session, 'internal-absolute.txt');
+  const internalAbsoluteFile = join(workspaceRoot, session, 'internal-absolute.txt');
   const internalAbsolute = await post({ script: `touch ${forward(internalAbsoluteFile)}`, session });
   assert.equal(internalAbsolute.ok, true, 'an absolute path inside the session must not require confirmation');
   assert.equal(existsSync(internalAbsoluteFile), true);
@@ -253,7 +255,7 @@ try {
   const traversalRequest = await post({ script: `touch ${traversalPath}`, session });
   assert.equal(traversalRequest.ok, false, 'parent traversal outside the session must be rejected');
   assert.match(traversalRequest.message, /Script write paths must stay within the current session workspace/);
-  assert.equal(existsSync(join(root, 'sandbox_workspace', `outside-${process.pid}.txt`)), false);
+  assert.equal(existsSync(join(workspaceRoot, `outside-${process.pid}.txt`)), false);
 
   const externalShellFile = join(fakeBin, 'external-shell-write.txt');
   const externalPathRequest = await post({ script: `touch ${forward(externalShellFile)}`, session });
@@ -266,7 +268,7 @@ try {
   });
   assert.equal(externalCopyRequest.ok, false, 'copying from an external source into the session must be rejected');
   assert.match(externalCopyRequest.message, /Script read paths must stay within the current session workspace/);
-  assert.equal(existsSync(join(root, 'sandbox_workspace', session, 'copied-from-external.txt')), false);
+  assert.equal(existsSync(join(workspaceRoot, session, 'copied-from-external.txt')), false);
   const publicPathRequest = await post({ script: `cat public/${publicFile}`, session });
   assert.equal(publicPathRequest.ok, true, 'reading through the public link must not require confirmation');
   assert.equal(publicPathRequest.output, 'shared read-only content');
@@ -278,20 +280,20 @@ try {
   const copyToMissingPublicPath = await post({ script: `cp created.txt public/${missingPublicTarget}`, session: otherSession });
   assert.equal(copyToMissingPublicPath.ok, false, 'copying to public must be rejected');
   assert.match(copyToMissingPublicPath.message, /Script write paths must stay within the current session workspace/);
-  assert.equal(existsSync(join(root, 'sandbox_workspace', 'public', missingPublicTarget)), false, 'the copy must not run before approval');
+  assert.equal(existsSync(join(workspaceRoot, 'public', missingPublicTarget)), false, 'the copy must not run before approval');
 
   // 非白名单改动型命令（mv / rm 等）同样先做路径分类：越界直接拒绝，不得进入确认通道
   const mvToPublic = await post({ script: `mv created.txt public/${missingPublicTarget}`, session: otherSession });
   assert.equal(mvToPublic.ok, false, 'moving a file into public must be rejected without a confirmation ticket');
   assert.equal(mvToPublic.needConfirm, undefined, 'an out-of-session write must not offer confirmation');
   assert.match(mvToPublic.message, /Script write paths must stay within the current session workspace/);
-  assert.equal(existsSync(join(root, 'sandbox_workspace', otherSession, 'created.txt')), true, 'the source file must survive a rejected mv');
-  assert.equal(existsSync(join(root, 'sandbox_workspace', 'public', missingPublicTarget)), false, 'the move must not run before approval');
+  assert.equal(existsSync(join(workspaceRoot, otherSession, 'created.txt')), true, 'the source file must survive a rejected mv');
+  assert.equal(existsSync(join(workspaceRoot, 'public', missingPublicTarget)), false, 'the move must not run before approval');
 
   const mvFromPublic = await post({ script: `mv public/${publicFile} moved-from-public.txt`, session: otherSession });
   assert.equal(mvFromPublic.ok, false, 'moving a file out of public must be rejected (mv deletes its source)');
   assert.match(mvFromPublic.message, /Script write paths must stay within the current session workspace/);
-  assert.equal(existsSync(join(root, 'sandbox_workspace', 'public', publicFile)), true, 'the public file must survive a rejected mv');
+  assert.equal(existsSync(join(workspaceRoot, 'public', publicFile)), true, 'the public file must survive a rejected mv');
 
   const rmExternal = await post({ script: `rm ${forward(join(root, '.gitignore'))}`, session: otherSession });
   assert.equal(rmExternal.ok, false, 'removing an external file must be rejected');
@@ -307,7 +309,7 @@ try {
   assert.equal(genericDanglingLink.ok, false, 'any symlink whose declared target is outside the session must be rejected even when its target is missing');
   assert.match(genericDanglingLink.message, /Script write paths must stay within the current session workspace/);
 
-  symlinkSync(IS_WIN ? join(root, 'sandbox_workspace', otherSession, 'external') : 'external', join(root, 'sandbox_workspace', otherSession, 'alias'), IS_WIN ? 'junction' : 'dir');
+  symlinkSync(IS_WIN ? join(workspaceRoot, otherSession, 'external') : 'external', join(workspaceRoot, otherSession, 'alias'), IS_WIN ? 'junction' : 'dir');
   const chainedExternalLink = await post({ script: 'cat alias/secret.txt', session: otherSession });
   assert.equal(chainedExternalLink.ok, false, 'external reads through chained symlinks must be rejected');
   assert.match(chainedExternalLink.message, /Script read paths must stay within the current session workspace/);
@@ -336,7 +338,7 @@ try {
   const metacharacters = await post({ script: 'echo safe & literal | text > file', session });
   assert.equal(metacharacters.ok, true, 'shell metacharacters must remain literal arguments');
   assert.equal(metacharacters.output, 'safe & literal | text > file');
-  assert.equal(existsSync(join(root, 'sandbox_workspace', session, 'file')), false, 'redirection must not create a file');
+  assert.equal(existsSync(join(workspaceRoot, session, 'file')), false, 'redirection must not create a file');
 
   const environmentRequest = await post({ script: 'env', session });
   assert.equal(environmentRequest.needConfirm, true, 'environment inspection must require confirmation');
@@ -484,7 +486,7 @@ try {
   assert.match(timedOut.message, /Command timed out \(5000ms\)/);
   await delay(3000);
   assert.equal(
-    existsSync(join(root, 'sandbox_workspace', session, timeoutMarker)),
+    existsSync(join(workspaceRoot, session, timeoutMarker)),
     false,
     'timing out a command must terminate its descendant processes',
   );
@@ -501,11 +503,7 @@ try {
 } finally {
   server.kill('SIGKILL');
   rmSync(fakeBin, { recursive: true, force: true });
-  rmSync(join(root, 'sandbox_workspace', session), { recursive: true, force: true });
-  rmSync(join(root, 'sandbox_workspace', otherSession), { recursive: true, force: true });
-  rmSync(join(root, 'sandbox_workspace', createdSession), { recursive: true, force: true });
-  rmSync(join(root, 'sandbox_workspace', 'public', publicFile), { force: true });
-  rmSync(join(root, 'sandbox_workspace', 'public', missingPublicTarget), { force: true });
+  rmSync(workspaceRoot, { recursive: true, force: true });
   if (previousLock === null) rmSync(lockFile, { force: true });
   else writeFileSync(lockFile, previousLock);
 }
