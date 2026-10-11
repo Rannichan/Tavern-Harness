@@ -168,42 +168,32 @@ export function SettingsView() {
           {/* 界面语言 */}
           <div className="set-section">
             <h3>{t('settings.language')}</h3>
-            <div className="field">
-              <label>{t('settings.languageLabel')}</label>
-              <select
-                className="select"
-                value={settings.language ?? ''}
-                onChange={(e) => setSettings({ language: (e.target.value || null) as AppLanguage })}
-              >
-                <option value="">{t('settings.followBrowser')}</option>
-                <option value="zh-CN">简体中文</option>
-                <option value="zh-TW">繁體中文</option>
-                <option value="en">English</option>
-              </select>
-            </div>
-            <p style={{ fontSize: 12, color: 'var(--text-faint)', margin: 0 }}>
-              {t('settings.followBrowser')}
-            </p>
+            <select
+              className="select"
+              aria-label={t('settings.languageLabel')}
+              value={settings.language ?? ''}
+              onChange={(e) => setSettings({ language: (e.target.value || null) as AppLanguage })}
+            >
+              <option value="">{t('settings.followBrowser')}</option>
+              <option value="zh-CN">简体中文</option>
+              <option value="zh-TW">繁體中文</option>
+              <option value="en">English</option>
+            </select>
           </div>
 
           {/* 主题 */}
           <div className="set-section">
             <h3>{t('settings.theme')}</h3>
-            <div className="field">
-              <label>{t('settings.appearance')}</label>
-              <select
-                className="select"
-                value={settings.themeMode}
-                onChange={(e) => setSettings({ themeMode: e.target.value as ThemeMode })}
-              >
-                <option value="system">{t('settings.system')}</option>
-                <option value="light">{t('settings.light')}</option>
-                <option value="dark">{t('settings.dark')}</option>
-              </select>
-            </div>
-            <p style={{ fontSize: 12, color: 'var(--text-faint)', margin: 0 }}>
-              {t('settings.themeTip')}
-            </p>
+            <select
+              className="select"
+              aria-label={t('settings.appearance')}
+              value={settings.themeMode}
+              onChange={(e) => setSettings({ themeMode: e.target.value as ThemeMode })}
+            >
+              <option value="system">{t('settings.system')}</option>
+              <option value="light">{t('settings.light')}</option>
+              <option value="dark">{t('settings.dark')}</option>
+            </select>
           </div>
         </div>
 

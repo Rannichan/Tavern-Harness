@@ -599,7 +599,8 @@
   font-weight: 600;
   color: var(--text-dim);
 }
-.set-row .s-desc {
+.set-row .s-desc,
+.param-table .s-desc {
   font-size: 11px;
   color: var(--text-faint);
 }
