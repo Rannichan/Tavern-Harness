@@ -9,6 +9,14 @@ import { translate } from './i18n';
 
 const OPENAI_TIMEOUTS = { read: 60_000 };
 
+interface ToolDelta {
+  id: string;
+  name: string;
+  args: string;
+  snapshotArgs: string | null;
+  lastEmitted: string;
+}
+
 /**
  * 计算请求 URL 候选：先直连，若失败且开发服务器可用（存在 /api/ 代理），
  * 自动回退到同源代理地址。
@@ -92,7 +100,7 @@ async function attemptStream(
     const decoder = new TextDecoder();
 
     // Delta 工具调用按 index 组装
-    const toolDeltas = new Map<number, { id: string; name: string; args: string; lastEmitted: string }>();
+    const toolDeltas = new Map<number, ToolDelta>();
     let buffer = '';
     while (true) {
       const { done, value } = await reader.read();
@@ -115,19 +123,15 @@ async function attemptStream(
       }
     }
 
-    // 收尾：补发未完成的工具调用
-    for (const [idx, td] of toolDeltas) {
-      const id = td.id || fallbackToolCallId(idx);
-      const nextEmit = `${id}\n${td.name}\n${td.args}`;
-      if (td.lastEmitted === nextEmit) continue;
-      td.lastEmitted = nextEmit;
-      onChunk({
-        type: 'tool_call',
-        id,
-        name: td.name,
-        argJson: td.args,
-      });
+    // Some compatible endpoints close after the final data line without a newline.
+    buffer += decoder.decode();
+    if (buffer.startsWith('data:')) {
+      const data = buffer.slice(5).trim();
+      if (data && data !== '[DONE]') handleDataLine(data, onChunk, toolDeltas);
     }
+
+    // 收尾：补发未完成的工具调用
+    emitFinalToolCalls(toolDeltas, onChunk);
     onChunk({ type: 'done' });
     return true;
   } catch (e) {
@@ -154,7 +158,7 @@ async function attemptStream(
 function handleDataLine(
   data: string,
   onChunk: (c: ChatStreamChunk) => void,
-  toolDeltas: Map<number, { id: string; name: string; args: string; lastEmitted: string }>,
+  toolDeltas: Map<number, ToolDelta>,
 ): void {
   try {
     const json = JSON.parse(data);
@@ -186,8 +190,7 @@ function handleDataLine(
     }>;
     if (!choices) return;
     for (const choice of choices) {
-      const delta = choice.delta;
-      if (!delta) continue;
+      const delta = choice.delta ?? {};
 
       const thinking =
         delta.reasoning ?? delta.reasoning_content ?? delta.thinking_content ?? null;
@@ -206,7 +209,7 @@ function handleDataLine(
       if (delta.tool_calls) {
         for (const tc of delta.tool_calls) {
           const idx = tc.index ?? 0;
-          const cur = toolDeltas.get(idx) ?? { id: '', name: '', args: '', lastEmitted: '' };
+          const cur = toolDeltas.get(idx) ?? { id: '', name: '', args: '', snapshotArgs: '', lastEmitted: '' };
           if (tc.id) cur.id = tc.id;
           if (!cur.id) cur.id = fallbackToolCallId(idx);
           if (tc.function?.name) {
@@ -216,7 +219,13 @@ function handleDataLine(
             }
           }
           if (tc.function?.arguments) {
-            cur.args = mergeToolArguments(cur.args, tc.function.arguments);
+            const incoming = tc.function.arguments;
+            // Deltas are lossless. Repeated braces and prefixes are still data.
+            cur.args += incoming;
+            // Retain snapshot compatibility only while every fragment extends
+            // (or repeats) the previous one. Never mix snapshots with deltas.
+            cur.snapshotArgs = cur.snapshotArgs !== null && incoming.startsWith(cur.snapshotArgs)
+              ? incoming : null;
           }
           toolDeltas.set(idx, cur);
           if (cur.name) {
@@ -234,19 +243,7 @@ function handleDataLine(
         }
       }
       if (choice.finish_reason === 'tool_calls') {
-        // 立即发出发射工具调用事件
-        for (const [idx, td] of toolDeltas) {
-          const id = td.id || fallbackToolCallId(idx);
-          const nextEmit = `${id}\n${td.name}\n${td.args}`;
-          if (td.lastEmitted === nextEmit) continue;
-          td.lastEmitted = nextEmit;
-          onChunk({
-            type: 'tool_call',
-            id,
-            name: td.name,
-            argJson: td.args,
-          });
-        }
+        emitFinalToolCalls(toolDeltas, onChunk);
         toolDeltas.clear();
       } else if (choice.finish_reason && choice.finish_reason !== 'stop') {
         // stop/reasoning/content_filter 等
@@ -257,12 +254,26 @@ function handleDataLine(
   }
 }
 
-function mergeToolArguments(current: string, incoming: string): string {
-  if (!current) return incoming;
-  if (!incoming || incoming === current) return current;
-  if (incoming.startsWith(current)) return incoming;
-  if (current.startsWith(incoming)) return current;
-  return current + incoming;
+function emitFinalToolCalls(toolDeltas: Map<number, ToolDelta>, onChunk: (c: ChatStreamChunk) => void): void {
+  for (const [idx, td] of toolDeltas) {
+    let argJson = td.args;
+    if (td.snapshotArgs !== null && td.snapshotArgs !== argJson) {
+      try {
+        JSON.parse(argJson);
+      } catch {
+        try {
+          // Only fall back from invalid deltas to a complete snapshot object.
+          const snapshot: unknown = JSON.parse(td.snapshotArgs);
+          if (snapshot && typeof snapshot === 'object' && !Array.isArray(snapshot)) argJson = td.snapshotArgs;
+        } catch { /* Leave invalid arguments unchanged for the tool executor. */ }
+      }
+    }
+    const id = td.id || fallbackToolCallId(idx);
+    const nextEmit = `${id}\n${td.name}\n${argJson}`;
+    if (td.lastEmitted === nextEmit) continue;
+    td.lastEmitted = nextEmit;
+    onChunk({ type: 'tool_call', id, name: td.name, argJson });
+  }
 }
 
 /** 拆分 deepseek / kimi 风格的 思考→回答 标记 */
