@@ -10,7 +10,6 @@ import type {
 import { BUILTIN_TOOL_NAMES } from '../toolDefinitions';
 import { translate } from '../i18n';
 import { rollDice } from './builtinTools';
-import { parseToolArguments } from '../toolArguments';
 import {
   createSessionWorkspaceDir,
   executeGeneratedSkill,
@@ -57,9 +56,9 @@ export async function executeToolCall(
 
   let args: Record<string, unknown> = {};
   try {
-    args = parseToolArguments(argsJson).args;
-  } catch (e) {
-    return `ERROR: ${(e as Error).message}`;
+    args = JSON.parse(argsJson || '{}');
+  } catch {
+    return 'ERROR: Tool arguments are not valid JSON';
   }
 
   // 系统消息层：自动执行幻觉工具名（未知工具）

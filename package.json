@@ -46,7 +46,6 @@
     "@types/katex": "^0.16.7",
     "@types/react": "^18.3.5",
     "@types/react-dom": "^18.3.0",
-    "fake-indexeddb": "^6.2.5",
     "typescript": "^5.5.4"
   }
 }
