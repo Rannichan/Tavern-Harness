@@ -73,6 +73,10 @@ After starting the app, open **Settings → Model Service Provider**:
 2. **Test the connection**: the app fetches the model list automatically. If the target service does not expose CORS headers, requests are forwarded through the built-in same-origin proxy for private-network or LAN addresses. On success, the Base URL is rewritten to its proxy form and saved.
 3. **Select a model**: click the model name at the top of the chat page, then return to the conversation and start chatting.
 
+### Automatic Tool Approval (YOLO Mode)
+
+Enable **Settings → Tool execution → YOLO mode** to automatically approve tool changes and Shell commands during conversations. It is off by default, is saved locally, and can be disabled at any time. Only enable it for characters and skills you trust. Agent execution limits still require manual continuation.
+
 ### Data Privacy
 
 - **All data is stored in browser IndexedDB**: conversations, character cards, lorebooks, skills, statistics, and API keys are not uploaded to any server.

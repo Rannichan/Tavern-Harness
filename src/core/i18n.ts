@@ -173,6 +173,9 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     // ---- 设置 ----
     'settings.title': '设置',
     'settings.sub': '模型 API 配置、超参数与主题',
+    'settings.toolExecution': '🛠️ 工具执行',
+    'settings.yoloMode': 'YOLO 模式',
+    'settings.yoloModeDesc': '自动批准工具修改和 Shell 执行，无需逐次确认。仅在信任角色和技能时开启。',
     'settings.genParams': '🎛 生成参数',
     'settings.tempDesc': '创造性与随机性',
     'settings.topPDesc': '核采样',
@@ -615,6 +618,9 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
 
     'settings.title': '設定',
     'settings.sub': '模型 API 設定、超參數與主題',
+    'settings.toolExecution': '🛠️ 工具執行',
+    'settings.yoloMode': 'YOLO 模式',
+    'settings.yoloModeDesc': '自動批准工具修改和 Shell 執行，無需逐次確認。僅在信任角色和技能時開啟。',
     'settings.genParams': '🎛 產生參數',
     'settings.tempDesc': '創造性與隨機性',
     'settings.topPDesc': '核採樣',
@@ -1048,6 +1054,9 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
 
     'settings.title': 'Settings',
     'settings.sub': 'Model API config, hyperparameters and theme',
+    'settings.toolExecution': '🛠️ Tool execution',
+    'settings.yoloMode': 'YOLO mode',
+    'settings.yoloModeDesc': 'Automatically approve tool changes and Shell commands without asking each time. Only enable for trusted characters and skills.',
     'settings.genParams': '🎛 Generation parameters',
     'settings.tempDesc': 'Creativity & randomness',
     'settings.topPDesc': 'Nucleus sampling',

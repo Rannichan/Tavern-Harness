@@ -300,6 +300,10 @@ export const useStore = create<AppState>((set, get) => ({
     const next = { ...current, ...partial };
     await db.settings.put(next);
     set({ settings: next });
+    const pending = get().pendingConfirmation;
+    if (next.yoloMode === true && pending && pending.kind !== 'limit') {
+      get().resolveConfirmation(true);
+    }
     if (partial.language !== undefined) {
       setLanguage(next.language ?? null);
       // 切换语言后：内置角色与世界书文本一并本地化并刷新。
@@ -2342,8 +2346,11 @@ async function continueRegeneratedGroupLoop(
   return continueGroupConversation(sessionId);
 }
 
-/** 挂起一个确认请求，直到用户在弹窗上应答（resolveConfirmation）。所有确认共用此唯一挂起点。 */
+/** 工具确认在 YOLO 模式下自动批准；执行限额仍挂起等待用户应答。 */
 function suspendConfirmation(req: ToolConfirmationRequest): Promise<boolean> {
+  if (req.kind !== 'limit' && useStore.getState().settings?.yoloMode === true) {
+    return Promise.resolve(true);
+  }
   return new Promise((resolve) => {
     confirmationDeferreds.set(req, { resolve });
     useStore.setState({ pendingConfirmation: req });

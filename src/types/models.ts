@@ -53,6 +53,8 @@ export interface AppSettings {
   isStreaming: boolean;
   isThinkingModeEnabled: boolean;
   isToolCallsEnabled: boolean;
+  /** 自动批准工具执行确认（YOLO）；默认关闭。 */
+  yoloMode: boolean;
   statsResetTime: number | null;
 }
 
