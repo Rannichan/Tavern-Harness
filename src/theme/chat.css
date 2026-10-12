@@ -731,6 +731,10 @@
 .md p {
   margin: 0.35em 0;
 }
+.md em {
+  font-style: italic;
+  font-synthesis: style;
+}
 .md h1,
 .md h2,
 .md h3,
