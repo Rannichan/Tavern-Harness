@@ -303,10 +303,8 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
   };
 
   return (
-    <div className="overlay" onClick={onClose}>
-      <div className="modal-root" onClick={(e) => e.stopPropagation()}>
-        <div className="modal card modal-editor">
-          <div className="modal-head">
+    <Modal onClose={onClose} className="modal-editor">
+      <div className="modal-head">
             <span style={{ fontWeight: 800, fontSize: 15 }}>{isNew ? t('workshop.newCharTitle') : t('workshop.editCharTitle', { name: npc.name })}</span>
             <button className="icon-btn" onClick={onClose}><Icon name="x" /></button>
           </div>
@@ -390,9 +388,7 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
             <button className="btn" onClick={onClose}>{t('common.cancel')}</button>
             <button className="btn btn-primary" onClick={save}>{t('common.save')}</button>
           </div>
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -507,17 +503,13 @@ function WorldBookList({ books, onChanged, onImportPng, importDraft, onImportDra
       )}
 
       {editing && (
-        <div className="overlay" onClick={closeEditor}>
-          <div className="modal-root" onClick={(e) => e.stopPropagation()}>
-            <div className="modal card modal-editor">
-              <div className="modal-head">
-                <span style={{ fontWeight: 800, fontSize: 15 }}>{'id' in editing && editing.id != null ? t('workshop.editWbTitle') : t('workshop.newWbTitle')}</span>
-                <button className="icon-btn" onClick={closeEditor}><Icon name="x" /></button>
-              </div>
-              <WorldBookForm initial={editing} onSave={saveWb} onCancel={closeEditor} />
-            </div>
+        <Modal onClose={closeEditor} className="modal-editor">
+          <div className="modal-head">
+            <span style={{ fontWeight: 800, fontSize: 15 }}>{'id' in editing && editing.id != null ? t('workshop.editWbTitle') : t('workshop.newWbTitle')}</span>
+            <button className="icon-btn" onClick={closeEditor}><Icon name="x" /></button>
           </div>
-        </div>
+          <WorldBookForm initial={editing} onSave={saveWb} onCancel={closeEditor} />
+        </Modal>
       )}
     </div>
   );
