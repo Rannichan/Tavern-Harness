@@ -243,6 +243,7 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
   const t = useT();
   const [name, setName] = useState(npc.name);
   const [prompt, setPrompt] = useState(npc.prompt);
+  const [renderMarkdown, setRenderMarkdown] = useState(false);
   // 多个开场白：第一个保存在 greeting，其余保存在 alternateGreetings
   const [greetings, setGreetings] = useState<string[]>([npc.greeting, ...(npc.alternateGreetings ?? [])]);
   const [avatarDataUrl, setAvatarDataUrl] = useState<string | null>(npc.avatarDataUrl ?? null);
@@ -306,7 +307,16 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
     <Modal onClose={onClose} className="modal-editor">
       <div className="modal-head">
             <span style={{ fontWeight: 800, fontSize: 15 }}>{isNew ? t('workshop.newCharTitle') : t('workshop.editCharTitle', { name: npc.name })}</span>
-            <button className="icon-btn" onClick={onClose}><Icon name="x" /></button>
+            <div className="modal-head-actions">
+              <div className="raw-wrap-toggle">
+                <span className="raw-wrap-label">{t('workshop.wbMarkdownRender')}</span>
+                <label className="switch">
+                  <input type="checkbox" checked={renderMarkdown} onChange={(e) => setRenderMarkdown(e.target.checked)} />
+                  <span className="switch-slider" />
+                </label>
+              </div>
+              <button className="icon-btn" onClick={onClose}><Icon name="x" /></button>
+            </div>
           </div>
           <div className="modal-body">
             <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
@@ -334,7 +344,13 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
             </div>
             <div className="field prompt-field">
               <label>{t('workshop.promptLabel')}</label>
-              <textarea className="textarea grow-textarea" value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder={t('workshop.promptPh')} />
+              {!renderMarkdown ? (
+                <textarea className="textarea grow-textarea" value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder={t('workshop.promptPh')} />
+              ) : (
+                <div className="bubble preview-scroll wb-render-pane char-prompt-render-pane">
+                  {prompt ? <Markdown text={prompt} /> : <span style={{ color: 'var(--text-faint)', fontSize: 13 }}>{t('workshop.promptPh')}</span>}
+                </div>
+              )}
             </div>
             <div className="field" style={{ flexShrink: 0 }}>
               <label>
@@ -343,24 +359,34 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
               </label>
               {greetings.map((g, i) => (
                 <div key={i} className="greeting-input">
-                  <textarea
-                    className="textarea grow-textarea greeting-grow"
-                    value={g}
-                    onChange={(e) => setGreetings((prev) => prev.map((x, j) => (j === i ? e.target.value : x)))}
-                    placeholder={t('workshop.greetingPh')}
-                  />
-                  <button
-                    className="icon-btn greeting-del"
-                    title={t('common.delete')}
-                    onClick={() => setGreetings((prev) => prev.filter((_, j) => j !== i))}
-                  >
-                    <Icon name="x" size={13} />
-                  </button>
+                  {!renderMarkdown ? (
+                    <textarea
+                      className="textarea grow-textarea greeting-grow"
+                      value={g}
+                      onChange={(e) => setGreetings((prev) => prev.map((x, j) => (j === i ? e.target.value : x)))}
+                      placeholder={t('workshop.greetingPh')}
+                    />
+                  ) : (
+                    <div className="bubble preview-scroll wb-render-pane greeting-render-pane">
+                      {g ? <Markdown text={g} /> : <span style={{ color: 'var(--text-faint)', fontSize: 13 }}>{t('workshop.greetingPh')}</span>}
+                    </div>
+                  )}
+                  {!renderMarkdown && (
+                    <button
+                      className="icon-btn greeting-del"
+                      title={t('common.delete')}
+                      onClick={() => setGreetings((prev) => prev.filter((_, j) => j !== i))}
+                    >
+                      <Icon name="x" size={13} />
+                    </button>
+                  )}
                 </div>
               ))}
-              <button className="btn btn-sm btn-ghost" style={{ alignSelf: 'flex-start' }} onClick={() => setGreetings((prev) => [...prev, ''])}>
-                <Icon name="plus" size={12} /> {t('workshop.addAltGreeting')}
-              </button>
+              {!renderMarkdown && (
+                <button className="btn btn-sm btn-ghost" style={{ alignSelf: 'flex-start' }} onClick={() => setGreetings((prev) => [...prev, ''])}>
+                  <Icon name="plus" size={12} /> {t('workshop.addAltGreeting')}
+                </button>
+              )}
             </div>
             {/* 启用技能：从卡片移入编辑页 */}
             <div className="field" style={{ flexShrink: 0 }}>
@@ -406,6 +432,7 @@ function WorldBookList({ books, onChanged, onImportPng, importDraft, onImportDra
   const addToast = useStore((s) => s.addToast);
   const t = useT();
   const [editing, setEditing] = useState<WorldBook | { name: string; content: string; imageUri: null; createdAt: number } | null>(null);
+  const [renderMarkdown, setRenderMarkdown] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<WorldBook | null>(null);
 
   // PNG 导入产生草稿后：预填「新建Lorebook」表单（不落库，由用户手动保存）
@@ -506,9 +533,18 @@ function WorldBookList({ books, onChanged, onImportPng, importDraft, onImportDra
         <Modal onClose={closeEditor} className="modal-editor">
           <div className="modal-head">
             <span style={{ fontWeight: 800, fontSize: 15 }}>{'id' in editing && editing.id != null ? t('workshop.editWbTitle') : t('workshop.newWbTitle')}</span>
-            <button className="icon-btn" onClick={closeEditor}><Icon name="x" /></button>
+            <div className="modal-head-actions">
+              <div className="raw-wrap-toggle">
+                <span className="raw-wrap-label">{t('workshop.wbMarkdownRender')}</span>
+                <label className="switch">
+                  <input type="checkbox" checked={renderMarkdown} onChange={(e) => setRenderMarkdown(e.target.checked)} />
+                  <span className="switch-slider" />
+                </label>
+              </div>
+              <button className="icon-btn" onClick={closeEditor}><Icon name="x" /></button>
+            </div>
           </div>
-          <WorldBookForm initial={editing} onSave={saveWb} onCancel={closeEditor} />
+          <WorldBookForm initial={editing} renderMarkdown={renderMarkdown} onSave={saveWb} onCancel={closeEditor} />
         </Modal>
       )}
     </div>
@@ -538,11 +574,10 @@ function ScrollingCardName({ name }: { name: string }) {
   );
 }
 
-function WorldBookForm({ initial, onSave, onCancel }: { initial: WorldBook | { name: string; content: string; imageUri: null; createdAt: number }; onSave: (n: string, c: string) => void; onCancel: () => void }) {
+function WorldBookForm({ initial, renderMarkdown, onSave, onCancel }: { initial: WorldBook | { name: string; content: string; imageUri: null; createdAt: number }; renderMarkdown: boolean; onSave: (n: string, c: string) => void; onCancel: () => void }) {
   const t = useT();
   const [name, setName] = useState(initial.name);
   const [content, setContent] = useState(initial.content);
-  const [renderMarkdown, setRenderMarkdown] = useState(false);
   const isBuiltin = isBuiltinTavernHandbook(initial);
 
   const resetToDefault = () => {
@@ -564,16 +599,7 @@ function WorldBookForm({ initial, onSave, onCancel }: { initial: WorldBook | { n
               />}
         </div>
         <div className="field" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-            <label>{t('workshop.wbContentLabel')}</label>
-            <div className="raw-wrap-toggle">
-              <span className="raw-wrap-label">{t('workshop.wbMarkdownRender')}</span>
-              <label className="switch">
-                <input type="checkbox" checked={renderMarkdown} onChange={(e) => setRenderMarkdown(e.target.checked)} />
-                <span className="switch-slider" />
-              </label>
-            </div>
-          </div>
+          <label>{t('workshop.wbContentLabel')}</label>
           {!renderMarkdown ? (
             <textarea className="textarea grow-textarea" value={content} onChange={(e) => setContent(e.target.value)} placeholder={t('workshop.wbContentPh')} />
           ) : (
