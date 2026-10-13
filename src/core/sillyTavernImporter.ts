@@ -11,6 +11,15 @@ import type { NpcCharacter } from '../types/models';
 //   PNG 嵌入的 ccv3 块内容同样是「JSON 字符串 utf-8 -> base64」
 
 /** TavernCardV2 的 data 字段（v2 卡字段全部嵌套在 data 中） */
+interface StDepthPrompt {
+  prompt?: string;
+}
+
+interface TavernCardExtensions {
+  depth_prompt?: StDepthPrompt;
+  [key: string]: unknown;
+}
+
 interface TavernV2Data {
   name?: string;
   description?: string;
@@ -22,7 +31,7 @@ interface TavernV2Data {
   post_history_instructions?: string;
   alternate_greetings?: string[];
   character_book?: StLorebook;
-  extensions?: Record<string, unknown>;
+  extensions?: TavernCardExtensions;
 }
 
 /** 顶层共有的信封结构（v2 用 spec='chara_card_v2'，v3 用 spec='chara_card_v3'） */
@@ -45,6 +54,7 @@ interface StEnvelope {
   /** v3 的额外开场白（备用），创建对话时随机选用 */
   alternate_greetings?: string[];
   character_book?: StLorebook;
+  extensions?: TavernCardExtensions;
   /** v3 的 assets 图标（可选 base64 data URL） */
   assets?: Array<{ type?: string; uri?: string; name?: string; ext?: string }>;
 }
@@ -212,12 +222,18 @@ function normalizePlaceholders(text: string, characterName: string): string {
 }
 
 function buildPromptFromStructured(data: StEnvelope, fallbackName: string): string {
+  const extraInstructions = [
+    data.post_history_instructions,
+    data.extensions?.depth_prompt?.prompt,
+  ]
+    .filter((value): value is string => Boolean(value?.trim()))
+    .join('\n\n');
   const sections: Array<[string, string | undefined]> = [
     ['Character Description', data.description],
     ['Personality', data.personality],
     ['Scenario', data.scenario],
     ['Example Dialogue', data.mes_example],
-    ['Extra Instructions', data.post_history_instructions],
+    ['Extra Instructions', extraInstructions],
   ];
   const parts = sections
     .filter((section): section is [string, string] => Boolean(section[1]?.trim()))
