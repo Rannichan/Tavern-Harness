@@ -106,13 +106,7 @@ export function CharactersView() {
             onImportPng={openFilePicker}
           />
         )}
-        {tab === 'worldbooks' && (
-          <WorldBookList
-            books={worldBooks}
-            onChanged={refreshWb}
-            onImportPng={openFilePicker}
-          />
-        )}
+        {tab === 'worldbooks' && <WorldBookList books={worldBooks} onChanged={refreshWb} />}
         {tab === 'skills' && <SkillList />}
       </div>
       <input
@@ -204,7 +198,7 @@ function CharacterGrid({ npcs, onEdit, onImportPng }: { npcs: NpcCharacter[]; on
               ))}
             </div>
             <div className="cactions">
-              <button className="btn btn-sm" onClick={() => onEdit(n, false)}><Icon name="settings" size={12} /> {t('common.edit')}</button>
+              <button className="btn btn-sm" onClick={() => onEdit(n, false)}><Icon name="settings" size={12} /> {t('workshop.browseEdit')}</button>
               <button className="btn btn-sm btn-danger" onClick={() => setPendingDelete(n)} disabled={n.isBuiltIn} title={n.isBuiltIn ? t('workshop.protectedTip') : t('common.delete')}>
                 <Icon name="trash" size={12} />
               </button>
@@ -303,7 +297,7 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
   };
 
   return (
-    <Modal onClose={onClose} className="modal-editor">
+    <Modal onClose={onClose} className="modal-editor character-editor-modal">
       <div className="modal-head">
             <span style={{ fontWeight: 800, fontSize: 15 }}>{isNew ? t('workshop.newCharTitle') : t('workshop.editCharTitle', { name: npc.name })}</span>
             <div className="raw-tabs">
@@ -445,10 +439,9 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
 
 // ---------------- Lorebook ----------------
 
-function WorldBookList({ books, onChanged, onImportPng }: {
+function WorldBookList({ books, onChanged }: {
   books: WorldBook[];
   onChanged: () => void;
-  onImportPng: () => void;
 }) {
   const addToast = useStore((s) => s.addToast);
   const t = useT();
@@ -488,9 +481,6 @@ function WorldBookList({ books, onChanged, onImportPng }: {
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
         <span className="group-label" style={{ margin: 0 }}>{t('workshop.wbCount', { n: books.length })}</span>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn btn-sm" onClick={onImportPng} title={t('workshop.pngImportWbTip')}>
-            <Icon name="import" size={13} /> {t('workshop.pngImport')}
-          </button>
           <button className="btn btn-primary btn-sm" onClick={() => setEditing({ name: '', content: '', imageUri: null, createdAt: Date.now() })}>
             <Icon name="plus" size={13} /> {t('workshop.newWb')}
           </button>

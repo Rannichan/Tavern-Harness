@@ -58,10 +58,21 @@
   width: min(1040px, calc(100vw - 32px));
   height: min(90dvh, 960px);
 }
+.character-editor-modal .modal-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 12px;
+}
+.character-editor-modal .modal-head > :first-child {
+  min-width: 0;
+}
 .modal-editor .modal-head-actions {
   display: flex;
   align-items: center;
   gap: 16px;
+}
+.character-editor-modal .modal-head-actions {
+  justify-self: end;
 }
 .modal-editor .modal-body {
   display: flex;
