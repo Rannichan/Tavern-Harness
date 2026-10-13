@@ -10,7 +10,6 @@ import type { NpcCharacter } from '../types/models';
 // - v3: https://github.com/kwaroran/character-card-spec-v3/blob/main/SPEC_V3.md
 //   PNG 嵌入的 ccv3 块内容同样是「JSON 字符串 utf-8 -> base64」
 
-/** TavernCardV2 的 data 字段（v2 卡字段全部嵌套在 data 中） */
 interface StDepthPrompt {
   prompt?: string;
 }
@@ -20,6 +19,7 @@ interface TavernCardExtensions {
   [key: string]: unknown;
 }
 
+/** TavernCardV2 的 data 字段（v2 卡字段全部嵌套在 data 中） */
 interface TavernV2Data {
   name?: string;
   description?: string;
@@ -272,23 +272,10 @@ function resolveAvatar(data: StEnvelope, pngDataUrl: string | null): string | nu
   return extractAvatarFromCard(data) ?? pngDataUrl;
 }
 
-/** 渲染内嵌 Lorebook（character_book）为可读文本 */
-function renderLorebook(book: StLorebook | undefined, characterName: string) {
-  if (!book || !Array.isArray(book.entries)) return null;
-  const entries = book.entries.filter((e) => e.enabled !== false && e.content && e.content.trim());
-  if (entries.length === 0) return null;
-  const rendered = entries
-    .map(
-      (e) =>
-        `### ${normalizePlaceholders(e.name || e.comment || '条目', characterName)}\n` +
-        (e.keys && e.keys.length > 0 ? `触发词：${normalizePlaceholders(e.keys.join('、'), characterName)}\n` : '') +
-        normalizePlaceholders(e.content!, characterName)
-    )
-    .join('\n\n');
-  return {
-    name: normalizePlaceholders(book.name || `${characterName} 的世界书`, characterName).slice(0, 60),
-    content: rendered.slice(0, 10_000),
-  };
+/** 保留卡片的 Character Book JSON。 */
+function serializeCharacterBook(book: StLorebook | undefined): string | undefined {
+  if (!book) return undefined;
+  return JSON.stringify(book, null, 2);
 }
 
 /** 归一化多开场白：主开场白 + 去重后的 alternate_greetings。 */
@@ -309,10 +296,8 @@ function buildGreetings(data: StEnvelope, characterName: string): { greeting: st
 export interface ParsedSillyTavernCard {
   /** v2 / v3 */
   version: string;
-  /** 预填到新建角色表单的数据（含头像、人设 prompt、开场白） */
+  /** 预填到新建角色表单的数据（含头像、人设 prompt、开场白与 Character Book） */
   character: NpcCharacter;
-  /** 卡内嵌的 Lorebook（若有），预填到新建 Lorebook 表单 */
-  worldBook: { name: string; content: string } | null;
 }
 
 /** 解析 PNG 角色卡为表单草稿，不写入数据库（PNG 图片本身作为头像） */
@@ -329,6 +314,7 @@ export async function parseSillyTavernCardFile(file: File): Promise<ParsedSillyT
     name,
     prompt: buildPromptFromStructured(data, name),
     greeting,
+    characterBook: serializeCharacterBook(data.character_book),
     alternateGreetings,
     avatarColorOrdinal: Math.floor(Math.random() * 6),
     avatarDataUrl: resolveAvatar(data, pngToDataUrl(buffer)),
@@ -337,8 +323,5 @@ export async function parseSillyTavernCardFile(file: File): Promise<ParsedSillyT
     createdAt: Date.now(),
   };
 
-  const lorebook = renderLorebook(data.character_book, name);
-  const worldBook = lorebook ? { name: lorebook.name, content: lorebook.content } : null;
-
-  return { version: key === 'ccv3' ? 'v3' : 'v2', character, worldBook };
+  return { version: key === 'ccv3' ? 'v3' : 'v2', character };
 }

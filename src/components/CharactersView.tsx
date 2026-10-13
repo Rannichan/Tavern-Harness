@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import {
   DndContext,
   PointerSensor,
@@ -26,16 +26,18 @@ import {
 import type { NpcCharacter, WorldBook, McpTool } from '../types/models';
 import { Avatar, Icon, MasonryGrid, Markdown, Modal } from './shared';
 import { DeleteConfirmDialog } from './DeleteConfirmDialog';
-import { parseSillyTavernCardFile, type ParsedSillyTavernCard } from '../core/sillyTavernImporter';
+import { parseSillyTavernCardFile } from '../core/sillyTavernImporter';
 import { ALL_BUILTIN_TOOL_NAMES } from '../core/toolDefinitions';
 import { useT } from '../core/i18n';
+
+const CharacterBookEditor = lazy(() => import('./CharacterBookEditor'));
 
 // 内置角色「酒馆老板」默认启用所有技能
 const ALL_DEFAULT_SKILLS = [...ALL_BUILTIN_TOOL_NAMES];
 
 // ============================================================
 // 角色工坊（NPC 管理 / Lorebook / 技能表 / PNG 导入）
-// 说明：PNG 导入只解析不落库，打开「新建角色 / 新建Lorebook」表单预填，
+// 说明：PNG 导入只解析不落库，打开「新建角色」表单预填，
 //       由用户手动点保存
 // ============================================================
 
@@ -47,8 +49,6 @@ export function CharactersView() {
   const [tab, setTab] = useState<'characters' | 'worldbooks' | 'skills'>('characters');
   const [editing, setEditing] = useState<NpcCharacter | null>(null);
   const [isNew, setIsNew] = useState(false);
-  // PNG 解析出的草稿：角色 + 内嵌Lorebook
-  const [importDraft, setImportDraft] = useState<ParsedSillyTavernCard | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const openFilePicker = () => fileRef.current?.click();
@@ -68,18 +68,10 @@ export function CharactersView() {
   const handleImport = async (file: File) => {
     try {
       const draft = await parseSillyTavernCardFile(file);
-      setImportDraft(draft);
-      if (tab === 'characters' || tab === 'skills') {
-        // 角色卡 tab：预填新建角色表单，由用户确认后保存
-        setEditing({ ...draft.character, id: undefined });
-        setIsNew(true);
-        addToast(t('toast.importedChar', { name: draft.character.name, version: draft.version }));
-      } else {
-        // Lorebook tab：草稿交给 WorldBookList，由 useEffect 打开预填表单（含提示）
-        if (!draft.worldBook) {
-          addToast(t('toast.noEmbeddedWb', { name: draft.character.name }), 'error');
-        }
-      }
+      // 预填新建角色表单，由用户确认后保存
+      setEditing({ ...draft.character, id: undefined });
+      setIsNew(true);
+      addToast(t('toast.importedChar', { name: draft.character.name, version: draft.version }));
     } catch (e) {
       addToast(t('toast.importFailed', { msg: (e as Error).message }), 'error');
     }
@@ -110,7 +102,6 @@ export function CharactersView() {
             onEdit={(n, isNew) => {
               setEditing(n);
               setIsNew(isNew);
-              setImportDraft(null);
             }}
             onImportPng={openFilePicker}
           />
@@ -120,8 +111,6 @@ export function CharactersView() {
             books={worldBooks}
             onChanged={refreshWb}
             onImportPng={openFilePicker}
-            importDraft={tab === 'worldbooks' ? importDraft : null}
-            onImportDraftConsumed={() => setImportDraft(null)}
           />
         )}
         {tab === 'skills' && <SkillList />}
@@ -144,10 +133,8 @@ export function CharactersView() {
           isNew={isNew}
           onClose={() => {
             setEditing(null);
-            setImportDraft(null);
           }}
           onSaved={() => {
-            setImportDraft(null);
             refresh();
             setEditing(null);
           }}
@@ -243,6 +230,9 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
   const t = useT();
   const [name, setName] = useState(npc.name);
   const [prompt, setPrompt] = useState(npc.prompt);
+  const [characterBook, setCharacterBook] = useState(npc.characterBook ?? '');
+  const [editorTab, setEditorTab] = useState<'character' | 'knowledge'>('character');
+  const [hasVisitedKnowledgeTab, setHasVisitedKnowledgeTab] = useState(false);
   const [renderMarkdown, setRenderMarkdown] = useState(false);
   // 多个开场白：第一个保存在 greeting，其余保存在 alternateGreetings
   const [greetings, setGreetings] = useState<string[]>([npc.greeting, ...(npc.alternateGreetings ?? [])]);
@@ -274,11 +264,20 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
       addToast(t('toast.nameRequired'), 'error');
       return;
     }
+    if (characterBook.trim()) {
+      try {
+        JSON.parse(characterBook);
+      } catch {
+        addToast(t('toast.characterBookInvalidJson'), 'error');
+        return;
+      }
+    }
     // 清理空白/重复项：第一项作为主开场白，其余作为备用
     const cleaned = greetings.map((g) => g.trim()).filter((g, i, arr) => g && arr.indexOf(g) === i);
     const npcData = {
       name: npc.isBuiltIn ? npc.name : name.trim(),
       prompt,
+      characterBook: characterBook.trim() || undefined,
       greeting: cleaned[0] ?? '',
       alternateGreetings: cleaned.slice(1),
       avatarDataUrl,
@@ -307,6 +306,18 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
     <Modal onClose={onClose} className="modal-editor">
       <div className="modal-head">
             <span style={{ fontWeight: 800, fontSize: 15 }}>{isNew ? t('workshop.newCharTitle') : t('workshop.editCharTitle', { name: npc.name })}</span>
+            <div className="raw-tabs">
+              <button className={`raw-tab ${editorTab === 'character' ? 'active' : ''}`} onClick={() => setEditorTab('character')}>{t('workshop.characterTab')}</button>
+              <button
+                className={`raw-tab ${editorTab === 'knowledge' ? 'active' : ''}`}
+                onClick={() => {
+                  setHasVisitedKnowledgeTab(true);
+                  setEditorTab('knowledge');
+                }}
+              >
+                {t('workshop.knowledgeTab')}
+              </button>
+            </div>
             <div className="modal-head-actions">
               <div className="raw-wrap-toggle">
                 <span className="raw-wrap-label">{t('workshop.wbMarkdownRender')}</span>
@@ -318,7 +329,8 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
               <button className="icon-btn" onClick={onClose}><Icon name="x" /></button>
             </div>
           </div>
-          <div className="modal-body">
+          <div className={`modal-body character-editor-body ${editorTab === 'knowledge' ? 'knowledge-tab' : ''}`}>
+            {editorTab === 'character' && <>
             <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
               <Avatar name={name || t('chat.speakerChar')} colorOrdinal={npc.avatarColorOrdinal} imageUrl={avatarDataUrl} size="sm" />
               <div style={{ display: 'flex', gap: 8 }}>
@@ -355,7 +367,7 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
             <div className="field" style={{ flexShrink: 0 }}>
               <label>
                 {t('workshop.greetingLabel')}
-                <span className="field-hint"> {t('workshop.greetingRandomHint')}</span>
+                <span> {t('workshop.greetingRandomHint')}</span>
               </label>
               {greetings.map((g, i) => (
                 <div key={i} className="greeting-input">
@@ -404,6 +416,19 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
                 </div>
               )}
             </div>
+            </>}
+            {hasVisitedKnowledgeTab && (
+              <div className={`field prompt-field character-book-field ${editorTab === 'knowledge' ? '' : 'tab-panel-hidden'}`}>
+                <label>{t('workshop.characterBookLabel')}</label>
+                <Suspense fallback={<div className="character-book-editor-loading" />}>
+                  <CharacterBookEditor
+                    value={characterBook}
+                    onChange={setCharacterBook}
+                    placeholder={t('workshop.characterBookPh')}
+                  />
+                </Suspense>
+              </div>
+            )}
           </div>
           <div className="modal-foot">
             {npc.isBuiltIn && (
@@ -420,14 +445,10 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
 
 // ---------------- Lorebook ----------------
 
-function WorldBookList({ books, onChanged, onImportPng, importDraft, onImportDraftConsumed }: {
+function WorldBookList({ books, onChanged, onImportPng }: {
   books: WorldBook[];
   onChanged: () => void;
   onImportPng: () => void;
-  /** PNG 解析出的角色卡草稿（含内嵌Lorebook） */
-  importDraft: ParsedSillyTavernCard | null;
-  /** 草稿已被消费（保存/取消）后通知父组件清空 */
-  onImportDraftConsumed: () => void;
 }) {
   const addToast = useStore((s) => s.addToast);
   const t = useT();
@@ -435,18 +456,8 @@ function WorldBookList({ books, onChanged, onImportPng, importDraft, onImportDra
   const [renderMarkdown, setRenderMarkdown] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<WorldBook | null>(null);
 
-  // PNG 导入产生草稿后：预填「新建Lorebook」表单（不落库，由用户手动保存）
-  useEffect(() => {
-    if (!importDraft) return;
-    if (importDraft.worldBook) {
-      setEditing({ ...importDraft.worldBook, imageUri: null, createdAt: Date.now() });
-      addToast(t('toast.wbDraftImported', { name: importDraft.worldBook.name }));
-    }
-  }, [importDraft]); // eslint-disable-line react-hooks/exhaustive-deps
-
   const closeEditor = () => {
     setEditing(null);
-    onImportDraftConsumed();
   };
 
   const saveWb = async (name: string, content: string) => {
@@ -463,7 +474,6 @@ function WorldBookList({ books, onChanged, onImportPng, importDraft, onImportDra
     }
     setEditing(null);
     onChanged();
-    onImportDraftConsumed();
   };
 
   const deleteWb = async (b: WorldBook) => {

@@ -115,6 +115,8 @@ export interface NpcCharacter {
   name: string;
   prompt: string;
   greeting: string;
+  /** 角色卡的原始 Character Book JSON。 */
+  characterBook?: string;
   /** 额外开场白（创建对话时随机选用一个，含 greeting） */
   alternateGreetings?: string[];
   avatarColorOrdinal: number;
