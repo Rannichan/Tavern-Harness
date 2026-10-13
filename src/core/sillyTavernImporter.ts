@@ -201,19 +201,31 @@ function normalizeCard(json: unknown): StEnvelope | null {
   return null;
 }
 
-/** 从 SillyTavern 结构化字段组装人设 prompt（与 App 一致） */
+/** 从 SillyTavern 结构化字段组装人设 prompt，并将字段内容保留为 Markdown 原文。 */
+function normalizePlaceholders(text: string, characterName: string): string {
+  const unsupportedPlaceholder = /\{\{\s*(?!user\s*\}\})[^{}]*\}\}/i;
+  const standaloneLine = new RegExp(`^[\\t ]*${unsupportedPlaceholder.source}[\\t ]*(?:\\r?\\n|$)`, 'gim');
+  return text
+    .replace(/\{\{\s*char\s*\}\}/gi, () => characterName)
+    .replace(standaloneLine, '')
+    .replace(new RegExp(unsupportedPlaceholder.source, 'gi'), '');
+}
+
 function buildPromptFromStructured(data: StEnvelope, fallbackName: string): string {
   const sections: Array<[string, string | undefined]> = [
-    ['角色描述', data.description],
-    ['性格', data.personality],
-    ['场景', data.scenario],
-    ['示例对话', data.mes_example],
-    ['系统提示词', data.system_prompt],
-    ['历史后指令', data.post_history_instructions],
+    ['Character Description', data.description],
+    ['Personality', data.personality],
+    ['Scenario', data.scenario],
+    ['Example Dialogue', data.mes_example],
+    ['Extra Instructions', data.post_history_instructions],
   ];
   const parts = sections
-    .filter(([, v]) => v && v.trim())
-    .map(([k, v]) => `### ${k}\n${v}`);
+    .filter((section): section is [string, string] => Boolean(section[1]?.trim()))
+    .map(([title, value]) => {
+      const fenceLength = Math.max(3, ...(value.match(/`+/g) ?? []).map((run) => run.length + 1));
+      const fence = '`'.repeat(fenceLength);
+      return `## ${title}\n\n${fence}text\n${normalizePlaceholders(value, fallbackName)}\n${fence}`;
+    });
   if (parts.length === 0) return `你是${fallbackName}。`;
   return parts.join('\n\n');
 }
@@ -245,29 +257,29 @@ function resolveAvatar(data: StEnvelope, pngDataUrl: string | null): string | nu
 }
 
 /** 渲染内嵌 Lorebook（character_book）为可读文本 */
-function renderLorebook(book: StLorebook | undefined, fallbackName: string) {
+function renderLorebook(book: StLorebook | undefined, characterName: string) {
   if (!book || !Array.isArray(book.entries)) return null;
   const entries = book.entries.filter((e) => e.enabled !== false && e.content && e.content.trim());
   if (entries.length === 0) return null;
   const rendered = entries
     .map(
       (e) =>
-        `### ${e.name || e.comment || '条目'}\n` +
-        (e.keys && e.keys.length > 0 ? `触发词：${e.keys.join('、')}\n` : '') +
-        e.content
+        `### ${normalizePlaceholders(e.name || e.comment || '条目', characterName)}\n` +
+        (e.keys && e.keys.length > 0 ? `触发词：${normalizePlaceholders(e.keys.join('、'), characterName)}\n` : '') +
+        normalizePlaceholders(e.content!, characterName)
     )
     .join('\n\n');
   return {
-    name: (book.name || `${fallbackName} 的世界书`).slice(0, 60),
+    name: normalizePlaceholders(book.name || `${characterName} 的世界书`, characterName).slice(0, 60),
     content: rendered.slice(0, 10_000),
   };
 }
 
 /** 归一化多开场白：主开场白 + 去重后的 alternate_greetings（去空白/截断） */
-function buildGreetings(data: StEnvelope, maxLen = 1000): { greeting: string; alternateGreetings: string[] } {
-  const greeting = (data.first_mes ?? '').slice(0, maxLen);
+function buildGreetings(data: StEnvelope, characterName: string, maxLen = 1000): { greeting: string; alternateGreetings: string[] } {
+  const greeting = normalizePlaceholders(data.first_mes ?? '', characterName).slice(0, maxLen);
   const alternates = (data.alternate_greetings ?? [])
-    .map((g) => (typeof g === 'string' ? g.trim() : ''))
+    .map((g) => (typeof g === 'string' ? normalizePlaceholders(g, characterName).trim() : ''))
     .filter((g, i, arr) => g && g !== greeting && arr.indexOf(g) === i)
     .slice(0, 20)
     .map((g) => g.slice(0, maxLen));
@@ -296,7 +308,7 @@ export async function parseSillyTavernCardFile(file: File): Promise<ParsedSillyT
 
   const { key, data } = parsed;
   const name = data.name?.trim() || '未命名角色';
-  const { greeting, alternateGreetings } = buildGreetings(data);
+  const { greeting, alternateGreetings } = buildGreetings(data, name);
 
   const character: NpcCharacter = {
     name,
