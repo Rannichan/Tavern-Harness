@@ -17,6 +17,10 @@ function fmtTime(ts: number): string {
   return `${hh}:${mm}`;
 }
 
+function displayUserPersonaPlaceholder(content: string, userPersonaName: string | null): string {
+  return userPersonaName ? content.replace(/\{\{\s*user\s*\}\}/gi, userPersonaName) : content;
+}
+
 function renderComposerRichNodes(text: string, names: string[]): ReactNode[] {
   if (!text) return [];
   const mentionRe =
@@ -133,6 +137,10 @@ export function ChatView({
 
   const npcId = session.associatedId;
   const npc = useStore((s) => s.npcs.find((n) => n.id === npcId));
+  const userPersonaName = useStore((s) => {
+    const personaId = session.userPersonaNpcId;
+    return personaId != null ? s.npcs.find((npc) => npc.id === personaId)?.name ?? null : null;
+  });
 
   // 工具调用结果按 toolCallId 分组；已由 assistant 消息工具卡片展示的调用 id，其结果并入卡片内部渲染
   const toolResultsByCallId = useMemo(() => {
@@ -180,6 +188,7 @@ export function ChatView({
               msg={m}
               session={session}
               participants={participants}
+              userPersonaName={userPersonaName}
               loopIndex={isGroup ? (m.loopIndex ?? 0) : null}
               streaming={streaming && m.id === lastMsgId(messages)}
               toolResultsByCallId={toolResultsByCallId}
@@ -218,6 +227,7 @@ function MessageBubble({
   msg,
   session,
   participants,
+  userPersonaName,
   streaming,
   loopIndex,
   toolResultsByCallId,
@@ -226,6 +236,7 @@ function MessageBubble({
   msg: ChatMessage;
   session: ChatSession;
   participants: ChatParticipant[];
+  userPersonaName: string | null;
   streaming: boolean;
   /** 群聊循环号（0 起）；非群聊为 null */
   loopIndex: number | null;
@@ -302,12 +313,15 @@ function MessageBubble({
   const displayVisibleContent = session.mode === 'GROUP'
     ? visibleContent.replace(/@(?:用户|用戶)(?=\s|[，。！？,.!?]|$)/g, '@User')
     : visibleContent;
-  const displayContent = msg.displayHandoffMention
-    ? `${displayVisibleContent}${displayVisibleContent ? ' ' : ''}@User`
-    : displayVisibleContent;
+  const displayContent = displayUserPersonaPlaceholder(
+    msg.displayHandoffMention
+      ? `${displayVisibleContent}${displayVisibleContent ? ' ' : ''}@User`
+      : displayVisibleContent,
+    userPersonaName,
+  );
 
   if (isUser) {
-    return <UserBubble msg={msg} session={session} editing={isEditing} loopIndex={loopIndex} />;
+    return <UserBubble msg={msg} session={session} userPersonaName={userPersonaName} editing={isEditing} loopIndex={loopIndex} />;
   }
 
   // 用于「点击队列发言 → 对话定位」：NPC 用 participantId，玩家/未知用 null（定位到循环首条）
@@ -512,7 +526,7 @@ function BubbleEditor({
   );
 }
 
-function UserBubble({ msg, session, editing, loopIndex }: { msg: ChatMessage; session: ChatSession; editing?: boolean; loopIndex?: number | null }) {
+function UserBubble({ msg, session, userPersonaName, editing, loopIndex }: { msg: ChatMessage; session: ChatSession; userPersonaName: string | null; editing?: boolean; loopIndex?: number | null }) {
   const t = useT();
   const participants = useStore((s) => (session.id != null ? (s.participants[session.id] ?? []) : []));
   // 群聊中「用户消息」的 @角色名 也作为特殊指令高亮（点名）
@@ -541,7 +555,7 @@ function UserBubble({ msg, session, editing, loopIndex }: { msg: ChatMessage; se
             )}
             <div className="bubble-content-row">
               <div className="bubble-text">
-                {msg.content && <Markdown text={msg.content} mentionNames={mentionNames} />}
+                {msg.content && <Markdown text={displayUserPersonaPlaceholder(msg.content, userPersonaName)} mentionNames={mentionNames} />}
               </div>
               <button className="msg-edit-btn" title={t('chat.editMsg')} onClick={() => startEditingMsg(msg.id!)}>
                 <Icon name="pencil" size={13} />

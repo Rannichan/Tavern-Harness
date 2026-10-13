@@ -76,6 +76,15 @@ window.WIKI.chapters.push({
       <li>在对话里直接使用或让模型调用。</li>
     </ol>
 
+    <h3>⭐️ 占位符支持</h3>
+    <p>角色卡的人设 Prompt、开场白，以及世界书的名称、条目标题、触发词和正文均支持占位符。替换仅用于前端显示；已保存的角色卡、世界书与聊天消息，以及发送给模型的原始内容均不会被改写。</p>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th style="width: 10%; white-space: nowrap;">占位符</th><th>含义</th><th>替换时机和行为</th></tr></thead>
+      <tbody>
+        <tr><td style="white-space: nowrap;"><code>{{user}}</code></td><td>当前对话配置的用户人设（Persona）名称。</td><td>仅在对话配置 Persona 时，由前端展示消息时替换为 Persona 名称；未配置 Persona 时保留原样。兼容 <code>{{ user }}</code> 与大小写变体。</td></tr>
+      </tbody>
+    </table></div>
+
     <div class="co co-ok reveal"><span class="co-ic">🧩</span><div class="co-body">角色卡定义了角色的人设，世界书定义了世界观和游戏的玩法，技能则是赋予角色在世界观下进行游戏的能力。</div></div>
     <div class="moat"></div>
   `,
