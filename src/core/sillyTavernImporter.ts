@@ -69,7 +69,7 @@ interface StLorebook {
   }>;
 }
 
-const MAX_PNG_SIZE = 8 * 1024 * 1024;
+const MAX_PNG_SIZE = 20 * 1024 * 1024;
 
 /** 尝试把字节解码为 UTF-8 文本 */
 function utf8Decode(bytes: Uint8Array): string {
@@ -275,14 +275,13 @@ function renderLorebook(book: StLorebook | undefined, characterName: string) {
   };
 }
 
-/** 归一化多开场白：主开场白 + 去重后的 alternate_greetings（去空白/截断） */
-function buildGreetings(data: StEnvelope, characterName: string, maxLen = 1000): { greeting: string; alternateGreetings: string[] } {
-  const greeting = normalizePlaceholders(data.first_mes ?? '', characterName).slice(0, maxLen);
+/** 归一化多开场白：主开场白 + 去重后的 alternate_greetings。 */
+function buildGreetings(data: StEnvelope, characterName: string): { greeting: string; alternateGreetings: string[] } {
+  const greeting = normalizePlaceholders(data.first_mes ?? '', characterName);
   const alternates = (data.alternate_greetings ?? [])
     .map((g) => (typeof g === 'string' ? normalizePlaceholders(g, characterName).trim() : ''))
     .filter((g, i, arr) => g && g !== greeting && arr.indexOf(g) === i)
-    .slice(0, 20)
-    .map((g) => g.slice(0, maxLen));
+    .slice(0, 20);
   return { greeting, alternateGreetings: alternates };
 }
 
