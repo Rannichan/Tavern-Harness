@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Fragment, lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useStore } from '../store/store';
 import { type ChatMessage, type ChatParticipant, type ChatSession, type ContextCompression, type ToolCallRecord, displayModelName } from '../types/models';
 import { Avatar, Icon, Markdown, Collapse, Modal, AttachCard } from './shared';
@@ -9,6 +9,8 @@ import { effectiveDisplayQueue, speakerLabel, suggestMagicCommands } from '../co
 import { onChatScroll, onQueueScroll, onQueueScrollIntent, registerChatEl, registerQueueEl, scrollChatTo, scrollQueueToLoop } from '../core/linkedScroll';
 import { useT, translate } from '../core/i18n';
 import { escapeRegExp, prettyJson, trimEdgeNewlines } from '../core/strings';
+
+const CharacterBookEditor = lazy(() => import('./CharacterBookEditor'));
 
 function fmtTime(ts: number): string {
   const d = new Date(ts);
@@ -1313,23 +1315,33 @@ function RawLogModal({ rawLog, title, onClose, onExport }: { rawLog: RawLogData;
           <button className="icon-btn" onClick={onClose}><Icon name="x" /></button>
         </div>
       </div>
-      <div className="modal-body" style={{ padding: 0 }}>
-        {tab === 'request' && (
-          <pre className={`raw-pre mono ${autoWrap ? '' : 'raw-pre-nowrap'}`}>{req || t('chat.noRequestBody')}</pre>
-        )}
-        {tab === 'merged' && (
-          merged ? (
-            <div className="raw-merged">
-              <div className="raw-merged-head">
-                <span>{t('chat.fullResponseJson')}</span>
-                <span className="mono" style={{ fontSize: 11, color: 'var(--text-faint)' }}>{t('chat.fromSse')}</span>
+      <div className="modal-body raw-log-body">
+        <Suspense fallback={<div className="raw-empty">{t('display.loading')}</div>}>
+          {tab === 'request' && (
+            <CharacterBookEditor
+              value={req || t('chat.noRequestBody')}
+              placeholder={t('chat.requestBody')}
+              readOnly
+              lineWrapping={autoWrap}
+              className="raw-log-editor"
+            />
+          )}
+          {tab === 'merged' && (
+            merged ? (
+              <div className="raw-merged">
+                <CharacterBookEditor
+                  value={JSON.stringify(merged, null, 2)}
+                  placeholder={t('chat.fullResponseJson')}
+                  readOnly
+                  lineWrapping={autoWrap}
+                  className="raw-log-editor"
+                />
               </div>
-              <pre className={`raw-pre mono ${autoWrap ? '' : 'raw-pre-nowrap'}`}>{JSON.stringify(merged, null, 2)}</pre>
-            </div>
-          ) : (
-            <div className="raw-empty">{t('chat.noRawContent')}</div>
-          )
-        )}
+            ) : (
+              <div className="raw-empty">{t('chat.noRawContent')}</div>
+            )
+          )}
+        </Suspense>
       </div>
     </Modal>
   );
@@ -1341,6 +1353,7 @@ function RawLogModal({ rawLog, title, onClose, onExport }: { rawLog: RawLogData;
 interface ChoiceAccum {
   role?: string;
   content: string;
+  reasoningContent: string;
   finish_reason?: string | null;
   toolCalls: Map<number, { id: string; type: string; name: string; args: string }>;
 }
@@ -1370,12 +1383,13 @@ function assembleFullResponseJson(rawBody: string | null): Record<string, unknow
         const idx = c.index ?? 0;
         let acc = choicesAccum.get(idx);
         if (!acc) {
-          acc = { content: '', toolCalls: new Map() };
+          acc = { content: '', reasoningContent: '', toolCalls: new Map() };
           choicesAccum.set(idx, acc);
         }
         const delta = c.delta ?? {};
         if (typeof delta.role === 'string' && !acc.role) acc.role = delta.role;
         if (typeof delta.content === 'string') acc.content += delta.content;
+        if (typeof delta.reasoning_content === 'string') acc.reasoningContent += delta.reasoning_content;
         if (typeof c.finish_reason === 'string') acc.finish_reason = c.finish_reason;
         // 工具调用增量按 index 组装（name / arguments 递增拼接）
         const tcDeltas = delta.tool_calls as Array<{ index?: number; id?: string; type?: string; function?: { name?: string; arguments?: string } }> | undefined;
@@ -1416,6 +1430,7 @@ function assembleFullResponseJson(rawBody: string | null): Record<string, unknow
       const message: Record<string, unknown> = {};
       if (acc.role) message.role = acc.role;
       if (acc.content) message.content = acc.content;
+      if (acc.reasoningContent) message.reasoning_content = acc.reasoningContent;
       if (acc.toolCalls.size > 0) {
         message.tool_calls = Array.from(acc.toolCalls.entries())
           .sort((a, b) => a[0] - b[0])

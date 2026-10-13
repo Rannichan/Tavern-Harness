@@ -1096,20 +1096,19 @@
     grid-row: 2;
   }
 }
-.raw-pre {
-  margin: 0;
-  padding: 14px 16px;
-  max-height: 60dvh;
-  overflow: auto;
-  font-size: 12px;
-  line-height: 1.55;
-  white-space: pre-wrap;
-  word-break: break-all;
+.raw-log-body {
+  display: flex;
+  min-height: 0;
+  height: min(60dvh, 640px);
+  padding: 0;
+}
+.raw-log-editor.character-book-editor {
+  border: 0;
+  border-radius: 0;
   background: var(--code-bg);
 }
-.raw-pre-nowrap {
-  white-space: pre;
-  word-break: normal;
+.raw-log-editor .cm-editor {
+  background: var(--code-bg);
 }
 .raw-wrap-toggle {
   display: inline-flex;
@@ -1125,8 +1124,9 @@
 }
 .raw-merged {
   display: flex;
+  flex: 1;
+  min-height: 0;
   flex-direction: column;
-  max-height: 60dvh;
 }
 .raw-merged-head {
   display: flex;
