@@ -11,6 +11,8 @@ window.WIKI.chapters.push({
     <ul class="plain">
       <li><b>可编辑字段</b>：头像、角色名称、人设 Prompt、开场白 Greeting、启用技能。</li>
       <li><b>多开场白</b>：「添加开场白」可建备用版本，<span class="mono">每次新对话随机选择一条</span>。</li>
+      <li><b>角色知识库（Character Book）</b>：角色编辑页的「知识库」标签支持 SillyTavern 风格的 Character Book JSON 结构与字段，用于为角色配置按关键词检索的背景知识。</li>
+      <li><b>PNG 自动导入</b>：导入 SillyTavern PNG 角色卡时，如其中包含 Character Book，会自动导入并随该角色启用。</li>
       <li><b>内置角色</b>「酒馆老板」默认置顶、启用全部内置技能；名称不可编辑且受保护不可删除。编辑页可「恢复默认」人设、开场白和装备技能。</li>
       <li>技能默认对新角色<b>未启用</b>——去编辑角色的「启用技能」里勾选生效。</li>
     </ul>
