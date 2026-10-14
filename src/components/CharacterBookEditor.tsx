@@ -49,7 +49,6 @@ const CharacterBookEditor = memo(function CharacterBookEditor({
     viewRef.current = view;
 
     return () => view.destroy();
-  // The editor initializes once and remains mounted after the first knowledge-tab visit.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

@@ -226,7 +226,6 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
   const [prompt, setPrompt] = useState(npc.prompt);
   const [characterBook, setCharacterBook] = useState(npc.characterBook ?? '');
   const [editorTab, setEditorTab] = useState<'character' | 'knowledge'>('character');
-  const [hasVisitedKnowledgeTab, setHasVisitedKnowledgeTab] = useState(false);
   const [renderMarkdown, setRenderMarkdown] = useState(false);
   // 多个开场白：第一个保存在 greeting，其余保存在 alternateGreetings
   const [greetings, setGreetings] = useState<string[]>([npc.greeting, ...(npc.alternateGreetings ?? [])]);
@@ -304,10 +303,7 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
               <button className={`raw-tab ${editorTab === 'character' ? 'active' : ''}`} onClick={() => setEditorTab('character')}>{t('workshop.characterTab')}</button>
               <button
                 className={`raw-tab ${editorTab === 'knowledge' ? 'active' : ''}`}
-                onClick={() => {
-                  setHasVisitedKnowledgeTab(true);
-                  setEditorTab('knowledge');
-                }}
+                onClick={() => setEditorTab('knowledge')}
               >
                 {t('workshop.knowledgeTab')}
               </button>
@@ -411,8 +407,8 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
               )}
             </div>
             </>}
-            {hasVisitedKnowledgeTab && (
-              <div className={`field prompt-field character-book-field ${editorTab === 'knowledge' ? '' : 'tab-panel-hidden'}`}>
+            {editorTab === 'knowledge' && (
+              <div className="field prompt-field character-book-field">
                 <label>{t('workshop.characterBookLabel')}</label>
                 <Suspense fallback={<div className="character-book-editor-loading" />}>
                   <CharacterBookEditor

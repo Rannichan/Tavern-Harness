@@ -23,6 +23,8 @@
   "scripts": {
     "start": "vite",
     "dev": "vite",
+    "test": "node --test *.test.mjs",
+    "test:character-book": "node --test character-book.test.mjs",
     "test:command-service": "node sandbox-server.test.mjs",
     "test:yolo-mode": "node yolo-mode.test.mjs",
     "test:tool-arguments": "node tool-arguments.test.mjs",

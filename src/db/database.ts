@@ -437,7 +437,7 @@ const LOCALIZE_LANG_KEY = 'th-builtin-npc-lang';
 
 /** 已退役的内置技能：从默认工具列表中移除后，旧库里的记录不再被 seed 覆盖同步。
  *  迁移时删除工具记录，并从 NPC 启用列表里剔除（历史消息中的工具调用保留原文，仅作展示）。 */
-const RETIRED_BUILTIN_TOOL_NAMES = ['web_search', 'manage_timer'];
+const RETIRED_BUILTIN_TOOL_NAMES = ['web_search', 'manage_timer', 'get_character_book_context', 'recall_memory'];
 
 const RENAMED_BUILTIN_TOOLS: Record<string, string> = {
   get_tavern_status: 'get_tavern_info',
