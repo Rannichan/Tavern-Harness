@@ -590,10 +590,9 @@ body.resizing .sidebar-resizer {
 }
 .btn-primary {
   background: var(--grad-from);
-  border-color: transparent;
+  border-color: color-mix(in srgb, var(--primary) 40%, transparent);
   color: #fff;
   box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--primary) 40%, transparent),
     0 4px 18px color-mix(in srgb, var(--glow) 60%, transparent),
     0 12px 40px color-mix(in srgb, var(--glow) 28%, transparent);
 }
@@ -966,6 +965,9 @@ body.resizing .sidebar-resizer {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+}
+.dash-hero .actions > .btn {
+  height: 40px;
 }
 /* ---------- 与角色继续对话（最近会话列表） ---------- */
 .recent-list {
