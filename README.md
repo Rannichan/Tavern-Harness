@@ -74,9 +74,11 @@ After starting the app, open **Settings → Model Service Provider**:
 2. **Test the connection**: the app fetches the model list automatically. If the target service does not expose CORS headers, requests are forwarded through the built-in same-origin proxy for private-network or LAN addresses. On success, the Base URL is rewritten to its proxy form and saved.
 3. **Select a model**: click the model name at the top of the chat page, then return to the conversation and start chatting.
 
-### Automatic Tool Approval (YOLO Mode)
+### Import a Game and Start Playing
 
-Enable **Settings → Tool execution → YOLO mode** to automatically approve tool changes and Shell commands during conversations. It is off by default, is saved locally, and can be disabled at any time. Only enable it for characters and skills you trust. Agent execution limits still require manual continuation.
+Download the game file below. Click **Import** in the upper-left corner, then import the file you downloaded to create a complete game environment—including characters, lorebooks, skills, and more—and start playing right away:
+
+[th-demo-affinity-gameplay-en.json](./docs/assets/gameplay/th-demo-affinity-gameplay-en.json)
 
 ### Data Privacy
 
