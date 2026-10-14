@@ -110,11 +110,13 @@ Compatible with the **Tavern ecosystem**, including one-click PNG character-card
 
 You can also export and share an entire game: recipients can import it and play immediately without manually creating characters, skills, or conversation settings.
 
-### 🍃 Fully Local and Clean
+### 🍃 Fully Local / High Cache Hit Rates / Clean
 
 The app supports **OpenAI-format APIs**. Use a hosted API plan or run a model locally; your data remains on your device.
 
-The project has no external harness dependency, and its UI is designed for a clean, focused experience.
+Tavern Harness is optimized to improve cache hit rates, significantly reducing token costs.
+
+Tavern Harness has no external harness dependency, and its UI is designed for a clean, focused experience.
 
 <a id="feedback"></a>
 ## 4 · Community and Feedback
