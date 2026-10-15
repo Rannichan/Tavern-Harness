@@ -10,6 +10,10 @@
   <a href="https://www.npmjs.com/package/tavern-harness"><img alt="npm" src="https://img.shields.io/npm/v/tavern-harness?style=flat-square" /></a>
 </p>
 
+<p align="center">
+  <a href="README.md">English</a> | <strong>简体中文</strong>
+</p>
+
 # Tavern Harness · AI 原生的角色扮演沙盒
 
 <a id="demo"></a>

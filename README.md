@@ -10,6 +10,10 @@
   <a href="https://www.npmjs.com/package/tavern-harness"><img alt="npm" src="https://img.shields.io/npm/v/tavern-harness?style=flat-square" /></a>
 </p>
 
+<p align="center">
+  <strong>English</strong> | <a href="README.zh.md">简体中文</a>
+</p>
+
 # Tavern Harness · An AI-Native Role-Playing Sandbox
 
 <a id="demo"></a>
@@ -74,9 +78,9 @@ After starting the app, open **Settings → Model Service Provider**:
 2. **Test the connection**: the app fetches the model list automatically. If the target service does not expose CORS headers, requests are forwarded through the built-in same-origin proxy for private-network or LAN addresses. On success, the Base URL is rewritten to its proxy form and saved.
 3. **Select a model**: click the model name at the top of the chat page, then return to the conversation and start chatting.
 
-### Import a Game and Start Playing
+### Import a Gameplay and Start Playing
 
-Download the game file below. Click **Import** in the upper-left corner, then import the file you downloaded to create a complete game environment—including characters, lorebooks, skills, and more—and start playing right away:
+Download the gameplay file below. Click **Import** in the upper-left corner, then import the file you downloaded to create a complete game environment—including characters, lorebooks, skills, and more—and start playing right away:
 
 [th-demo-affinity-gameplay-en.json](./docs/assets/gameplay/th-demo-affinity-gameplay-en.json)
 
