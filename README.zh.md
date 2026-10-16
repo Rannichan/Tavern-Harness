@@ -32,12 +32,12 @@
 npx tavern-harness
 ```
 
-首次运行会下载包、启动本地服务，并自动打开浏览器。可选参数：
+首次运行会下载包、启动可从局域网访问的服务，并自动打开浏览器。可选参数：
 
 ```bash
 npx tavern-harness --no-open
 npx tavern-harness --port 5273
-npx tavern-harness --host 0.0.0.0  # 允许局域网设备访问；可扫描侧边栏二维码打开应用
+npx tavern-harness --host 127.0.0.1  # 仅允许本机访问
 npx tavern-harness --workspace /absolute/path/to/workspace
 ```
 

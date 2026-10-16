@@ -32,12 +32,12 @@ No repository clone or global installation is required:
 npx tavern-harness
 ```
 
-The first run downloads the package, starts the local service, and opens your browser automatically. Optional arguments:
+The first run downloads the package, starts a service accessible on your LAN, and opens your browser automatically. Optional arguments:
 
 ```bash
 npx tavern-harness --no-open
 npx tavern-harness --port 5273
-npx tavern-harness --host 0.0.0.0  # Allow access from your LAN; scan the sidebar QR code to open it
+npx tavern-harness --host 127.0.0.1  # Restrict access to this computer
 npx tavern-harness --workspace /absolute/path/to/workspace
 ```
 

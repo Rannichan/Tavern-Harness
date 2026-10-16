@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 // bin/cli.js — npx tavern-harness 一键启动，默认自动打开浏览器
 // 用法：
-//   tavern-harness             启动并按实际端口自动打开浏览器（默认）
+//   tavern-harness             启动并按实际端口自动打开浏览器，默认允许局域网访问
 //   tavern-harness --no-open   只启动，不打开浏览器
 //   tavern-harness --port 5273 指定端口（5173 被占用时 vite 会自动顺延，
 //                              会打开顺延后的实际端口）
-//   tavern-harness --host 0.0.0.0 监听所有网络接口，允许局域网访问
+//   tavern-harness --host 127.0.0.1 仅监听本机
 //   tavern-harness --workspace /path  指定生成技能文件工作区
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -19,7 +19,7 @@ const configFile = join(root, 'vite.config.ts'); // 复用现有配置（cors �
 const args = process.argv.slice(2);
 let open = true; // 默认自动打开浏览器
 let port;
-let host;
+let host = '0.0.0.0';
 let workspace;
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
