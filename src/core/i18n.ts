@@ -60,6 +60,8 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'nav.deleteSessionConfirm': '确定删除会话「{title}」？该操作不可恢复，会同时删除其中的全部消息，并清理会话的专属工作目录。',
     'nav.resize': '拖动调整宽度',
     'nav.home': '回到首页',
+    'nav.qrLabel': '扫码访问',
+    'nav.qrHint': '扫描二维码，在手机上继续',
 
     // ---- 会话头部（App） ----
     'header.modeStandard': '标准对话',
@@ -514,6 +516,8 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'nav.deleteSessionConfirm': '確定刪除會話「{title}」？此操作無法復原，會同時刪除其中的全部訊息，並清理會話的專屬工作目錄。',
     'nav.resize': '拖動調整寬度',
     'nav.home': '回到首頁',
+    'nav.qrLabel': '掃碼訪問',
+    'nav.qrHint': '掃描二維碼，在手機上繼續',
 
     'header.modeStandard': '標準對話',
     'header.modeNpc': '角色對話',
@@ -955,6 +959,8 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'nav.deleteSessionConfirm': 'Delete session "{title}"? This cannot be undone and will delete all its messages and its dedicated workspace folder.',
     'nav.resize': 'Drag to resize',
     'nav.home': 'Back to home',
+    'nav.qrLabel': 'Scan to visit',
+    'nav.qrHint': 'Scan the QR code to continue on your phone',
 
     'header.modeStandard': 'Standard chat',
     'header.modeNpc': 'Character chat',

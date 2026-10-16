@@ -37,7 +37,7 @@ The first run downloads the package, starts the local service, and opens your br
 ```bash
 npx tavern-harness --no-open
 npx tavern-harness --port 5273
-npx tavern-harness --host 0.0.0.0  # Allow access from your LAN
+npx tavern-harness --host 0.0.0.0  # Allow access from your LAN; scan the sidebar QR code to open it
 npx tavern-harness --workspace /absolute/path/to/workspace
 ```
 

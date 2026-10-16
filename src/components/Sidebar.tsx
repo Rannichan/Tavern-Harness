@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { QRCodeSVG } from 'qrcode.react';
 import { useStore } from '../store/store';
 import { db } from '../db/database';
 import { Icon, Modal, SessionVisual } from './shared';
@@ -38,6 +39,7 @@ export function Sidebar() {
   const [editTarget, setEditTarget] = useState<ChatSession | null>(null);
   const [sessionMenu, setSessionMenu] = useState<{ session: ChatSession; x: number; y: number } | null>(null);
   const [query, setQuery] = useState('');
+  const [appUrl, setAppUrl] = useState(() => window.location.href);
   // 搜索命中的会话 id 集合（null = 未在搜索中）
   const [searchHits, setSearchHits] = useState<Set<number> | null>(null);
   // 群聊会话 → 参与者中的 NPC 角色
@@ -55,6 +57,27 @@ export function Sidebar() {
     root.style.setProperty('--sidebar-w', `${sidebarW}px`);
     localStorage.setItem('tav-sidebar-w', String(sidebarW));
   }, [sidebarW]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const updateAppUrl = async () => {
+      try {
+        const response = await fetch('/api-v2/lan-address', { cache: 'no-store' });
+        const { url } = await response.json() as { url?: string | null };
+        if (!cancelled) setAppUrl(url || window.location.href);
+      } catch {
+        if (!cancelled) setAppUrl(window.location.href);
+      }
+    };
+    void updateAppUrl();
+    window.addEventListener('popstate', updateAppUrl);
+    window.addEventListener('hashchange', updateAppUrl);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('popstate', updateAppUrl);
+      window.removeEventListener('hashchange', updateAppUrl);
+    };
+  }, []);
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
@@ -225,9 +248,13 @@ export function Sidebar() {
           <div className="brand-logo">
             <img src="/tavern-harness-logo.png" alt="Tavern Harness" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
           </div>
-          <div>
+          <div className="brand-copy">
             <div className="brand-name">Tavern Harness</div>
             <div className="brand-sub">{t('nav.brandSub')}</div>
+          </div>
+          <div className="brand-qr" title={t('nav.qrHint')}>
+            <QRCodeSVG value={appUrl} size={52} level="H" includeMargin={false} fgColor="var(--primary)" bgColor="transparent" />
+            <span className="brand-qr-icon"><Icon name="phone" size={9} /></span>
           </div>
         </div>
         <div className="side-nav" data-hscroll>

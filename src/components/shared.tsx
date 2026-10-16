@@ -332,6 +332,7 @@ const ICONS: Record<string, React.ReactNode> = {
   more: <><circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" /></>,
   menu: <><path d="M4 6h16" /><path d="M4 12h16" /><path d="M4 18h16" /></>,
   image: <><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="9" cy="9" r="2" /><path d="m21 15-5-5L5 21" /></>,
+  phone: <><rect x="6" y="2" width="12" height="20" rx="2" /><path d="M11 18h2" /></>,
   check: <path d="M20 6 9 17l-5-5" />,
   cancel: <path d="M18 6 6 18M6 6l12 12" />,
   x: <path d="M18 6 6 18M6 6l12 12" />,

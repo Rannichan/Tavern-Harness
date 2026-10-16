@@ -8,9 +8,28 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { readFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { networkInterfaces } from 'node:os';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 const projectRoot = dirname(fileURLToPath(import.meta.url));
+
+function lanAddressPlugin(): Plugin {
+  return {
+    name: 'lan-address',
+    configureServer(server) {
+      server.middlewares.use('/api-v2/lan-address', (req: IncomingMessage, res: ServerResponse, next) => {
+        if (req.method !== 'GET') return next();
+        const host = req.headers.host || '';
+        const port = host.split(':').at(-1);
+        const address = Object.values(networkInterfaces())
+          .flat()
+          .find((network) => network?.family === 'IPv4' && !network.internal)?.address;
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+        res.end(JSON.stringify({ url: address && port ? `http://${address}:${port}/` : null }));
+      });
+    },
+  };
+}
 
 /**
  * CORS 转发中间件：为本地及外部 HTTPS OpenAI 兼容服务提供同源代理。
@@ -269,7 +288,7 @@ function sandboxProxyPlugin(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), corsProxyPlugin(), sandboxProxyPlugin()],
+  plugins: [react(), lanAddressPlugin(), corsProxyPlugin(), sandboxProxyPlugin()],
   optimizeDeps: {
     force: true,
     include: [

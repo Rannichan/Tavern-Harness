@@ -149,6 +149,34 @@ body.resizing .sidebar-resizer {
   user-select: none;
   transition: background 0.15s;
 }
+.brand-copy {
+  min-width: 0;
+}
+.brand-qr {
+  position: relative;
+  display: grid;
+  place-items: center;
+  align-self: stretch;
+  margin-left: auto;
+  padding: 4px;
+  transform: translateY(3px);
+  background: transparent;
+  color: var(--primary);
+  flex-shrink: 0;
+}
+.brand-qr > svg {
+  display: block;
+}
+.brand-qr-icon {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  background: var(--surface);
+  color: var(--primary);
+}
 .brand:hover {
   background: color-mix(in srgb, var(--text) 5%, transparent);
 }
