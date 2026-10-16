@@ -13,9 +13,11 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 const projectRoot = dirname(fileURLToPath(import.meta.url));
 
 /**
- * CORS 转发中间件：为本地（无 CORS 头）的 OpenAI 兼容服务提供同源代理。
+ * CORS 转发中间件：为本地及外部 HTTPS OpenAI 兼容服务提供同源代理。
  * Base URL 填 http://localhost:5173/api/192.168.50.175:8788/ 即可；
- * /api/<host>/ 之后的路径（含 query）原样转发到 http://<host>/。
+ * HTTPS 目标格式为 /api/https/<host>/，例如：
+ * http://localhost:5173/api/https/ark.cn-beijing.volces.com/api/v3。
+ * /api/<host>/ 之后的路径（含 query）原样转发到目标服务。
  */
 function corsProxyPlugin(): Plugin {
   return {
@@ -26,10 +28,13 @@ function corsProxyPlugin(): Plugin {
         const m = /^\/api\/([^/]+)(\/[^?]*)?(\?.*)?$/.exec(url);
         if (!m) return next();
 
-        const rawHost = m[1]; // e.g. 192.168.50.175:8788
+        const rawHost = m[1]; // e.g. 192.168.50.175:8788 or https
         const path = (m[2] || '') + (m[3] || '');
-        const isHttps = rawHost.startsWith('https://');
-        const host = rawHost.replace(/^https?:\/\//, '');
+        const isHttps = rawHost === 'https';
+        const host = isHttps ? (m[2] || '').split('/')[1] : rawHost;
+        const forwardedPath = isHttps
+          ? `/${(m[2] || '').split('/').slice(2).join('/')}${m[3] || ''}`
+          : path;
         const [hostname, portStr] = host.split(':');
         const port = portStr ? parseInt(portStr, 10) : isHttps ? 443 : 80;
 
@@ -44,7 +49,7 @@ function corsProxyPlugin(): Plugin {
             protocol: isHttps ? 'https:' : 'http:',
             hostname,
             port,
-            path,
+            path: forwardedPath,
             method: req.method,
             headers: forwardedHeaders,
           },

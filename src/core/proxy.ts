@@ -3,6 +3,7 @@
 // 自动回退到 Vite 开发服务器的同源代理。
 // 代理规则：http://<当前站点>/api/<host:port>/<剩余路径>
 // 例：http://192.168.1.5:8788/v1/ → http://localhost:5173/api/192.168.1.5:8788/v1/
+//      https://api.example.com/v1/ → http://localhost:5173/api/https/api.example.com/v1/
 // ============================================================
 
 /** 判断当前环境是否可能提供代理（Vite dev 服务器） */
@@ -29,7 +30,7 @@ export function isProxyUrl(url: string): boolean {
  * 例：
  *   http://192.168.1.5:8788        → http://localhost:5173/api/192.168.1.5:8788
  *   http://192.168.1.5:8788/v1/    → http://localhost:5173/api/192.168.1.5:8788/v1/
- *   https://api.deepseek.com/v1/   → null（公有 HTTPS 服务一般带 CORS；不代理外网）
+ *   https://api.deepseek.com/v1/   → http://localhost:5173/api/https/api.deepseek.com/v1/
  */
 export function toProxyUrl(baseUrl: string): string | null {
   if (!canUseProxy() || isProxyUrl(baseUrl)) return null;
@@ -39,15 +40,15 @@ export function toProxyUrl(baseUrl: string): string | null {
   } catch {
     return null;
   }
-  if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
-  // 仅代理内网/局域网地址，外网公开 API 保持直连（避免滥用代理）
-  const ipv4 = /^\d{1,3}(\.\d{1,3}){3}$/.test(u.hostname);
-  const isPrivateHost = ipv4 || u.hostname === 'localhost' || u.hostname === '127.0.0.1';
-  if (!isPrivateHost) return null;
+
+  const isLocalHost = u.hostname === 'localhost' || u.hostname === '127.0.0.1';
+  const isIpv4 = /^\d{1,3}(\.\d{1,3}){3}$/.test(u.hostname);
+  if (u.protocol !== 'https:' && !isLocalHost && !isIpv4) return null;
 
   const host = u.host; // hostname:port
   const rest = u.pathname.replace(/^\/+/, '');
-  const path = `/api/${host}/${rest}`.replace(/\/+$/, '');
+  const protocol = u.protocol === 'https:' ? 'https/' : '';
+  const path = `/api/${protocol}${host}/${rest}`.replace(/\/+$/, '');
   return `${window.location.origin}${path}`;
 }
 
