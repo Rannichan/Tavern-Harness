@@ -5,6 +5,7 @@
 //   tavern-harness --no-open   只启动，不打开浏览器
 //   tavern-harness --port 5273 指定端口（5173 被占用时 vite 会自动顺延，
 //                              会打开顺延后的实际端口）
+//   tavern-harness --host 0.0.0.0 监听所有网络接口，允许局域网访问
 //   tavern-harness --workspace /path  指定生成技能文件工作区
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -18,6 +19,7 @@ const configFile = join(root, 'vite.config.ts'); // 复用现有配置（cors �
 const args = process.argv.slice(2);
 let open = true; // 默认自动打开浏览器
 let port;
+let host;
 let workspace;
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
@@ -25,11 +27,14 @@ for (let i = 0; i < args.length; i++) {
   else if (a === '--open') open = true;
   else if (a === '--port') port = Number(args[++i]);
   else if (a.startsWith('--port=')) port = Number(a.slice('--port='.length));
+  else if (a === '--host') host = args[++i];
+  else if (a.startsWith('--host=')) host = a.slice('--host='.length);
   else if (a === '--workspace') workspace = args[++i];
   else if (a.startsWith('--workspace=')) workspace = a.slice('--workspace='.length);
 }
 const serverOptions = { open };
 if (Number.isInteger(port) && port > 0 && port < 65536) serverOptions.port = port;
+if (host) serverOptions.host = host;
 if (workspace) process.env.TAVERN_HARNESS_WORKSPACE = workspace;
 
 try {
