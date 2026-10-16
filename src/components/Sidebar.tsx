@@ -19,6 +19,7 @@ function openGlobalGameplayExport(sessionId: number, includeHistory: boolean) {
 }
 
 export function Sidebar() {
+  const [mobileOpen, setMobileOpen] = useState(false);
   const sessions = useStore((s) => s.sessions);
   const npcs = useStore((s) => s.npcs);
   const activeSessionId = useStore((s) => s.activeSessionId);
@@ -178,9 +179,35 @@ export function Sidebar() {
       colorOrdinal: n.avatarColorOrdinal,
       imageUrl: n.avatarDataUrl,
     }));
-
   return (
-    <aside className="sidebar">
+    <>
+      <div className="mobile-topbar">
+        <button
+          className="mobile-nav-toggle"
+          type="button"
+          aria-label={mobileOpen ? t('common.close') : t('nav.sessions')}
+          aria-expanded={mobileOpen}
+          onClick={() => setMobileOpen((open) => !open)}
+        >
+          <Icon name={mobileOpen ? 'x' : 'menu'} size={22} />
+        </button>
+        <nav className="mobile-topbar-nav" aria-label={t('nav.chat')}>
+          <button className={`nav-chip ${activeView === 'chat' ? 'active' : ''}`} onClick={() => setActiveView('chat')}>
+            <Icon name="send" size={15} /> <span>{t('nav.chat')}</span>
+          </button>
+          <button className={`nav-chip ${activeView === 'characters' ? 'active' : ''}`} onClick={() => setActiveView('characters')}>
+            <Icon name="users" size={15} /> <span>{t('nav.characters')}</span>
+          </button>
+          <button className={`nav-chip ${activeView === 'stats' ? 'active' : ''}`} onClick={() => setActiveView('stats')}>
+            <Icon name="trophy" size={15} /> <span>{t('nav.achievements')}</span>
+          </button>
+          <button className={`nav-chip ${activeView === 'settings' ? 'active' : ''}`} onClick={() => setActiveView('settings')}>
+            <Icon name="settings" size={15} /> <span>{t('nav.settings')}</span>
+          </button>
+        </nav>
+      </div>
+      {mobileOpen && <button className="mobile-sidebar-backdrop" type="button" aria-label={t('common.close')} onClick={() => setMobileOpen(false)} />}
+      <aside className={`sidebar ${mobileOpen ? 'mobile-open' : ''}`}>
       <div className="sidebar-head">
         <div
           className="brand"
@@ -245,7 +272,10 @@ export function Sidebar() {
             <button
               key={s.id}
               className={`session-item ${s.id === activeSessionId && activeView === 'chat' ? 'active' : ''}`}
-              onClick={() => setActiveSession(s.id!)}
+              onClick={() => {
+                setActiveSession(s.id!);
+                setMobileOpen(false);
+              }}
               onContextMenu={(e) => {
                 e.preventDefault();
                 setSessionMenu({ session: s, x: e.clientX, y: e.clientY });
@@ -387,6 +417,7 @@ export function Sidebar() {
           document.body.classList.add('resizing');
         }}
       />
-    </aside>
+      </aside>
+    </>
   );
 }

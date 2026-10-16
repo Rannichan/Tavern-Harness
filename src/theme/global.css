@@ -1382,3 +1382,190 @@ hr.sep {
   border-top: 1px solid var(--border);
   margin: 14px 0;
 }
+
+.mobile-topbar,
+.mobile-nav-toggle,
+.mobile-sidebar-backdrop {
+  display: none;
+}
+
+@media (max-width: 680px) {
+  body {
+    font-size: 14px;
+  }
+
+  .app-shell {
+    display: block;
+  }
+
+  .main-area {
+    width: 100%;
+    height: calc(100dvh - 56px - env(safe-area-inset-top));
+    margin-top: calc(56px + env(safe-area-inset-top));
+  }
+
+  .mobile-topbar {
+    position: fixed;
+    top: 0;
+    right: 0;
+    left: 0;
+    z-index: 120;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: calc(56px + env(safe-area-inset-top));
+    padding: env(safe-area-inset-top) 8px 0;
+    border-bottom: 1px solid var(--border);
+    background: color-mix(in srgb, var(--surface) 88%, transparent);
+    backdrop-filter: blur(18px);
+  }
+
+  .mobile-nav-toggle {
+    display: inline-grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    line-height: 1;
+    flex-shrink: 0;
+    border: 0;
+    background: transparent;
+    color: var(--text-dim);
+  }
+
+  .mobile-topbar-nav {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    gap: 4px;
+    margin: -12px -10px;
+    padding: 12px 10px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .mobile-topbar-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .mobile-topbar-nav .nav-chip {
+    flex: 0 0 auto;
+  }
+
+  .mobile-topbar-nav .nav-chip span {
+    display: inline;
+  }
+
+  .mobile-sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 99;
+    display: block;
+    border: 0;
+    background: rgba(0, 0, 0, 0.38);
+  }
+
+  .sidebar {
+    position: fixed;
+    top: calc(56px + env(safe-area-inset-top));
+    bottom: 0;
+    left: 0;
+    z-index: 100;
+    width: min(88vw, 356px);
+    transform: translateX(-105%);
+    transition: transform 0.2s ease;
+    box-shadow: var(--shadow-lg);
+  }
+
+  .sidebar.mobile-open {
+    transform: translateX(0);
+  }
+
+  .sidebar-resizer {
+    display: none;
+  }
+
+  .sidebar-head {
+    display: none;
+  }
+
+  .chat-header {
+    min-height: 60px;
+    padding: 8px 12px;
+    gap: 8px;
+  }
+
+  .chat-header .tinfo {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .chat-header .avatar,
+  .chat-header .svc-group-lg {
+    width: 36px;
+    height: 36px;
+  }
+
+  .chat-header .ttitle {
+    font-size: 15px;
+  }
+
+  .chat-header .tsub-members {
+    display: none;
+  }
+
+  .chat-actions {
+    display: flex;
+    flex: 0 1 auto;
+    justify-content: flex-end;
+    gap: 0;
+    max-width: none;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .chat-actions::-webkit-scrollbar {
+    display: none;
+  }
+
+  .chat-actions .icon-tooltip {
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+  }
+
+  .chat-scroll {
+    padding-top: 14px;
+  }
+
+  .chat-col {
+    padding: 0 12px;
+    gap: 12px;
+  }
+
+  .dash-scroll {
+    padding: 16px 12px;
+  }
+
+  .dash-hero {
+    padding: 24px 20px;
+  }
+
+  .dash-hero h1 {
+    font-size: 26px;
+  }
+
+  .input,
+  .textarea,
+  .select {
+    font-size: 16px;
+  }
+
+  .toast-wrap {
+    bottom: max(16px, env(safe-area-inset-bottom));
+  }
+
+  .toast {
+    max-width: calc(100vw - 32px);
+  }
+}

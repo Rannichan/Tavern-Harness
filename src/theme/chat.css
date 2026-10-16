@@ -468,7 +468,7 @@
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 14px;
-  padding: 4px 6px 4px 6px;
+  padding: 4px 4px 4px 4px;
   box-shadow: 0 0 0 1px transparent, var(--shadow);
   transition: border-color 0.32s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.32s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -1216,6 +1216,96 @@
   padding: 1px 7px;
   flex-shrink: 0;
 }
+
+@media (max-width: 680px) {
+  .turn-queue {
+    display: none;
+  }
+
+  .msg-row {
+    gap: 8px;
+  }
+
+  .msg-row:not(.user-row) .msg-body > .bubble,
+  .msg-row:not(.user-row) .msg-body > .tool-calls,
+  .msg-row:not(.user-row) .msg-body > .collp,
+  .msg-row:not(.user-row) .msg-body > .msg-metrics {
+    width: 100%;
+  }
+
+  .msg-row.user-row .msg-body > .bubble,
+  .msg-row.user-row .msg-body > .tool-calls,
+  .msg-row.user-row .msg-body > .collp,
+  .msg-row.user-row .msg-body > .msg-metrics {
+    max-width: 100%;
+  }
+
+  .bubble {
+    padding: 10px 12px;
+  }
+
+  .msg-edit-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .composer {
+    padding: 8px 12px max(12px, env(safe-area-inset-bottom));
+  }
+
+  .composer-box {
+    gap: 5px;
+  }
+
+  .composer-box .composer-model-btn {
+    width: auto;
+    max-width: 104px;
+    padding: 0 8px;
+  }
+
+  .composer-model-label {
+    display: block;
+    max-width: 86px;
+  }
+
+  .composer-box textarea {
+    font-size: 16px;
+    min-height: 40px;
+  }
+
+  .composer-hint {
+    display: none;
+  }
+
+  .attach-rm {
+    width: 32px;
+    height: 32px;
+  }
+
+  .model-popover {
+    position: fixed;
+    right: 12px;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    left: 12px;
+    width: auto;
+    max-height: min(60dvh, 420px);
+  }
+
+  .model-popover-list {
+    max-height: min(48dvh, 320px);
+  }
+
+  .bubble-editor-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .bubble-editor-actions > div {
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+}
+
 .math-block {
   text-align: center;
   margin: 0.7em 0;

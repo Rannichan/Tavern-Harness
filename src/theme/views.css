@@ -1099,6 +1099,38 @@
     0 0 14px color-mix(in srgb, var(--glow) 20%, transparent);
 }
 @media (max-width: 680px) {
+  .modal-root {
+    padding:
+      max(12px, env(safe-area-inset-top))
+      12px
+      max(12px, env(safe-area-inset-bottom));
+  }
+
+  .modal {
+    width: 100% !important;
+    max-height: 100%;
+  }
+
+  .modal-head,
+  .modal-body,
+  .modal-foot {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .modal-foot {
+    flex-wrap: wrap;
+  }
+
+  .character-editor-modal .modal-head {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .character-editor-modal .modal-head-actions {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
   .raw-modal-head {
     grid-template-columns: minmax(0, 1fr) auto;
   }
