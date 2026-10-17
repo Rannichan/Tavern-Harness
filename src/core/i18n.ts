@@ -32,6 +32,11 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'common.removeAttachment': '移除附件',
     'common.attachment': '附件',
 
+    // ---- 控制权 ----
+    'control.dialogLabel': 'Tavern Harness 控制权在其他浏览器中处于活动状态',
+    'control.activeElsewhere': '正在其他位置使用',
+    'control.takeOverHere': '点击接管控制权',
+
     // ---- 侧边栏 / 导航 ----
     'nav.chat': '对话',
     'nav.characters': '角色工坊',
@@ -489,6 +494,10 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'common.removeAttachment': '移除附件',
     'common.attachment': '附件',
 
+    'control.dialogLabel': 'Tavern Harness 控制權正在其他瀏覽器中使用',
+    'control.activeElsewhere': '正在其他位置使用',
+    'control.takeOverHere': '點擊接管控制權',
+
     'nav.chat': '對話',
     'nav.characters': '角色工坊',
     'nav.achievements': '成就',
@@ -931,6 +940,10 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'common.confirmDelete': 'Delete "{name}"? This cannot be undone.',
     'common.removeAttachment': 'Remove attachment',
     'common.attachment': 'Attachment',
+
+    'control.dialogLabel': 'Tavern Harness control is active in another browser',
+    'control.activeElsewhere': 'In use elsewhere',
+    'control.takeOverHere': 'Click to take control',
 
     'nav.chat': 'Chat',
     'nav.characters': 'Characters',

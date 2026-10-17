@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { db } from '../db/database';
+import { db, DEFAULT_SETTINGS, isWriteLocked, takeOverWriteLock } from '../db/database';
 import {
   type ApiProvider,
   type AppSettings,
@@ -48,6 +48,7 @@ import { CHARACTER_BOOK_TOOL, hasUsableCharacterBook, injectCharacterBookToolCon
 import { createSessionWorkspaceDir, ensureSessionWorkspaceDir, deleteSessionWorkspace, isCurrentInstanceWorkspaceDir } from '../core/tools/generatedSkillExecutor';
 import { applyTheme as applyThemeManual, cacheThemeMode, watchSystemTheme } from '../theme/theme';
 import { setLanguage, translate } from '../core/i18n';
+import { hasBrowserUiPreferences, readBrowserUiPreferences, saveBrowserUiPreferences } from '../core/browserPreferences';
 import { trimEdgeNewlines } from '../core/strings';
 import {
   isBuiltinTavernHandbook,
@@ -94,6 +95,8 @@ export interface ActiveDisplay {
 
 interface AppState {
   initialized: boolean;
+  /** 另一浏览器正持有全局写锁时为 true；此浏览器仍可读取共享数据。 */
+  readOnly: boolean;
   settings: AppSettings | null;
   providers: ApiProvider[];
   npcs: NpcCharacter[];
@@ -133,6 +136,8 @@ interface AppState {
   toasts: Toast[];
 
   init: () => Promise<void>;
+  syncControlState: () => Promise<void>;
+  takeOverControl: () => Promise<void>;
   setSettings: (partial: Partial<AppSettings>) => Promise<void>;
   /** 删除当前浏览器源上的酒馆数据并重新载入初始状态。 */
   resetTavern: () => Promise<void>;
@@ -241,6 +246,7 @@ type TurnResult = 'ok' | 'failed' | 'stopped';
 
 export const useStore = create<AppState>((set, get) => ({
   initialized: false,
+  readOnly: false,
   settings: null,
   providers: [],
   npcs: [],
@@ -270,16 +276,27 @@ export const useStore = create<AppState>((set, get) => ({
     // StrictMode 双调用保护
     if (initLock) return initLock;
     initLock = (async () => {
-      const settings = (await db.settings.get(1))!;
-      setLanguage(settings.language ?? null);
-      // 内置角色与世界书按当前语言本地化。
-      await localizeBuiltinNpc();
-      await localizeBuiltinTavernHandbook();
+      const readOnly = await isWriteLocked();
+      // The writer may still be seeding a new database. Defaults let a
+      // read-only browser render its takeover UI until shared settings exist.
+      const serverSettings = (await db.settings.get(1)) ?? DEFAULT_SETTINGS;
+      const browserPreferences = hasBrowserUiPreferences()
+        ? readBrowserUiPreferences()
+        : readOnly
+          ? { language: serverSettings.language, themeMode: serverSettings.themeMode }
+          : saveBrowserUiPreferences({ language: serverSettings.language, themeMode: serverSettings.themeMode });
+      const settings = { ...serverSettings, ...browserPreferences };
+      setLanguage(settings.language);
+      // 本地化会写入共享数据；只读浏览器只能加载既有数据。
+      if (!readOnly) {
+        await localizeBuiltinNpc();
+        await localizeBuiltinTavernHandbook();
+      }
       const npcs = sortNpcs(await db.npcs.toArray());
       const sessions = sortSessionsPinnedFirst(await db.sessions.toArray());
       const worldBooks = sortWorldBooks(await db.worldBooks.toArray());
       const tools = [...(await db.tools.toArray())].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
-      set({ initialized: true, settings, npcs, sessions, worldBooks, tools });
+      set({ initialized: true, readOnly, settings, npcs, sessions, worldBooks, tools });
       await get().refreshProviders();
       cacheThemeMode(settings.themeMode);
       applyThemeManual(settings.themeMode);
@@ -295,11 +312,37 @@ export const useStore = create<AppState>((set, get) => ({
     return initLock;
   },
 
+  syncControlState: async () => {
+    try {
+      const readOnly = await isWriteLocked();
+      // A page that has lost control remains locked until this page explicitly
+      // completes a takeover. A missing server owner must not unlock every page.
+      if (readOnly) set({ readOnly: true });
+    } catch {
+      // Keep the last confirmed state when the local persistence proxy is
+      // temporarily unavailable; a successful check will reconcile it.
+    }
+  },
+
+  takeOverControl: async () => {
+    await takeOverWriteLock();
+    set({ readOnly: false });
+  },
+
   setSettings: async (partial) => {
     const current = get().settings;
     if (!current) return;
     const next = { ...current, ...partial };
-    await db.settings.put(next);
+    const { language, themeMode, ...sharedChanges } = partial;
+    if (language !== undefined || themeMode !== undefined) {
+      saveBrowserUiPreferences({
+        language: language !== undefined ? language : current.language,
+        themeMode: themeMode ?? current.themeMode,
+      });
+    }
+    if (Object.keys(sharedChanges).length > 0) {
+      await db.settings.put({ ...next, language: null, themeMode: 'system' });
+    }
     set({ settings: next });
     const pending = get().pendingConfirmation;
     if (next.yoloMode === true && pending && pending.kind !== 'limit') {
@@ -334,7 +377,7 @@ export const useStore = create<AppState>((set, get) => ({
     await db.delete();
     localStorage.removeItem('tav-theme-mode');
     localStorage.removeItem('th-builtin-npc-lang');
-    localStorage.removeItem('th-workspace-scope');
+    localStorage.removeItem('th-server-persistence-imported');
     window.location.reload();
   },
 
@@ -435,7 +478,7 @@ export const useStore = create<AppState>((set, get) => ({
     const provider = await db.providers.get(option.providerId);
     if (!provider || !isEnabledProviderModel(provider, option.modelId)) return;
     const next = { ...current, defaultModel: option.modelId, defaultProviderId: option.providerId };
-    await db.settings.put(next);
+    await db.settings.put({ ...next, language: null, themeMode: 'system' });
     set({ settings: next });
   },
 

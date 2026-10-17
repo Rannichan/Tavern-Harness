@@ -85,10 +85,9 @@ Download the gameplay file below. Click **Import** in the upper-left corner, the
 
 [th-demo-affinity-gameplay-en.json](./docs/assets/gameplay/th-demo-affinity-gameplay-en.json)
 
-### Data Privacy
+### Data Storage
 
-- **All data is stored in browser IndexedDB**: conversations, character cards, lorebooks, skills, statistics, and API keys are not uploaded to any server.
-- Data is tied to the browser, port, and site origin. Switching browsers, opening a private window, or using a different port will not show existing data. This is expected browser security behavior; use the same browser and port each time.
+Tavern data is stored locally on the host and shared by browsers that open the same Tavern Harness instance. Language and theme remain browser-specific.
 
 <a id="features"></a>
 ## 3 · Features

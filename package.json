@@ -14,11 +14,12 @@
     "index.html",
     "vite.config.ts",
     "sandbox-server.mjs",
+    "persistence-server.mjs",
     "tsconfig.json",
     "README.md"
   ],
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.5.0"
   },
   "scripts": {
     "start": "vite",
@@ -26,10 +27,12 @@
     "test": "node --test *.test.mjs",
     "test:character-book": "node --test character-book.test.mjs",
     "test:command-service": "node sandbox-server.test.mjs",
+    "test:persistence-service": "node persistence-server.test.mjs",
     "test:yolo-mode": "node yolo-mode.test.mjs",
     "test:tool-arguments": "node tool-arguments.test.mjs",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:preview-persistence": "node preview-persistence.test.mjs"
   },
   "dependencies": {
     "@codemirror/lang-json": "^6.0.2",

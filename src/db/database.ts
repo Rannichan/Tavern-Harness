@@ -16,6 +16,7 @@ import type {
 } from '../types/models';
 import { BUILTIN_TOOLS, ALL_BUILTIN_TOOL_NAMES } from '../core/toolDefinitions';
 import { currentLanguage, translate } from '../core/i18n';
+import { hasBrowserUiPreferences, saveBrowserUiPreferences } from '../core/browserPreferences';
 import BUILTIN_TAVERN_HANDBOOK_CONTENT from '../assets/tavern-handbook.md?raw';
 
 export class TavernDB extends Dexie {
@@ -226,7 +227,289 @@ export class TavernDB extends Dexie {
   }
 }
 
-export const db = new TavernDB();
+const COLLECTIONS = [
+  'settings', 'providers', 'npcs', 'sessions', 'participants', 'messages',
+  'contextCompressions', 'tools', 'worldBooks', 'careerStats', 'careerNpcStats', 'achievementUnlocks',
+] as const;
+
+type CollectionName = typeof COLLECTIONS[number];
+type Row = Record<string, unknown>;
+
+const legacyDb = new TavernDB();
+const READ_ONLY_CONTROL_KEY = 'th-persistence-read-only';
+const browserSessionStorage = typeof sessionStorage === 'undefined' ? null : sessionStorage;
+
+function isControlReadOnly(): boolean {
+  return browserSessionStorage?.getItem(READ_ONLY_CONTROL_KEY) === '1';
+}
+
+function markControlReadOnly(): void {
+  browserSessionStorage?.setItem(READ_ONLY_CONTROL_KEY, '1');
+}
+
+function clearControlReadOnly(): void {
+  browserSessionStorage?.removeItem(READ_ONLY_CONTROL_KEY);
+}
+
+const clientId = (() => {
+  const key = 'th-persistence-client-id';
+  const existing = browserSessionStorage?.getItem(key);
+  if (existing) return existing;
+  const created = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `non-browser-${Date.now()}`;
+  browserSessionStorage?.setItem(key, created);
+  return created;
+})();
+
+let hasWriteLock = false;
+let lockHeartbeat: number | null = null;
+
+const PERSISTENCE_REQUEST_TIMEOUT_MS = 8_000;
+
+async function persistenceRequest<T>(path: string, body: Record<string, unknown> = {}): Promise<T> {
+  const controller = new AbortController();
+  const timeout = globalThis.setTimeout(() => controller.abort(), PERSISTENCE_REQUEST_TIMEOUT_MS);
+  let response: Response;
+  try {
+    response = await fetch(`/api-v3${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...body, clientId }),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new Error(`Persistence request ${path} timed out`);
+    }
+    throw new Error('Unable to reach the persistence service');
+  } finally {
+    globalThis.clearTimeout(timeout);
+  }
+  let payload: T & { ok?: boolean; message?: string };
+  try {
+    payload = await response.json() as T & { ok?: boolean; message?: string };
+  } catch {
+    throw new Error(`Persistence service returned an invalid response (${response.status})`);
+  }
+  if (!response.ok || payload.ok === false) {
+    if (response.status === 423) {
+      hasWriteLock = false;
+      markControlReadOnly();
+    }
+    throw new Error(`Persistence request ${path} failed: ${payload.message || `HTTP ${response.status}`}`);
+  }
+  return payload;
+}
+
+async function requireWriteLock(): Promise<void> {
+  const result = await persistenceRequest<{ lock: { writable: boolean } }>('/lock/acquire');
+  hasWriteLock = result.lock.writable;
+  if (!hasWriteLock) throw new Error('This browser is read-only because another browser is editing Tavern Harness data');
+  if (lockHeartbeat == null) {
+    lockHeartbeat = window.setInterval(async () => {
+      try {
+        const state = await persistenceRequest<{ lock: { writable: boolean } }>('/lock/status');
+        hasWriteLock = state.lock.writable;
+      } catch {
+        hasWriteLock = false;
+      }
+    }, 1_000);
+  }
+}
+
+export async function isWriteLocked(): Promise<boolean> {
+  if (isControlReadOnly()) return true;
+  const result = await persistenceRequest<{ lock: { writable: boolean; held: boolean } }>('/lock/status');
+  hasWriteLock = result.lock.writable;
+  const readOnly = result.lock.held && !result.lock.writable;
+  if (readOnly) markControlReadOnly();
+  return readOnly;
+}
+
+export async function takeOverWriteLock(): Promise<void> {
+  const result = await persistenceRequest<{ lock: { writable: boolean } }>('/lock/takeover');
+  hasWriteLock = result.lock.writable;
+  if (!hasWriteLock) throw new Error('Unable to take control of Tavern Harness');
+  const verified = await persistenceRequest<{ lock: { writable: boolean } }>('/lock/status');
+  hasWriteLock = verified.lock.writable;
+  if (!hasWriteLock) throw new Error('Control transfer could not be verified');
+  clearControlReadOnly();
+  if (lockHeartbeat == null) {
+    lockHeartbeat = window.setInterval(async () => {
+      try {
+        const state = await persistenceRequest<{ lock: { writable: boolean } }>('/lock/status');
+        hasWriteLock = state.lock.writable;
+      } catch {
+        hasWriteLock = false;
+      }
+    }, 1_000);
+  }
+}
+
+function primaryKey(collection: CollectionName, value: Row): string {
+  if (collection === 'participants') return `${value.sessionId}:${value.participantId}`;
+  if (collection === 'settings' || collection === 'careerStats') return '1';
+  if (collection === 'careerNpcStats') return String(value.npcId);
+  if (value.id == null) throw new Error(`Missing id for ${collection}`);
+  return String(value.id);
+}
+
+class RemoteQuery<T extends object> {
+  constructor(private readonly table: RemoteTable<T>, private readonly predicate: (value: T) => boolean = () => true) {}
+  equals(value: unknown): RemoteQuery<T> {
+    const fields = this.table.queryField === '[sessionId+participantId]'
+      ? ['sessionId', 'participantId']
+      : [this.table.queryField];
+    return new RemoteQuery(this.table, (row) => {
+      const actual = fields.length === 1 ? (row as Row)[fields[0]] : fields.map((field) => (row as Row)[field]);
+      return this.predicate(row) && JSON.stringify(actual) === JSON.stringify(value);
+    });
+  }
+  filter(predicate: (value: T) => boolean): RemoteQuery<T> { return new RemoteQuery(this.table, (row) => this.predicate(row) && predicate(row)); }
+  async toArray(): Promise<T[]> { return (await this.table.toArray()).filter(this.predicate); }
+  async first(): Promise<T | undefined> { return (await this.toArray())[0]; }
+  async count(): Promise<number> { return (await this.toArray()).length; }
+  async sortBy(field: string): Promise<T[]> { return (await this.toArray()).sort((a, b) => Number((a as Row)[field]) - Number((b as Row)[field])); }
+  async delete(): Promise<void> { for (const value of await this.toArray()) await this.table.delete(this.table.keyFor(value)); }
+}
+
+class RemoteOrderedQuery<T extends object> {
+  private start = 0;
+  private end: number | undefined;
+  constructor(private readonly table: RemoteTable<T>, private readonly field: string) {}
+  offset(value: number): this { this.start = value; return this; }
+  limit(value: number): this { this.end = this.start + value; return this; }
+  async toArray(): Promise<T[]> {
+    return (await this.table.toArray())
+      .sort((a, b) => Number((a as Row)[this.field]) - Number((b as Row)[this.field]))
+      .slice(this.start, this.end);
+  }
+}
+
+class RemoteTable<T extends object> {
+  queryField = '';
+  constructor(private readonly collection: CollectionName) {}
+  keyFor(value: T): string { return primaryKey(this.collection, value as Row); }
+  async toArray(): Promise<T[]> {
+    const result = await persistenceRequest<{ records: Array<{ value: T }> }>('/records/list', { collection: this.collection });
+    return result.records.map((record) => record.value);
+  }
+  async get(key: unknown): Promise<T | undefined> {
+    const result = await persistenceRequest<{ record: { value: T } | null }>('/records/get', { collection: this.collection, key: Array.isArray(key) ? key.join(':') : String(key) });
+    return result.record?.value;
+  }
+  async count(): Promise<number> { return (await this.toArray()).length; }
+  async add(value: T): Promise<number> {
+    await requireWriteLock();
+    const record = { ...value } as T & { id?: number };
+    if (['providers', 'npcs', 'sessions', 'messages', 'contextCompressions', 'tools', 'worldBooks', 'achievementUnlocks'].includes(this.collection) && record.id == null) {
+      const result = await persistenceRequest<{ id: number }>('/records/allocate-id', { collection: this.collection });
+      record.id = result.id;
+    }
+    await persistenceRequest('/records/put', { collection: this.collection, key: this.keyFor(record), value: record });
+    return Number(record.id ?? 0);
+  }
+  async bulkAdd(values: T[]): Promise<void> { for (const value of values) await this.add(value); }
+  async bulkPut(values: T[]): Promise<void> { for (const value of values) await this.put(value); }
+  async put(value: T): Promise<number> { return this.add(value); }
+  async update(key: unknown, changes: Partial<T>): Promise<number> {
+    await requireWriteLock();
+    const existing = await this.get(key);
+    if (!existing) return 0;
+    const value = { ...existing, ...changes } as T;
+    await persistenceRequest('/records/put', { collection: this.collection, key: this.keyFor(value), value });
+    return 1;
+  }
+  async delete(key: unknown): Promise<void> {
+    await requireWriteLock();
+    await persistenceRequest('/records/delete', { collection: this.collection, key: Array.isArray(key) ? key.join(':') : String(key) });
+  }
+  async bulkDelete(keys: unknown[]): Promise<void> { for (const key of keys) await this.delete(key); }
+  async clear(): Promise<void> {
+    await requireWriteLock();
+    await persistenceRequest('/records/clear', { collection: this.collection });
+  }
+  where(field: string): RemoteQuery<T> { this.queryField = field; return new RemoteQuery(this); }
+  filter(predicate: (value: T) => boolean): RemoteQuery<T> { return new RemoteQuery(this, predicate); }
+  orderBy(field: string): RemoteOrderedQuery<T> { return new RemoteOrderedQuery(this, field); }
+}
+
+class RemoteTavernDB {
+  settings = new RemoteTable<AppSettings>('settings');
+  providers = new RemoteTable<ApiProvider>('providers');
+  npcs = new RemoteTable<NpcCharacter>('npcs');
+  sessions = new RemoteTable<ChatSession>('sessions');
+  participants = new RemoteTable<ChatParticipant>('participants');
+  messages = new RemoteTable<ChatMessage>('messages');
+  contextCompressions = new RemoteTable<ContextCompression>('contextCompressions');
+  tools = new RemoteTable<McpTool>('tools');
+  worldBooks = new RemoteTable<WorldBook>('worldBooks');
+  careerStats = new RemoteTable<CareerStatsTotal>('careerStats');
+  careerNpcStats = new RemoteTable<CareerNpcStat>('careerNpcStats');
+  achievementUnlocks = new RemoteTable<AchievementUnlock>('achievementUnlocks');
+  async transaction<T>(
+    _mode: string,
+    _tableA: unknown,
+    callback: () => Promise<T>,
+  ): Promise<T>;
+  async transaction<T>(
+    _mode: string,
+    _tableA: unknown,
+    _tableB: unknown,
+    callback: () => Promise<T>,
+  ): Promise<T>;
+  async transaction<T>(...args: unknown[]): Promise<T> {
+    return (args.at(-1) as () => Promise<T>)();
+  }
+  async delete(): Promise<void> {
+    for (const table of [this.settings, this.providers, this.npcs, this.sessions, this.participants, this.messages, this.contextCompressions, this.tools, this.worldBooks, this.careerStats, this.careerNpcStats, this.achievementUnlocks]) await table.clear();
+  }
+  close(): void {
+    if (lockHeartbeat != null && typeof window !== 'undefined') {
+      window.clearInterval(lockHeartbeat);
+      lockHeartbeat = null;
+    }
+  }
+  async normalizePinned(): Promise<void> {
+    for (const session of await this.sessions.toArray()) if (session.pinned !== 0 && session.pinned !== 1) await this.sessions.update(session.id!, { pinned: session.pinned ? 1 : 0 });
+  }
+}
+
+export const db = new RemoteTavernDB();
+
+async function importLegacyCollection<T extends object>(collection: CollectionName, rows: T[]): Promise<void> {
+  const remote = db[collection] as unknown as RemoteTable<T>;
+  if (await remote.count()) return;
+  for (const row of rows) await remote.put(row);
+}
+
+async function importLegacyBrowserData(): Promise<void> {
+  if (localStorage.getItem('th-server-persistence-imported') === '1') return;
+  const serverIsEmpty = (await Promise.all(COLLECTIONS.map((collection) => (db[collection] as unknown as RemoteTable<object>).count())))
+    .every((count) => count === 0);
+  if (!serverIsEmpty) {
+    localStorage.setItem('th-server-persistence-imported', '1');
+    return;
+  }
+  const legacySettings = await legacyDb.settings.toArray();
+  if (!hasBrowserUiPreferences() && legacySettings[0]) {
+    saveBrowserUiPreferences({ language: legacySettings[0].language, themeMode: legacySettings[0].themeMode });
+  }
+  await importLegacyCollection('settings', legacySettings.map(({ language: _language, themeMode: _themeMode, ...settings }) => ({ ...settings, language: null, themeMode: 'system' })));
+  await importLegacyCollection('providers', await legacyDb.providers.toArray());
+  await importLegacyCollection('npcs', await legacyDb.npcs.toArray());
+  await importLegacyCollection('sessions', await legacyDb.sessions.toArray());
+  await importLegacyCollection('participants', await legacyDb.participants.toArray());
+  await importLegacyCollection('messages', await legacyDb.messages.toArray());
+  await importLegacyCollection('contextCompressions', await legacyDb.contextCompressions.toArray());
+  await importLegacyCollection('tools', await legacyDb.tools.toArray());
+  await importLegacyCollection('worldBooks', await legacyDb.worldBooks.toArray());
+  await importLegacyCollection('careerStats', await legacyDb.careerStats.toArray());
+  await importLegacyCollection('careerNpcStats', await legacyDb.careerNpcStats.toArray());
+  await importLegacyCollection('achievementUnlocks', await legacyDb.achievementUnlocks.toArray());
+  localStorage.setItem('th-server-persistence-imported', '1');
+}
 
 export { BUILTIN_TAVERN_HANDBOOK_CONTENT };
 
@@ -242,7 +525,7 @@ export function isTavernKeeper(npc: Pick<NpcCharacter, 'isTavernKeeper'>): boole
   return npc.isTavernKeeper === true;
 }
 
-const DEFAULT_SETTINGS: AppSettings = {
+export const DEFAULT_SETTINGS: AppSettings = {
   id: 1,
   baseUrl: 'https://api.openai.com/v1/',
   apiKey: '',
@@ -290,6 +573,16 @@ const DEFAULT_NPC: NpcCharacter = {
 
 /** 数据库初始化：种子数据 + 迁移兼容 */
 export async function initDatabase(): Promise<void> {
+  let writable = true;
+  try {
+    await requireWriteLock();
+  } catch {
+    // A second browser is intentionally read-only. It can still load the
+    // existing shared data; all mutating actions remain rejected server-side.
+    writable = false;
+  }
+  if (!writable) return;
+  await importLegacyBrowserData();
   const count = await db.settings.count();
   if (count === 0) {
     await db.settings.add(DEFAULT_SETTINGS);
@@ -300,6 +593,9 @@ export async function initDatabase(): Promise<void> {
     }
     if (settings && settings.yoloMode === undefined) {
       await db.settings.update(1, { yoloMode: false });
+    }
+    if (settings && (settings.language !== null || settings.themeMode !== 'system')) {
+      await db.settings.update(1, { language: null, themeMode: 'system' });
     }
   }
   const statsCount = await db.careerStats.count();

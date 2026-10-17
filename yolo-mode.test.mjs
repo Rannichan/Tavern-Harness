@@ -42,6 +42,9 @@ const shellExecutions = [];
 const tickets = new Map();
 let ticketSequence = 0;
 let scenarios = 0;
+const records = new Map();
+const recordSequences = new Map();
+let persistenceWriter = null;
 
 function jsonResponse(body) {
   return new Response(JSON.stringify(body), { headers: { 'Content-Type': 'application/json' } });
@@ -92,6 +95,45 @@ function startConversation(...steps) {
 try {
   globalThis.fetch = async (url, options) => {
     const payload = JSON.parse(options?.body ?? '{}');
+    if (String(url).startsWith('/api-v3/')) {
+      const path = String(url).slice('/api-v3'.length).replace(/\/$/, '');
+      const clientId = payload.clientId;
+      if (path === '/lock/status') return jsonResponse({ ok: true, lock: { writable: persistenceWriter === clientId, held: persistenceWriter != null } });
+      if (path === '/lock/acquire') {
+        if (persistenceWriter && persistenceWriter !== clientId) return new Response(JSON.stringify({ ok: false, message: 'Another browser currently holds the write lock' }), { status: 423, headers: { 'Content-Type': 'application/json' } });
+        persistenceWriter = clientId;
+        return jsonResponse({ ok: true, lock: { writable: true, held: true } });
+      }
+      if (path === '/lock/takeover') {
+        persistenceWriter = clientId;
+        return jsonResponse({ ok: true, lock: { writable: true, held: true } });
+      }
+      const collection = payload.collection;
+      const key = (value) => `${collection}:${String(value)}`;
+      if (path === '/records/list') return jsonResponse({ ok: true, records: [...records.entries()]
+        .filter(([recordKey]) => recordKey.startsWith(`${collection}:`))
+        .map(([recordKey, value]) => ({ key: recordKey.slice(collection.length + 1), value })) });
+      if (path === '/records/get') return jsonResponse({ ok: true, record: records.has(key(payload.key)) ? { key: payload.key, value: records.get(key(payload.key)) } : null });
+      if (persistenceWriter !== clientId) return new Response(JSON.stringify({ ok: false, message: 'Write lock required' }), { status: 423, headers: { 'Content-Type': 'application/json' } });
+      if (path === '/records/allocate-id') {
+        const id = (recordSequences.get(collection) ?? 1);
+        recordSequences.set(collection, id + 1);
+        return jsonResponse({ ok: true, id });
+      }
+      if (path === '/records/put') {
+        records.set(key(payload.key), payload.value);
+        return jsonResponse({ ok: true });
+      }
+      if (path === '/records/delete') {
+        records.delete(key(payload.key));
+        return jsonResponse({ ok: true });
+      }
+      if (path === '/records/clear') {
+        for (const recordKey of [...records.keys()]) if (recordKey.startsWith(`${collection}:`)) records.delete(recordKey);
+        return jsonResponse({ ok: true });
+      }
+      throw new Error(`Unexpected persistence request: ${path}`);
+    }
     if (String(url).includes('/chat/completions')) {
       let delta = modelSteps.shift() ?? { content: 'Done.' };
       if (typeof delta === 'function') delta = await delta();
@@ -133,6 +175,8 @@ try {
   globalThis.window = {
     location: { origin: 'http://localhost:5173' },
     matchMedia: () => ({ matches: false, addEventListener() {} }),
+    setInterval,
+    clearInterval,
   };
 
   await initDatabase();

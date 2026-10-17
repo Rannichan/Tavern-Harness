@@ -1,0 +1,291 @@
+#!/usr/bin/env node
+// Server-side SQLite persistence service. It is intentionally reachable only
+// through Vite's same-origin proxy; this process itself listens on loopback.
+
+import { createServer } from 'node:http';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { mkdirSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
+
+const PORT = Number(process.argv[2] || process.env.PERSISTENCE_PORT || 17892);
+const SERVICE_TOKEN = process.env.PERSISTENCE_SERVICE_TOKEN;
+if (!SERVICE_TOKEN) {
+  console.error('[persistence-service] missing PERSISTENCE_SERVICE_TOKEN');
+  process.exit(1);
+}
+
+const dataDir = resolve(process.env.TAVERN_HARNESS_DATA_DIR || join(homedir(), '.tavern-harness'));
+mkdirSync(dataDir, { recursive: true });
+const databasePath = join(dataDir, 'tavern-harness.sqlite');
+const database = new DatabaseSync(databasePath);
+database.exec(`
+  PRAGMA journal_mode = WAL;
+  PRAGMA foreign_keys = ON;
+  PRAGMA busy_timeout = 5000;
+  CREATE TABLE IF NOT EXISTS app_records (
+    collection TEXT NOT NULL,
+    record_key TEXT NOT NULL,
+    value_json TEXT NOT NULL,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (collection, record_key)
+  );
+  CREATE INDEX IF NOT EXISTS idx_app_records_collection ON app_records(collection);
+  CREATE TABLE IF NOT EXISTS record_sequences (
+    collection TEXT PRIMARY KEY,
+    next_id INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS service_state (
+    state_key TEXT PRIMARY KEY,
+    value_json TEXT NOT NULL
+  );
+`);
+
+const getServiceState = database.prepare('SELECT value_json FROM service_state WHERE state_key = ?');
+const saveServiceState = database.prepare(`
+  INSERT INTO service_state (state_key, value_json) VALUES (?, ?)
+  ON CONFLICT(state_key) DO UPDATE SET value_json = excluded.value_json
+`);
+const deleteServiceState = database.prepare('DELETE FROM service_state WHERE state_key = ?');
+
+function loadWriteLock() {
+  const row = getServiceState.get('write_lock');
+  if (!row) return null;
+  try {
+    const lock = JSON.parse(row.value_json);
+    return typeof lock?.clientId === 'string' && typeof lock?.leaseId === 'string' ? lock : null;
+  } catch {
+    return null;
+  }
+}
+
+let writeLock = loadWriteLock();
+
+function setWriteLock(lock) {
+  writeLock = lock;
+  if (lock) saveServiceState.run('write_lock', JSON.stringify(lock));
+  else deleteServiceState.run('write_lock');
+}
+
+function json(res, status, body) {
+  res.writeHead(status, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Cache-Control': 'no-store',
+  });
+  res.end(JSON.stringify(body));
+}
+
+function readJson(req) {
+  return new Promise((resolveBody, reject) => {
+    let raw = '';
+    req.setEncoding('utf8');
+    req.on('data', (chunk) => {
+      raw += chunk;
+      if (raw.length > 5_000_000) {
+        reject(new Error('Request body is too large'));
+        req.destroy();
+      }
+    });
+    req.on('end', () => {
+      if (!raw) return resolveBody({});
+      try {
+        resolveBody(JSON.parse(raw));
+      } catch {
+        reject(new Error('Invalid JSON request body'));
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
+function tokenMatches(value) {
+  if (typeof value !== 'string') return false;
+  const expected = Buffer.from(SERVICE_TOKEN);
+  const actual = Buffer.from(value);
+  return expected.length === actual.length && timingSafeEqual(expected, actual);
+}
+
+function validCollection(value) {
+  return typeof value === 'string' && /^[a-z][a-z0-9_]{0,63}$/i.test(value);
+}
+
+function validKey(value) {
+  return typeof value === 'string' && value.length > 0 && value.length <= 255;
+}
+
+function lockState(clientId) {
+  return {
+    writable: Boolean(writeLock && writeLock.clientId === clientId),
+    held: Boolean(writeLock),
+  };
+}
+
+function requireWriter(clientId) {
+  if (!writeLock || writeLock.clientId !== clientId) {
+    const error = new Error(writeLock ? 'Another browser currently holds the write lock' : 'Write lock required');
+    error.status = 423;
+    throw error;
+  }
+}
+
+function saveRecord(collection, key, value) {
+  database.prepare(`
+    INSERT INTO app_records (collection, record_key, value_json, updated_at)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(collection, record_key) DO UPDATE SET
+      value_json = excluded.value_json,
+      updated_at = excluded.updated_at
+  `).run(collection, key, JSON.stringify(value), Date.now());
+}
+
+const getRecord = database.prepare('SELECT value_json, updated_at FROM app_records WHERE collection = ? AND record_key = ?');
+const listRecords = database.prepare('SELECT record_key, value_json, updated_at FROM app_records WHERE collection = ? ORDER BY record_key');
+const deleteRecord = database.prepare('DELETE FROM app_records WHERE collection = ? AND record_key = ?');
+const clearCollection = database.prepare('DELETE FROM app_records WHERE collection = ?');
+const nextNumericRecordKey = database.prepare(`
+  SELECT COALESCE(MAX(CAST(record_key AS INTEGER)), 0) + 1 AS next_key
+  FROM app_records
+  WHERE collection = ? AND record_key GLOB '[0-9]*'
+`);
+const getRecordSequence = database.prepare('SELECT next_id FROM record_sequences WHERE collection = ?');
+const saveRecordSequence = database.prepare(`
+  INSERT INTO record_sequences (collection, next_id) VALUES (?, ?)
+  ON CONFLICT(collection) DO UPDATE SET next_id = excluded.next_id
+`);
+
+function allocateNumericRecordId(collection) {
+  database.exec('BEGIN IMMEDIATE');
+  try {
+    const sequence = getRecordSequence.get(collection);
+    const initialId = Number(nextNumericRecordKey.get(collection).next_key);
+    const id = Math.max(Number(sequence?.next_id) || 0, initialId);
+    saveRecordSequence.run(collection, id + 1);
+    database.exec('COMMIT');
+    return id;
+  } catch (error) {
+    database.exec('ROLLBACK');
+    throw error;
+  }
+}
+
+const server = createServer(async (req, res) => {
+  if (!tokenMatches(req.headers['x-persistence-service-token'])) {
+    json(res, 401, { ok: false, message: 'Unauthorized persistence service request' });
+    return;
+  }
+
+  try {
+    const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+    const pathname = url.pathname.replace(/\/+$/, '') || '/';
+    if (req.method === 'GET' && pathname === '/health') {
+      json(res, 200, { ok: true, databasePath, lock: lockState(null) });
+      return;
+    }
+    if (req.method !== 'POST') {
+      json(res, 405, { ok: false, message: 'Method not allowed' });
+      return;
+    }
+
+    const body = await readJson(req);
+    const clientId = typeof body.clientId === 'string' ? body.clientId : '';
+
+    if (pathname === '/lock/status') {
+      json(res, 200, { ok: true, lock: lockState(clientId) });
+      return;
+    }
+    if (pathname === '/lock/acquire' || pathname === '/lock/takeover') {
+      const existing = writeLock;
+      if (!clientId || clientId.length > 255) {
+        json(res, 400, { ok: false, message: 'A valid clientId is required' });
+        return;
+      }
+      if (existing && existing.clientId !== clientId && pathname !== '/lock/takeover') {
+        json(res, 423, { ok: false, message: 'Another browser currently holds the write lock', lock: lockState(clientId) });
+        return;
+      }
+      setWriteLock({ clientId, leaseId: randomBytes(24).toString('base64url') });
+      json(res, 200, { ok: true, leaseId: writeLock.leaseId, lock: lockState(clientId) });
+      return;
+    }
+    if (!pathname.startsWith('/records/')) {
+      json(res, 404, { ok: false, message: `Unknown persistence endpoint: ${pathname}` });
+      return;
+    }
+
+    const collection = body.collection;
+    if (!validCollection(collection)) {
+      json(res, 400, { ok: false, message: `Invalid collection for ${pathname}` });
+      return;
+    }
+
+    if (pathname === '/records/list') {
+      const records = listRecords.all(collection).map((row) => ({
+        key: row.record_key,
+        value: JSON.parse(row.value_json),
+        updatedAt: row.updated_at,
+      }));
+      json(res, 200, { ok: true, records });
+      return;
+    }
+    if (pathname === '/records/get') {
+      if (!validKey(body.key)) {
+        json(res, 400, { ok: false, message: 'Invalid record key' });
+        return;
+      }
+      const record = getRecord.get(collection, body.key);
+      json(res, 200, {
+        ok: true,
+        record: record ? { key: body.key, value: JSON.parse(record.value_json), updatedAt: record.updated_at } : null,
+      });
+      return;
+    }
+    if (pathname === '/records/allocate-id') {
+      requireWriter(clientId);
+      json(res, 200, { ok: true, id: allocateNumericRecordId(collection) });
+      return;
+    }
+    if (pathname === '/records/put') {
+      if (!validKey(body.key)) {
+        json(res, 400, { ok: false, message: 'Invalid record key' });
+        return;
+      }
+      requireWriter(clientId);
+      saveRecord(collection, body.key, body.value);
+      json(res, 200, { ok: true });
+      return;
+    }
+    if (pathname === '/records/delete') {
+      if (!validKey(body.key)) {
+        json(res, 400, { ok: false, message: 'Invalid record key' });
+        return;
+      }
+      requireWriter(clientId);
+      deleteRecord.run(collection, body.key);
+      json(res, 200, { ok: true });
+      return;
+    }
+    if (pathname === '/records/clear') {
+      requireWriter(clientId);
+      clearCollection.run(collection);
+      json(res, 200, { ok: true });
+      return;
+    }
+
+    json(res, 404, { ok: false, message: 'Unknown persistence endpoint' });
+  } catch (error) {
+    const status = typeof error?.status === 'number' ? error.status : 500;
+    json(res, status, { ok: false, message: error instanceof Error ? error.message : 'Unexpected persistence service error' });
+  }
+});
+
+server.listen(PORT, '127.0.0.1', () => {
+  console.log(`[persistence-service] listening on 127.0.0.1:${PORT}; data: ${databasePath}`);
+});
+
+function shutdown() {
+  database.close();
+  server.close(() => process.exit(0));
+}
+process.once('SIGINT', shutdown);
+process.once('SIGTERM', shutdown);

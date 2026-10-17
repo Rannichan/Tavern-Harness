@@ -21,8 +21,12 @@ import './theme/chat.css';
 import './theme/views.css';
 
 export default function App() {
+  const [takingControl, setTakingControl] = useState(false);
   const initialized = useStore((s) => s.initialized);
+  const readOnly = useStore((s) => s.readOnly);
   const init = useStore((s) => s.init);
+  const syncControlState = useStore((s) => s.syncControlState);
+  const takeOverControl = useStore((s) => s.takeOverControl);
   const activeView = useStore((s) => s.activeView);
   const activeSessionId = useStore((s) => s.activeSessionId);
   const sessions = useStore((s) => s.sessions);
@@ -30,6 +34,7 @@ export default function App() {
   const contextCompressions = useStore((s) => s.contextCompressions);
   const participants = useStore((s) => s.participants);
   const isStreaming = useStore((s) => s.streaming.sessionId != null);
+  const t = useT();
 
   useEffect(() => {
     registerUnlockDispatcher(async (achievement, total) => {
@@ -42,6 +47,12 @@ export default function App() {
   useEffect(() => {
     init();
   }, [init]);
+
+  useEffect(() => {
+    if (readOnly) return;
+    const timer = window.setInterval(() => void syncControlState(), 1_000);
+    return () => window.clearInterval(timer);
+  }, [readOnly, syncControlState]);
 
   useEffect(() => {
     if (!isStreaming) return;
@@ -58,6 +69,15 @@ export default function App() {
   const sessionParticipants = activeSessionId != null ? (participants[activeSessionId] ?? []) : [];
   const isStreamingSession = useStore((s) => s.streaming.sessionId === activeSessionId);
 
+  const handleTakeOverControl = async () => {
+    setTakingControl(true);
+    try {
+      await takeOverControl();
+    } finally {
+      setTakingControl(false);
+    }
+  };
+
   if (!initialized) {
     return <div className="tav-bg" />;
   }
@@ -65,6 +85,26 @@ export default function App() {
   return (
     <>
       <div className="tav-bg" />
+      {readOnly && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={t('control.dialogLabel')}
+          style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'grid', placeItems: 'center', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)' }}
+        >
+          <main style={{ textAlign: 'center' }}>
+            <h1>{t('control.activeElsewhere')}</h1>
+            <button
+              type="button"
+              disabled={takingControl}
+              onClick={() => void handleTakeOverControl()}
+              style={{ padding: '10px 18px', border: 0, borderRadius: 8, cursor: takingControl ? 'wait' : 'pointer', fontWeight: 700, background: 'color-mix(in srgb, var(--primary) 25%, transparent)', color: 'var(--primary)' }}
+            >
+              {t('control.takeOverHere')}
+            </button>
+          </main>
+        </div>
+      )}
       <div className="app-shell">
         <Sidebar />
         <main className="main-area">
@@ -92,12 +132,12 @@ export default function App() {
           {activeView === 'stats' && <StatsView />}
         </main>
       </div>
-      <ConfirmationDialog />
-      <MessageMenu />
-      <Toasts />
-      <AchievementModal />
-      <FileDisplayModal />
-      {/* 游戏导出 / 导入的全局入口（会话右键菜单 / 侧边栏导入按钮共用） */}
+          <ConfirmationDialog />
+          <MessageMenu />
+          <Toasts />
+          <AchievementModal />
+          <FileDisplayModal />
+          {/* 游戏导出 / 导入的全局入口（会话右键菜单 / 侧边栏导入按钮共用） */}
       <GameplayEntryDialogs />
     </>
   );

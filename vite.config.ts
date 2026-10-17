@@ -1,4 +1,4 @@
-import { defineConfig, type Plugin } from 'vite';
+import { defineConfig, type Plugin, type PreviewServer, type ViteDevServer } from 'vite';
 import react from '@vitejs/plugin-react';
 import http from 'node:http';
 import https from 'node:https';
@@ -92,6 +92,152 @@ function corsProxyPlugin(): Plugin {
  * 规则：/api-v2/exec 转发到本地 sandbox-server（127.0.0.1:17891，端口从 .sandbox-port 锁文件读取）。
  * 若 sandbox 未启动，会在收到请求时自动拉起 sandbox-server 子进程，无需手动执行 node sandbox-server.mjs。
  */
+function persistenceProxyPlugin(): Plugin {
+  let persistenceChild: ChildProcess | null = null;
+  let starting: Promise<number | null> | null = null;
+  let childPort: number | null = null;
+  const serviceToken = randomBytes(32).toString('base64url');
+  const persistenceScript = join(projectRoot, 'persistence-server.mjs');
+  const DEFAULT_PORT = 17892;
+
+  const portOpen = (port: number) => new Promise<boolean>((resolve) => {
+    const socket = net.connect({ host: '127.0.0.1', port, timeout: 400 });
+    socket.once('connect', () => {
+      socket.destroy();
+      resolve(true);
+    });
+    socket.once('timeout', () => {
+      socket.destroy();
+      resolve(false);
+    });
+    socket.once('error', () => resolve(false));
+  });
+
+  const serviceReady = (port: number) => new Promise<boolean>((resolve) => {
+    const request = http.request({
+      hostname: '127.0.0.1',
+      port,
+      path: '/health',
+      method: 'GET',
+      headers: { 'X-Persistence-Service-Token': serviceToken },
+      timeout: 400,
+    }, (response) => {
+      response.resume();
+      resolve(response.statusCode === 200);
+    });
+    request.once('timeout', () => {
+      request.destroy();
+      resolve(false);
+    });
+    request.once('error', () => resolve(false));
+    request.end();
+  });
+
+  const stopPersistence = () => {
+    const child = persistenceChild;
+    persistenceChild = null;
+    childPort = null;
+    try {
+      child?.kill();
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const ensurePersistence = async (): Promise<number | null> => {
+    if (starting) return starting;
+    starting = (async () => {
+      if (childPort != null && (await portOpen(childPort)) && (await serviceReady(childPort))) return childPort;
+      if (persistenceChild) return null;
+      for (let port = DEFAULT_PORT; port < DEFAULT_PORT + 20; port++) {
+        if (await portOpen(port)) continue;
+        childPort = port;
+        const child = spawn(process.execPath, [persistenceScript, String(port)], {
+          cwd: projectRoot,
+          stdio: 'ignore',
+          windowsHide: true,
+          env: { ...process.env, PERSISTENCE_SERVICE_TOKEN: serviceToken },
+        });
+        persistenceChild = child;
+        child.on('exit', () => {
+          if (persistenceChild === child) {
+            persistenceChild = null;
+            childPort = null;
+          }
+        });
+        process.once('exit', () => child.kill());
+        for (let attempt = 0; attempt < 30; attempt++) {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+          if (await serviceReady(port)) return port;
+        }
+        child.kill();
+        persistenceChild = null;
+        childPort = null;
+        return null;
+      }
+      return null;
+    })().finally(() => {
+      starting = null;
+    });
+    return starting;
+  };
+
+  const registerMiddleware = (server: ViteDevServer | PreviewServer) => {
+    server.middlewares.use((req: IncomingMessage, res: ServerResponse, next) => {
+        if (!req.url?.startsWith('/api-v3/')) return next();
+        const origin = req.headers.origin;
+        if (!origin || req.headers['sec-fetch-site'] !== 'same-origin') {
+          res.writeHead(403, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, message: 'Persistence access requires a same-origin browser request' }));
+          return;
+        }
+        let originHost = '';
+        try {
+          originHost = new URL(origin).host;
+        } catch {
+          res.writeHead(403, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, message: 'Invalid origin' }));
+          return;
+        }
+        if (originHost !== req.headers.host) {
+          res.writeHead(403, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, message: 'Cross-origin request denied' }));
+          return;
+        }
+        void (async () => {
+          const port = await ensurePersistence();
+          if (port == null) {
+            res.writeHead(503, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: false, message: 'Persistence server not running' }));
+            return;
+          }
+          const proxyReq = http.request({
+            hostname: '127.0.0.1',
+            port,
+            path: req.url!.slice('/api-v3'.length),
+            method: req.method,
+            headers: { ...req.headers, 'x-persistence-service-token': serviceToken },
+          }, (proxyRes) => {
+            res.writeHead(proxyRes.statusCode || 502, proxyRes.headers);
+            proxyRes.pipe(res);
+          });
+          proxyReq.once('error', (error: Error) => {
+            res.writeHead(502, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: false, message: `Persistence proxy error: ${error.message}` }));
+          });
+          req.pipe(proxyReq);
+        })();
+      });
+  };
+
+  return {
+    name: 'persistence-proxy',
+    closeBundle: stopPersistence,
+    configureServer: registerMiddleware,
+    configurePreviewServer: registerMiddleware,
+  };
+}
+
 function sandboxProxyPlugin(): Plugin {
   let sandboxChild: ChildProcess | null = null;
   let starting: Promise<number | null> | null = null;
@@ -288,7 +434,7 @@ function sandboxProxyPlugin(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), lanAddressPlugin(), corsProxyPlugin(), sandboxProxyPlugin()],
+  plugins: [react(), lanAddressPlugin(), corsProxyPlugin(), persistenceProxyPlugin(), sandboxProxyPlugin()],
   optimizeDeps: {
     force: true,
     include: [

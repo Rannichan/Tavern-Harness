@@ -7,6 +7,8 @@
 //                              会打开顺延后的实际端口）
 //   tavern-harness --host 127.0.0.1 仅监听本机
 //   tavern-harness --workspace /path  指定生成技能文件工作区
+//
+// Requires Node.js 22.5+ because server-side data is stored with node:sqlite.
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { createServer } from 'vite';
