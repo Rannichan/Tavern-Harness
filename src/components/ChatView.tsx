@@ -422,14 +422,8 @@ function MessageBubble({
                 ))}
               </div>
             )}
-            <div className="bubble-content-row">
-              <div className="bubble-text">
-                {displayContent ? <Markdown text={displayContent} mentionNames={mentionNames} /> : streaming && <span className="stream-cursor" />}
-              </div>
-              {/* 编辑按钮：位于正文气泡内最右侧，铅笔图标 */}
-              <button className="msg-edit-btn" title={t('chat.editMsg')} onClick={() => startEditingMsg(msg.id!)}>
-                <Icon name="pencil" size={13} />
-              </button>
+            <div className="bubble-text">
+              {displayContent ? <Markdown text={displayContent} mentionNames={mentionNames} /> : streaming && <span className="stream-cursor" />}
             </div>
           </div>
         )}
@@ -523,7 +517,7 @@ function BubbleEditor({
         </div>
       )}
       <div className="bubble-editor-actions">
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div className="bubble-editor-actions-start">
           <input
             ref={fileRef}
             type="file"
@@ -542,7 +536,7 @@ function BubbleEditor({
             <Icon name="image" size={12} /> {t('chat.addAttachment')}
           </button>
         </div>
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+        <div className="bubble-editor-actions-end">
           <span className="bubble-editor-hint">{t('chat.saveHint')}</span>
           <button className="btn btn-sm" onClick={onDone}>{t('common.cancel')}</button>
           <button className="btn btn-sm btn-primary" disabled={!text.trim() || streaming} onClick={primaryAction}>
@@ -587,13 +581,8 @@ function UserBubble({ msg, session, userPersonaName, editing, loopIndex }: { msg
                 ))}
               </div>
             )}
-            <div className="bubble-content-row">
-              <div className="bubble-text">
-                {msg.content && <Markdown text={displayUserPersonaPlaceholder(msg.content, userPersonaName)} mentionNames={mentionNames} />}
-              </div>
-              <button className="msg-edit-btn" title={t('chat.editMsg')} onClick={() => startEditingMsg(msg.id!)}>
-                <Icon name="pencil" size={13} />
-              </button>
+            <div className="bubble-text">
+              {msg.content && <Markdown text={displayUserPersonaPlaceholder(msg.content, userPersonaName)} mentionNames={mentionNames} />}
             </div>
           </div>
         )}

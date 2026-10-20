@@ -10,7 +10,7 @@
  *    等纯文本区域移出命中测试，并让聊天区内不再产生文本选区；
  * 2. 从消息 / 会话项开始触摸时，给 `<body>` 临时加内联 `user-select: none`
  *    （抬手后恢复），这样系统在 500ms 长按判定时找不到任何可选文字；
- *    只有非交互目标才加锁，输入框、编辑按钮、链接不受影响；
+ *    只有非交互目标才加锁，输入框、消息内按钮、链接不受影响；
  * 3. 触摸期间阻止 `selectstart`，并清掉落到非输入控件上的选区。
  *
  * 只在 Android + MicroMessenger 下安装。输入框 / 搜索框 / 代码编辑器的
@@ -29,7 +29,7 @@ const LONG_PRESS_SURFACE_SELECTOR = '.msg-row, .session-item';
 
 /**
  * 与 `shouldTrackLongPress` 相同的判定：目标在长按表面上，且不是嵌套的
- * 交互控件（编辑按钮、链接等）。会话项本身是 `<button>`，所以要允许
+ * 交互控件（消息内按钮、链接等）。会话项本身是 `<button>`，所以要允许
  * “交互目标就是长按表面”的情况。
  */
 function isLongPressSurfaceTarget(target: EventTarget | null): boolean {

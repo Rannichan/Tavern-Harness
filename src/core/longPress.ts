@@ -198,7 +198,7 @@ export function useTouchLongPress(
       if (touchContextMenu && (triggeredRef.current || shouldIgnoreContextMenu(source))) return;
       // 如果原生手势取消了指针事件、计时器没跑起来，则仍然用 contextmenu
       // 的坐标兜底打开，保证菜单不会丢失；同时记下来，计时器稍后不要再开一次，
-      // 并抑制这次长按松手后可能补发的 click（不误触会话/编辑按钮）。
+      // 并抑制这次长按松手后可能补发的 click（不误触会话/按钮）。
       if (touchContextMenu) {
         openedByContextMenuRef.current = true;
         triggeredRef.current = true;
