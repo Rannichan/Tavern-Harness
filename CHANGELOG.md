@@ -3,6 +3,58 @@
 > 本文件由 `scripts/changelog.mjs` 从 `changelog/v*.md` 生成，请勿手动编辑。
 > 版本对比链接见文末；源文件位于仓库 `changelog/` 目录。
 
+## [0.1.13] - 2026-10-21
+
+### 中文
+
+#### 新增
+
+- 设置 → 关于新增「版本记录」：内置 v0.1.1 以来的完整更新历史，有新版本时侧栏与设置入口会显示未读圆点；运行 `tavern-harness --version` 可直接查看当前版本号
+- 世界书新增「角色卡知识库」：可为角色卡维护独立知识条目并合并进每回合召回，同时支持导入 SillyTavern 世界书 JSON
+- 支持 DeepSeek 思考模式：可设置 `reasoning_effort`，并在多轮对话中回放 `reasoning_content`
+- 局域网访问：服务默认监听局域网，新增 `--host` 绑定与侧栏二维码，手机扫码即可继续对话
+- 移动端交互增强：长按菜单、触摸拖拽排序、键盘弹出时保持布局稳定，初始化失败可重试
+
+#### 改进
+
+- 酒馆数据改为保存在主机本地（默认 `~/.tavern-harness`），访问同一实例的浏览器共享数据；首次启动会自动迁移浏览器中的旧数据，界面语言与主题仍按浏览器分别保存
+- 用户气泡、思考面板与工具卡改用不同底色和左侧色条区分，消息操作栏与内联编辑器更紧凑
+
+#### 修复
+
+- 角色工坊调整技能顺序后会先保存顺序再刷新列表
+- 修复移动端长弹窗内容超出屏幕后无法滚动
+
+#### 内部
+
+- 新增宿主端持久化服务与共享数据层，拆分持久化请求体限制并复用同源校验
+- 版本记录改由 `changelog/v*.md` 生成 JSON 与 `CHANGELOG.md`，并加入文件、tag、版本号一致性测试
+
+### English
+
+#### Added
+
+- Version history in Settings → About, covering every release since v0.1.1; an unseen dot marks new notes in the sidebar and settings, and `tavern-harness --version` prints the current version
+- Character Book knowledge tab in the world book editor: keep per-character knowledge entries, merge them into each turn's recall, and import SillyTavern world info JSON
+- DeepSeek thinking support: set `reasoning_effort` and replay `reasoning_content` across turns
+- LAN access: the server listens on the LAN by default, with `--host` binding and a sidebar QR code for continuing on a phone
+- Mobile interaction upgrades: long-press menus, touch drag sorting, a stable layout while the keyboard opens, and retryable initialization failures
+
+#### Changed
+
+- Tavern data is now stored on the host (default `~/.tavern-harness`) and shared by browsers using the same instance; existing browser data is migrated automatically on first launch, while language and theme remain per browser
+- User bubbles, thinking panels and tool cards now use distinct surfaces and left rails; message actions and the inline editor are more compact
+
+#### Fixed
+
+- Skill order is saved before the character workshop refreshes its list
+- Long modals can scroll again on mobile
+
+#### Internal
+
+- Added the host persistence service and shared data layer, split persistence body limits, and reused same-origin validation
+- Release notes are generated from `changelog/v*.md` into JSON and `CHANGELOG.md`, with tests for file/tag/version consistency
+
 ## [0.1.12] - 2026-10-16
 
 ### 中文
@@ -278,6 +330,7 @@
 - Vite + React + Zustand + Dexie stack with browser-side local persistence
 
 <!-- 链接定义 -->
+[0.1.13]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.12...v0.1.13
 [0.1.12]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.11...v0.1.12
 [0.1.11]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.10...v0.1.11
 [0.1.10]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.9...v0.1.10
