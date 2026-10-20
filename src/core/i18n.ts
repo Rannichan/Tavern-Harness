@@ -8,7 +8,7 @@ import type { AppLanguage } from '../types/models';
 //                  读取当前语言模块级快照
 // - setLanguage(): 由 store 在初始化与切换语言时调用（设置 <html lang> + 通知订阅者）
 // - 键前缀约定：common. nav. chat. settings. workshop. stats. dash. header. newSession.
-//               gameplay. confirm. deleteConfirm. toast. tool. ach. achModal. display. prompt. builtinNpc.
+//               gameplay. confirm. deleteConfirm. toast. tool. ach. achModal. display. prompt. builtinNpc. changelog.
 // ============================================================
 
 type LangKey = Exclude<AppLanguage, null>;
@@ -212,11 +212,25 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'settings.language': '🌐 界面语言/Language',
     'settings.languageLabel': '界面语言/Language',
     'settings.followBrowser': '跟随系统语言',
+    'settings.aboutTitle': '📖 关于 Tavern Harness',
+    'settings.aboutDesc': '当前版本 v{version}。',
+    'settings.viewChangelog': '查看版本记录',
     'settings.resetTitle': '⚠️ 重置当前酒馆',
-    'settings.resetDesc': '清除当前酒馆的全部本地数据并恢复初始状态，不影响其他端口或浏览器中打开的酒馆。',
+    'settings.resetDesc': '清除当前酒馆的全部本地数据。',
     'settings.resetBtn': '重置当前酒馆',
     'settings.resetConfirmTitle': '重置当前酒馆',
     'settings.resetConfirm': '确定重置当前酒馆吗？所有对话、角色、世界书、技能、模型服务与统计数据都会被删除，且无法恢复。其他端口或浏览器中打开的酒馆不受影响。',
+
+    // ---- 版本记录（设置 → 关于） ----
+    'changelog.title': '版本记录',
+    'changelog.current': '当前版本 v{version}',
+    'changelog.currentTag': '当前',
+    'changelog.breaking': '需要操作',
+    'changelog.added': '新增',
+    'changelog.changed': '改进',
+    'changelog.fixed': '修复',
+    'changelog.internal': '内部改动',
+    'changelog.unseen': '有新版本记录',
 
     // ---- 内置角色「酒馆老板」（首次启动种子数据，随语言切换） ----
     'builtinNpc.name': '酒馆老板',
@@ -691,11 +705,25 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'settings.language': '🌐 介面語言/Language',
     'settings.languageLabel': '介面語言/Language',
     'settings.followBrowser': '跟隨系統語言',
+    'settings.aboutTitle': '📖 關於 Tavern Harness',
+    'settings.aboutDesc': '目前版本 v{version}。',
+    'settings.viewChangelog': '檢視版本記錄',
     'settings.resetTitle': '⚠️ 重設目前酒館',
-    'settings.resetDesc': '清除目前酒館的所有本機資料並還原為初始狀態，不影響其他連接埠或瀏覽器中開啟的酒館。',
+    'settings.resetDesc': '清除目前酒館的所有本機資料。',
     'settings.resetBtn': '重設目前酒館',
     'settings.resetConfirmTitle': '重設目前酒館',
     'settings.resetConfirm': '確定要重設目前酒館嗎？所有對話、角色、世界書、技能、模型服務與統計資料都會被刪除，且無法復原。其他連接埠或瀏覽器中開啟的酒館不受影響。',
+
+    // ---- 版本記錄（設定 → 關於） ----
+    'changelog.title': '版本記錄',
+    'changelog.current': '目前版本 v{version}',
+    'changelog.currentTag': '目前',
+    'changelog.breaking': '需要操作',
+    'changelog.added': '新增',
+    'changelog.changed': '改進',
+    'changelog.fixed': '修復',
+    'changelog.internal': '內部改動',
+    'changelog.unseen': '有新版本記錄',
 
     // ---- 內建角色「酒館老闆」（首次啟動種子資料，隨語言切換） ----
     'builtinNpc.name': '酒館老闆',
@@ -1161,11 +1189,25 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'settings.language': '🌐 Interface Language',
     'settings.languageLabel': 'Interface Language',
     'settings.followBrowser': 'Follow system language',
+    'settings.aboutTitle': '📖 About Tavern Harness',
+    'settings.aboutDesc': 'Current version v{version}.',
+    'settings.viewChangelog': 'View version history',
     'settings.resetTitle': '⚠️ Reset this tavern',
-    'settings.resetDesc': 'Clear all local data for this tavern and restore its initial state. Other ports and browser instances are unaffected.',
+    'settings.resetDesc': 'Clear all local data for this tavern.',
     'settings.resetBtn': 'Reset this tavern',
     'settings.resetConfirmTitle': 'Reset this tavern',
     'settings.resetConfirm': 'Reset this tavern? All conversations, characters, lorebooks, skills, model providers, and statistics will be deleted and cannot be restored. Other ports and browser instances are unaffected.',
+
+    // ---- Version history (Settings → About) ----
+    'changelog.title': 'Version history',
+    'changelog.current': 'Current version v{version}',
+    'changelog.currentTag': 'Current',
+    'changelog.breaking': 'Action required',
+    'changelog.added': 'Added',
+    'changelog.changed': 'Changed',
+    'changelog.fixed': 'Fixed',
+    'changelog.internal': 'Internal',
+    'changelog.unseen': 'New release notes',
 
     // ---- Built-in NPC "Tavern Keeper" (seeded on first launch, follows language) ----
     'builtinNpc.name': 'Tavern Keeper',

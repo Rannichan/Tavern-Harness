@@ -10,6 +10,7 @@ import { NewSessionMenu } from './NewSessionMenu';
 import { useT } from '../core/i18n';
 import { useTouchLongPress } from '../core/longPress';
 import { fixedViewportPoint } from '../core/viewport';
+import { useHasUnseenVersion } from '../core/version';
 import { PopoverMenu } from './PopoverMenu';
 
 const SIDEBAR_MIN = 240;
@@ -36,6 +37,7 @@ export function Sidebar() {
   const togglePin = useStore((s) => s.togglePin);
   const addToast = useStore((s) => s.addToast);
   const t = useT();
+  const hasUnseenVersion = useHasUnseenVersion();
 
   const [showNew, setShowNew] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<ChatSession | null>(null);
@@ -243,6 +245,7 @@ export function Sidebar() {
           </button>
           <button className={`nav-chip ${activeView === 'settings' ? 'active' : ''}`} onClick={() => setActiveView('settings')}>
             <Icon name="settings" size={15} /> <span>{t('nav.settings')}</span>
+            {hasUnseenVersion && <span className="unseen-dot" title={t('changelog.unseen')} />}
           </button>
         </nav>
       </div>
@@ -286,6 +289,7 @@ export function Sidebar() {
           </button>
           <button className={`nav-chip ${activeView === 'settings' ? 'active' : ''}`} onClick={() => setActiveView('settings')}>
             <Icon name="settings" size={13} /> {t('nav.settings')}
+            {hasUnseenVersion && <span className="unseen-dot" title={t('changelog.unseen')} />}
           </button>
         </div>
       </div>

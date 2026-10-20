@@ -81,6 +81,44 @@ Open an issue with:
 
 Remove API keys, tokens, personal information, and private conversation content before sharing logs or exports.
 
+## Releases and Changelog
+
+Every npm version has exactly one file in [`changelog/`](changelog/), named `v<major>.<minor>.<patch>.md`. The file is the single source of truth; `src/generated/changelog.json` and `CHANGELOG.md` are generated from it and must not be edited by hand.
+
+Adding an entry while developing:
+
+```bash
+npm run changelog:new -- --version 0.1.13 --write   # drafts from commits since the last tag
+# edit changelog/v0.1.13.md: user-facing Chinese + English bullets
+npm run changelog:build                             # regenerates JSON and CHANGELOG.md
+npm run changelog:check                             # verifies tag/file/version consistency
+```
+
+Release order matters: `npm run changelog:check` requires the newest changelog version to equal `package.json.version`. While that version is still unreleased (no tag yet), check and `npm test` only **warn** that the tag is missing; every older version must still have a matching tag, and a tag must never point at a missing file. Publishing is stricter: `prepublishOnly` runs `changelog:check:release`, which turns the missing tag on the current version into an error. A release therefore goes:
+
+```bash
+git status                                          # clean tree
+npm test                                            # green before bumping
+npm version 0.1.13 --no-git-tag-version             # bump package.json + lockfile only
+npm run changelog:new -- --version 0.1.13 --write   # draft from the last tag
+$EDITOR changelog/v0.1.13.md                        # rewrite into user-facing Chinese + English
+npm run changelog:build                             # regenerate JSON / CHANGELOG.md
+npm test && npm run build                           # tag still missing: warning, not an error
+git add -A && git commit -m "chore(release): v0.1.13"
+git tag -a v0.1.13 -m 0.1.13
+npm run changelog:check:release                     # now the tag is required and must match
+git push --follow-tags && npm publish               # prepublishOnly re-runs build + release check
+```
+
+If a release has to be aborted before the commit, restore `package.json` and delete the draft file; nothing is published until the final step.
+
+Guidelines for entries:
+
+- Write for players, not committers: describe what changed and why it matters.
+- Keep `新增 / 改进 / 修复` short; put refactors, docs, and tooling under `内部`.
+- Set `breaking: true` when users must act (data migration, config changes, CLI flags); the app highlights these.
+- Traditional Chinese falls back to Simplified Chinese in the app; only Chinese and English need to be written.
+
 ## License
 
 By contributing, you agree that your contributions are licensed under the repository's [MIT License](LICENSE).

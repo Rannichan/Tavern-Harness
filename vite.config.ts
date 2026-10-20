@@ -13,6 +13,9 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 
 const projectRoot = dirname(fileURLToPath(import.meta.url));
 
+// 运行时版本号只在构建时从 package.json 注入，避免应用读文件或请求 npm registry
+const pkg = JSON.parse(readFileSync(join(projectRoot, 'package.json'), 'utf8')) as { version: string };
+
 /**
  * 浏览器同源校验：Origin 必须存在且与请求的 Host 一致；`Sec-Fetch-Site` 若存在
  * 必须是 same-origin（部分手机浏览器访问局域网地址时不发 fetch metadata，
@@ -431,6 +434,9 @@ function sandboxProxyPlugin(): Plugin {
 
 export default defineConfig({
   plugins: [react(), lanAddressPlugin(), corsProxyPlugin(), persistenceProxyPlugin(), sandboxProxyPlugin()],
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+  },
   optimizeDeps: {
     force: true,
     include: [

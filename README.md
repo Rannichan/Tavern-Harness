@@ -134,6 +134,14 @@ Tavern Harness has no external harness dependency, and its UI is designed for a 
 
 > The tavern is open 24 hours a day, and the Keeper is always here to help.
 
+## 5 · Changelog
+
+Every npm release is recorded in [`changelog/`](changelog/): one file per version, matched one-to-one with a git tag.
+
+- Read the full history: [CHANGELOG.md](https://github.com/Rannichan/Tavern-Harness/blob/main/CHANGELOG.md)
+- In the app: **Settings → About → View version history**
+- Maintainers: follow the release steps in [CONTRIBUTING](CONTRIBUTING.md#releases-and-changelog).
+
 ## License
 
 This project is licensed under the [MIT License](LICENSE).

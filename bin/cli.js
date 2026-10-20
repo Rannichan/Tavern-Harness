@@ -7,18 +7,25 @@
 //                              会打开顺延后的实际端口）
 //   tavern-harness --host 127.0.0.1 仅监听本机
 //   tavern-harness --workspace /path  指定生成技能文件工作区
+//   tavern-harness --version   输出当前 npm 包版本
 //
 // Requires Node.js 22.5+ because server-side data is stored with node:sqlite.
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { readFileSync } from 'node:fs';
 import { createServer } from 'vite';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');              // 包根目录
 const configFile = join(root, 'vite.config.ts'); // 复用现有配置（cors 代理 / sandbox 懒启动都在里面）
+const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 
 // ---- 解析命令行参数 ----
 const args = process.argv.slice(2);
+if (args.includes('--version') || args.includes('-v')) {
+  console.log(pkg.version);
+  process.exit(0);
+}
 let open = true; // 默认自动打开浏览器
 let port;
 let host = '0.0.0.0';
@@ -48,7 +55,7 @@ try {
   });
   await server.listen();
   server.printUrls();
-  console.log('\nTavern Harness 已启动，浏览器应已自动打开（未打开可手动访问上面 Local 地址）。按 Ctrl+C 停止。');
+  console.log(`\nTavern Harness v${pkg.version} 已启动，浏览器应已自动打开（未打开可手动访问上面 Local 地址）。按 Ctrl+C 停止。`);
 
   process.on('SIGINT', async () => {
     await server.close();

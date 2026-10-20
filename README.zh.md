@@ -135,6 +135,14 @@ Tavern Harness 针对提高缓存命中率进行了优化，显著降低了 Toke
 
 > 酒馆24小时营业，老板随时为您服务！
 
+## 5 · 版本记录
+
+每一次 npm 发布都会记录在 [`changelog/`](changelog/) 目录中：一个版本一个文件，并与 git tag 一一对应。
+
+- 查看完整记录：[CHANGELOG.md](https://github.com/Rannichan/Tavern-Harness/blob/main/CHANGELOG.md)
+- 应用内查看：**设置 → 关于 → 查看版本记录**
+- 维护者：发布步骤见 [CONTRIBUTING](CONTRIBUTING.md#releases-and-changelog)。
+
 ## 开源协议
 
 本项目采用 [MIT License](LICENSE) 开源协议。

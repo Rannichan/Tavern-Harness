@@ -7,6 +7,8 @@ import { Icon, Modal } from './shared';
 import { DeleteConfirmDialog } from './DeleteConfirmDialog';
 import { isProxyUrl, isNetworkLikeError, toProxyUrl } from '../core/proxy';
 import { useT } from '../core/i18n';
+import { APP_VERSION, useHasUnseenVersion } from '../core/version';
+import { VersionHistoryModal } from './VersionHistoryModal';
 
 // ============================================================
 // 设置视图（模型服务 / 超参数 / 主题）
@@ -20,7 +22,9 @@ export function SettingsView() {
   const refreshProviders = useStore((s) => s.refreshProviders);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
   const t = useT();
+  const hasUnseenVersion = useHasUnseenVersion();
 
   if (!settings) return null;
 
@@ -197,6 +201,20 @@ export function SettingsView() {
           </div>
         </div>
 
+        <div className="set-section settings-about-section">
+          <div>
+            <h3>{t('settings.aboutTitle')}</h3>
+            <p className="settings-reset-desc">{t('settings.aboutDesc', { version: APP_VERSION })}</p>
+          </div>
+          <button
+            className="btn settings-about-button"
+            onClick={() => setShowVersionHistory(true)}
+          >
+            <Icon name="book" size={14} /> {t('settings.viewChangelog')}
+            {hasUnseenVersion && <span className="unseen-dot" title={t('changelog.unseen')} />}
+          </button>
+        </div>
+
         <div className="set-section settings-reset-section">
           <div>
             <h3>{t('settings.resetTitle')}</h3>
@@ -207,6 +225,8 @@ export function SettingsView() {
           </button>
         </div>
       </div>
+
+      {showVersionHistory && <VersionHistoryModal onClose={() => setShowVersionHistory(false)} />}
 
       {showResetConfirm && (
         <Modal onClose={() => !resetting && setShowResetConfirm(false)} width="min(420px, calc(100vw - 32px))">

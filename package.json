@@ -16,7 +16,8 @@
     "sandbox-server.mjs",
     "persistence-server.mjs",
     "tsconfig.json",
-    "README.md"
+    "README.md",
+    "CHANGELOG.md"
   ],
   "engines": {
     "node": ">=22.6.0"
@@ -35,7 +36,12 @@
     "test:long-press": "node --experimental-strip-types --test long-press.test.mjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test:preview-persistence": "node preview-persistence.test.mjs"
+    "test:preview-persistence": "node preview-persistence.test.mjs",
+    "changelog:new": "node scripts/changelog.mjs new",
+    "changelog:build": "node scripts/changelog.mjs build",
+    "changelog:check": "node scripts/changelog.mjs check",
+    "changelog:check:release": "node scripts/changelog.mjs check --release",
+    "prepublishOnly": "npm run build && npm run changelog:check:release"
   },
   "dependencies": {
     "@codemirror/lang-json": "^6.0.2",
