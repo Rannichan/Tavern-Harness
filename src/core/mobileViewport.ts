@@ -9,13 +9,19 @@
  * - 键盘收起、视口长过已知的“关闭高度”时，先按关闭高度排版（多出的部分由工具栏覆盖）；
  * - 等视口真正回到该高度后再恢复跟随；
  * - 键盘弹起前紧邻的小幅地址栏/工具栏变化（约 17px）先按住 80ms，
- *   若紧接着是键盘的大幅收缩就合并成一次位移。
+ *   若紧接着是键盘的大幅收缩就合并成一次位移；
+ * - 收起键盘时底部地址栏会先挤到键盘上方（视口再矮约 57px），这部分被键盘盖住，
+ *   壳层保持不动，避免输入框先被顶上去、等工具栏滑走后再落回底部。
  *
  * Edge Android 上壳层始终使用显式像素高度（而不是 100%）：
  * 即使 resize 事件晚于绘制，壳层也只会停在旧高度，不会先跟到 822 再弹回 765。
  * 其他浏览器默认继续用 100% 跟随，只有真正观察到“关闭时超过已知高度”才切换为像素高度。
  *
  * 只在移动端断点内生效；桌面端会移除变量，不受影响。
+ *
+ * 此外对外提供 `isVirtualKeyboardOpen()` / `wasVirtualKeyboardOpenAtTouchStart()`：
+ * 触屏长按手势需要知道软键盘是否（或手势开始时是否）弹出，以便在输入期间
+ * 抑制长按菜单。
  */
 
 // 显式带 .ts 后缀：本文件被 mobile-viewport.test.mjs 直接 import，
@@ -31,6 +37,8 @@ const SMALL_CHANGE_HOLD_MS = 80;
 const OPEN_SETTLE_MS = 40;
 /** 工具栏一直不归位时（极少见），多久后接受当前高度。 */
 const CLOSE_SETTLE_MS = 300;
+/** 键盘展开期间，底部地址栏/工具栏最多能挤占的高度（约 57px，留出候选栏余量）。 */
+const TOOLBAR_SQUEEZE_PX = 96;
 
 let started = false;
 let lastHeight = 0;
@@ -41,6 +49,8 @@ let closedCandidate = 0;
 let closedHeight = 0;
 let keyboardOpen = false;
 let focused = false;
+/** 最近一次触摸开始时软键盘是否弹出（长按判定可能晚于键盘收起）。 */
+let keyboardAtLastTouch = false;
 let pendingSmall: number | null = null;
 let holdBaseHeight = 0;
 let holdTimer = 0;
@@ -108,6 +118,7 @@ function reset(): void {
   closedHeight = lastHeight;
   keyboardOpen = false;
   focused = false;
+  keyboardAtLastTouch = false;
   pendingSmall = null;
   holdBaseHeight = 0;
   // 需要显式像素高度时（Edge Android，或已观察到工具栏延迟归位）按当前高度排版；
@@ -161,6 +172,75 @@ export function clampDuringClose(height: number, closedHeight: number): number |
   return height > closedHeight + 2 ? closedHeight : null;
 }
 
+/**
+ * 键盘展开期间，视口比壳层当前高度矮、但只矮了一点：多半是底部地址栏/
+ * 工具栏挤到了键盘上方（Edge Android 收起键盘时地址栏会先占住页面底部）。
+ *
+ * 多出来的部分被键盘盖住，壳层不应该跟着压矮：否则输入框会先从键盘顶部
+ * 上浮一点、停在那里，等键盘和地址栏都收起后再落回页面底部。超过工具栏
+ * 高度的变化视为键盘本身变高，仍然要跟随，否则输入框会被藏到键盘后面。
+ *
+ * @param height 当前布局视口高度
+ * @param shellHeight 壳层当前使用的像素高度（不跟随时为 null）
+ * @param maxShortfall 允许被工具栏挤占的最大高度
+ */
+export function isToolbarSqueeze(
+  height: number,
+  shellHeight: number | null,
+  maxShortfall = TOOLBAR_SQUEEZE_PX,
+): boolean {
+  if (shellHeight == null) return false;
+  const shortfall = shellHeight - height;
+  return shortfall > 0 && shortfall <= maxShortfall;
+}
+
+/**
+ * 视觉视口是否明显矮于布局视口。
+ *
+ * Android 声明 `interactive-widget=resizes-content` 后会直接缩小布局视口，
+ * 由 `keyboardOpen` 判断即可；iOS Safari 不认该声明，`innerHeight` 不变，
+ * 只有 `visualViewport.height` 会按键盘高度收缩，这里用高度差兜底。
+ *
+ * 视觉视口会随页面缩放一起变小（双指缩放 / iOS 输入框自动放大），
+ * 所以先按 `scale` 折算“没有键盘时的预期高度”，再判断是否被键盘压矮。
+ */
+export function isKeyboardViewportShrunk(
+  visualHeight: number,
+  layoutHeight: number,
+  scale = 1,
+  threshold = KEYBOARD_DELTA_PX,
+): boolean {
+  const expectedHeight = layoutHeight / Math.max(scale, 1);
+  return visualHeight <= expectedHeight - threshold;
+}
+
+/**
+ * 软键盘是否处于弹出状态。
+ *
+ * 用于抑制键盘弹出期间的长按右键菜单：此时用户仍在输入，长按多半是
+ * 想移动光标 / 滚动内容，不应弹出自定义菜单。
+ */
+export function isVirtualKeyboardOpen(): boolean {
+  if (keyboardOpen) return true;
+  // iOS 等只收缩 visualViewport 的浏览器：键盘会把视觉视口压矮一大截，
+  // 地址栏 / 工具栏的小幅变化和页面缩放（在 isKeyboardViewportShrunk 中折算）
+  // 都不会触发。
+  const viewport = window.visualViewport;
+  return viewport != null
+    && isKeyboardViewportShrunk(viewport.height, window.innerHeight, viewport.scale);
+}
+
+/**
+ * 最近一次触摸开始时软键盘是否弹出。
+ *
+ * 长按菜单要等 500ms 才判定，触摸本身可能先让输入框失焦、系统随即收起键盘；
+ * 没有接入 `useTouchLongPress` 的原生 contextmenu（例如对话压缩横幅）只能靠
+ * 手势开始时的状态兜底。
+ */
+export function wasVirtualKeyboardOpenAtTouchStart(): boolean {
+  return keyboardAtLastTouch;
+}
+
 function onResize(): void {
   if (!isMobileViewport()) {
     reset();
@@ -203,6 +283,9 @@ function onResize(): void {
       closeSettled(height);
       return;
     }
+    // 底部地址栏/工具栏先挤到键盘上方：多的部分被键盘盖住，保持壳层高度。
+    // 跟随这次变矮会让输入框先上浮、停一会儿再落回底部，正是要避免的跳动。
+    if (isToolbarSqueeze(height, appliedHeight)) return;
     // 仍在收起动画中（视口还没长到关闭高度），跟随
     followViewport(height);
     if (delta > 0) scheduleCloseSettle();
@@ -249,6 +332,16 @@ export function initMobileViewport(): void {
   window.addEventListener('resize', onResize);
   // visualViewport 的 resize 有时比 window.resize 更早到达，先设好 --app-height
   window.visualViewport?.addEventListener('resize', onResize);
+  // 触摸刚开始时记下键盘状态：后续长按期间键盘可能被系统收起。
+  // 用 pointerdown 而不是 touchstart：它在焦点默认行为之前触发，能可靠地
+  // 读到“点击空白处之前”的键盘状态。
+  document.addEventListener(
+    'pointerdown',
+    (event) => {
+      if (event.pointerType === 'touch') keyboardAtLastTouch = isVirtualKeyboardOpen();
+    },
+    { capture: true, passive: true },
+  );
   document.addEventListener(
     'focusin',
     (event) => {

@@ -67,6 +67,33 @@ export function isTouchContextMenu(
 }
 
 /**
+ * 软键盘弹出时，手势结束时是否应主动让输入框失焦（收起键盘）。
+ *
+ * 只有点击才失焦：滑动页面必须保留焦点，否则用户一滚动聊天记录键盘就没了；
+ * 长按已经由 `triggeredRef` 标记（可能是在选词或拖动光标），同样不算点击。
+ */
+export function shouldBlurAfterTap(
+  keyboardOpenAtDown: boolean,
+  moved: boolean,
+  longPressed: boolean,
+): boolean {
+  return keyboardOpenAtDown && !moved && !longPressed;
+}
+
+/**
+ * 软键盘弹出期间，触摸长按（以及系统随后补发的 contextmenu）不应弹出菜单。
+ *
+ * 鼠标右键不受影响：同一台设备可能既连着鼠标又弹着软键盘。
+ */
+export function shouldSuppressTouchContextMenu(
+  source: Pick<ContextMenuSource, 'pointerType' | 'firesTouchEvents' | 'sinceTouchDown'>,
+  keyboardOpen: boolean,
+  touchWindowMs = TOUCH_CONTEXT_MENU_WINDOW_MS,
+): boolean {
+  return keyboardOpen && isTouchContextMenu(source, touchWindowMs);
+}
+
+/**
  * 是否忽略这次原生 contextmenu。
  *
  * 触摸长按时自定义计时器已经弹出菜单，随后系统补发的 contextmenu 若再按

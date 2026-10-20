@@ -10,7 +10,7 @@ import { onChatScroll, onQueueScroll, onQueueScrollIntent, registerChatEl, regis
 import { useT, translate } from '../core/i18n';
 import { escapeRegExp, prettyJson, trimEdgeNewlines } from '../core/strings';
 import { copyText } from '../core/clipboard';
-import { clearTextSelection, useTouchLongPress } from '../core/longPress';
+import { clearTextSelection, shouldSuppressContextMenuWhileTyping, useTouchLongPress } from '../core/longPress';
 import { fixedViewportPoint } from '../core/viewport';
 import { keepStickyBottom } from '../core/stickyBottom';
 import { PopoverMenu } from './PopoverMenu';
@@ -215,6 +215,10 @@ export function ChatView({
                   className="sys-banner fade-up compression-banner"
                   onContextMenu={(e) => {
                     e.preventDefault();
+                    // 软键盘弹出期间不响应触摸长按，避免菜单打断输入；
+                    // 触摸可能先让输入框失焦并收起键盘，还要看手势开始时的状态。
+                    // 鼠标右键不受影响。
+                    if (shouldSuppressContextMenuWhileTyping(e.nativeEvent)) return;
                     const compression = compressionsByEndMessageId.get(m.id!);
                     if (compression) openCompressionMenu(e, compression.summary, compression, t('chat.contextCompressed'));
                   }}

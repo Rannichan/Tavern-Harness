@@ -6,7 +6,9 @@ import {
   TOUCH_CONTEXT_MENU_WINDOW_MS,
   exceedsMoveTolerance,
   isTouchContextMenu,
+  shouldBlurAfterTap,
   shouldIgnoreContextMenu,
+  shouldSuppressTouchContextMenu,
   shouldTrackLongPress,
 } from './src/core/longPressGesture.ts';
 import { isWeChatAndroidUa } from './src/core/wechatTouch.ts';
@@ -77,6 +79,39 @@ test('shouldIgnoreContextMenu dedupes only the contextmenu of a menu that alread
       sinceTouchDown: TOUCH_CONTEXT_MENU_WINDOW_MS + 1,
       sinceLongPress: 0,
     }),
+    false,
+  );
+});
+
+test('shouldBlurAfterTap only dismisses the keyboard for a tap, not a scroll or long press', () => {
+  // 键盘弹出时点击空白处：输入框失焦、键盘收起。
+  assert.equal(shouldBlurAfterTap(true, false, false), true);
+  // 滑动页面（发生位移）：保留焦点和键盘。
+  assert.equal(shouldBlurAfterTap(true, true, false), false);
+  // 长按（选词 / 移光标）不算点击：保留焦点和键盘。
+  assert.equal(shouldBlurAfterTap(true, false, true), false);
+  // 键盘本来就没弹出：不额外改变焦点。
+  assert.equal(shouldBlurAfterTap(false, false, false), false);
+  assert.equal(shouldBlurAfterTap(false, true, false), false);
+});
+
+test('shouldSuppressTouchContextMenu only blocks touch menus while the keyboard is open', () => {
+  // 软键盘弹出：长按与系统补发的 contextmenu 都不弹菜单。
+  assert.equal(shouldSuppressTouchContextMenu({ pointerType: 'touch', sinceTouchDown: 10 }, true), true);
+  // 鼠标右键不受影响（混合设备可能同时连着鼠标、弹着软键盘）。
+  assert.equal(
+    shouldSuppressTouchContextMenu({ pointerType: 'mouse', sinceTouchDown: Infinity }, true),
+    false,
+  );
+  // 键盘收起后恢复触摸长按菜单。
+  assert.equal(shouldSuppressTouchContextMenu({ pointerType: 'touch', sinceTouchDown: 10 }, false), false);
+  // 老 WebView 没有 pointerType 时仍按触摸时间窗判断。
+  assert.equal(
+    shouldSuppressTouchContextMenu({ sinceTouchDown: TOUCH_CONTEXT_MENU_WINDOW_MS }, true),
+    true,
+  );
+  assert.equal(
+    shouldSuppressTouchContextMenu({ sinceTouchDown: TOUCH_CONTEXT_MENU_WINDOW_MS + 1 }, true),
     false,
   );
 });
