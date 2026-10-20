@@ -23,6 +23,8 @@ import type { NpcCharacter, WorldBook, McpTool } from '../types/models';
 import { Avatar, Icon, MasonryGrid, Markdown, Modal } from './shared';
 import { DeleteConfirmDialog } from './DeleteConfirmDialog';
 import { parseSillyTavernCardFile } from '../core/sillyTavernImporter';
+import { parseSillyTavernWorldInfoFile } from '../core/sillyTavernWorldInfo';
+import { characterBookEntryStats } from '../core/characterBook';
 import { ALL_BUILTIN_TOOL_NAMES } from '../core/toolDefinitions';
 import { useT } from '../core/i18n';
 
@@ -153,7 +155,7 @@ function CharacterGrid({ npcs, onEdit, onImportPng }: { npcs: NpcCharacter[]; on
         <span className="group-label" style={{ margin: 0 }}>{t('workshop.charCount', { n: npcs.length })}</span>
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn btn-sm" onClick={onImportPng} title={t('workshop.pngImportTip')}>
-            <Icon name="import" size={13} /> {t('workshop.pngImport')}
+            <img className="btn-logo-icon" src="/sillytavern-logo.png" alt="" /> {t('workshop.pngImport')}
           </button>
           <button
             className="btn btn-primary btn-sm"
@@ -292,9 +294,9 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
   };
 
   return (
-    <Modal onClose={onClose} className="modal-editor character-editor-modal">
+    <Modal onClose={onClose} className="modal-editor editor-modal-with-tabs character-editor-modal">
       <div className="modal-head">
-            <span style={{ fontWeight: 800, fontSize: 15 }}>{isNew ? t('workshop.newCharTitle') : t('workshop.editCharTitle', { name: npc.name })}</span>
+            <span style={{ fontWeight: 800, fontSize: 15 }}>{isNew ? t('workshop.newCharTitle') : t('workshop.editCharTitle')}</span>
             <div className="raw-tabs">
               <button className={`raw-tab ${editorTab === 'character' ? 'active' : ''}`} onClick={() => setEditorTab('character')}>{t('workshop.characterTab')}</button>
               <button
@@ -431,34 +433,87 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
 
 // ---------------- Lorebook ----------------
 
+type WorldBookDraft = WorldBook | {
+  name: string;
+  content: string;
+  characterBook?: string;
+  imageUri: null;
+  createdAt: number;
+};
+
 function WorldBookList({ books, onChanged }: {
   books: WorldBook[];
   onChanged: () => void;
 }) {
   const addToast = useStore((s) => s.addToast);
   const t = useT();
-  const [editing, setEditing] = useState<WorldBook | { name: string; content: string; imageUri: null; createdAt: number } | null>(null);
-  const [renderMarkdown, setRenderMarkdown] = useState(false);
+  const [editing, setEditing] = useState<WorldBookDraft | null>(null);
+  const [editorTab, setEditorTab] = useState<'worldbook' | 'knowledge'>('worldbook');
   const [pendingDelete, setPendingDelete] = useState<WorldBook | null>(null);
+  const jsonFileRef = useRef<HTMLInputElement>(null);
 
   const closeEditor = () => {
     setEditing(null);
   };
 
-  const saveWb = async (name: string, content: string) => {
-    if (!name.trim() || !content.trim()) {
+  const openEditor = (draft: WorldBookDraft, tab: 'worldbook' | 'knowledge' = 'worldbook') => {
+    setEditorTab(tab);
+    setEditing(draft);
+  };
+
+  const saveWb = async (name: string, content: string, characterBook: string) => {
+    const knowledge = characterBook.trim();
+    if (!name.trim()) {
+      addToast(t('toast.wbNameRequired'), 'error');
+      return;
+    }
+    if (!content.trim() && !knowledge) {
       addToast(t('toast.wbNameContentRequired'), 'error');
       return;
     }
+    if (knowledge) {
+      try {
+        JSON.parse(knowledge);
+      } catch {
+        addToast(t('toast.knowledgeInvalidJson'), 'error');
+        return;
+      }
+    }
+    const data = {
+      name: name.trim(),
+      content,
+      characterBook: knowledge || undefined,
+    };
     if (editing && 'id' in editing && editing.id != null) {
-      await db.worldBooks.update(editing.id, { name: name.trim(), content });
+      await db.worldBooks.update(editing.id, data);
       addToast(t('toast.wbUpdated'));
     } else {
-      await db.worldBooks.add({ name: name.trim(), content, imageUri: null, createdAt: Date.now() });
+      await db.worldBooks.add({ ...data, imageUri: null, createdAt: Date.now() });
       addToast(t('toast.wbCreated'));
     }
     setEditing(null);
     onChanged();
+  };
+
+  const importWorldInfo = async (file: File) => {
+    try {
+      const imported = await parseSillyTavernWorldInfoFile(file, t('workshop.importedWbName'));
+      // 与 PNG 角色卡导入一致：只预填草稿，由用户确认后保存。
+      openEditor({
+        name: imported.name,
+        content: imported.content,
+        characterBook: imported.characterBook,
+        imageUri: null,
+        createdAt: Date.now(),
+      }, 'knowledge');
+      addToast(t('toast.wbImported', {
+        name: imported.name,
+        total: imported.entryCount,
+        enabled: imported.enabledEntryCount,
+      }));
+    } catch (e) {
+      addToast(t('toast.wbImportFailed', { msg: (e as Error).message }), 'error');
+    }
   };
 
   const deleteWb = async (b: WorldBook) => {
@@ -473,11 +528,25 @@ function WorldBookList({ books, onChanged }: {
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
         <span className="group-label" style={{ margin: 0 }}>{t('workshop.wbCount', { n: books.length })}</span>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn btn-primary btn-sm" onClick={() => setEditing({ name: '', content: '', imageUri: null, createdAt: Date.now() })}>
+          <button className="btn btn-sm" onClick={() => jsonFileRef.current?.click()} title={t('workshop.jsonImportTip')}>
+            <img className="btn-logo-icon" src="/sillytavern-logo.png" alt="" /> {t('workshop.jsonImport')}
+          </button>
+          <button className="btn btn-primary btn-sm" onClick={() => openEditor({ name: '', content: '', imageUri: null, createdAt: Date.now() })}>
             <Icon name="plus" size={13} /> {t('workshop.newWb')}
           </button>
         </div>
       </div>
+      <input
+        ref={jsonFileRef}
+        type="file"
+        accept="application/json,.json"
+        hidden
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) void importWorldInfo(f);
+          e.target.value = '';
+        }}
+      />
       {books.length === 0 && (
         <div className="empty-state">
           <div className="big">📖</div>
@@ -487,6 +556,11 @@ function WorldBookList({ books, onChanged }: {
       <MasonryGrid>
         {books.map((b) => {
           const isBuiltin = isBuiltinTavernHandbook(b);
+          const knowledge = characterBookEntryStats(b.characterBook);
+          const meta = [
+            b.content ? t('workshop.wbChars', { n: b.content.length }) : '',
+            knowledge.total > 0 ? t('workshop.wbKnowledgeMeta', { enabled: knowledge.enabled, total: knowledge.total }) : '',
+          ].filter(Boolean).join(' · ');
           return (
             <div key={b.id} className="char-card wb-card fade-up">
               <div className="cname">
@@ -494,10 +568,10 @@ function WorldBookList({ books, onChanged }: {
                 <ScrollingCardName name={b.name} />
                 {isBuiltin && <span className="tag">{t('common.builtin')}</span>}
               </div>
-              <div className="wcontent">{b.content}</div>
-              <div className="cmeta">{t('workshop.wbChars', { n: b.content.length })}</div>
+              <div className="wcontent">{b.content || t('workshop.wbNoContent')}</div>
+              <div className="cmeta">{meta}</div>
               <div className="cactions">
-                <button className="btn btn-sm" onClick={() => setEditing(b)}><Icon name="settings" size={12} /> {t('workshop.browseEdit')}</button>
+                <button className="btn btn-sm" onClick={() => openEditor(b)}><Icon name="settings" size={12} /> {t('workshop.browseEdit')}</button>
                 <button
                   className="btn btn-sm btn-danger"
                   onClick={() => setPendingDelete(b)}
@@ -522,21 +596,14 @@ function WorldBookList({ books, onChanged }: {
       )}
 
       {editing && (
-        <Modal onClose={closeEditor} className="modal-editor">
-          <div className="modal-head">
-            <span style={{ fontWeight: 800, fontSize: 15 }}>{'id' in editing && editing.id != null ? t('workshop.editWbTitle') : t('workshop.newWbTitle')}</span>
-            <div className="modal-head-actions">
-              <div className="raw-wrap-toggle">
-                <span className="raw-wrap-label">{t('workshop.wbMarkdownRender')}</span>
-                <label className="switch">
-                  <input type="checkbox" checked={renderMarkdown} onChange={(e) => setRenderMarkdown(e.target.checked)} />
-                  <span className="switch-slider" />
-                </label>
-              </div>
-              <button className="icon-btn" onClick={closeEditor}><Icon name="x" /></button>
-            </div>
-          </div>
-          <WorldBookForm initial={editing} renderMarkdown={renderMarkdown} onSave={saveWb} onCancel={closeEditor} />
+        <Modal onClose={closeEditor} className="modal-editor editor-modal-with-tabs">
+          <WorldBookForm
+            initial={editing}
+            tab={editorTab}
+            onTabChange={setEditorTab}
+            onSave={saveWb}
+            onClose={closeEditor}
+          />
         </Modal>
       )}
     </div>
@@ -566,40 +633,125 @@ function ScrollingCardName({ name }: { name: string }) {
   );
 }
 
-function WorldBookForm({ initial, renderMarkdown, onSave, onCancel }: { initial: WorldBook | { name: string; content: string; imageUri: null; createdAt: number }; renderMarkdown: boolean; onSave: (n: string, c: string) => void; onCancel: () => void }) {
+function WorldBookForm({
+  initial,
+  tab,
+  onTabChange,
+  onSave,
+  onClose,
+}: {
+  initial: WorldBookDraft;
+  tab: 'worldbook' | 'knowledge';
+  onTabChange: (tab: 'worldbook' | 'knowledge') => void;
+  onSave: (n: string, c: string, k: string) => void;
+  onClose: () => void;
+}) {
   const t = useT();
   const [name, setName] = useState(initial.name);
   const [content, setContent] = useState(initial.content);
+  const [characterBook, setCharacterBook] = useState(initial.characterBook ?? '');
+  const [renderMarkdown, setRenderMarkdown] = useState(false);
   const isBuiltin = isBuiltinTavernHandbook(initial);
+  const knowledge = characterBookEntryStats(characterBook);
+  const isEditing = 'id' in initial && initial.id != null;
 
   const resetToDefault = () => {
     setName(builtinTavernHandbookName());
     setContent(BUILTIN_TAVERN_HANDBOOK_CONTENT);
+    setCharacterBook('');
+  };
+
+  /** 批量启用/停用知识库条目（SillyTavern 导入的条目可能默认停用）。 */
+  const setAllEntriesEnabled = (enabled: boolean) => {
+    try {
+      const parsed: unknown = JSON.parse(characterBook);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return;
+      const record = parsed as Record<string, unknown>;
+      if (!Array.isArray(record.entries)) return;
+      const entries = record.entries.map((entry) => (
+        entry && typeof entry === 'object' && !Array.isArray(entry)
+          ? { ...entry as Record<string, unknown>, enabled }
+          : entry
+      ));
+      setCharacterBook(JSON.stringify({ ...record, entries }, null, 2));
+    } catch {
+      // 无效 JSON 在保存时统一提示
+    }
   };
   return (
     <>
-      <div className="modal-body">
-        <div className="field">
-          <label>{t('workshop.wbName')}</label>
-          {isBuiltinTavernHandbook(initial)
-            ? <div className="skill-detail-text">{name}</div>
-            : <input
-                className="input"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder={t('workshop.wbNamePh')}
-              />}
+      <div className="modal-head">
+        <span style={{ fontWeight: 800, fontSize: 15 }}>
+          {isEditing ? t('workshop.editWbTitle') : t('workshop.newWbTitle')}
+        </span>
+        <div className="raw-tabs">
+          <button className={`raw-tab ${tab === 'worldbook' ? 'active' : ''}`} onClick={() => onTabChange('worldbook')}>
+            {t('workshop.worldBookTab')}
+          </button>
+          <button className={`raw-tab ${tab === 'knowledge' ? 'active' : ''}`} onClick={() => onTabChange('knowledge')}>
+            {t('workshop.knowledgeTab')}
+          </button>
         </div>
-        <div className="field" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-          <label>{t('workshop.wbContentLabel')}</label>
-          {!renderMarkdown ? (
-            <textarea className="textarea grow-textarea" value={content} onChange={(e) => setContent(e.target.value)} placeholder={t('workshop.wbContentPh')} />
-          ) : (
-            <div className="bubble preview-scroll wb-render-pane">
-              {content ? <Markdown text={content} /> : <span style={{ color: 'var(--text-faint)', fontSize: 13 }}>{t('workshop.wbContentPh')}</span>}
+        <div className="modal-head-actions">
+          {tab === 'worldbook' && (
+            <div className="raw-wrap-toggle">
+              <span className="raw-wrap-label">{t('workshop.wbMarkdownRender')}</span>
+              <label className="switch">
+                <input type="checkbox" checked={renderMarkdown} onChange={(e) => setRenderMarkdown(e.target.checked)} />
+                <span className="switch-slider" />
+              </label>
             </div>
           )}
+          <button className="icon-btn" onClick={onClose}><Icon name="x" /></button>
         </div>
+      </div>
+      <div className={`modal-body ${tab === 'knowledge' ? 'knowledge-tab' : ''}`}>
+        {tab === 'worldbook' && <>
+          <div className="field">
+            <label>{t('workshop.wbName')}</label>
+            {isBuiltin
+              ? <div className="skill-detail-text">{name}</div>
+              : <input
+                  className="input"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder={t('workshop.wbNamePh')}
+                />}
+          </div>
+          <div className="field" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+            <label>{t('workshop.wbContentLabel')}</label>
+            {!renderMarkdown ? (
+              <textarea className="textarea grow-textarea" value={content} onChange={(e) => setContent(e.target.value)} placeholder={t('workshop.wbContentPh')} />
+            ) : (
+              <div className="bubble preview-scroll wb-render-pane">
+                {content ? <Markdown text={content} /> : <span style={{ color: 'var(--text-faint)', fontSize: 13 }}>{t('workshop.wbContentPh')}</span>}
+              </div>
+            )}
+          </div>
+        </>}
+        {tab === 'knowledge' && (
+          <div className="field prompt-field character-book-field">
+            <label>{t('workshop.wbKnowledgeLabel')}</label>
+            {knowledge.total > 0 && (
+              <div className="knowledge-bulk-actions">
+                <span>{t('workshop.wbKnowledgeMeta', { enabled: knowledge.enabled, total: knowledge.total })}</span>
+                <button type="button" className="btn btn-sm btn-ghost" onClick={() => setAllEntriesEnabled(true)}>
+                  {t('workshop.knowledgeEnableAll')}
+                </button>
+                <button type="button" className="btn btn-sm btn-ghost" onClick={() => setAllEntriesEnabled(false)}>
+                  {t('workshop.knowledgeDisableAll')}
+                </button>
+              </div>
+            )}
+            <Suspense fallback={<div className="character-book-editor-loading" />}>
+              <CharacterBookEditor
+                value={characterBook}
+                onChange={setCharacterBook}
+                placeholder={t('workshop.wbKnowledgePh')}
+              />
+            </Suspense>
+          </div>
+        )}
       </div>
       <div className="modal-foot">
         {isBuiltin && (
@@ -607,8 +759,8 @@ function WorldBookForm({ initial, renderMarkdown, onSave, onCancel }: { initial:
             <Icon name="refresh" size={12} /> {t('workshop.resetWb')}
           </button>
         )}
-        <button className="btn" onClick={onCancel}>{t('common.cancel')}</button>
-        <button className="btn btn-primary" onClick={() => onSave(name, content)}>{t('common.save')}</button>
+        <button className="btn" onClick={onClose}>{t('common.cancel')}</button>
+        <button className="btn btn-primary" onClick={() => onSave(name, content, characterBook)}>{t('common.save')}</button>
       </div>
     </>
   );

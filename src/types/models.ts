@@ -266,6 +266,8 @@ export interface WorldBook {
   id?: number;
   name: string;
   content: string;
+  /** 世界书的原始 Character Book JSON（与角色卡知识库字段标准完全一致）。 */
+  characterBook?: string;
   imageUri: string | null;
   /** 内置世界书的名称受保护，但内容允许编辑和重置。 */
   isBuiltIn?: boolean;
@@ -286,6 +288,11 @@ export interface NetworkMessage {
   content: string | NetworkContentPart[] | null;
   tool_calls?: NetworkToolCall[];
   tool_call_id?: string;
+  /**
+   * DeepSeek 思考模式要求回传 assistant 消息的 reasoning_content；
+   * 历史消息没有原始思考内容时传空字符串即可满足协议校验。
+   */
+  reasoning_content?: string;
 }
 
 export interface NetworkToolFunction {
@@ -319,6 +326,8 @@ export interface ChatCompletionRequest {
   stream: boolean;
   stream_options?: { include_usage: boolean };
   enable_thinking?: boolean;
+  /** DeepSeek 新版 OpenAI 兼容接口的思考开关。 */
+  thinking?: { type: 'enabled' | 'disabled' };
   reasoning_effort?: string;
   chat_template_kwargs?: { enable_thinking: boolean; preserve_thinking: boolean };
   top_k?: number;

@@ -198,6 +198,38 @@ export function hasUsableCharacterBook(characterBook: string | undefined): boole
   }));
 }
 
+/** 知识库条目统计：总条目数与可参与召回的条目数（已启用且内容非空）。 */
+export function characterBookEntryStats(characterBook: string | undefined): { total: number; enabled: number } {
+  const book = parseCharacterBook(characterBook);
+  const entries = Array.isArray(book?.entries)
+    ? book.entries.map(asRecord).filter(Boolean) as CharacterBookEntry[]
+    : [];
+  let enabled = 0;
+  for (const entry of entries) {
+    if (entry.enabled !== false && typeof entry.content === 'string' && entry.content.trim()) enabled++;
+  }
+  return { total: entries.length, enabled };
+}
+
+/**
+ * 合并多个知识库（Character Book JSON）：角色卡知识库 + 所选世界书知识库。
+ * 召回参数取并集：扫描深度取最大值、预算累加、递归扫描任一开启即开启；
+ * 条目按各自顺序保留，召回时统一按 insertion order 排序。
+ */
+export function mergeCharacterBooks(...sources: Array<string | null | undefined>): string | undefined {
+  const valid = sources
+    .map((source) => ({ source, book: parseCharacterBook(source ?? undefined) }))
+    .filter((item): item is { source: string; book: CharacterBook } => item.book != null && Boolean(item.source?.trim()));
+  if (valid.length === 0) return undefined;
+  if (valid.length === 1) return valid[0].source;
+  return JSON.stringify({
+    scan_depth: Math.max(...valid.map(({ book }) => positiveInt(book.scan_depth, DEFAULT_SCAN_DEPTH))),
+    token_budget: valid.reduce((total, { book }) => total + positiveInt(book.token_budget, DEFAULT_TOKEN_BUDGET), 0),
+    recursive_scanning: valid.some(({ book }) => toBoolean(book.recursive_scanning)),
+    entries: valid.flatMap(({ book }) => (Array.isArray(book.entries) ? book.entries : [])),
+  });
+}
+
 function retrieveCharacterBook(characterBook: string | undefined, messages: NetworkMessage[]): RetrievedCharacterBookContext | null {
   const book = parseCharacterBook(characterBook);
   if (!book) return null;

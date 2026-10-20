@@ -307,6 +307,7 @@ export async function importGameplay(payload: unknown): Promise<ImportGameplayRe
       name: finalName,
       prompt: source.prompt ?? '',
       greeting: source.greeting ?? '',
+      characterBook: source.characterBook,
       alternateGreetings: source.alternateGreetings ?? [],
       avatarColorOrdinal: source.avatarColorOrdinal ?? 0,
       avatarDataUrl: source.avatarDataUrl ?? null,
@@ -338,6 +339,7 @@ export async function importGameplay(payload: unknown): Promise<ImportGameplayRe
     worldBookId = await db.worldBooks.add({
       name: finalName,
       content: data.worldBook.content ?? '',
+      characterBook: data.worldBook.characterBook,
       imageUri: null,
       createdAt: Date.now(),
     });

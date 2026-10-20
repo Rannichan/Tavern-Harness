@@ -26,6 +26,8 @@
     "dev": "vite",
     "test": "node --experimental-strip-types --test *.test.mjs",
     "test:character-book": "node --test character-book.test.mjs",
+    "test:silly-tavern-world-info": "node --test silly-tavern-world-info.test.mjs",
+    "test:openai-request": "node --test openai-request.test.mjs",
     "test:command-service": "node sandbox-server.test.mjs",
     "test:persistence-service": "node persistence-server.test.mjs",
     "test:yolo-mode": "node yolo-mode.test.mjs",

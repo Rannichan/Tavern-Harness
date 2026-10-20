@@ -69,12 +69,14 @@
   width: min(1040px, calc(100vw - 32px));
   height: min(90dvh, 960px);
 }
-.character-editor-modal .modal-head {
+.character-editor-modal .modal-head,
+.editor-modal-with-tabs .modal-head {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   gap: 12px;
 }
-.character-editor-modal .modal-head > :first-child {
+.character-editor-modal .modal-head > :first-child,
+.editor-modal-with-tabs .modal-head > :first-child {
   min-width: 0;
 }
 .modal-editor .modal-head-actions {
@@ -82,7 +84,8 @@
   align-items: center;
   gap: 16px;
 }
-.character-editor-modal .modal-head-actions {
+.character-editor-modal .modal-head-actions,
+.editor-modal-with-tabs .modal-head-actions {
   justify-self: end;
 }
 .modal-editor .modal-body {
@@ -111,6 +114,19 @@
   flex: 1;
   min-height: 0;
   height: auto;
+}
+/* 知识库：条目启用统计与批量启停 */
+.knowledge-bulk-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+.knowledge-bulk-actions .btn {
+  padding: 2px 8px;
+  font-size: 11px;
 }
 .modal-editor .tab-panel-hidden {
   display: none;
@@ -1236,7 +1252,16 @@
     grid-template-columns: minmax(0, 1fr) auto;
   }
 
+  .editor-modal-with-tabs .modal-head {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
   .character-editor-modal .modal-head-actions {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .editor-modal-with-tabs .modal-head-actions {
     grid-column: 2;
     grid-row: 1;
   }

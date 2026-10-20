@@ -2,6 +2,7 @@ import type {
   ChatCompletionRequest,
   ChatStreamChunk,
   NetworkMessage,
+  ReasoningEffort,
 } from '../types/models';
 import { fallbackToolCallId } from './turnLoop';
 import { isNetworkLikeError, toProxyUrl } from './proxy';
@@ -387,6 +388,14 @@ export async function summarizeContext(
   }
   throw new Error('Context summary request failed');
 }
+
+/** App 的思考强度 → DeepSeek OpenAI 兼容接口允许的 reasoning_effort（none/low/high/max）。 */
+const DEEPSEEK_REASONING_EFFORT: Partial<Record<ReasoningEffort, string>> = {
+  low: 'low',
+  medium: 'high',
+  xhigh: 'max',
+};
+
 export function buildChatRequest(
   p: {
     model: string;
@@ -399,7 +408,7 @@ export function buildChatRequest(
     frequencyPenalty: number;
     presencePenalty: number;
     repetitionPenalty: number;
-    reasoningEffort: string;
+    reasoningEffort: ReasoningEffort;
     isThinkingModeEnabled: boolean;
     streaming: boolean;
     baseUrl: string;
@@ -427,18 +436,41 @@ request.frequency_penalty = Math.round(p.frequencyPenalty * 100) / 100;
 
   // 思考模式参数（与 App 逻辑一致）
   const effort = p.reasoningEffort;
-  if (effort !== 'auto' && effort !== 'off') {
-    request.reasoning_effort = effort;
-  }
   const thinkingEnabled = p.isThinkingModeEnabled && effort !== 'off';
   const modelKey = p.model.toLowerCase();
   const urlKey = p.baseUrl.toLowerCase();
+  // DeepSeek 官方接口（含经本地代理转发的官方地址）使用新的 thinking/reasoning_effort 字段；
+  // 其他 OpenAI 兼容供应商仍沿用 enable_thinking，避免影响 SiliconFlow 等托管的 DeepSeek。
+  const isDeepSeek = /deepseek\.com/.test(urlKey)
+    || /^deepseek-(?:flash|v4-pro)(?:$|[-/:])/.test(modelKey);
   const supportsThinking = /deepseek|qwen|qwq|r1|siliconflow|dashscope|ollama|vllm/.test(modelKey + ' ' + urlKey);
-  if (supportsThinking && !/qwen/.test(modelKey)) {
-    request.enable_thinking = thinkingEnabled;
+  if (isDeepSeek) {
+    request.thinking = { type: thinkingEnabled ? 'enabled' : 'disabled' };
+    if (thinkingEnabled) {
+      // auto 不传，使用服务端默认值 high；off 已由 thinking.type=disabled 表达。
+      const mappedEffort = DEEPSEEK_REASONING_EFFORT[effort];
+      if (mappedEffort) request.reasoning_effort = mappedEffort;
+    }
+  } else {
+    if (effort !== 'auto' && effort !== 'off') {
+      request.reasoning_effort = effort;
+    }
+    if (supportsThinking && !/qwen/.test(modelKey)) {
+      request.enable_thinking = thinkingEnabled;
+    }
   }
-  if (/qwen/.test(modelKey)) {
+  if (!isDeepSeek && /qwen/.test(modelKey)) {
     request.chat_template_kwargs = { enable_thinking: thinkingEnabled, preserve_thinking: true };
+  }
+  // DeepSeek 思考模式要求所有回传的 assistant 消息携带 reasoning_content（含
+  // 历史工具调用与知识库注入的合成工具调用）；没有原始思考内容时补空字符串。
+  // 参考：https://api-docs.deepseek.com/guides/thinking_mode
+  if (thinkingEnabled && isDeepSeek) {
+    request.messages = request.messages.map((message) =>
+      message.role === 'assistant' && message.reasoning_content === undefined
+        ? { ...message, reasoning_content: '' }
+        : message
+    );
   }
 
   if (p.tools && p.tools.length > 0) {

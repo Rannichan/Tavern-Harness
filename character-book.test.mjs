@@ -9,7 +9,7 @@ const vite = await createServer({
 });
 after(() => vite.close());
 
-const { CHARACTER_BOOK_TOOL_NAME, hasUsableCharacterBook, injectCharacterBookToolContext, retrieveCharacterBookContext } =
+const { CHARACTER_BOOK_TOOL_NAME, characterBookEntryStats, hasUsableCharacterBook, injectCharacterBookToolContext, mergeCharacterBooks, retrieveCharacterBookContext } =
   await vite.ssrLoadModule('/src/core/characterBook.ts');
 
 const messages = [
@@ -78,4 +78,39 @@ test('recursive scanning activates entries referenced by an activated entry', ()
 test('constant entries are retrieved without a keyword match', () => {
   const source = book([{ constant: true, content: 'Always relevant fact.' }]);
   assert.match(retrieveCharacterBookContext(source, messages), /Always relevant fact/);
+});
+
+test('merges character and world book knowledge into one recall context', () => {
+  const characterBook = book([{ keys: ['capital'], content: 'Character-side capital lore.' }]);
+  const worldBook = JSON.stringify({
+    scan_depth: 6,
+    token_budget: 500,
+    entries: [{ keys: ['capital'], content: 'World-side capital lore.' }],
+  });
+  const merged = mergeCharacterBooks(characterBook, worldBook);
+  assert.notEqual(merged, characterBook);
+  const result = retrieveCharacterBookContext(merged, messages);
+  assert.match(result, /Character-side capital lore/);
+  assert.match(result, /World-side capital lore/);
+  const parsed = JSON.parse(merged);
+  assert.equal(parsed.scan_depth, 6);
+  // 预算为各知识库预算之和：1000 + 500
+  assert.equal(parsed.token_budget, 1500);
+});
+
+test('mergeCharacterBooks ignores missing or invalid books', () => {
+  const source = book([{ keys: ['ocean'], content: 'Only source.' }]);
+  assert.equal(mergeCharacterBooks(source), source);
+  assert.equal(mergeCharacterBooks(source, undefined, '', '{invalid'), source);
+  assert.equal(mergeCharacterBooks(undefined, null, ''), undefined);
+});
+
+test('characterBookEntryStats counts total and recallable entries', () => {
+  const source = book([
+    { keys: ['a'], content: 'Enabled.' },
+    { keys: ['b'], content: 'Disabled.', enabled: false },
+    { keys: ['c'], content: '   ' },
+  ]);
+  assert.deepEqual(characterBookEntryStats(source), { total: 3, enabled: 1 });
+  assert.deepEqual(characterBookEntryStats('{invalid'), { total: 0, enabled: 0 });
 });

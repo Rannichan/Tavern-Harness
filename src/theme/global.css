@@ -786,6 +786,14 @@ body.resizing .sidebar-resizer {
   font-size: 12px;
   border-radius: 8px;
 }
+/* 导入按钮使用的 SillyTavern 图标（PNG） */
+.btn-logo-icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  object-fit: contain;
+  border-radius: 3px;
+}
 .icon-btn {
   display: inline-flex;
   align-items: center;

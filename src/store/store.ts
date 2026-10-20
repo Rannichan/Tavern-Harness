@@ -44,7 +44,7 @@ import {
   NEW_TOPIC_MARKER,
 } from '../core/toolDefinitions';
 import { getEnabledToolsForSession, executeToolCall, parseDisplayRef, applySessionWorkspace } from '../core/tools/toolExecutor';
-import { CHARACTER_BOOK_TOOL, hasUsableCharacterBook, injectCharacterBookToolContext } from '../core/characterBook';
+import { CHARACTER_BOOK_TOOL, hasUsableCharacterBook, injectCharacterBookToolContext, mergeCharacterBooks } from '../core/characterBook';
 import { createSessionWorkspaceDir, ensureSessionWorkspaceDir, deleteSessionWorkspace, isCurrentInstanceWorkspaceDir } from '../core/tools/generatedSkillExecutor';
 import { applyTheme as applyThemeManual, cacheThemeMode, watchSystemTheme } from '../theme/theme';
 import { setLanguage, translate } from '../core/i18n';
@@ -1813,17 +1813,19 @@ async function streamAssistantTurn(
     }
     nmessages.unshift({ role: 'system', content: systemPrompt });
 
-    // Character Book recall is automatic when the active character has usable knowledge.
+    // Knowledge recall is automatic when the active character and/or the selected
+    // world book has usable knowledge. Both books are merged into one recall pass.
     // Its synthetic schema exists only for this request and is never persisted as a user tool.
-    const characterBookEnabled = hasUsableCharacterBook(npc?.characterBook);
-    const requestMessagesWithCharacterBook = characterBookEnabled
-      ? injectCharacterBookToolContext(nmessages, npc?.characterBook)
+    const knowledgeBook = mergeCharacterBooks(npc?.characterBook, worldBook?.characterBook);
+    const knowledgeEnabled = hasUsableCharacterBook(knowledgeBook);
+    const requestMessagesWithCharacterBook = knowledgeEnabled
+      ? injectCharacterBookToolContext(nmessages, knowledgeBook)
       : nmessages;
 
     // 工具
     const tools = (await getEnabledToolsForSession(sessionId, activeParticipantId ?? null))
       .filter((tool) => tool.function.name !== CHARACTER_BOOK_TOOL.function.name);
-    if (characterBookEnabled) tools.push(CHARACTER_BOOK_TOOL);
+    if (knowledgeEnabled) tools.push(CHARACTER_BOOK_TOOL);
 
     const request = buildChatRequest({
       model,

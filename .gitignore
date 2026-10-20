@@ -12,5 +12,7 @@ skills/
 # 文档站图标与 README 预览图需要入库（例外）
 !docs/assets/icons/*.png
 !docs/assets/demo-link-*.png
+# 导入按钮图标需要入库
+!public/sillytavern-logo.png
 # 个人笔记（notebook 目录）
 notebook/
