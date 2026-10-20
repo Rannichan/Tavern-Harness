@@ -93,8 +93,13 @@ export interface ActiveDisplay {
   presentation?: 'pip' | 'modal';
 }
 
+/** 启动阶段：加载中 / 数据就绪 / 核心数据加载失败（可重试） */
+export type InitStatus = 'loading' | 'ready' | 'error';
+
 interface AppState {
-  initialized: boolean;
+  initStatus: InitStatus;
+  /** initStatus === 'error' 时的错误信息，其余状态为 null。 */
+  initError: string | null;
   /** 另一浏览器正持有全局写锁时为 true；此浏览器仍可读取共享数据。 */
   readOnly: boolean;
   settings: AppSettings | null;
@@ -245,7 +250,8 @@ function sortNpcs(npcs: NpcCharacter[]): NpcCharacter[] {
 type TurnResult = 'ok' | 'failed' | 'stopped';
 
 export const useStore = create<AppState>((set, get) => ({
-  initialized: false,
+  initStatus: 'loading',
+  initError: null,
   readOnly: false,
   settings: null,
   providers: [],
@@ -276,38 +282,53 @@ export const useStore = create<AppState>((set, get) => ({
     // StrictMode 双调用保护
     if (initLock) return initLock;
     initLock = (async () => {
-      const readOnly = await isWriteLocked();
-      // The writer may still be seeding a new database. Defaults let a
-      // read-only browser render its takeover UI until shared settings exist.
-      const serverSettings = (await db.settings.get(1)) ?? DEFAULT_SETTINGS;
-      const browserPreferences = hasBrowserUiPreferences()
-        ? readBrowserUiPreferences()
-        : readOnly
-          ? { language: serverSettings.language, themeMode: serverSettings.themeMode }
-          : saveBrowserUiPreferences({ language: serverSettings.language, themeMode: serverSettings.themeMode });
-      const settings = { ...serverSettings, ...browserPreferences };
-      setLanguage(settings.language);
-      // 本地化会写入共享数据；只读浏览器只能加载既有数据。
-      if (!readOnly) {
-        await localizeBuiltinNpc();
-        await localizeBuiltinTavernHandbook();
+      // 重试时回到加载态，并清掉上一次的错误。
+      set({ initStatus: 'loading', initError: null });
+      let coreLoaded = false;
+      try {
+        const readOnly = await isWriteLocked();
+        // The writer may still be seeding a new database. Defaults let a
+        // read-only browser render its takeover UI until shared settings exist.
+        const serverSettings = (await db.settings.get(1)) ?? DEFAULT_SETTINGS;
+        const browserPreferences = hasBrowserUiPreferences()
+          ? readBrowserUiPreferences()
+          : readOnly
+            ? { language: serverSettings.language, themeMode: serverSettings.themeMode }
+            : saveBrowserUiPreferences({ language: serverSettings.language, themeMode: serverSettings.themeMode });
+        const settings = { ...serverSettings, ...browserPreferences };
+        setLanguage(settings.language);
+        // 本地化会写入共享数据；只读浏览器只能加载既有数据。
+        if (!readOnly) {
+          await localizeBuiltinNpc();
+          await localizeBuiltinTavernHandbook();
+        }
+        const npcs = sortNpcs(await db.npcs.toArray());
+        const sessions = sortSessionsPinnedFirst(await db.sessions.toArray());
+        const worldBooks = sortWorldBooks(await db.worldBooks.toArray());
+        const tools = [...(await db.tools.toArray())].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
+        set({ initStatus: 'ready', readOnly, settings, npcs, sessions, worldBooks, tools });
+        coreLoaded = true;
+        await get().refreshProviders();
+        cacheThemeMode(settings.themeMode);
+        applyThemeManual(settings.themeMode);
+        // 跟随系统模式下，系统切换深浅色时自动重新应用主题
+        watchSystemTheme(() => {
+          const s = useStore.getState().settings;
+          if (s) applyThemeManual(s.themeMode);
+        });
+        await get().refreshAchievements();
+        // 每次刷新固定回到开始页，会话仅在用户主动选择后加载。
+        set({ activeSessionId: null, activeView: 'chat' });
+      } catch (error) {
+        console.error('Failed to initialize Tavern Harness', error);
+        if (coreLoaded) {
+          // 核心数据已就绪，后续 provider / 成就刷新失败不应把整个应用切成错误页。
+          return;
+        }
+        // 核心数据都没加载出来：允许用户重试，不伪装成"其他浏览器占用"。
+        initLock = null;
+        set({ initStatus: 'error', initError: error instanceof Error ? error.message : String(error) });
       }
-      const npcs = sortNpcs(await db.npcs.toArray());
-      const sessions = sortSessionsPinnedFirst(await db.sessions.toArray());
-      const worldBooks = sortWorldBooks(await db.worldBooks.toArray());
-      const tools = [...(await db.tools.toArray())].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
-      set({ initialized: true, readOnly, settings, npcs, sessions, worldBooks, tools });
-      await get().refreshProviders();
-      cacheThemeMode(settings.themeMode);
-      applyThemeManual(settings.themeMode);
-      // 跟随系统模式下，系统切换深浅色时自动重新应用主题
-      watchSystemTheme(() => {
-        const s = useStore.getState().settings;
-        if (s) applyThemeManual(s.themeMode);
-      });
-      await get().refreshAchievements();
-      // 每次刷新固定回到开始页，会话仅在用户主动选择后加载。
-      set({ activeSessionId: null, activeView: 'chat' });
     })();
     return initLock;
   },

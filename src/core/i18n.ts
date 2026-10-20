@@ -36,6 +36,12 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'control.dialogLabel': 'Tavern Harness 控制权在其他浏览器中处于活动状态',
     'control.activeElsewhere': '正在其他位置使用',
     'control.takeOverHere': '点击接管控制权',
+    'control.takeOverFailed': '接管控制权失败，请稍后重试',
+
+    // ---- 初始化 ----
+    'init.failed': '初始化失败',
+    'init.failedHint': '加载本地数据失败，请确认持久化服务已启动后重试。',
+    'init.retry': '重试',
 
     // ---- 侧边栏 / 导航 ----
     'nav.chat': '对话',
@@ -113,6 +119,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'chat.speakerAssistant': '助手',
     'chat.thinking': '思考',
     'chat.editMsg': '编辑消息',
+    'chat.copyMsg': '复制消息正文',
     'chat.addAttachment': '添加附件',
     'chat.saveHint': '⌘/Ctrl+Enter 保存 · Esc 取消',
     'chat.saveRegenerate': '保存并重新生成',
@@ -401,6 +408,8 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'toast.genFailed': '生成失败: {msg}',
     'toast.contextCompressionFailed': '上下文压缩失败，将继续使用原始历史: {msg}',
     'toast.rawExported': '已导出原始日志（自动脱敏）',
+    'toast.copied': '已复制到剪贴板',
+    'toast.copyFailed': '复制失败，请重试',
     'toast.pickOneNpc': '请至少选择一位角色',
     'toast.dupNpc': '该角色已在会话中',
     'toast.importedChar': '已解析角色卡「{name}」({version})，请确认后保存',
@@ -497,6 +506,11 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'control.dialogLabel': 'Tavern Harness 控制權正在其他瀏覽器中使用',
     'control.activeElsewhere': '正在其他位置使用',
     'control.takeOverHere': '點擊接管控制權',
+    'control.takeOverFailed': '接管控制權失敗，請稍後重試',
+
+    'init.failed': '初始化失敗',
+    'init.failedHint': '載入本機資料失敗，請確認持久化服務已啟動後重試。',
+    'init.retry': '重試',
 
     'nav.chat': '對話',
     'nav.characters': '角色工坊',
@@ -571,6 +585,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'chat.speakerAssistant': '助手',
     'chat.thinking': '思考',
     'chat.editMsg': '編輯訊息',
+    'chat.copyMsg': '複製訊息正文',
     'chat.addAttachment': '新增附件',
     'chat.saveHint': '⌘/Ctrl+Enter 儲存 · Esc 取消',
     'chat.saveRegenerate': '儲存並重新產生',
@@ -850,6 +865,8 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'toast.genFailed': '產生失敗: {msg}',
     'toast.contextCompressionFailed': '上下文壓縮失敗，將繼續使用原始歷史: {msg}',
     'toast.rawExported': '已匯出原始日誌（自動脫敏）',
+    'toast.copied': '已複製到剪貼簿',
+    'toast.copyFailed': '複製失敗，請重試',
     'toast.pickOneNpc': '請至少選擇一位角色',
     'toast.dupNpc': '該角色已在會話中',
     'toast.importedChar': '已解析角色卡「{name}」({version})，請確認後儲存',
@@ -944,6 +961,11 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'control.dialogLabel': 'Tavern Harness control is active in another browser',
     'control.activeElsewhere': 'In use elsewhere',
     'control.takeOverHere': 'Click to take control',
+    'control.takeOverFailed': 'Failed to take control. Please try again.',
+
+    'init.failed': 'Initialization failed',
+    'init.failedHint': 'Failed to load local data. Make sure the persistence service is running, then try again.',
+    'init.retry': 'Retry',
 
     'nav.chat': 'Chat',
     'nav.characters': 'Characters',
@@ -1018,6 +1040,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'chat.speakerAssistant': 'Assistant',
     'chat.thinking': 'Thinking',
     'chat.editMsg': 'Edit message',
+    'chat.copyMsg': 'Copy message text',
     'chat.addAttachment': 'Add attachment',
     'chat.saveHint': '⌘/Ctrl+Enter to save · Esc to cancel',
     'chat.saveRegenerate': 'Save & regenerate',
@@ -1297,6 +1320,8 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'toast.genFailed': 'Generation failed: {msg}',
     'toast.contextCompressionFailed': 'Context compression failed; using the original history: {msg}',
     'toast.rawExported': 'Raw log exported (auto-sanitized)',
+    'toast.copied': 'Copied to clipboard',
+    'toast.copyFailed': 'Copy failed. Please try again.',
     'toast.pickOneNpc': 'Choose at least one character',
     'toast.dupNpc': 'This character is already in the conversation',
     'toast.importedChar': 'Parsed character card "{name}" ({version}) — review and save',

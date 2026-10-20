@@ -1,21 +1,17 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import {
   DndContext,
-  PointerSensor,
-  KeyboardSensor,
   closestCenter,
-  useSensor,
-  useSensors,
   type DragEndEvent,
 } from '@dnd-kit/core';
 import {
   SortableContext,
   arrayMove,
-  sortableKeyboardCoordinates,
   verticalListSortingStrategy,
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { useSortableSensors } from '../core/sortableSensors';
 import { useStore } from '../store/store';
 import {
   BUILTIN_TAVERN_HANDBOOK_CONTENT,
@@ -654,10 +650,7 @@ function SkillList() {
     refresh();
   }, [refresh]);
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  );
+  const sensors = useSortableSensors();
 
   const deleteTool = async (tt: McpTool) => {
     await db.tools.delete(tt.id!);

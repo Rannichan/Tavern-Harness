@@ -22,7 +22,9 @@ import './theme/views.css';
 
 export default function App() {
   const [takingControl, setTakingControl] = useState(false);
-  const initialized = useStore((s) => s.initialized);
+  const initStatus = useStore((s) => s.initStatus);
+  const initError = useStore((s) => s.initError);
+  const addToast = useStore((s) => s.addToast);
   const readOnly = useStore((s) => s.readOnly);
   const init = useStore((s) => s.init);
   const syncControlState = useStore((s) => s.syncControlState);
@@ -73,13 +75,35 @@ export default function App() {
     setTakingControl(true);
     try {
       await takeOverControl();
+    } catch (error) {
+      console.error('Failed to take over control', error);
+      addToast(t('control.takeOverFailed'), 'error');
     } finally {
       setTakingControl(false);
     }
   };
 
-  if (!initialized) {
+  if (initStatus === 'loading') {
     return <div className="tav-bg" />;
+  }
+
+  if (initStatus === 'error') {
+    return (
+      <>
+        <div className="tav-bg" />
+        <div className="init-error" role="alertdialog" aria-modal="true" aria-labelledby="init-error-title">
+          <div className="init-error-inner">
+            <h1 id="init-error-title">{t('init.failed')}</h1>
+            <p className="init-error-hint">{t('init.failedHint')}</p>
+            <p className="init-error-detail">{initError}</p>
+            {/* 焦点直接落在唯一可操作项上，键盘 / 读屏用户不必先找 */}
+            <button type="button" className="init-error-retry" autoFocus onClick={() => void init()}>
+              {t('init.retry')}
+            </button>
+          </div>
+        </div>
+      </>
+    );
   }
 
   return (

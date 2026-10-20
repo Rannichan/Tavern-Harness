@@ -76,7 +76,7 @@ export function SettingsView() {
           <table className="table param-table">
             <tbody>
               <tr>
-                <td style={{ width: 170 }}>
+                <td className="param-label">
                   <div className="s-label">Temperature</div>
                   <div className="s-desc">{t('settings.tempDesc')}</div>
                 </td>

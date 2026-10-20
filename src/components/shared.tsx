@@ -156,10 +156,16 @@ export function Avatar({
   const cls = size === 'lg' ? 'avatar' : size === 'xs' ? 'avatar xs' : 'avatar sm';
   const hue = (colorOrdinal ?? 0) % 6;
   if (imageUrl) {
+    // 用背景图而不是 <img>：微信 Android 内置浏览器会对 <img> 的长按弹出
+    // “发送给朋友 / 保存图片”。命中测试落在宿主 div 上就不会触发原生菜单；
+    // pointer-events: none 再让点击/滚动继续冒泡给外层（见 global.css）。
     return (
-      <div className={cls}>
-        <img src={imageUrl} alt={name} />
-      </div>
+      <div
+        className={`${cls} avatar-image`}
+        role="img"
+        aria-label={name}
+        style={{ backgroundImage: `url(${JSON.stringify(imageUrl)})` }}
+      />
     );
   }
   return <div className={`${cls} avatar-hue-${hue}`}>{name.slice(0, 1)}</div>;
@@ -350,6 +356,7 @@ const ICONS: Record<string, React.ReactNode> = {
   'text-wrap': <><path d="M4 6h13a4 4 0 0 1 0 8H9" /><path d="m12 11-3 3 3 3M4 18h3" /></>,
   eye: <><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" /></>,
   folder: <><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></>,
+  copy: <><rect x="8" y="8" width="13" height="13" rx="2" /><path d="M5 16V6a2 2 0 0 1 2-2h10" /></>,
 };
 
 export function Icon({ name, size = 15 }: { name: string; size?: number }) {

@@ -15,6 +15,8 @@
   --font-serif: 'Iowan Old Style', 'Palatino Linotype', 'Songti SC', 'Noto Serif SC',
     'Source Han Serif SC', 'STSong', serif;
   --font-mono: 'SF Mono', 'JetBrains Mono', 'Fira Code', Consolas, 'Courier New', monospace;
+  /* 移动端顶栏高度：壳层、消息区、侧边栏三处排版共用，避免各写一份 56px */
+  --mobile-topbar-h: 56px;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 }
@@ -80,6 +82,7 @@ body {
 button {
   font-family: inherit;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
 input,
@@ -90,6 +93,135 @@ select {
 
 .mono {
   font-family: var(--font-mono);
+}
+
+/* ---------- 触屏长按 / 拖拽 ---------- */
+/* 绑定了自定义长按菜单的表面：仅触屏抑制系统选词/放大镜，
+   桌面端（精确指针 + 可悬停）保留正常的文本选择与复制能力。
+   刻意不作用到输入区：部分 WebView 在祖先 user-select: none 时
+   会出现输入框无法聚焦 / 软键盘不弹出的问题。 */
+@media (pointer: coarse), (hover: none) {
+  .msg-row,
+  .session-item {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
+/* 微信 Android（X5 / XWeb）的原生长按不尊重 user-select：只要命中测试
+   返回文字节点，就会弹出系统「复制」菜单。把气泡正文、消息头、会话文字等
+   纯展示区域设为 pointer-events: none，命中测试就会落到容器上；滚动仍由
+   父级滚动容器处理，自定义长按监听在 .msg-row / .session-item 上。
+   需要交互或横向滚动的元素单独恢复 pointer-events（链接、按钮、代码块、
+   表格、公式、消息编辑框）。这个类只在微信 Android UA 下由
+   wechatTouch.ts 添加。 */
+html.wechat-android .msg-row .bubble-text,
+html.wechat-android .msg-row .msg-head,
+html.wechat-android .msg-row .msg-metrics,
+html.wechat-android .msg-row > .avatar,
+html.wechat-android .session-item .svc,
+html.wechat-android .session-item .smeta {
+  pointer-events: none;
+}
+html.wechat-android .msg-row .bubble-text a,
+html.wechat-android .msg-row .bubble-text button,
+html.wechat-android .msg-row .bubble-text [role="button"],
+html.wechat-android .msg-row .bubble-text pre,
+html.wechat-android .msg-row .bubble-text table,
+html.wechat-android .msg-row .bubble-text .math-block {
+  pointer-events: auto;
+}
+html.wechat-android .msg-row,
+html.wechat-android .msg-row *,
+html.wechat-android .session-item,
+html.wechat-android .session-item * {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+/* 消息内联编辑 / 其它输入控件：恢复选词，避免再次出现无法聚焦或键盘被收起。 */
+html.wechat-android .msg-row input,
+html.wechat-android .msg-row textarea,
+html.wechat-android .msg-row [contenteditable=""],
+html.wechat-android .msg-row [contenteditable="true"] {
+  -webkit-touch-callout: default;
+  -webkit-user-select: text;
+  user-select: text;
+  pointer-events: auto;
+}
+/* 微信 Android 在气泡不可选时会“退而求其次”选中附近其它文字（典型是输入区
+   左侧的模型名称）。聊天区、顶栏、底部输入区外壳一并禁止选词；真正的输入
+   控件仍保持可选。注意不要作用到 .composer / .app-shell 这类输入框祖先上，
+   否则 iOS / 微信 Android 可能出现输入框无法聚焦、软键盘不弹。 */
+html.wechat-android .chat-scroll,
+html.wechat-android .chat-scroll *,
+html.wechat-android .chat-header,
+html.wechat-android .mobile-topbar,
+html.wechat-android .mobile-topbar-nav,
+html.wechat-android .nav-chip,
+html.wechat-android .composer-model,
+html.wechat-android .composer-hint,
+html.wechat-android .model-popover {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+/* 模型名称只是按钮里的展示文字：移出命中测试，长按落到按钮本身。 */
+html.wechat-android .composer-model-label,
+html.wechat-android .model-option-name {
+  pointer-events: none;
+}
+/* 聊天区里的内联消息编辑器仍然可选中。 */
+html.wechat-android .chat-scroll input,
+html.wechat-android .chat-scroll textarea,
+html.wechat-android .chat-scroll [contenteditable=""],
+html.wechat-android .chat-scroll [contenteditable="true"] {
+  -webkit-touch-callout: default;
+  -webkit-user-select: text;
+  user-select: text;
+}
+/* 拖拽排序的卡片：任何指针下都不希望拖动过程选中文本。 */
+.sort-item,
+.list-item.sortable-skill {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* ---------- 启动失败 ---------- */
+/* 核心数据加载不出来时的兜底页（App.tsx 的 initStatus === 'error'）。 */
+.init-error {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+.init-error-inner {
+  max-width: 520px;
+  text-align: center;
+}
+.init-error-hint {
+  color: var(--text-faint);
+  line-height: 1.6;
+}
+.init-error-detail {
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.init-error-retry {
+  padding: 10px 18px;
+  border: 0;
+  border-radius: 8px;
+  font-weight: 700;
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 25%, transparent);
 }
 
 /* ---------- 布局框架 ---------- */
@@ -400,7 +532,7 @@ body.resizing .sidebar-resizer {
   box-shadow: none;
 }
 /* 文字头像：字号随格子尺寸缩放（cqw/cqh），撑满格子居中，保证字形完整不被裁切 */
-.gcollage .gslot .avatar:not(:has(img)) {
+.gcollage .gslot .avatar:not(.avatar-image) {
   line-height: 1;
   font-size: min(72cqw, 72cqh);
 }
@@ -782,6 +914,10 @@ body.resizing .sidebar-resizer {
   overflow-y: auto;
   padding: 20px 0 10px;
   background: transparent;
+  /* 只阻止滚动链传给页面。这里刻意不设 touch-action: pan-y —— 手势取元素与
+     祖先链的交集，祖先的 pan-y 会让内部 overflow-x 的代码块 / 宽表格无法横向
+     滑动，同时禁掉聊天区内的双指缩放。 */
+  overscroll-behavior-y: contain;
 }
 
 .chat-col {
@@ -817,11 +953,17 @@ body.resizing .sidebar-resizer {
   background: var(--grad-from);
   box-shadow: 0 3px 12px var(--glow);
   overflow: hidden;
+  -webkit-touch-callout: none;
+  user-select: none;
 }
-.avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+/* 头像图片用背景图渲染（不是 <img>）：微信 Android 内置浏览器只对 <img>
+   命中弹出“发送给朋友 / 保存图片”。pointer-events: none 让触摸命中宿主
+   div 或其外层按钮，点击与滚动都不受影响。 */
+.avatar-image {
+  pointer-events: none;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
 }
 .avatar.sm {
   width: 32px;
@@ -1423,13 +1565,25 @@ hr.sep {
   }
 
   .app-shell {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
     display: block;
+    /* 默认等于布局视口；键盘收起、Edge 底部工具栏尚未归位时，
+       mobileViewport.ts 会写入 --app-height 先按最终高度排版。 */
+    height: var(--app-height, 100%);
   }
 
   .main-area {
     width: 100%;
-    height: calc(100dvh - 56px - env(safe-area-inset-top));
-    margin-top: calc(56px + env(safe-area-inset-top));
+    height: calc(100% - var(--mobile-topbar-h) - env(safe-area-inset-top));
+    min-height: 0;
+    margin-top: calc(var(--mobile-topbar-h) + env(safe-area-inset-top));
+  }
+
+  .chat-main-row {
+    min-height: 0;
   }
 
   .mobile-topbar {
@@ -1441,7 +1595,7 @@ hr.sep {
     display: flex;
     align-items: center;
     gap: 8px;
-    height: calc(56px + env(safe-area-inset-top));
+    height: calc(var(--mobile-topbar-h) + env(safe-area-inset-top));
     padding: env(safe-area-inset-top) 8px 0;
     border-bottom: 1px solid var(--border);
     background: color-mix(in srgb, var(--surface) 88%, transparent);
@@ -1495,11 +1649,13 @@ hr.sep {
 
   .sidebar {
     position: fixed;
-    top: calc(56px + env(safe-area-inset-top));
-    bottom: 0;
+    top: calc(var(--mobile-topbar-h) + env(safe-area-inset-top));
+    bottom: auto;
     left: 0;
     z-index: 100;
     width: min(88vw, 356px);
+    /* 跟随壳层高度，避免键盘收起时序导致侧边栏底部多出/少掉一截 */
+    height: calc(var(--app-height, 100%) - var(--mobile-topbar-h) - env(safe-area-inset-top));
     transform: translateX(-105%);
     transition: transform 0.2s ease;
     box-shadow: var(--shadow-lg);

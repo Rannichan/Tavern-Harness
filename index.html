@@ -3,7 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/favicon.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Edge Android 只有在显式声明 interactive-widget=resizes-content 时才随软键盘
+         收缩布局视口；否则 position: fixed 的 app-shell 不收缩，输入框会被键盘盖住。 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content" />
     <meta name="theme-color" content="#17120A" />
     <script>
       (() => {

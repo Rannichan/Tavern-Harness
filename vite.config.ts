@@ -13,6 +13,30 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 
 const projectRoot = dirname(fileURLToPath(import.meta.url));
 
+/**
+ * 浏览器同源校验：Origin 必须存在且与请求的 Host 一致；`Sec-Fetch-Site` 若存在
+ * 必须是 same-origin（部分手机浏览器访问局域网地址时不发 fetch metadata，
+ * 所以不能强制要求这个头）。
+ *
+ * 这只用来挡住"别的站点直接打本机端口"，不是身份认证：Origin / Host 都能被
+ * 非浏览器客户端伪造，真正的授权是持久化 / 沙箱服务的 service token。
+ * DNS rebinding 也不在本检查的覆盖范围内（它会让 Host 与 Origin 同时变成
+ * 攻击者域名），需要的话得在服务侧校验 Host 白名单。
+ */
+function isSameOriginRequest(req: IncomingMessage): boolean {
+  const origin = req.headers.origin;
+  if (!origin) return false;
+  const fetchSite = req.headers['sec-fetch-site'];
+  if (fetchSite != null && fetchSite !== 'same-origin') return false;
+  try {
+    // URL 会把 host 归一成小写，Host 头则原样保留，两边都归一后再比
+    const requestHost = String(req.headers.host ?? '').toLowerCase();
+    return new URL(origin).host.toLowerCase() === requestHost;
+  } catch {
+    return false;
+  }
+}
+
 function lanAddressPlugin(): Plugin {
   return {
     name: 'lan-address',
@@ -185,23 +209,9 @@ function persistenceProxyPlugin(): Plugin {
   const registerMiddleware = (server: ViteDevServer | PreviewServer) => {
     server.middlewares.use((req: IncomingMessage, res: ServerResponse, next) => {
         if (!req.url?.startsWith('/api-v3/')) return next();
-        const origin = req.headers.origin;
-        if (!origin || req.headers['sec-fetch-site'] !== 'same-origin') {
+        if (!isSameOriginRequest(req)) {
           res.writeHead(403, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ ok: false, message: 'Persistence access requires a same-origin browser request' }));
-          return;
-        }
-        let originHost = '';
-        try {
-          originHost = new URL(origin).host;
-        } catch {
-          res.writeHead(403, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ ok: false, message: 'Invalid origin' }));
-          return;
-        }
-        if (originHost !== req.headers.host) {
-          res.writeHead(403, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ ok: false, message: 'Cross-origin request denied' }));
           return;
         }
         void (async () => {
@@ -384,23 +394,9 @@ function sandboxProxyPlugin(): Plugin {
         // 转发与沙箱服务相关的端点：/exec 及真实工作区文件端点
         const m = /^\/api-v2\/(exec|approve|file_read|file_write|file_delete|file_list|session_create|session_delete)$/.exec(req.url || '');
         if (!m || req.method !== 'POST') return next();
-        const origin = req.headers.origin;
-        if (!origin || req.headers['sec-fetch-site'] !== 'same-origin') {
+        if (!isSameOriginRequest(req)) {
           res.writeHead(403, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ ok: false, message: 'sandbox access requires a same-origin browser request' }));
-          return;
-        }
-        let originHost = '';
-        try {
-          originHost = new URL(origin).host;
-        } catch {
-          res.writeHead(403, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ ok: false, message: 'invalid origin' }));
-          return;
-        }
-        if (originHost !== req.headers.host) {
-          res.writeHead(403, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ ok: false, message: 'cross-origin request denied' }));
           return;
         }
         void (async () => {

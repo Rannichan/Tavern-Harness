@@ -1174,8 +1174,8 @@
   font-size: 13px;
   color: var(--text);
   cursor: grab;
-  user-select: none;
-  touch-action: none; /* dnd-kit：允许触摸设备拖拽 */
+  /* 与技能卡保持一致：允许普通纵向滚动，按住 250ms 不动时 TouchSensor 才接管排序 */
+  touch-action: pan-y;
   /* 平滑过渡：拖拽时 transform 由 dnd-kit 驱动，这里只给结束回弹加过渡 */
   transition: box-shadow 0.15s ease, opacity 0.15s ease;
 }
@@ -1250,7 +1250,7 @@
   }
 
   .composer {
-    padding: 8px 12px max(12px, env(safe-area-inset-bottom));
+    padding: 10px 12px max(10px, env(safe-area-inset-bottom));
   }
 
   .composer-box {
@@ -1271,6 +1271,16 @@
   .composer-box textarea {
     font-size: 16px;
     min-height: 40px;
+  }
+
+  /* iOS 在键盘弹出并重算 visual viewport 时，透明 textarea 上的高亮层可能不重绘。 */
+  .composer-rich {
+    display: none;
+  }
+
+  .composer-input-wrap textarea.with-rich {
+    color: var(--text);
+    -webkit-text-fill-color: var(--text);
   }
 
   .composer-hint {

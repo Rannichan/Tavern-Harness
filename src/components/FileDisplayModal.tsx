@@ -6,6 +6,7 @@ import { useT } from '../core/i18n';
 import { highlightCode } from '../core/markdown';
 import { readWorkspaceFileText } from '../core/tools/generatedSkillExecutor';
 import { applySessionWorkspace } from '../core/tools/toolExecutor';
+import { fixedViewportBounds, isMobileViewport } from '../core/viewport';
 import type { DisplayFileRef } from '../types/models';
 
 // ============================================================
@@ -41,11 +42,18 @@ interface PipRect {
 }
 
 function createPipRect(): PipRect {
-  const height = Math.max(0, window.innerHeight - PIP_EDGE_GAP * 2);
+  // 用 visualViewport 边界（而不是 innerWidth/innerHeight）：Edge Android 的
+  // 底部工具栏不在布局视口里，PiP 落到底部时会被工具栏盖住。
+  const bounds = fixedViewportBounds();
+  const availableWidth = Math.max(0, bounds.right - bounds.left - PIP_EDGE_GAP * 2);
+  const availableHeight = Math.max(0, bounds.bottom - bounds.top - PIP_EDGE_GAP * 2);
+  const isMobile = isMobileViewport();
+  const width = Math.min(isMobile ? 360 : 440, availableWidth);
+  const height = Math.min(isMobile ? 300 : 380, availableHeight);
   return {
-    x: PIP_EDGE_GAP,
-    y: PIP_EDGE_GAP,
-    width: Math.min(440, Math.max(0, window.innerWidth - PIP_EDGE_GAP * 2)),
+    x: Math.max(bounds.left + PIP_EDGE_GAP, bounds.right - width - PIP_EDGE_GAP),
+    y: Math.max(bounds.top + PIP_EDGE_GAP, bounds.bottom - height - PIP_EDGE_GAP),
+    width,
     height,
   };
 }
@@ -230,23 +238,26 @@ export function FileDisplayModal() {
         pipGestureRef.current = null;
         return;
       }
+      // 与 createPipRect 使用同一套视觉视口边界，避免拖到 Edge Android
+      // 底部工具栏下面（innerHeight 包含被工具栏覆盖的区域）。
+      const bounds = fixedViewportBounds();
       if (gesture.type === 'move') {
-        setPipRect((rect) => ({
-          ...rect,
-          x: Math.min(
-            Math.max(PIP_EDGE_GAP, window.innerWidth - rect.width - PIP_EDGE_GAP),
-            Math.max(PIP_EDGE_GAP, gesture.startX + e.clientX - gesture.pointerX),
-          ),
-          y: Math.min(
-            Math.max(PIP_EDGE_GAP, window.innerHeight - rect.height - PIP_EDGE_GAP),
-            Math.max(PIP_EDGE_GAP, gesture.startY + e.clientY - gesture.pointerY),
-          ),
-        }));
+        setPipRect((rect) => {
+          const minX = bounds.left + PIP_EDGE_GAP;
+          const maxX = Math.max(minX, bounds.right - rect.width - PIP_EDGE_GAP);
+          const minY = bounds.top + PIP_EDGE_GAP;
+          const maxY = Math.max(minY, bounds.bottom - rect.height - PIP_EDGE_GAP);
+          return {
+            ...rect,
+            x: Math.min(maxX, Math.max(minX, gesture.startX + e.clientX - gesture.pointerX)),
+            y: Math.min(maxY, Math.max(minY, gesture.startY + e.clientY - gesture.pointerY)),
+          };
+        });
         return;
       }
       setPipRect((rect) => {
-        const availableWidth = window.innerWidth - rect.x - PIP_EDGE_GAP;
-        const availableHeight = window.innerHeight - rect.y - PIP_EDGE_GAP;
+        const availableWidth = Math.max(0, bounds.right - rect.x - PIP_EDGE_GAP);
+        const availableHeight = Math.max(0, bounds.bottom - rect.y - PIP_EDGE_GAP);
         return {
           ...rect,
           width: Math.min(availableWidth, Math.max(Math.min(PIP_MIN_WIDTH, availableWidth), gesture.startWidth + e.clientX - gesture.pointerX)),

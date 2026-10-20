@@ -10,6 +10,9 @@ import { dirname, join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
 const PORT = Number(process.argv[2] || process.env.PERSISTENCE_PORT || 17892);
+// 记录读写（图片/附件）走大上限；锁和健康检查的请求体很小，单独收紧。
+const MAX_RECORD_BODY_BYTES = 30 * 1024 * 1024;
+const MAX_CONTROL_BODY_BYTES = 1024 * 1024;
 const SERVICE_TOKEN = process.env.PERSISTENCE_SERVICE_TOKEN;
 if (!SERVICE_TOKEN) {
   console.error('[persistence-service] missing PERSISTENCE_SERVICE_TOKEN');
@@ -76,18 +79,26 @@ function json(res, status, body) {
   res.end(JSON.stringify(body));
 }
 
-function readJson(req) {
+function readJson(req, maxBytes) {
   return new Promise((resolveBody, reject) => {
     let raw = '';
+    let bytes = 0;
+    let tooLarge = false;
     req.setEncoding('utf8');
     req.on('data', (chunk) => {
-      raw += chunk;
-      if (raw.length > 5_000_000) {
-        reject(new Error('Request body is too large'));
-        req.destroy();
+      if (tooLarge) return; // 拒绝后继续排空请求体，但不再累计内存
+      bytes += Buffer.byteLength(chunk, 'utf8');
+      if (bytes > maxBytes) {
+        tooLarge = true;
+        const error = new Error('Request body is too large');
+        error.status = 413;
+        reject(error);
+        return;
       }
+      raw += chunk;
     });
     req.on('end', () => {
+      if (tooLarge) return;
       if (!raw) return resolveBody({});
       try {
         resolveBody(JSON.parse(raw));
@@ -187,7 +198,8 @@ const server = createServer(async (req, res) => {
       return;
     }
 
-    const body = await readJson(req);
+    const bodyLimit = pathname.startsWith('/records/') ? MAX_RECORD_BODY_BYTES : MAX_CONTROL_BODY_BYTES;
+    const body = await readJson(req, bodyLimit);
     const clientId = typeof body.clientId === 'string' ? body.clientId : '';
 
     if (pathname === '/lock/status') {

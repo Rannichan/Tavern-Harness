@@ -1,22 +1,18 @@
 import { useEffect, useState } from 'react';
 import {
   DndContext,
-  PointerSensor,
-  KeyboardSensor,
   closestCenter,
-  useSensor,
-  useSensors,
   type Modifier,
   type DragEndEvent,
 } from '@dnd-kit/core';
 import {
   SortableContext,
   arrayMove,
-  sortableKeyboardCoordinates,
   verticalListSortingStrategy,
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { useSortableSensors } from '../core/sortableSensors';
 import { useStore, createSession } from '../store/store';
 import { Avatar, Icon, Modal } from './shared';
 import { useT } from '../core/i18n';
@@ -58,10 +54,7 @@ export function NewSessionMenu({ onClose, editingSession }: { onClose: () => voi
   const [enableGreeting, setEnableGreeting] = useState(editingSession?.enableGreeting !== false);
   const selectedNpcIds = participantOrder.filter((id) => id !== -1);
   const modeLabel = selectedNpcIds.length === 0 ? t('newSession.notSelected') : selectedNpcIds.length === 1 ? t('newSession.npcChat') : t('newSession.groupChat', { n: selectedNpcIds.length });
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  );
+  const sensors = useSortableSensors();
 
   useEffect(() => {
     if (!editingSession?.id) return;

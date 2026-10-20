@@ -40,6 +40,10 @@ try {
   const initialSettings = await request('/records/get', { collection: 'settings', key: '1' });
   assert.equal(initialSettings.body.record, null, 'A second browser can observe an unseeded database without crashing');
 
+  // Control endpoints (lock/status) have a much smaller body cap than record writes.
+  const oversizedControl = await request('/lock/status', { clientId: 'x'.repeat(1_100_000) });
+  assert.equal(oversizedControl.status, 413, 'oversized control request bodies must be rejected');
+
   const clientA = 'browser-a';
   const clientB = 'browser-b';
   assert.equal((await request('/lock/acquire/', { clientId: clientA })).status, 200);
@@ -53,6 +57,15 @@ try {
   assert.equal((await request('/lock/status', { clientId: clientA })).body.lock.writable, false);
   assert.equal((await request('/records/put', { clientId: clientA, collection: 'settings', key: '1', value: { themeMode: 'light' } })).status, 423);
   assert.equal((await request('/records/put', { clientId: clientB, collection: 'settings', key: '1', value: { themeMode: 'dark' } })).status, 200);
+
+  // The same payload as the oversized control request is valid for a record write (images / attachments).
+  const largeRecord = await request('/records/put', {
+    clientId: clientB,
+    collection: 'sessions',
+    key: 'large-record',
+    value: { content: 'x'.repeat(1_100_000) },
+  });
+  assert.equal(largeRecord.status, 200, 'record writes must use the larger body cap');
 
   const firstId = await request('/records/allocate-id', { clientId: clientB, collection: 'sessions' });
   const secondId = await request('/records/allocate-id', { clientId: clientB, collection: 'sessions' });

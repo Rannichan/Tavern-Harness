@@ -8,6 +8,9 @@ import type { SessionMember } from './shared';
 import type { ChatSession, NpcCharacter } from '../types/models';
 import { NewSessionMenu } from './NewSessionMenu';
 import { useT } from '../core/i18n';
+import { useTouchLongPress } from '../core/longPress';
+import { fixedViewportPoint } from '../core/viewport';
+import { PopoverMenu } from './PopoverMenu';
 
 const SIDEBAR_MIN = 240;
 const SIDEBAR_MAX = 520;
@@ -44,6 +47,20 @@ export function Sidebar() {
   const [searchHits, setSearchHits] = useState<Set<number> | null>(null);
   // 群聊会话 → 参与者中的 NPC 角色
   const [groupMembers, setGroupMembers] = useState<Record<number, NpcCharacter[]>>({});
+  const sessionLongPressTarget = useRef<ChatSession | null>(null);
+  const sessionLongPressProps = useTouchLongPress(
+    (point) => {
+      const session = sessionLongPressTarget.current;
+      if (session) setSessionMenu({ session, ...fixedViewportPoint(point) });
+    },
+    (event) => {
+      // 键盘 / 触屏补发的 contextmenu 未必经过 pointerdown，用行上记录的 id 兜底。
+      const id = Number(event.currentTarget.dataset.sessionId);
+      const session = (Number.isFinite(id) ? sessions.find((item) => item.id === id) : null)
+        ?? sessionLongPressTarget.current;
+      if (session) setSessionMenu({ session, ...fixedViewportPoint({ x: event.clientX, y: event.clientY }) });
+    },
+  );
 
   // 可拖拽侧边栏宽度
   const [sidebarW, setSidebarW] = useState<number>(() => {
@@ -299,14 +316,20 @@ export function Sidebar() {
             <button
               key={s.id}
               className={`session-item ${s.id === activeSessionId && activeView === 'chat' ? 'active' : ''}`}
+              data-session-id={s.id}
               onClick={() => {
                 setActiveSession(s.id!);
                 setMobileOpen(false);
               }}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                setSessionMenu({ session: s, x: e.clientX, y: e.clientY });
+              onPointerDown={(event) => {
+                sessionLongPressTarget.current = s;
+                sessionLongPressProps.onPointerDown(event);
               }}
+              onPointerMove={sessionLongPressProps.onPointerMove}
+              onPointerUp={sessionLongPressProps.onPointerUp}
+              onPointerCancel={sessionLongPressProps.onPointerCancel}
+              onClickCapture={sessionLongPressProps.onClickCapture}
+              onContextMenu={sessionLongPressProps.onContextMenu}
             >
               {s.mode === 'NPC' ? (
                 <SessionVisual mode="NPC" npcName={npc?.name ?? 'NPC'} hue={npc?.avatarColorOrdinal ?? 0} imageUrl={npc?.avatarDataUrl} />
@@ -362,53 +385,48 @@ export function Sidebar() {
 
       {sessionMenu &&
         createPortal(
-          <>
-            <div className="overlay-msg" onClick={() => setSessionMenu(null)} />
-            <div
-              className="msg-menu card"
-              style={{
-                left: Math.max(8, Math.min(sessionMenu.x, window.innerWidth - 196)),
-                top: Math.max(8, Math.min(sessionMenu.y, window.innerHeight - 132)),
+          <PopoverMenu
+            key={`${sessionMenu.x}:${sessionMenu.y}:${sessionMenu.session.id ?? ''}`}
+            point={sessionMenu}
+            onClose={() => setSessionMenu(null)}
+          >
+            <button className="msg-menu-item" onClick={() => openEdit(sessionMenu.session)}>
+              <Icon name="pencil" size={13} /> {t('nav.editSession')}
+            </button>
+            <button
+              className="msg-menu-item"
+              onClick={async () => {
+                await togglePin(sessionMenu.session.id!);
+                setSessionMenu(null);
+                addToast(
+                  (sessionMenu.session as { pinned?: unknown }).pinned
+                    ? t('toast.sessionUnpinned')
+                    : t('toast.sessionPinned')
+                );
               }}
             >
-              <button className="msg-menu-item" onClick={() => openEdit(sessionMenu.session)}>
-                <Icon name="pencil" size={13} /> {t('nav.editSession')}
-              </button>
-              <button
-                className="msg-menu-item"
-                onClick={async () => {
-                  await togglePin(sessionMenu.session.id!);
-                  setSessionMenu(null);
-                  addToast(
-                    (sessionMenu.session as { pinned?: unknown }).pinned
-                      ? t('toast.sessionUnpinned')
-                      : t('toast.sessionPinned')
-                  );
-                }}
-              >
-                <Icon name="pin" size={13} /> {(sessionMenu.session as { pinned?: unknown }).pinned ? t('nav.unpinSession') : t('nav.pinSession')}
-              </button>
-              <button
-                className="msg-menu-item"
-                onClick={() => {
-                  const target = sessionMenu.session;
-                  setSessionMenu(null);
-                  openGlobalGameplayExport(target.id!, true);
-                }}
-              >
-                <Icon name="share" size={13} /> {t('nav.exportGameplay')}
-              </button>
-              <button
-                className="msg-menu-item danger"
-                onClick={() => {
-                  setConfirmDelete(sessionMenu.session);
-                  setSessionMenu(null);
-                }}
-              >
-                <Icon name="trash" size={13} /> {t('nav.deleteSession')}
-              </button>
-            </div>
-          </>,
+              <Icon name="pin" size={13} /> {(sessionMenu.session as { pinned?: unknown }).pinned ? t('nav.unpinSession') : t('nav.pinSession')}
+            </button>
+            <button
+              className="msg-menu-item"
+              onClick={() => {
+                const target = sessionMenu.session;
+                setSessionMenu(null);
+                openGlobalGameplayExport(target.id!, true);
+              }}
+            >
+              <Icon name="share" size={13} /> {t('nav.exportGameplay')}
+            </button>
+            <button
+              className="msg-menu-item danger"
+              onClick={() => {
+                setConfirmDelete(sessionMenu.session);
+                setSessionMenu(null);
+              }}
+            >
+              <Icon name="trash" size={13} /> {t('nav.deleteSession')}
+            </button>
+          </PopoverMenu>,
           document.body
         )}
 

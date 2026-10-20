@@ -29,6 +29,10 @@
   flex-direction: column;
   background: var(--surface);
   box-shadow: var(--shadow-lg);
+  /* 弹窗是 .modal-root 的 grid item，默认 min-width: auto 会让内部的
+     不可换行内容（Markdown 代码块 / 宽公式等）按 min-content 把弹窗撑宽。
+     这里允许弹窗收缩到设定宽度，超宽内容改由内部滚动容器消化。 */
+  min-width: 0;
 }
 .modal-head {
   display: flex;
@@ -473,8 +477,9 @@
 /* 技能卡片 = 现有 .list-item 样式 + 拖拽能力（无手柄，整卡可拖） */
 .list-item.sortable-skill {
   cursor: grab;
-  user-select: none;
-  touch-action: none; /* dnd-kit：允许触摸设备拖拽 */
+  /* 允许普通纵向滚动；按住 250ms 不动时 TouchSensor 才接管排序。
+     user-select / touch-callout 统一在 global.css 的「触屏长按 / 拖拽」里处理。 */
+  touch-action: pan-y;
 }
 .list-item.sortable-skill:active {
   cursor: grabbing;
@@ -810,6 +815,10 @@
   border-bottom: 1px solid var(--border-soft);
   padding: 9px 4px;
 }
+/* 标签列宽度用 class 而不是内联 style：内联样式会压过移动端的 width: 100%。 */
+.param-table .param-label {
+  width: 170px;
+}
 .param-table .range-row {
   display: grid;
   grid-template-columns: 1fr 52px;
@@ -818,6 +827,38 @@
 }
 .param-table .range-val {
   min-width: 0;
+}
+
+@media (max-width: 680px) {
+  .param-table,
+  .param-table tbody,
+  .param-table tr,
+  .param-table td,
+  .param-table .param-label {
+    display: block;
+    width: 100%;
+  }
+
+  .param-table tr {
+    padding: 4px 0 0;
+  }
+
+  .param-table tr:not(:last-child)::after {
+    display: block;
+    height: 1px;
+    margin-top: 4px;
+    background: var(--border-soft);
+    content: '';
+  }
+
+  .param-table td {
+    padding: 0;
+    border: 0 !important;
+  }
+
+  .param-table .range-row {
+    width: 100%;
+  }
 }
 
 /* ---------- 消息右键菜单 ---------- */
@@ -833,10 +874,18 @@
   padding: 6px;
   display: flex;
   flex-direction: column;
+  /* 菜单项数量随消息而变：超高时内部滚动，而不是溢出到视口外被裁掉。
+     高度上限跟壳层一致（--app-height 由 mobileViewport.ts 在移动端写入）。 */
+  max-height: calc(var(--app-height, 100dvh) - 16px);
+  overflow-y: auto;
   background: var(--surface);
   border: 1px solid var(--border);
   box-shadow: var(--shadow-lg);
   border-radius: 12px;
+  /* 菜单本身也不参与文本选择：它挂在 body 下，不在消息行的触屏规则范围内。 */
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 .msg-menu-item {
   display: flex;
@@ -1099,6 +1148,14 @@
     0 0 14px color-mix(in srgb, var(--glow) 20%, transparent);
 }
 @media (max-width: 680px) {
+  .overlay,
+  .modal-root {
+    /* 与 .app-shell 一起按 --app-height 排版：
+       Edge 收起键盘时先回到 822、工具栏归位后再缩到 765，弹窗不应先跟着掉下去。 */
+    bottom: auto;
+    height: var(--app-height, 100%);
+  }
+
   .modal-root {
     padding:
       max(12px, env(safe-area-inset-top))
@@ -1118,8 +1175,54 @@
     padding-right: 14px;
   }
 
+  .display-modal-head {
+    flex-wrap: nowrap;
+  }
+
+  .display-modal-head .display-modal-title > .mono {
+    display: none;
+  }
+
+  .display-modal-head .display-head-actions {
+    flex-shrink: 0;
+  }
+
   .modal-foot {
     flex-wrap: wrap;
+  }
+
+  .view-page {
+    padding: 16px 12px;
+  }
+
+  .workshop-page {
+    scrollbar-gutter: auto;
+  }
+
+  .view-col {
+    gap: 14px;
+  }
+
+  .char-card {
+    padding: 12px;
+    gap: 8px;
+  }
+
+  .char-card .cactions {
+    flex-wrap: wrap;
+  }
+
+  .list-item {
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .skill-item-actions {
+    gap: 4px;
+  }
+
+  .skill-item-actions .btn {
+    padding: 5px 7px;
   }
 
   .character-editor-modal .modal-head {
@@ -1245,16 +1348,19 @@
 }
 .display-modal-title {
   display: flex;
+  flex: 1;
   align-items: center;
   gap: 8px;
   min-width: 0;
   font-weight: 800;
   font-size: 13.5px;
 }
+.display-modal-title > .mono,
 .display-title-text {
-  white-space: nowrap;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .display-head-actions {
   display: flex;

@@ -9,6 +9,11 @@ import { effectiveDisplayQueue, speakerLabel, suggestMagicCommands } from '../co
 import { onChatScroll, onQueueScroll, onQueueScrollIntent, registerChatEl, registerQueueEl, scrollChatTo, scrollQueueToLoop } from '../core/linkedScroll';
 import { useT, translate } from '../core/i18n';
 import { escapeRegExp, prettyJson, trimEdgeNewlines } from '../core/strings';
+import { copyText } from '../core/clipboard';
+import { clearTextSelection, useTouchLongPress } from '../core/longPress';
+import { fixedViewportPoint } from '../core/viewport';
+import { keepStickyBottom } from '../core/stickyBottom';
+import { PopoverMenu } from './PopoverMenu';
 
 const CharacterBookEditor = lazy(() => import('./CharacterBookEditor'));
 
@@ -137,6 +142,14 @@ export function ChatView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages.length, updateStreaming, messages[messages.length - 1]?.content.length, isGroup]);
 
+  // 软键盘弹起/收起、输入框增高都会改变滚动容器高度；在绘制前同步贴底，
+  // 让内容与输入框在同一帧到位（实现见 core/stickyBottom.ts）。
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    return keepStickyBottom(el);
+  }, []);
+
   const npcId = session.associatedId;
   const npc = useStore((s) => s.npcs.find((n) => n.id === npcId));
   const userPersonaName = useStore((s) => {
@@ -225,6 +238,14 @@ function lastMsgId(messages: ChatMessage[]): number | undefined {
 // 单条消息气泡
 // ============================================================
 
+/** 消息气泡共用的长按 / 右键菜单手势。 */
+function useMessageLongPress(msg: ChatMessage, session: ChatSession) {
+  return useTouchLongPress(
+    (point) => openMsgMenuAt(point, msg, session),
+    (event) => openMsgMenu(event, msg, session),
+  );
+}
+
 function MessageBubble({
   msg,
   session,
@@ -250,6 +271,7 @@ function MessageBubble({
   const t = useT();
   const providers = useStore((s) => s.providers);
   const turnStreaming = useStore((s) => s.streaming.sessionId === session.id);
+  const longPressProps = useMessageLongPress(msg, session);
   // System 消息（/new 标记）
   if (msg.role === 'system') {
     const content = msg.content === '开始新话题' ? t('chat.newTopicMarker') : msg.content;
@@ -356,7 +378,7 @@ function MessageBubble({
       className={`msg-row fade-up ${streaming ? 'streaming' : ''}`}
       data-loop={loopIndex ?? undefined}
       data-speaker={speakerKey ?? undefined}
-      onContextMenu={(e) => { e.preventDefault(); openMsgMenu(e, msg, session); }}
+      {...longPressProps}
     >
       <Avatar name={speakerName} colorOrdinal={npcHue} imageUrl={npcAvatar} />
       <div className="msg-body">
@@ -531,13 +553,19 @@ function BubbleEditor({
 function UserBubble({ msg, session, userPersonaName, editing, loopIndex }: { msg: ChatMessage; session: ChatSession; userPersonaName: string | null; editing?: boolean; loopIndex?: number | null }) {
   const t = useT();
   const participants = useStore((s) => (session.id != null ? (s.participants[session.id] ?? []) : []));
+  const longPressProps = useMessageLongPress(msg, session);
   // 群聊中「用户消息」的 @角色名 也作为特殊指令高亮（点名）
   const mentionNames =
     session.mode === 'GROUP'
       ? participants.filter((p) => p.kind === 'NPC').map((p) => p.displayName)
       : [];
   return (
-    <div className="msg-row user-row fade-up" data-loop={loopIndex ?? undefined} data-speaker="player" onContextMenu={(e) => { e.preventDefault(); openMsgMenu(e, msg, session); }}>
+    <div
+      className="msg-row user-row fade-up"
+      data-loop={loopIndex ?? undefined}
+      data-speaker="player"
+      {...longPressProps}
+    >
       <div className="avatar sm user-avatar">{t('common.me')}</div>
       <div className="msg-body">
         <div className="msg-head right">
@@ -646,6 +674,7 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
   const providers = useStore((s) => s.providers);
   const defaultModel = useStore((s) => s.settings?.defaultModel?.trim() || '');
   const defaultProviderId = useStore((s) => s.settings?.defaultProviderId ?? null);
+  const composerPlaceholder = session?.mode === 'GROUP' ? t('chat.phGroup') : t('chat.phSingle');
 
   const canSend = text.trim().length > 0 || attachments.length > 0;
 
@@ -958,11 +987,8 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
             }}
             onClick={(e) => detectMention(text, e.currentTarget.selectionStart ?? text.length)}
             onKeyUp={(e) => detectMention(text, e.currentTarget.selectionStart ?? text.length)}
-            placeholder={
-              session?.mode === 'GROUP'
-                ? t('chat.phGroup')
-                : t('chat.phSingle')
-            }
+            aria-label={composerPlaceholder}
+            placeholder={composerPlaceholder}
             rows={1}
             style={{ height: 'auto', minHeight: 38 }}
           />
@@ -1093,11 +1119,15 @@ function notifyMsgMenu() {
   msgMenuListeners.forEach((fn) => fn());
 }
 function openMsgMenu(e: React.MouseEvent, msg: ChatMessage, session: ChatSession) {
-  msgMenuState = { x: e.clientX, y: e.clientY, msg, session };
+  if (window.matchMedia('(pointer: coarse)').matches) clearTextSelection();
+  openMsgMenuAt({ x: e.clientX, y: e.clientY }, msg, session);
+}
+function openMsgMenuAt(point: { x: number; y: number }, msg: ChatMessage, session: ChatSession) {
+  msgMenuState = { ...fixedViewportPoint(point), msg, session };
   notifyMsgMenu();
 }
 function openCompressionMenu(e: React.MouseEvent, summary: string | undefined, rawLog: RawLogData | undefined, title: string) {
-  msgMenuState = { x: e.clientX, y: e.clientY, summary, rawLog, title };
+  msgMenuState = { ...fixedViewportPoint({ x: e.clientX, y: e.clientY }), summary, rawLog, title };
   notifyMsgMenu();
 }
 function closeMsgMenu() {
@@ -1174,36 +1204,45 @@ export function MessageMenu() {
   if (!('msg' in msgMenuState)) {
     const { x, y, summary, rawLog: compressionRawLog, title } = msgMenuState;
     return (
-      <>
-        <div className="overlay-msg" onClick={closeMsgMenu} />
-        <div className="msg-menu card" style={{ left: Math.min(x, window.innerWidth - 190), top: Math.min(y, window.innerHeight - 200) }}>
-          <button
-            className="msg-menu-item"
-            disabled={!summary}
-            onClick={() => {
-              if (summary) setCompressionSummary({ content: summary, title });
-              closeMsgMenu();
-            }}
-          >
-            <Icon name="eye" size={13} /> {t('chat.viewMemory')}
-          </button>
-          <button
-            className="msg-menu-item"
-            disabled={!compressionRawLog?.rawRequestBody && !compressionRawLog?.rawResponseBody}
-            onClick={() => {
-              if (compressionRawLog) setRawLog({ data: compressionRawLog, title, filename: 'raw-log-context-compression.txt' });
-              closeMsgMenu();
-            }}
-          >
-            <Icon name="file" size={13} /> {t('chat.viewRaw')}
-          </button>
-        </div>
-      </>
+      <PopoverMenu key={`${x}:${y}:compress`} point={{ x, y }} onClose={closeMsgMenu}>
+        <button
+          className="msg-menu-item"
+          disabled={!summary}
+          onClick={() => {
+            if (summary) setCompressionSummary({ content: summary, title });
+            closeMsgMenu();
+          }}
+        >
+          <Icon name="eye" size={13} /> {t('chat.viewMemory')}
+        </button>
+        <button
+          className="msg-menu-item"
+          disabled={!compressionRawLog?.rawRequestBody && !compressionRawLog?.rawResponseBody}
+          onClick={() => {
+            if (compressionRawLog) setRawLog({ data: compressionRawLog, title, filename: 'raw-log-context-compression.txt' });
+            closeMsgMenu();
+          }}
+        >
+          <Icon name="file" size={13} /> {t('chat.viewRaw')}
+        </button>
+      </PopoverMenu>
     );
   }
   const { x, y, msg } = msgMenuState;
 
   const actions: Array<{ label: string; icon: string; onClick: () => void; danger?: boolean }> = [];
+  if (msg.content.trim()) {
+    // 触屏下消息正文禁用了文本选择，复制必须走菜单
+    actions.push({
+      label: t('chat.copyMsg'),
+      icon: 'copy',
+      onClick: () => {
+        void copyText(msg.content).then((copied) => {
+          addToast(copied ? t('toast.copied') : t('toast.copyFailed'));
+        });
+      },
+    });
+  }
   if (msg.role === 'user' || msg.role === 'assistant') {
     actions.push({
       label: t('chat.editMsg'),
@@ -1252,24 +1291,21 @@ export function MessageMenu() {
   });
 
   return (
-    <>
-      <div className="overlay-msg" onClick={closeMsgMenu} />
-      <div className="msg-menu card" style={{ left: Math.min(x, window.innerWidth - 190), top: Math.min(y, window.innerHeight - 200) }}>
-        {actions.map((a) => (
-          <button
-            key={a.label}
-            className="msg-menu-item"
-            onClick={() => {
-              closeMsgMenu();
-              a.onClick();
-            }}
-          >
-            <Icon name={a.icon} size={13} /> {a.label}
-          </button>
-        ))}
-        {actions.length === 0 && <div style={{ padding: 10, fontSize: 12, color: 'var(--text-faint)' }}>{t('chat.noActions')}</div>}
-      </div>
-    </>
+    <PopoverMenu key={`${x}:${y}:${msg.id ?? ''}`} point={{ x, y }} onClose={closeMsgMenu}>
+      {actions.map((a) => (
+        <button
+          key={a.label}
+          className="msg-menu-item"
+          onClick={() => {
+            closeMsgMenu();
+            a.onClick();
+          }}
+        >
+          <Icon name={a.icon} size={13} /> {a.label}
+        </button>
+      ))}
+      {actions.length === 0 && <div style={{ padding: 10, fontSize: 12, color: 'var(--text-faint)' }}>{t('chat.noActions')}</div>}
+    </PopoverMenu>
   );
 }
 

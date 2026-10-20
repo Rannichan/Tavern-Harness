@@ -19,17 +19,18 @@
     "README.md"
   ],
   "engines": {
-    "node": ">=22.5.0"
+    "node": ">=22.6.0"
   },
   "scripts": {
     "start": "vite",
     "dev": "vite",
-    "test": "node --test *.test.mjs",
+    "test": "node --experimental-strip-types --test *.test.mjs",
     "test:character-book": "node --test character-book.test.mjs",
     "test:command-service": "node sandbox-server.test.mjs",
     "test:persistence-service": "node persistence-server.test.mjs",
     "test:yolo-mode": "node yolo-mode.test.mjs",
     "test:tool-arguments": "node tool-arguments.test.mjs",
+    "test:long-press": "node --experimental-strip-types --test long-press.test.mjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test:preview-persistence": "node preview-persistence.test.mjs"
