@@ -129,3 +129,13 @@ test('viewport meta asks Chromium to resize the layout viewport for the keyboard
   assert.ok(match, 'index.html 缺少 viewport meta');
   assert.match(match[1], /interactive-widget=resizes-content/);
 });
+
+test('modal overlay clamps the modal to the visible viewport so its body can scroll', () => {
+  // 移动端 .modal 用 max-height:100% 限制高度；若 .modal-root 的隐式网格行
+  // 被弹窗内容撑高，百分比会按撑高后的区域解析，长内容弹窗（如技能详情）
+  // 会超出屏幕且无法上下滑动。固定 1fr 行 + 正文 min-height:0 才能滚动。
+  const css = readFileSync(new URL('./src/theme/views.css', import.meta.url), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.match(css, /\.modal-root\s*\{[^}]*grid-template-rows:\s*minmax\(0,\s*1fr\)/, '.modal-root 需要固定单行 1fr');
+  assert.match(css, /\.modal-body\s*\{[^}]*min-height:\s*0/, '.modal-body 需要允许收缩');
+});
