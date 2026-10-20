@@ -244,8 +244,9 @@ html.wechat-android .chat-scroll [contenteditable="true"] {
   min-height: 0;
   overflow: hidden;
   border-right: 1px solid var(--border);
-  background: color-mix(in srgb, var(--surface) 55%, transparent);
-  backdrop-filter: blur(18px);
+  /* 侧边栏保持不透明：透出背景噪点会让会话列表文字对比变弱，
+     纯 surface 底色更干净、文字更清晰。 */
+  background: var(--surface);
 }
 /* 拖拽手柄 */
 .sidebar-resizer {
@@ -903,11 +904,12 @@ body.resizing .sidebar-resizer {
   min-width: 0;
   height: 100dvh;
   position: relative;
-  background: color-mix(in srgb, var(--surface) 55%, transparent);
-  backdrop-filter: blur(18px);
+  /* 与侧边栏一致：实色底，不再叠 backdrop-filter。半透明磨砂在这里
+     实际看不出差别，反而多一层合成开销。 */
+  background: var(--surface);
 }
 
-/* 右侧所有 Tab 共享侧边栏的磨砂背景。 */
+/* 右侧所有 Tab 共用同一块主区域实色底。 */
 
 .chat-scroll {
   flex: 1;
@@ -1598,8 +1600,8 @@ hr.sep {
     height: calc(var(--mobile-topbar-h) + env(safe-area-inset-top));
     padding: env(safe-area-inset-top) 8px 0;
     border-bottom: 1px solid var(--border);
-    background: color-mix(in srgb, var(--surface) 88%, transparent);
-    backdrop-filter: blur(18px);
+    /* 与侧边栏 / 主区域统一为实色底，不再叠磨砂。 */
+    background: var(--surface);
   }
 
   .mobile-nav-toggle {
