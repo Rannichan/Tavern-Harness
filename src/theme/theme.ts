@@ -99,10 +99,17 @@ export function applyTheme(mode: ThemeMode): void {
     '--text-dim': is('#7a6a50', '#AA9C86'),
     '--text-faint': is('#a3957c', '#6f6352'),
 
-    '--bubble-user': is('color-mix(in srgb, var(--primary) 11%, transparent)', 'color-mix(in srgb, var(--primary) 13%, transparent)'),
-    '--bubble-border-user': is('color-mix(in srgb, var(--primary) 24%, transparent)', 'color-mix(in srgb, var(--primary) 22%, transparent)'),
+    // 用户气泡：全场唯一保留品牌色的实心块。浓度提到 20% 才和
+    // 思考/工具的浅色卡片拉开层级（11% 时与 --surface-2 只差 3 个色阶）
+    '--bubble-user': 'color-mix(in srgb, var(--primary) 20%, transparent)',
+    '--bubble-border-user': is('color-mix(in srgb, var(--primary) 34%, transparent)', 'color-mix(in srgb, var(--primary) 30%, transparent)'),
     '--bubble-npc': is('#FDFBF5', '#241C12'),
     '--bubble-border': is('rgba(60,40,10,0.12)', 'rgba(255,214,160,0.10)'),
+
+    // 思考过程：暖紫。借头像色板里的 #A98DB5，浅色模式下压深以保证
+    // 12.5px 小字可读，深色模式下提亮。紫色是唯一没被语义占用的色相
+    //（琥珀=用户 / 绿=成功 / 红=失败），和用户气泡区分度最大。
+    '--think': is('#7A5E8C', '#C6A9D6'),
 
     '--code-bg': is('#ece4d2', '#282015'),
     '--code-bg-inline': is('#e6dcc6', '#382C1B'),

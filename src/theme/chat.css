@@ -226,9 +226,23 @@
 }
 .tool-card {
   border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--surface-2);
+  /* 左侧状态条：默认中性，执行中/成功/失败只换颜色。
+     宽度恒定 3px，状态切换时内部内容不会左右跳动。 */
+  border-left: 3px solid color-mix(in srgb, var(--text-faint) 42%, transparent);
+  border-radius: 8px;
+  /* 淡中性底（和思考卡同一种“浅色块”语言，只是不偏紫）：
+     覆盖在实色主区域上，视觉上就是一块很浅的暖灰，不是透视 */
+  background: color-mix(in srgb, var(--text) 6%, transparent);
   overflow: hidden;
+}
+.tool-card.executing {
+  border-left-color: var(--primary);
+}
+.tool-card.has-result {
+  border-left-color: color-mix(in srgb, var(--success) 75%, transparent);
+}
+.tool-card.has-error {
+  border-left-color: color-mix(in srgb, var(--danger) 75%, transparent);
 }
 .tool-card-head {
   display: flex;
@@ -245,7 +259,7 @@
   cursor: pointer;
 }
 .tool-card-head:hover {
-  background: var(--surface-3);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
 }
 .tool-card.executing .tool-card-head {
   color: var(--primary);
@@ -259,17 +273,22 @@
 .tool-card-name {
   flex: 1;
   min-width: 0;
+  /* 工具名走等宽字体：和对话正文（衬线/无衬线）形成“终端 vs 消息”的区别 */
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: -0.1px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .tool-args {
   margin: 0;
-  padding: 8px 14px;
+  padding: 8px 12px;
   font-size: 11px;
   line-height: 1.45;
-  background: var(--code-bg);
-  border-top: 1px solid var(--border-soft);
+  /* 与标题同一个底色：直接用卡片底，展开后不再出现一块深米色 */
+  background: transparent;
+  /* 上方的分隔线由 .tool-card-body 提供，避免两条边线叠成 2px */
   white-space: pre-wrap;
   word-break: break-all;
   max-height: 220px;
@@ -348,11 +367,14 @@
 }
 
 /* ---------- 折叠面板（thinking / 工具结果） ---------- */
-/* 与工具调用展示框（tool-card）保持一致的视觉：字号、颜色、展开方式 */
+/* 与工具调用展示框（tool-card）同构：一样的描边、8px 圆角、左侧 3px 条，
+   只有颜色不同——思考用暖紫，工具用中性色 + 绿/红状态色。 */
 .collp {
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--surface-2);
+  border: 1px solid color-mix(in srgb, var(--think) 30%, transparent);
+  border-left: 3px solid color-mix(in srgb, var(--think) 72%, transparent);
+  border-radius: 8px;
+  /* 5% 的淡紫底：结构和工具卡完全一致，只靠颜色区分 */
+  background: color-mix(in srgb, var(--think) 5%, transparent);
   overflow: hidden;
   margin: 2px 0;
 }
@@ -371,7 +393,11 @@
   cursor: pointer;
 }
 .collp-head:hover {
-  background: var(--surface-3);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+}
+/* 思考面板：结构、字号、字重与工具卡完全一致，只把颜色换成暖紫 */
+.collp-think .collp-head {
+  color: var(--think);
 }
 .collp-icon {
   font-size: 13px;
@@ -388,25 +414,31 @@
   border-top: 1px solid var(--border-soft);
   padding: 0;
 }
+/* 展开区与折叠预览共用同一套排版：12px / --text-dim，
+   左右内边距也与标题、预览对齐，展开时文字不会横向跳动 */
 .collp-content {
   max-height: 240px;
   overflow: auto;
-  padding: 8px 14px;
-  font-size: 11px;
+  padding: 8px 12px;
+  font-size: 12px;
   line-height: 1.6;
   color: var(--text-dim);
   background: var(--code-bg);
   word-break: break-word;
 }
 .collp-content .md {
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.6;
   color: var(--text-dim);
+}
+/* 思考展开区跟随卡片淡紫，避免米色代码底卡在紫色描边里 */
+.collp-think .collp-content {
+  background: color-mix(in srgb, var(--think) 7%, transparent);
 }
 .collp-preview {
   padding: 5px 12px 8px;
   font-size: 12px;
-  color: var(--text-faint);
+  color: var(--text-dim);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
