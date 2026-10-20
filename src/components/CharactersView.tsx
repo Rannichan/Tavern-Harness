@@ -666,25 +666,33 @@ function SkillList() {
     const toId = over.id as string;
 
     /** 在指定分组内搬移并持久化 displayOrder（0..n-1） */
-    const apply = (group: McpTool[], setter: React.Dispatch<React.SetStateAction<McpTool[]>>): boolean => {
+    const apply = async (group: McpTool[], setter: React.Dispatch<React.SetStateAction<McpTool[]>>): Promise<boolean> => {
       const from = group.findIndex((x) => x.name === fromId);
       const to = group.findIndex((x) => x.name === toId);
       if (from < 0 || to < 0) return false;
       const next = arrayMove(group, from, to);
       setter(next);
-      for (let i = 0; i < next.length; i++) {
-        const item = next[i];
-        if (item.id != null) db.tools.update(item.id, { displayOrder: i });
+      try {
+        // 必须先等所有写入落库再 refresh：持久化层是远程 SQLite（每次 update
+        // 还要先取写锁），立即 refresh 会读到旧顺序，再用 store 的旧数据把刚
+        // 拖好的界面覆盖回去，表现就是松手后弹回原位。
+        await Promise.all(next.map((item, index) => (
+          item.id == null ? Promise.resolve() : db.tools.update(item.id, { displayOrder: index })
+        )));
+      } catch (error) {
+        addToast(t('toast.skillOrderFailed', { msg: (error as Error).message }), 'error');
+      } finally {
+        // 失败时也刷新：让界面回到数据库里的真实顺序，而不是停留在乐观结果。
+        await refresh();
       }
-      refresh();
       return true;
     };
 
-    if (!apply(custom, setCustom)) {
-      if (!apply(imported, setImported)) {
-        if (builtin.some((x) => x.name === fromId)) apply(builtin, setBuiltin);
-      }
-    }
+    void (async () => {
+      if (await apply(custom, setCustom)) return;
+      if (await apply(imported, setImported)) return;
+      if (builtin.some((x) => x.name === fromId)) await apply(builtin, setBuiltin);
+    })();
   };
 
   const groupConfig: { key: 'builtin' | 'custom' | 'imported'; labelKey: string; items: McpTool[]; setter: React.Dispatch<React.SetStateAction<McpTool[]>> }[] = [
