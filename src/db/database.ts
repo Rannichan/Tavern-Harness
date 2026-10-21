@@ -540,14 +540,8 @@ export function isTavernKeeper(npc: Pick<NpcCharacter, 'isTavernKeeper'>): boole
   return npc.isTavernKeeper === true;
 }
 
-export const DEFAULT_SETTINGS: AppSettings = {
-  id: 1,
-  baseUrl: 'https://api.openai.com/v1/',
-  apiKey: '',
-  defaultModel: '',
-  defaultProviderId: null,
-  themeMode: 'system',
-  language: null,
+/** 「生成参数」卡片的默认值；设置页重置按钮与首次初始化共用这一份来源。 */
+export const DEFAULT_GENERATION_SETTINGS = {
   temperature: 1.0,
   topP: 0.95,
   maxTokens: 0,
@@ -557,6 +551,17 @@ export const DEFAULT_SETTINGS: AppSettings = {
   repetitionPenalty: 1,
   reasoningEffort: 'auto',
   contextCompressionThreshold: 'off',
+} satisfies Partial<AppSettings>;
+
+export const DEFAULT_SETTINGS: AppSettings = {
+  id: 1,
+  baseUrl: 'https://api.openai.com/v1/',
+  apiKey: '',
+  defaultModel: '',
+  defaultProviderId: null,
+  themeMode: 'system',
+  language: null,
+  ...DEFAULT_GENERATION_SETTINGS,
   seed: -1,
   stop: '',
   isStreaming: true,

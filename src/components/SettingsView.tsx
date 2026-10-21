@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useStore } from '../store/store';
-import { db } from '../db/database';
+import { db, DEFAULT_GENERATION_SETTINGS } from '../db/database';
 import { type ThemeMode } from '../theme/theme';
 import { type ApiProvider, type AppLanguage, type ReasoningEffort, enabledModelIds, modelAliases } from '../types/models';
 import { Icon, Modal } from './shared';
@@ -17,6 +17,7 @@ import { VersionHistoryModal } from './VersionHistoryModal';
 export function SettingsView() {
   const settings = useStore((s) => s.settings);
   const setSettings = useStore((s) => s.setSettings);
+  const addToast = useStore((s) => s.addToast);
   const resetTavern = useStore((s) => s.resetTavern);
   const providers = useStore((s) => s.providers);
   const refreshProviders = useStore((s) => s.refreshProviders);
@@ -42,6 +43,15 @@ export function SettingsView() {
       <span className="range-val">{fmt ? fmt(settings[key] as number) : (settings[key] as number)}</span>
     </label>
   );
+
+  const generationDefaults = DEFAULT_GENERATION_SETTINGS;
+  const isGenerationDefault = (Object.keys(generationDefaults) as Array<keyof typeof generationDefaults>)
+    .every((key) => settings[key] === generationDefaults[key]);
+
+  const resetGenerationParams = async () => {
+    await setSettings({ ...generationDefaults });
+    addToast(t('toast.genParamsReset'));
+  };
 
   return (
     <div className="view-page">
@@ -76,7 +86,18 @@ export function SettingsView() {
 
         {/* 生成参数 */}
         <div className="set-section">
-          <h3>{t('settings.genParams')}</h3>
+          <div className="settings-section-head">
+            <h3>{t('settings.genParams')}</h3>
+            <button
+              className="btn btn-sm settings-gen-reset"
+              title={t('settings.genParamsResetTitle')}
+              aria-label={t('settings.genParamsResetTitle')}
+              disabled={isGenerationDefault}
+              onClick={() => void resetGenerationParams()}
+            >
+              <Icon name="refresh" size={12} /> {t('settings.genParamsReset')}
+            </button>
+          </div>
           <table className="table param-table">
             <tbody>
               <tr>
