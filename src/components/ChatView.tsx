@@ -1,4 +1,4 @@
-import { Fragment, lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Fragment, lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type UIEvent } from 'react';
 import { useStore } from '../store/store';
 import { type ChatMessage, type ChatParticipant, type ChatSession, type ContextCompression, type ToolCallRecord, displayModelName } from '../types/models';
 import { Avatar, Icon, Markdown, Collapse, Modal, AttachCard } from './shared';
@@ -12,7 +12,7 @@ import { escapeRegExp, prettyJson, trimEdgeNewlines } from '../core/strings';
 import { copyText } from '../core/clipboard';
 import { clearTextSelection, shouldSuppressContextMenuWhileTyping, useTouchLongPress } from '../core/longPress';
 import { fixedViewportPoint } from '../core/viewport';
-import { keepStickyBottom } from '../core/stickyBottom';
+import { keepStickyBottom, isNearBottom } from '../core/stickyBottom';
 import { PopoverMenu } from './PopoverMenu';
 
 const CharacterBookEditor = lazy(() => import('./CharacterBookEditor'));
@@ -90,15 +90,23 @@ export function ChatView({
   participants,
   compressions,
   streaming,
+  active = true,
 }: {
   session: ChatSession;
   messages: ChatMessage[];
   participants: ChatParticipant[];
   compressions: ContextCompression[];
   streaming: boolean;
+  /** 是否为当前显示的 Tab。切走的 Tab 不显示（display:none 或 content-visibility:hidden）。 */
+  active?: boolean;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const positionedSessionRef = useRef<{ id: number | undefined; messageCount: number } | null>(null);
+  const scrollMemory = useRef<{ sessionId: number | undefined; top: number; atBottom: boolean }>({
+    sessionId: undefined,
+    top: 0,
+    atBottom: true,
+  });
   const updateStreaming = useStore((s) => s.streaming.sessionId === session.id);
   const t = useT();
   const compressionsByEndMessageId = useMemo(
@@ -115,6 +123,7 @@ export function ChatView({
 
   // 进入或切换会话时直接定位到最新消息，不播放滚动动画。
   useLayoutEffect(() => {
+    if (!active) return;
     const el = scrollRef.current;
     if (!el) return;
     const positioned = positionedSessionRef.current;
@@ -123,11 +132,25 @@ export function ChatView({
     if (!enteringSession && !historyJustLoaded) return;
     el.scrollTop = el.scrollHeight;
     positionedSessionRef.current = { id: session.id, messageCount: messages.length };
-  }, [session.id, messages.length]);
+  }, [active, session.id, messages.length]);
+
+  useLayoutEffect(() => {
+    if (!active) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    const memory = scrollMemory.current;
+    // 记下的位置属于另一个会话（切 Tab 的同时也切换了会话）：直接贴底。
+    if (memory.sessionId !== session.id) {
+      el.scrollTop = el.scrollHeight;
+      return;
+    }
+    el.scrollTop = memory.atBottom ? el.scrollHeight : memory.top;
+  }, [active, session.id]);
 
   // 自动滚动到底（新消息 / 流式更新时）：群聊流式生成时同样跟随最新内容
   const isGroup = session.mode === 'GROUP';
   useEffect(() => {
+    if (!active) return;
     const el = scrollRef.current;
     if (!el) return;
     if (positionedSessionRef.current?.id !== session.id) return;
@@ -139,6 +162,7 @@ export function ChatView({
     if (!isGroup || nearBottom || updateStreaming) {
       el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
     }
+    // 恢复由上方 layout effect 处理。
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages.length, updateStreaming, messages[messages.length - 1]?.content.length, isGroup]);
 
@@ -184,8 +208,21 @@ export function ChatView({
     return ids;
   }, [messages]);
 
+  const handleScroll = (event: UIEvent<HTMLDivElement>) => {
+    const el = event.currentTarget;
+    // 隐藏过程中浏览器会把滚动位置夹到 0 并派发一次 scroll 事件，
+    // 那不是用户的滚动意图，不能覆盖掉记下的位置。
+    if (!active || el.clientHeight === 0) return;
+    scrollMemory.current = {
+      sessionId: session.id,
+      top: el.scrollTop,
+      atBottom: isNearBottom(el.scrollHeight, el.scrollTop, el.clientHeight),
+    };
+    onChatScroll();
+  };
+
   return (
-    <div className="chat-scroll" ref={scrollRef} onScroll={onChatScroll}>
+    <div className="chat-scroll" ref={scrollRef} onScroll={handleScroll}>
       <div className="chat-col">
         {messages.length === 0 && (
           <div className="empty-state fade-up">

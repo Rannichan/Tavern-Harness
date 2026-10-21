@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { createSession, useStore } from '../store/store';
 import { db } from '../db/database';
 import { Icon, MasonryGrid, SessionVisual } from './shared';
 import { NewSessionMenu } from './NewSessionMenu';
 import { useT, currentLocale } from '../core/i18n';
+import { textPreview } from '../core/textPreview';
 import type { SessionMember } from './shared';
 import type { NpcCharacter } from '../types/models';
 
@@ -11,7 +12,7 @@ import type { NpcCharacter } from '../types/models';
 // 仪表盘（无活动会话时的起始页）
 // ============================================================
 
-export function Dashboard() {
+export const Dashboard = memo(function Dashboard() {
   const npcs = useStore((s) => s.npcs);
   const sessions = useStore((s) => s.sessions);
   const t = useT();
@@ -167,7 +168,7 @@ export function Dashboard() {
                   {n.name}
                   {n.isBuiltIn && <span className="tag">{t('common.builtin')}</span>}
                 </div>
-                <div className="cgreet">{n.greeting}</div>
+                <div className="cgreet">{textPreview(n.greeting)}</div>
                 <div className="cactions">
                   <button className="btn btn-sm btn-primary" onClick={() => startNpc(n.id!)}>{t('dash.startChat')}</button>
                 </div>
@@ -180,4 +181,4 @@ export function Dashboard() {
       {showNew && <NewSessionMenu onClose={() => setShowNew(false)} />}
     </div>
   );
-}
+});

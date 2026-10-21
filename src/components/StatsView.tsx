@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useState } from 'react';
 import { useStore } from '../store/store';
 import { getCareerStats, resetCareerStats } from '../core/stats';
 import { Icon } from './shared';
@@ -18,19 +18,22 @@ interface StatsData {
   npcStats: Array<{ npcId: number; npcName: string; rounds: number }>;
 }
 
-export function StatsView() {
+export const StatsView = memo(function StatsView({ active = true }: { active?: boolean }) {
   const addToast = useStore((s) => s.addToast);
   const t = useT();
   const [data, setData] = useState<StatsData | null>(null);
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     const d = await getCareerStats();
     setData(d);
-  };
-
-  useEffect(() => {
-    refresh();
   }, []);
+
+  // 视图常驻不卸载（见 App.tsx 的 ViewSlot），所以每次重新显示时刷新一次，
+  // 否则聊完天回来看生涯统计会看到旧数字。
+  useEffect(() => {
+    if (!active) return;
+    void refresh();
+  }, [active, refresh]);
 
   if (!data) {
     return <div className="view-page"><div className="spinner" /></div>;
@@ -65,7 +68,7 @@ export function StatsView() {
       </div>
     </div>
   );
-}
+});
 
 /** 成就陈列柜：已解锁的奖杯点亮，未解锁的只展示锁定状态 */
 function AchievementShelf() {

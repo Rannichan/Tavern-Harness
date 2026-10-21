@@ -919,6 +919,27 @@ body.resizing .sidebar-resizer {
 
 /* 右侧所有 Tab 共用同一块主区域实色底。 */
 
+/* 已访问的视图保持挂载，隐藏时跳过绘制。 */
+.view-slot {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+.view-slot[data-active='false'] {
+  display: none;
+}
+@supports (content-visibility: hidden) {
+  .view-slot[data-active='false'] {
+    display: flex;
+    position: absolute;
+    inset: 0;
+    content-visibility: hidden;
+    pointer-events: none;
+  }
+}
+
 .chat-scroll {
   flex: 1;
   overflow-y: auto;

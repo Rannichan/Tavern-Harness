@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, memo, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -25,10 +25,14 @@ import { DeleteConfirmDialog } from './DeleteConfirmDialog';
 import { parseSillyTavernCardFile } from '../core/sillyTavernImporter';
 import { parseSillyTavernWorldInfoFile } from '../core/sillyTavernWorldInfo';
 import { characterBookEntryStats } from '../core/characterBook';
+import { textPreview } from '../core/textPreview';
+import { AVATAR_STORAGE_SIZE, shrinkAvatarDataUrl } from '../core/avatarThumbnail';
 import { ALL_BUILTIN_TOOL_NAMES } from '../core/toolDefinitions';
 import { useT } from '../core/i18n';
 
 const CharacterBookEditor = lazy(() => import('./CharacterBookEditor'));
+
+type WorkshopTab = 'characters' | 'worldbooks' | 'skills';
 
 // 内置角色「酒馆老板」默认启用所有技能
 const ALL_DEFAULT_SKILLS = [...ALL_BUILTIN_TOOL_NAMES];
@@ -39,12 +43,22 @@ const ALL_DEFAULT_SKILLS = [...ALL_BUILTIN_TOOL_NAMES];
 //       由用户手动点保存
 // ============================================================
 
-export function CharactersView() {
+export const CharactersView = memo(function CharactersView({ active = true }: { active?: boolean }) {
   const npcs = useStore((s) => s.npcs);
   const worldBooks = useStore((s) => s.worldBooks);
   const addToast = useStore((s) => s.addToast);
   const t = useT();
-  const [tab, setTab] = useState<'characters' | 'worldbooks' | 'skills'>('characters');
+  const [tab, setTab] = useState<WorkshopTab>('characters');
+  // 懒挂载 + 常驻（与 App.tsx 的 ViewSlot 同一思路）：tab 一旦打开过就不再卸载。
+  // 角色卡 / 世界书卡片带着大段文本和头像背景图，反复重建会把排版和解码
+  // 成本重复付一遍，表现就是每次切换都卡一下。
+  const [mountedTabs, setMountedTabs] = useState<ReadonlySet<WorkshopTab>>(
+    () => new Set<WorkshopTab>(['characters']),
+  );
+  const selectTab = (next: WorkshopTab) => {
+    setTab(next);
+    setMountedTabs((prev) => (prev.has(next) ? prev : new Set(prev).add(next)));
+  };
   const [editing, setEditing] = useState<NpcCharacter | null>(null);
   const [isNew, setIsNew] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -55,19 +69,19 @@ export function CharactersView() {
   const refreshWb = useStore((s) => s.refreshWorldBooks);
   const refreshTools = useStore((s) => s.refreshTools);
 
-  // 每次进入角色工坊都刷新一次，确保聊天中通过技能创建/修改的数据即时可见
+  // 视图常驻时按激活状态刷新。
   useEffect(() => {
-    refresh();
-    refreshWb();
-    refreshTools();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (!active) return;
+    void refresh();
+    void refreshWb();
+    void refreshTools();
+  }, [active, refresh, refreshWb, refreshTools]);
 
   const handleImport = async (file: File) => {
     try {
       const draft = await parseSillyTavernCardFile(file);
-      // 预填新建角色表单，由用户确认后保存
-      setEditing({ ...draft.character, id: undefined });
+      const avatarDataUrl = await shrinkAvatarDataUrl(draft.character.avatarDataUrl, AVATAR_STORAGE_SIZE);
+      setEditing({ ...draft.character, avatarDataUrl, id: undefined });
       setIsNew(true);
       addToast(t('toast.importedChar', { name: draft.character.name, version: draft.version }));
     } catch (e) {
@@ -83,18 +97,18 @@ export function CharactersView() {
           <p className="view-sub">{t('workshop.sub')}</p>
         </div>
         <div className="side-nav" data-hscroll>
-          <button className={`nav-chip ${tab === 'characters' ? 'active' : ''}`} onClick={() => setTab('characters')}>
+          <button className={`nav-chip ${tab === 'characters' ? 'active' : ''}`} onClick={() => selectTab('characters')}>
             {t('workshop.tabCharacters')}
           </button>
-          <button className={`nav-chip ${tab === 'worldbooks' ? 'active' : ''}`} onClick={() => setTab('worldbooks')}>
+          <button className={`nav-chip ${tab === 'worldbooks' ? 'active' : ''}`} onClick={() => selectTab('worldbooks')}>
             {t('workshop.tabWorldbooks')}
           </button>
-          <button className={`nav-chip ${tab === 'skills' ? 'active' : ''}`} onClick={() => setTab('skills')}>
+          <button className={`nav-chip ${tab === 'skills' ? 'active' : ''}`} onClick={() => selectTab('skills')}>
             {t('workshop.tabSkills')}
           </button>
         </div>
 
-        {tab === 'characters' && (
+        <div className="workshop-tab-panel" data-active={tab === 'characters' ? 'true' : 'false'}>
           <CharacterGrid
             npcs={npcs}
             onEdit={(n, isNew) => {
@@ -103,9 +117,13 @@ export function CharactersView() {
             }}
             onImportPng={openFilePicker}
           />
-        )}
-        {tab === 'worldbooks' && <WorldBookList books={worldBooks} onChanged={refreshWb} />}
-        {tab === 'skills' && <SkillList />}
+        </div>
+        <div className="workshop-tab-panel" data-active={tab === 'worldbooks' ? 'true' : 'false'}>
+          {mountedTabs.has('worldbooks') && <WorldBookList books={worldBooks} onChanged={refreshWb} />}
+        </div>
+        <div className="workshop-tab-panel" data-active={tab === 'skills' ? 'true' : 'false'}>
+          {mountedTabs.has('skills') && <SkillList />}
+        </div>
       </div>
       <input
         ref={fileRef}
@@ -134,7 +152,7 @@ export function CharactersView() {
       )}
     </div>
   );
-}
+});
 
 // ---------------- 角色网格 ----------------
 
@@ -188,7 +206,7 @@ function CharacterGrid({ npcs, onEdit, onImportPng }: { npcs: NpcCharacter[]; on
               <ScrollingCardName name={n.name} />
               {n.isBuiltIn && <span className="tag">{t('common.builtin')}</span>}
             </div>
-            <div className="cgreet">{n.greeting || t('workshop.noGreeting')}</div>
+            <div className="cgreet">{textPreview(n.greeting) || t('workshop.noGreeting')}</div>
             {/* 技能区固定渲染（哪怕无技能），保证所有卡片高度一致 */}
             <div className="cskil">
               {n.enabledToolNames.map((s) => (
@@ -328,7 +346,10 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
                     const f = e.target.files?.[0];
                     if (f) {
                       const reader = new FileReader();
-                      reader.onload = () => setAvatarDataUrl(reader.result as string);
+                      reader.onload = () => {
+                        const raw = reader.result as string;
+                        void shrinkAvatarDataUrl(raw, AVATAR_STORAGE_SIZE).then((url) => setAvatarDataUrl(url));
+                      };
                       reader.readAsDataURL(f);
                     }
                   }} />
@@ -451,6 +472,13 @@ function WorldBookList({ books, onChanged }: {
   const [editorTab, setEditorTab] = useState<'worldbook' | 'knowledge'>('worldbook');
   const [pendingDelete, setPendingDelete] = useState<WorldBook | null>(null);
   const jsonFileRef = useRef<HTMLInputElement>(null);
+  const statsByBook = useMemo(() => {
+    const map = new Map<number, { total: number; enabled: number }>();
+    for (const book of books) {
+      if (book.id != null) map.set(book.id, characterBookEntryStats(book.characterBook));
+    }
+    return map;
+  }, [books]);
 
   const closeEditor = () => {
     setEditing(null);
@@ -556,7 +584,7 @@ function WorldBookList({ books, onChanged }: {
       <MasonryGrid>
         {books.map((b) => {
           const isBuiltin = isBuiltinTavernHandbook(b);
-          const knowledge = characterBookEntryStats(b.characterBook);
+          const knowledge = (b.id != null ? statsByBook.get(b.id) : undefined) ?? { total: 0, enabled: 0 };
           const meta = [
             b.content ? t('workshop.wbChars', { n: b.content.length }) : '',
             knowledge.total > 0 ? t('workshop.wbKnowledgeMeta', { enabled: knowledge.enabled, total: knowledge.total }) : '',
@@ -568,7 +596,7 @@ function WorldBookList({ books, onChanged }: {
                 <ScrollingCardName name={b.name} />
                 {isBuiltin && <span className="tag">{t('common.builtin')}</span>}
               </div>
-              <div className="wcontent">{b.content || t('workshop.wbNoContent')}</div>
+              <div className="wcontent">{textPreview(b.content) || t('workshop.wbNoContent')}</div>
               <div className="cmeta">{meta}</div>
               <div className="cactions">
                 <button className="btn btn-sm" onClick={() => openEditor(b)}><Icon name="settings" size={12} /> {t('workshop.browseEdit')}</button>
@@ -652,7 +680,7 @@ function WorldBookForm({
   const [characterBook, setCharacterBook] = useState(initial.characterBook ?? '');
   const [renderMarkdown, setRenderMarkdown] = useState(false);
   const isBuiltin = isBuiltinTavernHandbook(initial);
-  const knowledge = characterBookEntryStats(characterBook);
+  const knowledge = useMemo(() => characterBookEntryStats(characterBook), [characterBook]);
   const isEditing = 'id' in initial && initial.id != null;
 
   const resetToDefault = () => {

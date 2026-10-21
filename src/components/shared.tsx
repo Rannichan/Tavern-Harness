@@ -1,8 +1,9 @@
-import { Children, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Children, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import DOMPurify from 'dompurify';
 import { renderMarkdown, highlightMentions } from '../core/markdown';
 import { useT } from '../core/i18n';
+import { useAvatarImageUrl } from '../core/avatarThumbnail';
 
 // ============================================================
 // 通用弹窗容器（Portal 到 body，避开祖先 backdrop-filter 产生的
@@ -43,15 +44,60 @@ interface MdProps {
   mentionNames?: string[];
 }
 
+/** LRU cache for sanitized Markdown. */
+const MARKDOWN_CACHE_LIMIT = 500;
+const MARKDOWN_CACHE_MAX_CHARS = 8 * 1024 * 1024;
+const MARKDOWN_CACHE_MAX_TEXT = 100_000;
+const markdownCache = new Map<string, string>();
+let markdownCacheChars = 0;
+const MENTION_SEPARATOR = '\u0000';
+
+function trimMarkdownCache(): void {
+  while (
+    (markdownCache.size > MARKDOWN_CACHE_LIMIT || markdownCacheChars > MARKDOWN_CACHE_MAX_CHARS)
+    && markdownCache.size > 1
+  ) {
+    const oldest = markdownCache.keys().next().value;
+    if (oldest == null) break;
+    const html = markdownCache.get(oldest);
+    if (html != null) markdownCacheChars -= oldest.length + html.length;
+    markdownCache.delete(oldest);
+  }
+}
+
+function renderSanitizedMarkdown(text: string, mathEnabled: boolean, mentionKey: string): string {
+  const key = `${mathEnabled ? 1 : 0}\u0001${mentionKey}\u0001${text}`;
+  const cached = markdownCache.get(key);
+  if (cached != null) {
+    // 刷新 LRU 顺序。
+    markdownCache.delete(key);
+    markdownCache.set(key, cached);
+    return cached;
+  }
+  let html = renderMarkdown(text, { mathEnabled });
+  const mentionNames = mentionKey ? mentionKey.split(MENTION_SEPARATOR) : [];
+  if (mentionNames.length > 0) html = highlightMentions(html, mentionNames);
+  const sanitized = DOMPurify.sanitize(html, {
+    USE_PROFILES: { html: true },
+    ALLOW_UNKNOWN_PROTOCOLS: false,
+  });
+  // 超长文本（例如大段工具输出）只渲染不缓存：重新解析一次比长期占内存划算。
+  if (text.length <= MARKDOWN_CACHE_MAX_TEXT) {
+    markdownCache.set(key, sanitized);
+    markdownCacheChars += key.length + sanitized.length;
+    trimMarkdownCache();
+  }
+  return sanitized;
+}
+
 export function Markdown({ text, mathEnabled = true, mentionNames = [] }: MdProps) {
-  const html = useMemo(() => {
-    let h = renderMarkdown(text, { mathEnabled });
-    if (mentionNames.length > 0) h = highlightMentions(h, mentionNames);
-    return DOMPurify.sanitize(h, {
-      USE_PROFILES: { html: true },
-      ALLOW_UNKNOWN_PROTOCOLS: false,
-    });
-  }, [text, mathEnabled, mentionNames]);
+  // 调用方每次渲染都会新建 mentionNames 数组，直接用数组做依赖会让缓存永远失效；
+  // 这里把它折叠成内容键（成员名按调用方顺序拼接）。
+  const mentionKey = mentionNames.join(MENTION_SEPARATOR);
+  const html = useMemo(
+    () => renderSanitizedMarkdown(text, mathEnabled, mentionKey),
+    [text, mathEnabled, mentionKey],
+  );
 
   return <div className="md" dangerouslySetInnerHTML={{ __html: html }} />;
 }
@@ -76,6 +122,7 @@ export function MasonryGrid({ children }: { children: React.ReactNode }) {
   const updateColumnCount = useCallback(() => {
     const grid = gridRef.current;
     if (!grid) return;
+    if (grid.clientWidth === 0) return;
     const styles = getComputedStyle(grid);
     const minColumnWidth = Number.parseFloat(styles.getPropertyValue('--masonry-column-min-width'));
     const gap = Number.parseFloat(styles.getPropertyValue('--masonry-gap'));
@@ -95,6 +142,7 @@ export function MasonryGrid({ children }: { children: React.ReactNode }) {
   useLayoutEffect(() => {
     const grid = gridRef.current;
     if (!grid) return;
+    if (grid.clientWidth === 0) return;
     const gap = Number.parseFloat(getComputedStyle(grid).getPropertyValue('--masonry-gap'));
     const heights = Array.from({ length: columnCount }, () => 0);
     const nextLayout = Array.from({ length: columnCount }, () => [] as number[]);
@@ -142,7 +190,13 @@ export function MasonryGrid({ children }: { children: React.ReactNode }) {
 // 头像（彩色首字母 / 图片）
 // ============================================================
 
-export function Avatar({
+/** Convert an image URL to a CSS `url()` value. */
+function cssImageUrl(url: string): string {
+  return /^data:[^,]*;base64,/i.test(url) ? `url("${url}")` : `url(${JSON.stringify(url)})`;
+}
+
+/** Avatar with image-thumbnail support. */
+export const Avatar = memo(function Avatar({
   name,
   colorOrdinal,
   imageUrl,
@@ -155,7 +209,8 @@ export function Avatar({
 }) {
   const cls = size === 'lg' ? 'avatar' : size === 'xs' ? 'avatar xs' : 'avatar sm';
   const hue = (colorOrdinal ?? 0) % 6;
-  if (imageUrl) {
+  const displayUrl = useAvatarImageUrl(imageUrl);
+  if (displayUrl) {
     // 用背景图而不是 <img>：微信 Android 内置浏览器会对 <img> 的长按弹出
     // “发送给朋友 / 保存图片”。命中测试落在宿主 div 上就不会触发原生菜单；
     // pointer-events: none 再让点击/滚动继续冒泡给外层（见 global.css）。
@@ -164,12 +219,12 @@ export function Avatar({
         className={`${cls} avatar-image`}
         role="img"
         aria-label={name}
-        style={{ backgroundImage: `url(${JSON.stringify(imageUrl)})` }}
+        style={{ backgroundImage: cssImageUrl(displayUrl) }}
       />
     );
   }
   return <div className={`${cls} avatar-hue-${hue}`}>{name.slice(0, 1)}</div>;
-}
+});
 
 // ============================================================
 // 附件卡片：仅展示文件名（去掉图片/视频缩略图）
@@ -285,13 +340,16 @@ export function Collapse({
 
   useEffect(() => {
     const el = contentRef.current;
-    if (el) {
-      setOverflow(el.scrollHeight > el.clientHeight + 4);
+    if (!el) return;
+    const measure = () => {
+      if (el.clientHeight > 0) setOverflow(el.scrollHeight > el.clientHeight + 4);
       // 流式进行中：实时跟随最新内容（钉在底部，展示最新的一行/一段）
-      if (live && open) {
-        el.scrollTop = el.scrollHeight;
-      }
-    }
+      if (live && open) el.scrollTop = el.scrollHeight;
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
   }, [preview, children, live, open]);
 
   const cls = `collp ${accent !== 'default' ? `collp-${accent}` : ''}`;

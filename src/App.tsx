@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useStore } from './store/store';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useStore, type ActiveView } from './store/store';
 import { Sidebar } from './components/Sidebar';
 import { ChatView, ChatInput, MessageMenu, TurnQueuePanel } from './components/ChatView';
 import { CharactersView } from './components/CharactersView';
@@ -30,6 +30,10 @@ export default function App() {
   const syncControlState = useStore((s) => s.syncControlState);
   const takeOverControl = useStore((s) => s.takeOverControl);
   const activeView = useStore((s) => s.activeView);
+  const [mountedViews, setMountedViews] = useState<ActiveView[]>([activeView]);
+  if (!mountedViews.includes(activeView)) {
+    setMountedViews([...mountedViews, activeView]);
+  }
   const activeSessionId = useStore((s) => s.activeSessionId);
   const sessions = useStore((s) => s.sessions);
   const messages = useStore((s) => s.messages);
@@ -132,28 +136,44 @@ export default function App() {
       <div className="app-shell">
         <Sidebar />
         <main className="main-area">
-          {activeView === 'chat' && activeSession && (
-            <>
-              <SessionHeader session={activeSession} participants={sessionParticipants} />
-              <div className="chat-main-row">
-                <div className="chat-main-col">
-                  <ChatView
-                    session={activeSession}
-                    messages={sessionMessages}
-                    participants={sessionParticipants}
-                    compressions={contextCompressions[activeSession.id!] ?? []}
-                    streaming={isStreamingSession}
-                  />
-                  <ChatInput sessionId={activeSession.id!} />
+          <ViewSlot active={activeView === 'chat'}>
+            {activeSession ? (
+              <>
+                <SessionHeader session={activeSession} participants={sessionParticipants} />
+                <div className="chat-main-row">
+                  <div className="chat-main-col">
+                    <ChatView
+                      session={activeSession}
+                      messages={sessionMessages}
+                      participants={sessionParticipants}
+                      compressions={contextCompressions[activeSession.id!] ?? []}
+                      streaming={isStreamingSession}
+                      active={activeView === 'chat'}
+                    />
+                    <ChatInput sessionId={activeSession.id!} />
+                  </div>
+                  <TurnQueuePanel session={activeSession} participants={sessionParticipants} />
                 </div>
-                <TurnQueuePanel session={activeSession} participants={sessionParticipants} />
-              </div>
-            </>
+              </>
+            ) : (
+              <Dashboard />
+            )}
+          </ViewSlot>
+          {mountedViews.includes('characters') && (
+            <ViewSlot active={activeView === 'characters'}>
+              <CharactersView active={activeView === 'characters'} />
+            </ViewSlot>
           )}
-          {activeView === 'chat' && !activeSession && <Dashboard />}
-          {activeView === 'characters' && <CharactersView />}
-          {activeView === 'settings' && <SettingsView />}
-          {activeView === 'stats' && <StatsView />}
+          {mountedViews.includes('settings') && (
+            <ViewSlot active={activeView === 'settings'}>
+              <SettingsView />
+            </ViewSlot>
+          )}
+          {mountedViews.includes('stats') && (
+            <ViewSlot active={activeView === 'stats'}>
+              <StatsView active={activeView === 'stats'} />
+            </ViewSlot>
+          )}
         </main>
       </div>
           <ConfirmationDialog />
@@ -164,6 +184,29 @@ export default function App() {
           {/* 游戏导出 / 导入的全局入口（会话右键菜单 / 侧边栏导入按钮共用） */}
       <GameplayEntryDialogs />
     </>
+  );
+}
+
+/** 保持已访问的视图挂载，并隔离隐藏视图的焦点与辅助功能。 */
+function ViewSlot({ active, children }: { active: boolean; children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (active) {
+      el.removeAttribute('inert');
+      el.removeAttribute('aria-hidden');
+      return;
+    }
+    const focused = document.activeElement;
+    if (focused instanceof HTMLElement && el.contains(focused)) focused.blur();
+    el.setAttribute('inert', '');
+    el.setAttribute('aria-hidden', 'true');
+  }, [active]);
+  return (
+    <div ref={ref} className="view-slot" data-active={active ? 'true' : 'false'}>
+      {children}
+    </div>
   );
 }
 

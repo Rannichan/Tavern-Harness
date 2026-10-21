@@ -59,12 +59,13 @@ import {
 import { estimateTokensFromChars, accumulateStats, sessionPreviewText } from '../core/stats';
 import { seedOpeningGreeting } from '../core/openingGreeting';
 import { ACHIEVEMENTS, type AchievementDef } from '../core/achievements';
+import { npcFingerprint, sameRows, toolFingerprint, worldBookFingerprint } from '../core/rowFingerprint';
 
 // ============================================================
 // Store（对应 MainViewModel）
 // ============================================================
 
-export type ActiveView = 'chat' | 'characters' | 'settings' | 'stats' | 'achievements';
+export type ActiveView = 'chat' | 'characters' | 'settings' | 'stats';
 
 interface StreamingState {
   sessionId: number | null;
@@ -433,17 +434,19 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   refreshNpcs: async () => {
-    set({ npcs: sortNpcs(await db.npcs.toArray()) });
+    const npcs = sortNpcs(await db.npcs.toArray());
+    set((state) => (sameRows(state.npcs, npcs, npcFingerprint) ? state : { npcs }));
   },
 
   refreshWorldBooks: async () => {
-    set({ worldBooks: sortWorldBooks(await db.worldBooks.toArray()) });
+    const worldBooks = sortWorldBooks(await db.worldBooks.toArray());
+    set((state) => (sameRows(state.worldBooks, worldBooks, worldBookFingerprint) ? state : { worldBooks }));
   },
 
   refreshTools: async () => {
     // 按 displayOrder 排序：技能表拖拽调整的顺序跨刷新保持
     const tools = [...(await db.tools.toArray())].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
-    set({ tools });
+    set((state) => (sameRows(state.tools, tools, toolFingerprint) ? state : { tools }));
   },
 
   refreshAchievements: async () => {

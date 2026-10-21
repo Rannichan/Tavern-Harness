@@ -294,6 +294,13 @@
   flex-direction: column;
   gap: 16px;
 }
+/* 隐藏未激活的角色工坊面板，同时保留已访问的面板状态。 */
+.workshop-tab-panel {
+  display: contents;
+}
+.workshop-tab-panel[data-active='false'] {
+  display: none;
+}
 .view-title {
   font-family: var(--font-serif);
   font-size: 24px;

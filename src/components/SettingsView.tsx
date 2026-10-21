@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { useStore } from '../store/store';
 import { db, DEFAULT_GENERATION_SETTINGS } from '../db/database';
 import { type ThemeMode } from '../theme/theme';
@@ -14,7 +14,7 @@ import { VersionHistoryModal } from './VersionHistoryModal';
 // 设置视图（模型服务 / 超参数 / 主题）
 // ============================================================
 
-export function SettingsView() {
+export const SettingsView = memo(function SettingsView() {
   const settings = useStore((s) => s.settings);
   const setSettings = useStore((s) => s.setSettings);
   const addToast = useStore((s) => s.addToast);
@@ -278,7 +278,7 @@ export function SettingsView() {
       )}
     </div>
   );
-}
+});
 
 // ---------------- Providers ----------------
 
