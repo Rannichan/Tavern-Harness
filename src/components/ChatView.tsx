@@ -546,6 +546,9 @@ function MessageBubble({
             </div>
           </div>
         )}
+        {msg.interrupted && !streaming && (
+          <div className="msg-metrics">{t('chat.interrupted')}</div>
+        )}
         {(msg.latencyMs != null || msg.promptTokens > 0 || msg.completionTokens > 0) && !streaming && (
           <div className="msg-metrics">{formatMetrics(msg)}</div>
         )}

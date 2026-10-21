@@ -193,6 +193,8 @@ export interface ChatMessage {
   toolCallsJson: string;
   toolCallId: string | null;
   thinkingContent: string | null;
+  /** 流式响应在生成后中断时为 true；正文可阅读，但工具调用不会执行或写入上下文。 */
+  interrupted?: boolean;
   /** 群聊：该消息所属的循环序号（0 起）。用于对话与发言队列联动滚动 / 点击定位 */
   loopIndex: number | null;
   timestamp: number;

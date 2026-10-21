@@ -713,15 +713,21 @@ export const useStore = create<AppState>((set, get) => ({
     }
 
     if (result === 'failed') {
-      // 生成失败（网络 / 超时 / 空回复等）→ 回退到原先的状态：
-      // 恢复全部消息（含被删除的旧回复及其工具结果）与会话队列 / 预览。
-      await db.transaction('rw', db.messages, db.contextCompressions, async () => {
-        await db.messages.where('sessionId').equals(sessionId).delete();
-        await db.messages.bulkPut(snapshotMessages);
-        await db.contextCompressions.where('sessionId').equals(sessionId).delete();
-        if (snapshotCompressions.length > 0) await db.contextCompressions.bulkPut(snapshotCompressions);
-      });
-      await db.sessions.update(sessionId, snapshotSessionFields);
+      const generatedMessages = await db.messages.where('sessionId').equals(sessionId).toArray();
+      const hasToolResults = generatedMessages.some(
+        (candidate) => candidate.role === 'tool' && !snapshotMessages.some((original) => original.id === candidate.id),
+      );
+      if (!hasToolResults) {
+        // 网络、超时、空响应且未执行工具：安全恢复旧回复和队列。
+        await db.transaction('rw', db.messages, db.contextCompressions, async () => {
+          await db.messages.where('sessionId').equals(sessionId).delete();
+          await db.messages.bulkPut(snapshotMessages);
+          await db.contextCompressions.where('sessionId').equals(sessionId).delete();
+          if (snapshotCompressions.length > 0) await db.contextCompressions.bulkPut(snapshotCompressions);
+        });
+        await db.sessions.update(sessionId, snapshotSessionFields);
+      }
+      // 工具可能已产生外部副作用，不能用聊天记录回退掩盖它；保留可审计的调用与结果。
       await get().loadMessages(sessionId);
     }
     await get().refreshSessions();
@@ -732,8 +738,20 @@ export const useStore = create<AppState>((set, get) => ({
     if (get().streaming.sessionId != null) return;
     const message = await db.messages.get(messageId);
     if (!message) return;
+    const originalSession = await db.sessions.get(sessionId);
+    if (!originalSession) return;
+    // 用户编辑后会重新请求模型；先记录完整状态，以便 HTTP 错误、超时或空响应时恢复。
+    const snapshotMessages = await db.messages.where('sessionId').equals(sessionId).sortBy('timestamp');
+    const snapshotCompressions = await db.contextCompressions.where('sessionId').equals(sessionId).toArray();
+    const snapshotSessionFields = {
+      turnQueueJson: originalSession.turnQueueJson,
+      turnQueueHistoryJson: originalSession.turnQueueHistoryJson,
+      loopIndex: originalSession.loopIndex,
+      lastMessage: originalSession.lastMessage,
+      updatedAt: originalSession.updatedAt,
+    };
     // 编辑该消息，删除它之后的所有消息（不含自身）
-    const messages = await db.messages.where('sessionId').equals(sessionId).sortBy('timestamp');
+    const messages = snapshotMessages;
     const toDelete = messages.filter(
       (m) => m.timestamp > message.timestamp || (m.timestamp === message.timestamp && m.id !== messageId)
     );
@@ -745,6 +763,24 @@ export const useStore = create<AppState>((set, get) => ({
     }));
     await db.messages.update(messageId, { content: newContent, attachments, attachmentInfos });
     await get().loadMessages(sessionId);
+
+    const restoreFailedUserEdit = async (result: TurnResult): Promise<void> => {
+      if (message.role !== 'user' || result !== 'failed') return;
+      const generated = await db.messages.where('sessionId').equals(sessionId).toArray();
+      const hasNewToolResult = generated.some(
+        (candidate) => candidate.role === 'tool' && !snapshotMessages.some((original) => original.id === candidate.id),
+      );
+      if (hasNewToolResult) return;
+      await db.transaction('rw', db.messages, db.contextCompressions, async () => {
+        await db.messages.where('sessionId').equals(sessionId).delete();
+        await db.messages.bulkPut(snapshotMessages);
+        await db.contextCompressions.where('sessionId').equals(sessionId).delete();
+        if (snapshotCompressions.length > 0) await db.contextCompressions.bulkPut(snapshotCompressions);
+      });
+      await db.sessions.update(sessionId, snapshotSessionFields);
+      await get().loadMessages(sessionId);
+      await get().refreshLiveQueue(sessionId);
+    };
 
     const session = await db.sessions.get(sessionId);
     if (!session) return;
@@ -796,12 +832,14 @@ export const useStore = create<AppState>((set, get) => ({
         turnQueueHistoryJson: queueHistoryJson(history.slice(0, targetLoop + 1)),
       });
       await get().refreshLiveQueue(sessionId);
-      await continueGroupConversation(sessionId);
+      const result = await continueGroupConversation(sessionId);
+      await restoreFailedUserEdit(result);
       await get().refreshSessions();
       return;
     }
 
-    await runConversationLoop(session);
+    const result = await runConversationLoop(session);
+    await restoreFailedUserEdit(result);
     await get().refreshSessions();
   },
 
@@ -1929,6 +1967,7 @@ async function performAssistantTurn(
       toolCallsJson: '[]',
       toolCallId: null,
       thinkingContent: null,
+      interrupted: false,
       loopIndex: turnLoopIndex,
       timestamp: Date.now(),
       latencyMs: null,
@@ -2035,18 +2074,24 @@ async function performAssistantTurn(
     publishDraft();
     await draftWrite;
 
-    // 出错时：撤销草稿消息并提示
+    // 传输在收到可读内容后失败时保留正文，但绝不保留或执行半截工具调用。
+    // 没有正文/思考内容则删除草稿，相当于回退本次失败尝试。
     if (errorMsg) {
-      await db.messages.delete(draftId);
-      await useStore.getState().loadMessages(sessionId);
+      const preserved = await persistPartialDraft(
+        draftId, sessionId, content, thinking, request, rawLines, promptTokens, completionTokens,
+        startTime, model, !roundCounted, npc,
+      );
       finishSessionActivity(sessionId);
       useStore.getState().addToast(translate('toast.genFailed', { msg: errorMsg }), 'error');
-      return 'failed';
+      return preserved ? 'stopped' : 'failed';
     }
 
-    // 用户点击「停止」时：中断后续处理（工具调用、ReAct 下一层）
+    // 用户点击「停止」时：保留已收到的可读正文，但中断工具调用和 ReAct 下一层。
     if (stopped || abortController.signal.aborted) {
-      await persistPartialDraft(draftId, sessionId, content, thinking, toolCalls, request, rawLines, promptTokens, completionTokens, startTime, model, !roundCounted, npc);
+      await persistPartialDraft(
+        draftId, sessionId, content, thinking, request, rawLines, promptTokens, completionTokens,
+        startTime, model, !roundCounted, npc,
+      );
       break;
     }
 
@@ -2309,15 +2354,14 @@ function sortJsonValue(value: unknown): unknown {
 
 /**
  * 用户停止生成时，把已流式收到的部分内容持久化为最终消息，
- * 避免中断后内容丢失（停止而非报错：不加 latency/raw 等数据）。
- * 返回是否真的持久化了一条非空回复（用于轮数统计）。
+ * 避免中断后内容丢失。返回是否真的持久化了一条可读回复。
+ * 中断时工具调用一律丢弃：半截参数不应进入后续模型上下文，更不能被执行。
  */
 async function persistPartialDraft(
   draftId: number,
   sessionId: number,
   content: string,
   thinking: string,
-  toolCalls: Array<{ id: string; name: string; argumentsJson: string; contentOffset: number }>,
   request: ChatCompletionRequest,
   rawLines: string[],
   promptTokens: number,
@@ -2326,23 +2370,21 @@ async function persistPartialDraft(
   model: string,
   countRound: boolean,
   npc: NpcCharacter | null
-): Promise<void> {
+): Promise<boolean> {
   const latencyMs = Date.now() - startTime;
   const normalizedContent = trimEdgeNewlines(content);
-  const isEmptyAssistantReply =
-    !normalizedContent &&
-    !thinking.trim() &&
-    toolCalls.length === 0;
+  const isEmptyAssistantReply = !normalizedContent && !thinking.trim();
   if (isEmptyAssistantReply) {
     await db.messages.delete(draftId);
     await useStore.getState().loadMessages(sessionId);
-    return;
+    return false;
   }
   const finalTokens = completionTokens > 0 ? completionTokens : estimateTokensFromChars(normalizedContent.length);
   await db.messages.update(draftId, {
     content: normalizedContent,
     thinkingContent: thinking || null,
-    toolCallsJson: JSON.stringify(toolCalls.map((tc) => ({ id: tc.id, name: tc.name, argumentsJson: tc.argumentsJson, contentOffset: tc.contentOffset }))),
+    interrupted: true,
+    toolCallsJson: '[]',
     latencyMs,
     promptTokens,
     completionTokens: finalTokens,
@@ -2367,6 +2409,7 @@ async function persistPartialDraft(
     updatedAt: Date.now(),
     lastMessage: preview || '…',
   });
+  return true;
 }
 
 /** 当前 assistant 回合产生的「一轮对话」对应到生涯统计的增量 */
