@@ -225,10 +225,7 @@
   margin: 2px 0;
 }
 .tool-card {
-  border: 1px solid var(--border);
-  /* 左侧状态条：默认中性，执行中/成功/失败只换颜色。
-     宽度恒定 3px，状态切换时内部内容不会左右跳动。 */
-  border-left: 3px solid color-mix(in srgb, var(--text-faint) 42%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 30%, transparent);
   border-radius: 8px;
   /* 淡中性底（和思考卡同一种“浅色块”语言，只是不偏紫）：
      覆盖在实色主区域上，视觉上就是一块很浅的暖灰，不是透视 */
@@ -236,13 +233,13 @@
   overflow: hidden;
 }
 .tool-card.executing {
-  border-left-color: var(--primary);
+  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
 }
 .tool-card.has-result {
-  border-left-color: color-mix(in srgb, var(--success) 75%, transparent);
+  border-color: color-mix(in srgb, var(--success) 30%, transparent);
 }
 .tool-card.has-error {
-  border-left-color: color-mix(in srgb, var(--danger) 75%, transparent);
+  border-color: color-mix(in srgb, var(--danger) 30%, transparent);
 }
 .tool-card-head {
   display: flex;
@@ -367,11 +364,8 @@
 }
 
 /* ---------- 折叠面板（thinking / 工具结果） ---------- */
-/* 与工具调用展示框（tool-card）同构：一样的描边、8px 圆角、左侧 3px 条，
-   只有颜色不同——思考用暖紫，工具用中性色 + 绿/红状态色。 */
 .collp {
   border: 1px solid color-mix(in srgb, var(--think) 30%, transparent);
-  border-left: 3px solid color-mix(in srgb, var(--think) 72%, transparent);
   border-radius: 8px;
   /* 5% 的淡紫底：结构和工具卡完全一致，只靠颜色区分 */
   background: color-mix(in srgb, var(--think) 5%, transparent);
