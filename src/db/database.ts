@@ -430,18 +430,31 @@ function primaryKey(collection: CollectionName, value: Row): string {
 }
 
 class RemoteQuery<T extends object> {
-  constructor(private readonly table: RemoteTable<T>, private readonly predicate: (value: T) => boolean = () => true) {}
+  constructor(
+    private readonly table: RemoteTable<T>,
+    private readonly predicate: (value: T) => boolean = () => true,
+    private readonly field?: string,
+    private readonly fieldValue?: string | number | boolean,
+  ) {}
   equals(value: unknown): RemoteQuery<T> {
     const fields = this.table.queryField === '[sessionId+participantId]'
       ? ['sessionId', 'participantId']
       : [this.table.queryField];
+    const canQueryServer = fields.length === 1 && (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean');
     return new RemoteQuery(this.table, (row) => {
       const actual = fields.length === 1 ? (row as Row)[fields[0]] : fields.map((field) => (row as Row)[field]);
       return this.predicate(row) && JSON.stringify(actual) === JSON.stringify(value);
-    });
+    }, canQueryServer ? fields[0] : undefined, canQueryServer ? value : undefined);
   }
-  filter(predicate: (value: T) => boolean): RemoteQuery<T> { return new RemoteQuery(this.table, (row) => this.predicate(row) && predicate(row)); }
-  async toArray(): Promise<T[]> { return (await this.table.toArray()).filter(this.predicate); }
+  filter(predicate: (value: T) => boolean): RemoteQuery<T> {
+    return new RemoteQuery(this.table, (row) => this.predicate(row) && predicate(row), this.field, this.fieldValue);
+  }
+  async toArray(): Promise<T[]> {
+    const rows = this.field && this.fieldValue !== undefined
+      ? await this.table.toArrayByField(this.field, this.fieldValue)
+      : await this.table.toArray();
+    return rows.filter(this.predicate);
+  }
   async first(): Promise<T | undefined> { return (await this.toArray())[0]; }
   async count(): Promise<number> { return (await this.toArray()).length; }
   async sortBy(field: string): Promise<T[]> { return (await this.toArray()).sort((a, b) => Number((a as Row)[field]) - Number((b as Row)[field])); }
@@ -467,6 +480,14 @@ class RemoteTable<T extends object> {
   keyFor(value: T): string { return primaryKey(this.collection, value as Row); }
   async toArray(): Promise<T[]> {
     const result = await persistenceRequest<{ records: Array<{ value: T }> }>('/records/list', { collection: this.collection });
+    return result.records.map((record) => record.value);
+  }
+  async toArrayByField(field: string, value: string | number | boolean): Promise<T[]> {
+    const result = await persistenceRequest<{ records: Array<{ value: T }> }>('/records/list-by-field', {
+      collection: this.collection,
+      field,
+      value,
+    });
     return result.records.map((record) => record.value);
   }
   async get(key: unknown): Promise<T | undefined> {

@@ -152,6 +152,12 @@ function saveRecord(collection, key, value) {
 
 const getRecord = database.prepare('SELECT value_json, updated_at FROM app_records WHERE collection = ? AND record_key = ?');
 const listRecords = database.prepare('SELECT record_key, value_json, updated_at FROM app_records WHERE collection = ? ORDER BY record_key');
+const listRecordsByJsonField = database.prepare(`
+  SELECT record_key, value_json, updated_at
+  FROM app_records
+  WHERE collection = ? AND json_extract(value_json, ?) = ?
+  ORDER BY record_key
+`);
 const listStartupRecords = database.prepare(`
   SELECT collection, record_key, value_json, updated_at
   FROM app_records
@@ -261,8 +267,23 @@ const server = createServer(async (req, res) => {
       return;
     }
 
-    if (pathname === '/records/list') {
-      const records = listRecords.all(collection).map((row) => ({
+    if (pathname === '/records/list' || pathname === '/records/list-by-field') {
+      let rows;
+      if (pathname === '/records/list-by-field') {
+        const { field, value } = body;
+        if (typeof field !== 'string' || !/^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(field)) {
+          json(res, 400, { ok: false, message: 'Invalid record field' });
+          return;
+        }
+        if (typeof value !== 'string' && typeof value !== 'number' && typeof value !== 'boolean') {
+          json(res, 400, { ok: false, message: 'Invalid record field value' });
+          return;
+        }
+        rows = listRecordsByJsonField.all(collection, `$.${field}`, value);
+      } else {
+        rows = listRecords.all(collection);
+      }
+      const records = rows.map((row) => ({
         key: row.record_key,
         value: JSON.parse(row.value_json),
         updatedAt: row.updated_at,

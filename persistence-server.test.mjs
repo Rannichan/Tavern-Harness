@@ -88,6 +88,11 @@ try {
   assert.deepEqual(snapshot.body.collections.sessions.map((record) => record.value.id), [1, undefined]);
   const list = await request('/records/list', { collection: 'settings' });
   assert.equal(list.body.records.length, 1);
+  assert.equal((await request('/records/put', { clientId: clientB, collection: 'messages', key: '1', value: { id: 1, sessionId: 1, content: 'first' } })).status, 200);
+  assert.equal((await request('/records/put', { clientId: clientB, collection: 'messages', key: '2', value: { id: 2, sessionId: 2, content: 'second' } })).status, 200);
+  const sessionMessages = await request('/records/list-by-field', { collection: 'messages', field: 'sessionId', value: 1 });
+  assert.deepEqual(sessionMessages.body.records.map((entry) => entry.value.content), ['first']);
+  assert.equal((await request('/records/list-by-field', { collection: 'messages', field: '$.sessionId', value: 1 })).status, 400);
 
   assert.equal((await request('/lock/acquire', { clientId: clientA })).status, 423);
   assert.equal((await request('/records/delete', { clientId: clientB, collection: 'settings', key: '1' })).status, 200);
