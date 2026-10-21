@@ -78,6 +78,7 @@
      最长时左边缘到达 NPC 头像位 51px
    - 效果：任意时刻 NPC 右边缘 == 用户右边缘；用户长气泡左边缘 == NPC 左边缘 */
 .msg-row:not(.user-row) .msg-body > .bubble,
+.msg-row:not(.user-row) .msg-body > .bubble-editor,
 .msg-row:not(.user-row) .msg-body > .tool-calls,
 .msg-row:not(.user-row) .msg-body > .collp,
 .msg-row:not(.user-row) .msg-body > .msg-metrics {
@@ -86,10 +87,11 @@
   align-self: flex-start;
 }
 .msg-row.user-row .msg-body > .bubble,
+.msg-row.user-row .msg-body > .bubble-editor,
 .msg-row.user-row .msg-body > .tool-calls,
 .msg-row.user-row .msg-body > .collp,
 .msg-row.user-row .msg-body > .msg-metrics {
-  max-width: calc(100% - 51px);
+  max-width: calc(100% - 43px);
   align-self: flex-end;
 }
 .bubble-user {
@@ -133,7 +135,7 @@
   flex-direction: column;
   gap: 8px;
   width: 100%;
-  max-width: 640px;
+  max-width: none;
 }
 .bubble-editor textarea {
   width: 100%;
@@ -1228,6 +1230,7 @@
   }
 
   .msg-row:not(.user-row) .msg-body > .bubble,
+  .msg-row:not(.user-row) .msg-body > .bubble-editor,
   .msg-row:not(.user-row) .msg-body > .tool-calls,
   .msg-row:not(.user-row) .msg-body > .collp,
   .msg-row:not(.user-row) .msg-body > .msg-metrics {
@@ -1235,6 +1238,7 @@
   }
 
   .msg-row.user-row .msg-body > .bubble,
+  .msg-row.user-row .msg-body > .bubble-editor,
   .msg-row.user-row .msg-body > .tool-calls,
   .msg-row.user-row .msg-body > .collp,
   .msg-row.user-row .msg-body > .msg-metrics {

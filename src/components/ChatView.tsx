@@ -1,4 +1,4 @@
-import { Fragment, lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type UIEvent } from 'react';
+import { Fragment, lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode, type UIEvent } from 'react';
 import { useStore } from '../store/store';
 import { type ChatMessage, type ChatParticipant, type ChatSession, type ContextCompression, type ToolCallRecord, displayModelName } from '../types/models';
 import { Avatar, Icon, Markdown, Collapse, Modal, AttachCard } from './shared';
@@ -603,6 +603,11 @@ function BubbleEditor({
 
   // 主按钮动作：玩家 → 保存并重新生成；NPC → 仅保存
   const primaryAction = isUserMsg ? doSave : doSaveOnly;
+  // 消息行在键盘弹出时会把普通触摸当作“点击空白处”而收起键盘；
+  // 交互按钮提前阻止该事件到达消息行，确保一次点按直接执行按钮动作。
+  const preventMessageRowKeyboardDismiss = (event: ReactPointerEvent<HTMLElement>) => {
+    if (event.pointerType === 'touch') event.stopPropagation();
+  };
 
   return (
     <div className="bubble-editor">
@@ -651,14 +656,14 @@ function BubbleEditor({
               e.target.value = '';
             }}
           />
-          <button className="btn btn-sm" onClick={() => fileRef.current?.click()}>
+          <button className="btn btn-sm" onPointerDown={preventMessageRowKeyboardDismiss} onClick={() => fileRef.current?.click()}>
             <Icon name="image" size={12} /> {t('chat.addAttachment')}
           </button>
         </div>
         <div className="bubble-editor-actions-end">
           <span className="bubble-editor-hint">{t('chat.saveHint')}</span>
-          <button className="btn btn-sm" onClick={onDone}>{t('common.cancel')}</button>
-          <button className="btn btn-sm btn-primary" disabled={!text.trim() || streaming} onClick={primaryAction}>
+          <button className="btn btn-sm" onPointerDown={preventMessageRowKeyboardDismiss} onClick={onDone}>{t('common.cancel')}</button>
+          <button className="btn btn-sm btn-primary" disabled={!text.trim() || streaming} onPointerDown={preventMessageRowKeyboardDismiss} onClick={primaryAction}>
             {isUserMsg ? t('chat.saveRegenerate') : t('chat.saveOnly')}
           </button>
         </div>
