@@ -331,11 +331,24 @@ export const useStore = create<AppState>((set, get) => ({
             : saveBrowserUiPreferences({ language: serverSettings.language, themeMode: serverSettings.themeMode });
         const settings = { ...serverSettings, ...browserPreferences };
         setLanguage(settings.language);
+        const providers = snapshot.collections.providers.map((record) => record.value);
         const npcs = sortNpcs(snapshot.collections.npcs.map((record) => record.value));
         const sessions = sortSessionsPinnedFirst(snapshot.collections.sessions.map((record) => record.value));
         const worldBooks = sortWorldBooks(snapshot.collections.worldBooks.map((record) => record.value));
         const tools = [...snapshot.collections.tools.map((record) => record.value)].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
-        set({ initStatus: 'ready', readOnly, settings, npcs, sessions, worldBooks, tools, activeSessionId: null, activeView: 'chat' });
+        set({
+          initStatus: 'ready',
+          readOnly,
+          settings,
+          providers,
+          modelsList: aggregateEnabledProviderModels(providers),
+          npcs,
+          sessions,
+          worldBooks,
+          tools,
+          activeSessionId: null,
+          activeView: 'chat',
+        });
         coreLoaded = true;
         cacheThemeMode(settings.themeMode);
         applyThemeManual(settings.themeMode);

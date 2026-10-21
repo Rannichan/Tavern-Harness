@@ -155,7 +155,7 @@ const listRecords = database.prepare('SELECT record_key, value_json, updated_at 
 const listStartupRecords = database.prepare(`
   SELECT collection, record_key, value_json, updated_at
   FROM app_records
-  WHERE collection IN ('settings', 'npcs', 'sessions', 'worldBooks', 'tools')
+  WHERE collection IN ('settings', 'providers', 'npcs', 'sessions', 'worldBooks', 'tools')
   ORDER BY collection, record_key
 `);
 const deleteRecord = database.prepare('DELETE FROM app_records WHERE collection = ? AND record_key = ?');
@@ -234,6 +234,7 @@ const server = createServer(async (req, res) => {
       if (!writeLock) setWriteLock({ clientId, leaseId: randomBytes(24).toString('base64url') });
       const collections = {
         settings: [],
+        providers: [],
         npcs: [],
         sessions: [],
         worldBooks: [],
