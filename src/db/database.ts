@@ -334,6 +334,61 @@ async function requireWriteLock(): Promise<void> {
   }
 }
 
+type StartupSnapshot = {
+  lock: { writable: boolean; held: boolean };
+  collections: {
+    settings: Array<{ value: AppSettings }>;
+    npcs: Array<{ value: NpcCharacter }>;
+    sessions: Array<{ value: ChatSession }>;
+    worldBooks: Array<{ value: WorldBook }>;
+    tools: Array<{ value: McpTool }>;
+  };
+};
+
+/** 一次请求取得首屏所需的轻量数据，避免逐表读取产生的串行 HTTP 往返。 */
+export async function loadStartupSnapshot(): Promise<StartupSnapshot> {
+  let snapshot: StartupSnapshot;
+  try {
+    snapshot = await persistenceRequest<StartupSnapshot>('/startup/snapshot');
+  } catch (error) {
+    // 热更新期间旧服务进程可能还未注册快照路由。临时降级到旧的逐表读取，
+    // 让页面可用；Vite 会在 persistence-server.mjs 变更后重启该进程。
+    if (!(error instanceof Error) || !error.message.includes('Unknown persistence endpoint: /startup/snapshot')) throw error;
+    await initDatabase();
+    const readOnly = await isWriteLocked();
+    const [settings, npcs, sessions, worldBooks, tools] = await Promise.all([
+      db.settings.toArray(),
+      db.npcs.toArray(),
+      db.sessions.toArray(),
+      db.worldBooks.toArray(),
+      db.tools.toArray(),
+    ]);
+    return {
+      lock: { writable: !readOnly, held: readOnly || hasWriteLock },
+      collections: {
+        settings: settings.map((value) => ({ value })),
+        npcs: npcs.map((value) => ({ value })),
+        sessions: sessions.map((value) => ({ value })),
+        worldBooks: worldBooks.map((value) => ({ value })),
+        tools: tools.map((value) => ({ value })),
+      },
+    };
+  }
+  hasWriteLock = snapshot.lock.writable;
+  if (snapshot.lock.writable && lockHeartbeat == null) {
+    lockHeartbeat = window.setInterval(async () => {
+      try {
+        const state = await persistenceRequest<{ lock: { writable: boolean } }>('/lock/status');
+        hasWriteLock = state.lock.writable;
+      } catch {
+        hasWriteLock = false;
+      }
+    }, 1_000);
+  }
+  if (snapshot.lock.held && !snapshot.lock.writable) markControlReadOnly();
+  return snapshot;
+}
+
 export async function isWriteLocked(): Promise<boolean> {
   if (isControlReadOnly()) return true;
   const result = await persistenceRequest<{ lock: { writable: boolean; held: boolean } }>('/lock/status');

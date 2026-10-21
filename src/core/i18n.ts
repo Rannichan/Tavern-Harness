@@ -39,8 +39,10 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'control.takeOverFailed': '接管控制权失败，请稍后重试',
 
     // ---- 初始化 ----
+    'init.loading': '正在准备酒馆',
+    'init.loadingHint': '正在加载本地数据…',
     'init.failed': '初始化失败',
-    'init.failedHint': '加载本地数据失败，请确认持久化服务已启动后重试。',
+    'init.failedHint': '加载本地数据失败或超时，请确认持久化服务已启动后重试。',
     'init.retry': '重试',
 
     // ---- 侧边栏 / 导航 ----
@@ -541,8 +543,10 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'control.takeOverHere': '點擊接管控制權',
     'control.takeOverFailed': '接管控制權失敗，請稍後重試',
 
+    'init.loading': '正在準備酒館',
+    'init.loadingHint': '正在載入本機資料…',
     'init.failed': '初始化失敗',
-    'init.failedHint': '載入本機資料失敗，請確認持久化服務已啟動後重試。',
+    'init.failedHint': '載入本機資料失敗或逾時，請確認持久化服務已啟動後重試。',
     'init.retry': '重試',
 
     'nav.chat': '對話',
@@ -1029,8 +1033,10 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'control.takeOverHere': 'Click to take control',
     'control.takeOverFailed': 'Failed to take control. Please try again.',
 
+    'init.loading': 'Preparing the tavern',
+    'init.loadingHint': 'Loading local data…',
     'init.failed': 'Initialization failed',
-    'init.failedHint': 'Failed to load local data. Make sure the persistence service is running, then try again.',
+    'init.failedHint': 'Loading local data failed or timed out. Make sure the persistence service is running, then try again.',
     'init.retry': 'Retry',
 
     'nav.chat': 'Chat',

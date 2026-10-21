@@ -76,6 +76,14 @@ try {
 
   const record = await request('/records/get', { collection: 'settings', key: '1' });
   assert.deepEqual(record.body.record.value, { themeMode: 'dark' });
+  assert.equal((await request('/records/put', { clientId: clientB, collection: 'npcs', key: '1', value: { id: 1, name: 'Keeper' } })).status, 200);
+  const snapshot = await request('/startup/snapshot', { clientId: clientB });
+  assert.equal(snapshot.status, 200);
+  assert.equal(snapshot.body.lock.writable, true);
+  assert.deepEqual(snapshot.body.collections.settings.map((record) => record.value), [{ themeMode: 'dark' }]);
+  assert.deepEqual(snapshot.body.collections.npcs.map((record) => record.value), [{ id: 1, name: 'Keeper' }]);
+  assert.equal(snapshot.body.collections.sessions.length, 2);
+  assert.deepEqual(snapshot.body.collections.sessions.map((record) => record.value.id), [1, undefined]);
   const list = await request('/records/list', { collection: 'settings' });
   assert.equal(list.body.records.length, 1);
 

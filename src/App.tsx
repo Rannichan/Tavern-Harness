@@ -88,7 +88,11 @@ export default function App() {
   };
 
   if (initStatus === 'loading') {
-    return <div className="tav-bg" />;
+    return (
+      <div className="startup-loading" role="status" aria-label={t('init.loading')} aria-busy="true">
+        <span className="spinner" aria-hidden="true" />
+      </div>
+    );
   }
 
   if (initStatus === 'error') {

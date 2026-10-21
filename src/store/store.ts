@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { db, DEFAULT_SETTINGS, isWriteLocked, takeOverWriteLock } from '../db/database';
+import { db, DEFAULT_SETTINGS, initDatabase, isWriteLocked, loadStartupSnapshot, takeOverWriteLock } from '../db/database';
 import {
   type ApiProvider,
   type AppSettings,
@@ -199,6 +199,39 @@ interface AppState {
 
 let toastSeq = 0;
 let initLock: Promise<void> | null = null;
+const STARTUP_TIMEOUT_MS = 12_000;
+
+function withStartupTimeout<T>(work: Promise<T>): Promise<T> {
+  let timeout: number | undefined;
+  const limit = new Promise<never>((_, reject) => {
+    timeout = window.setTimeout(() => reject(new Error('Startup timed out while waiting for the persistence service')), STARTUP_TIMEOUT_MS);
+  });
+  return Promise.race([work, limit]).finally(() => window.clearTimeout(timeout));
+}
+
+async function initializeDeferredData(readOnly: boolean): Promise<void> {
+  try {
+    if (!readOnly) {
+      await initDatabase();
+      await localizeBuiltinNpc();
+      await localizeBuiltinTavernHandbook();
+      await Promise.all([
+        useStore.getState().refreshNpcs(),
+        useStore.getState().refreshSessions(),
+        useStore.getState().refreshWorldBooks(),
+        useStore.getState().refreshTools(),
+      ]);
+    }
+    await Promise.all([
+      useStore.getState().refreshProviders(),
+      useStore.getState().refreshAchievements(),
+    ]);
+  } catch (error) {
+    // 首屏数据已就绪时，后台维护失败不应再把用户带回启动错误页。
+    console.error('Failed to finish deferred Tavern Harness initialization', error);
+  }
+}
+
 /** 用户主动停止生成时置位，用于中断群聊循环 */
 let groupLoopStopped = false;
 const contextCompressionJobs = new Map<number, Promise<void>>();
@@ -287,10 +320,10 @@ export const useStore = create<AppState>((set, get) => ({
       set({ initStatus: 'loading', initError: null });
       let coreLoaded = false;
       try {
-        const readOnly = await isWriteLocked();
-        // The writer may still be seeding a new database. Defaults let a
-        // read-only browser render its takeover UI until shared settings exist.
-        const serverSettings = (await db.settings.get(1)) ?? DEFAULT_SETTINGS;
+        // 首屏只读取一个快照；迁移、种子和本地化随后在后台完成。
+        const snapshot = await withStartupTimeout(loadStartupSnapshot());
+        const readOnly = snapshot.lock.held && !snapshot.lock.writable;
+        const serverSettings = snapshot.collections.settings[0]?.value ?? DEFAULT_SETTINGS;
         const browserPreferences = hasBrowserUiPreferences()
           ? readBrowserUiPreferences()
           : readOnly
@@ -298,18 +331,12 @@ export const useStore = create<AppState>((set, get) => ({
             : saveBrowserUiPreferences({ language: serverSettings.language, themeMode: serverSettings.themeMode });
         const settings = { ...serverSettings, ...browserPreferences };
         setLanguage(settings.language);
-        // 本地化会写入共享数据；只读浏览器只能加载既有数据。
-        if (!readOnly) {
-          await localizeBuiltinNpc();
-          await localizeBuiltinTavernHandbook();
-        }
-        const npcs = sortNpcs(await db.npcs.toArray());
-        const sessions = sortSessionsPinnedFirst(await db.sessions.toArray());
-        const worldBooks = sortWorldBooks(await db.worldBooks.toArray());
-        const tools = [...(await db.tools.toArray())].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
-        set({ initStatus: 'ready', readOnly, settings, npcs, sessions, worldBooks, tools });
+        const npcs = sortNpcs(snapshot.collections.npcs.map((record) => record.value));
+        const sessions = sortSessionsPinnedFirst(snapshot.collections.sessions.map((record) => record.value));
+        const worldBooks = sortWorldBooks(snapshot.collections.worldBooks.map((record) => record.value));
+        const tools = [...snapshot.collections.tools.map((record) => record.value)].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
+        set({ initStatus: 'ready', readOnly, settings, npcs, sessions, worldBooks, tools, activeSessionId: null, activeView: 'chat' });
         coreLoaded = true;
-        await get().refreshProviders();
         cacheThemeMode(settings.themeMode);
         applyThemeManual(settings.themeMode);
         // 跟随系统模式下，系统切换深浅色时自动重新应用主题
@@ -317,9 +344,8 @@ export const useStore = create<AppState>((set, get) => ({
           const s = useStore.getState().settings;
           if (s) applyThemeManual(s.themeMode);
         });
-        await get().refreshAchievements();
-        // 每次刷新固定回到开始页，会话仅在用户主动选择后加载。
-        set({ activeSessionId: null, activeView: 'chat' });
+        // 非首屏工作不得阻塞可用界面；完成后再用数据库中的最新值刷新。
+        void initializeDeferredData(readOnly);
       } catch (error) {
         console.error('Failed to initialize Tavern Harness', error);
         if (coreLoaded) {

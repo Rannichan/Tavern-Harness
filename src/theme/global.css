@@ -190,6 +190,18 @@ html.wechat-android .chat-scroll [contenteditable="true"] {
 
 /* ---------- 启动失败 ---------- */
 /* 核心数据加载不出来时的兜底页（App.tsx 的 initStatus === 'error'）。 */
+.startup-loading {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  /* 与主内容区 .main-area 使用同一个实色底。 */
+  background: var(--surface);
+}
+.startup-loading .spinner {
+  width: 24px;
+  height: 24px;
+}
 .init-error {
   position: fixed;
   inset: 0;

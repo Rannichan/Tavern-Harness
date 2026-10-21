@@ -152,6 +152,12 @@ function saveRecord(collection, key, value) {
 
 const getRecord = database.prepare('SELECT value_json, updated_at FROM app_records WHERE collection = ? AND record_key = ?');
 const listRecords = database.prepare('SELECT record_key, value_json, updated_at FROM app_records WHERE collection = ? ORDER BY record_key');
+const listStartupRecords = database.prepare(`
+  SELECT collection, record_key, value_json, updated_at
+  FROM app_records
+  WHERE collection IN ('settings', 'npcs', 'sessions', 'worldBooks', 'tools')
+  ORDER BY collection, record_key
+`);
 const deleteRecord = database.prepare('DELETE FROM app_records WHERE collection = ? AND record_key = ?');
 const clearCollection = database.prepare('DELETE FROM app_records WHERE collection = ?');
 const nextNumericRecordKey = database.prepare(`
@@ -218,6 +224,29 @@ const server = createServer(async (req, res) => {
       }
       setWriteLock({ clientId, leaseId: randomBytes(24).toString('base64url') });
       json(res, 200, { ok: true, leaseId: writeLock.leaseId, lock: lockState(clientId) });
+      return;
+    }
+    if (pathname === '/startup/snapshot') {
+      if (!clientId || clientId.length > 255) {
+        json(res, 400, { ok: false, message: 'A valid clientId is required' });
+        return;
+      }
+      if (!writeLock) setWriteLock({ clientId, leaseId: randomBytes(24).toString('base64url') });
+      const collections = {
+        settings: [],
+        npcs: [],
+        sessions: [],
+        worldBooks: [],
+        tools: [],
+      };
+      for (const row of listStartupRecords.all()) {
+        collections[row.collection].push({
+          key: row.record_key,
+          value: JSON.parse(row.value_json),
+          updatedAt: row.updated_at,
+        });
+      }
+      json(res, 200, { ok: true, lock: lockState(clientId), collections });
       return;
     }
     if (!pathname.startsWith('/records/')) {

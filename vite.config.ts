@@ -246,7 +246,13 @@ function persistenceProxyPlugin(): Plugin {
   return {
     name: 'persistence-proxy',
     closeBundle: stopPersistence,
-    configureServer: registerMiddleware,
+    configureServer(server) {
+      server.watcher.add(persistenceScript);
+      server.watcher.on('change', (path) => {
+        if (resolve(path) === persistenceScript) stopPersistence();
+      });
+      registerMiddleware(server);
+    },
     configurePreviewServer: registerMiddleware,
   };
 }
