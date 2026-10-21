@@ -101,6 +101,8 @@ export function ChatView({
   active?: boolean;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const streamingScrollFrameRef = useRef<number | null>(null);
+  const streamingScrollTargetRef = useRef(0);
   const positionedSessionRef = useRef<{ id: number | undefined; messageCount: number } | null>(null);
   const scrollMemory = useRef<{ sessionId: number | undefined; top: number; atBottom: boolean }>({
     sessionId: undefined,
@@ -147,20 +149,59 @@ export function ChatView({
     el.scrollTop = memory.atBottom ? el.scrollHeight : memory.top;
   }, [active, session.id]);
 
-  // 自动滚动到底（新消息 / 流式更新时）：群聊流式生成时同样跟随最新内容
+  // 自动滚动到底（新消息 / 流式更新时）：群聊流式生成时同样跟随最新内容。
+  // 将 token 的高频更新合并至一个 requestAnimationFrame，并插值追赶最新底部位置。
+  // 不反复重启浏览器的 smooth 动画，滚动可以保持连续。
   const isGroup = session.mode === 'GROUP';
-  useEffect(() => {
+  useEffect(() => () => {
+    if (streamingScrollFrameRef.current != null) cancelAnimationFrame(streamingScrollFrameRef.current);
+  }, []);
+  useLayoutEffect(() => {
     if (!active) return;
     const el = scrollRef.current;
     if (!el) return;
     if (positionedSessionRef.current?.id !== session.id) return;
     const selection = document.getSelection();
     if (selection && !selection.isCollapsed) return;
-    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+    const nearBottom = isNearBottom(el.scrollHeight, el.scrollTop, el.clientHeight);
     // 群聊：仅在已处于底部或正在流式生成时自动吸附（流式画布增长时继续跟随），
-    // 用户主动向上回看时不打断
+    // 用户主动向上回看时不打断。
     if (!isGroup || nearBottom || updateStreaming) {
-      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+      if (!updateStreaming) {
+        el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+        return;
+      }
+      streamingScrollTargetRef.current = el.scrollHeight;
+      if (streamingScrollFrameRef.current != null) return;
+      const followStreamingBottom = () => {
+        const container = scrollRef.current;
+        if (!container) {
+          streamingScrollFrameRef.current = null;
+          return;
+        }
+        // iOS 等浏览器的键盘只会压缩 visualViewport，聊天容器的 clientHeight
+        // 仍可能包含被键盘覆盖的区域。以可见视口底部作为滚动终点，确保思考卡片
+        // 完整露在输入框和键盘上方。
+        streamingScrollTargetRef.current = Math.max(streamingScrollTargetRef.current, container.scrollHeight);
+        const viewport = window.visualViewport;
+        const containerTop = container.getBoundingClientRect().top;
+        const visibleHeight = Math.min(
+          container.clientHeight,
+          Math.max(0, (viewport?.height ?? window.innerHeight) - containerTop),
+        );
+        const target = Math.max(0, streamingScrollTargetRef.current - visibleHeight + 8);
+        const distance = target - container.scrollTop;
+        if (Math.abs(distance) < 0.5) {
+          container.scrollTop = target;
+          streamingScrollFrameRef.current = null;
+          return;
+        }
+        // 思考内容增长时加快追赶速度，避免平滑动画长期落后于卡片底部。
+        const step = Math.sign(distance) * Math.max(2, Math.abs(distance) * 0.45);
+        container.scrollTop += Math.abs(step) >= Math.abs(distance) ? distance : step;
+        streamingScrollFrameRef.current = requestAnimationFrame(followStreamingBottom);
+      };
+      streamingScrollFrameRef.current = requestAnimationFrame(followStreamingBottom);
     }
     // 恢复由上方 layout effect 处理。
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -428,13 +469,15 @@ function MessageBubble({
           {msg.modelUsed && !msg.modelUsed.startsWith('scheduled:') && <span className="msg-model" title={msg.modelUsed}>{displayModelName(providers, msg.modelUsed)}</span>}
           <span className="msg-time">{fmtTime(msg.timestamp)}</span>
         </div>
-        {msg.thinkingContent && streaming && (
-          <Collapse title={t('chat.thinking')} icon="🧠" accent="think" preview={msg.thinkingContent} live>
-            <Markdown text={msg.thinkingContent} mathEnabled={false} />
-          </Collapse>
-        )}
-        {msg.thinkingContent && !streaming && (
-          <Collapse title={t('chat.thinking')} icon="🧠" accent="think" defaultOpen={false} preview={msg.thinkingContent}>
+        {msg.thinkingContent && (
+          <Collapse
+            title={t('chat.thinking')}
+            icon="🧠"
+            accent="think"
+            defaultOpen={!streaming}
+            preview={msg.thinkingContent}
+            live={streaming && !displayContent}
+          >
             <Markdown text={msg.thinkingContent} mathEnabled={false} />
           </Collapse>
         )}
