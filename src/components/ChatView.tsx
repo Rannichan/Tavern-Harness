@@ -101,8 +101,11 @@ export function ChatView({
   active?: boolean;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const chatColumnRef = useRef<HTMLDivElement>(null);
   const streamingScrollFrameRef = useRef<number | null>(null);
   const streamingScrollTargetRef = useRef(0);
+  const streamingProgrammaticScrollTopRef = useRef<number | null>(null);
+  const followStreamingRef = useRef(true);
   const positionedSessionRef = useRef<{ id: number | undefined; messageCount: number } | null>(null);
   const scrollMemory = useRef<{ sessionId: number | undefined; top: number; atBottom: boolean }>({
     sessionId: undefined,
@@ -155,7 +158,14 @@ export function ChatView({
   const isGroup = session.mode === 'GROUP';
   useEffect(() => () => {
     if (streamingScrollFrameRef.current != null) cancelAnimationFrame(streamingScrollFrameRef.current);
+    if (chatColumnRef.current) chatColumnRef.current.style.paddingBottom = '';
   }, []);
+  useLayoutEffect(() => {
+    if (updateStreaming) return;
+    if (streamingScrollFrameRef.current != null) cancelAnimationFrame(streamingScrollFrameRef.current);
+    streamingScrollFrameRef.current = null;
+    if (chatColumnRef.current) chatColumnRef.current.style.paddingBottom = '';
+  }, [updateStreaming]);
   useLayoutEffect(() => {
     if (!active) return;
     const el = scrollRef.current;
@@ -164,6 +174,8 @@ export function ChatView({
     const selection = document.getSelection();
     if (selection && !selection.isCollapsed) return;
     const nearBottom = isNearBottom(el.scrollHeight, el.scrollTop, el.clientHeight);
+    if (!updateStreaming) followStreamingRef.current = true;
+    if (updateStreaming && !followStreamingRef.current) return;
     // 群聊：仅在已处于底部或正在流式生成时自动吸附（流式画布增长时继续跟随），
     // 用户主动向上回看时不打断。
     if (!isGroup || nearBottom || updateStreaming) {
@@ -175,7 +187,7 @@ export function ChatView({
       if (streamingScrollFrameRef.current != null) return;
       const followStreamingBottom = () => {
         const container = scrollRef.current;
-        if (!container) {
+        if (!container || !followStreamingRef.current) {
           streamingScrollFrameRef.current = null;
           return;
         }
@@ -189,16 +201,27 @@ export function ChatView({
           container.clientHeight,
           Math.max(0, (viewport?.height ?? window.innerHeight) - containerTop),
         );
-        const target = Math.max(0, streamingScrollTargetRef.current - visibleHeight + 8);
+        const keyboardCoveredHeight = Math.max(0, container.clientHeight - visibleHeight);
+        // 为视觉视口被键盘遮住的部分追加底部空间。这样浏览器的原生滚动上限
+        // 也能让思考气泡越过输入框，而不是把目标位置夹回旧的底部。
+        const column = chatColumnRef.current;
+        if (column) column.style.paddingBottom = `${keyboardCoveredHeight + 8}px`;
+        const target = Math.min(
+          Math.max(0, container.scrollHeight - container.clientHeight),
+          Math.max(0, streamingScrollTargetRef.current - visibleHeight + 8),
+        );
         const distance = target - container.scrollTop;
         if (Math.abs(distance) < 0.5) {
+          streamingProgrammaticScrollTopRef.current = target;
           container.scrollTop = target;
-          streamingScrollFrameRef.current = null;
+          streamingScrollFrameRef.current = requestAnimationFrame(followStreamingBottom);
           return;
         }
         // 思考内容增长时加快追赶速度，避免平滑动画长期落后于卡片底部。
         const step = Math.sign(distance) * Math.max(2, Math.abs(distance) * 0.45);
-        container.scrollTop += Math.abs(step) >= Math.abs(distance) ? distance : step;
+        const nextTop = container.scrollTop + (Math.abs(step) >= Math.abs(distance) ? distance : step);
+        streamingProgrammaticScrollTopRef.current = nextTop;
+        container.scrollTop = nextTop;
         streamingScrollFrameRef.current = requestAnimationFrame(followStreamingBottom);
       };
       streamingScrollFrameRef.current = requestAnimationFrame(followStreamingBottom);
@@ -254,17 +277,34 @@ export function ChatView({
     // 隐藏过程中浏览器会把滚动位置夹到 0 并派发一次 scroll 事件，
     // 那不是用户的滚动意图，不能覆盖掉记下的位置。
     if (!active || el.clientHeight === 0) return;
+    const atBottom = isNearBottom(el.scrollHeight, el.scrollTop, el.clientHeight);
+    if (updateStreaming && followStreamingRef.current) {
+      const programmaticTop = streamingProgrammaticScrollTopRef.current;
+      // 仅忽略刚刚由自动跟随写入的位置；其它滚动事件都来自用户，应立刻停止跟随。
+      if (programmaticTop != null && Math.abs(el.scrollTop - programmaticTop) <= 2) {
+        streamingProgrammaticScrollTopRef.current = null;
+      }
+    }
     scrollMemory.current = {
       sessionId: session.id,
       top: el.scrollTop,
-      atBottom: isNearBottom(el.scrollHeight, el.scrollTop, el.clientHeight),
+      atBottom,
     };
     onChatScroll();
   };
 
   return (
-    <div className="chat-scroll" ref={scrollRef} onScroll={handleScroll}>
-      <div className="chat-col">
+    <div
+      className="chat-scroll"
+      ref={scrollRef}
+      onScroll={handleScroll}
+      onWheel={() => { if (updateStreaming) followStreamingRef.current = false; }}
+      onTouchStart={() => { if (updateStreaming) followStreamingRef.current = false; }}
+      onPointerDown={(event) => {
+        if (updateStreaming && event.pointerType === 'mouse') followStreamingRef.current = false;
+      }}
+    >
+      <div className="chat-col" ref={chatColumnRef}>
         {messages.length === 0 && (
           <div className="empty-state fade-up">
             <div className="big">🫖</div>
@@ -474,7 +514,6 @@ function MessageBubble({
             title={t('chat.thinking')}
             icon="🧠"
             accent="think"
-            defaultOpen={!streaming}
             preview={msg.thinkingContent}
             live={streaming && !displayContent}
           >

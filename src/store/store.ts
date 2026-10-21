@@ -2064,9 +2064,13 @@ async function performAssistantTurn(
       !thinking.trim() &&
       finalToolCalls.length === 0;
     if (isEmptyAssistantReply) {
+      // 服务端正常结束但未产生内容时不能重试，否则不可用/错误配置的模型会
+      // 无限创建空草稿并让界面持续自动跟随。结束本回合并明确提示用户。
       await db.messages.delete(draftId);
       await useStore.getState().loadMessages(sessionId);
-      continue;
+      useStore.getState().addToast(translate('toast.emptyModelResponse'), 'error');
+      finishSessionActivity(sessionId);
+      return 'failed';
     }
     produced = true;
 
