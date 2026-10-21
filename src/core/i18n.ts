@@ -473,6 +473,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
 
     // ---- 工具执行输出（用户可见部分） ----
     'tool.timeout': '请求超时',
+    'tool.networkError': '无法连接到模型服务，请检查网络与 Provider 的 Base URL',
     'tool.diceRoll': '掷骰 {expr}: [{rolls}] = {total}{crit}',
     'tool.diceCrit20': ' 大成功！',
     'tool.diceCrit1': ' 大失败！',
@@ -961,6 +962,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'toast.canceled': 'CANCELLED: 使用者取消了 {name}',
 
     'tool.timeout': '請求逾時',
+    'tool.networkError': '無法連線到模型服務，請檢查網路與 Provider 的 Base URL',
     'tool.diceRoll': '擲骰 {expr}: [{rolls}] = {total}{crit}',
     'tool.diceCrit20': ' 大成功！',
     'tool.diceCrit1': ' 大失敗！',
@@ -1448,6 +1450,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'toast.canceled': 'CANCELLED: user canceled {name}',
 
     'tool.timeout': 'Request timed out',
+    'tool.networkError': 'Unable to reach the model service. Check your network and the provider Base URL',
     'tool.diceRoll': '{expr}: [{rolls}] = {total}{crit}',
     'tool.diceCrit20': ' Critical hit!',
     'tool.diceCrit1': ' Critical fail!',

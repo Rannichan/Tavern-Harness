@@ -114,3 +114,27 @@ test('characterBookEntryStats counts total and recallable entries', () => {
   assert.deepEqual(characterBookEntryStats(source), { total: 3, enabled: 1 });
   assert.deepEqual(characterBookEntryStats('{invalid'), { total: 0, enabled: 0 });
 });
+
+test('injects recall context without crypto.randomUUID (LAN http is not a secure context)', () => {
+  // 手机扫码打开局域网 http 页面时 `crypto.randomUUID` 不存在（仅安全上下文提供），
+  // 此时召回注入不能抛错，否则整个回合会在发出请求前中断。
+  const realCrypto = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
+  const getRandomValues = globalThis.crypto.getRandomValues.bind(globalThis.crypto);
+  Object.defineProperty(globalThis, 'crypto', {
+    configurable: true,
+    writable: true,
+    value: { getRandomValues },
+  });
+  try {
+    assert.equal(typeof globalThis.crypto.randomUUID, 'undefined');
+    const source = book([{ constant: true, content: 'Always relevant fact.' }]);
+    const injected = injectCharacterBookToolContext(messages, source);
+    assert.equal(injected.length, messages.length + 2);
+    const id = injected.at(-2).tool_calls[0].id;
+    assert.match(id, /^character_book_ctx_[0-9a-z]+$/);
+    assert.notEqual(id, 'character_book_ctx_undefined');
+    assert.equal(injected.at(-1).tool_call_id, id);
+  } finally {
+    if (realCrypto) Object.defineProperty(globalThis, 'crypto', realCrypto);
+  }
+});

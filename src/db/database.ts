@@ -17,6 +17,7 @@ import type {
 import { BUILTIN_TOOLS, ALL_BUILTIN_TOOL_NAMES } from '../core/toolDefinitions';
 import { currentLanguage, translate } from '../core/i18n';
 import { hasBrowserUiPreferences, saveBrowserUiPreferences } from '../core/browserPreferences';
+import { randomId } from '../core/randomId';
 import BUILTIN_TAVERN_HANDBOOK_CONTENT from '../assets/tavern-handbook.md?raw';
 
 export class TavernDB extends Dexie {
@@ -272,7 +273,7 @@ const clientId = (() => {
   if (existing) return existing;
   const created = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
     ? crypto.randomUUID()
-    : `non-browser-${Date.now()}`;
+    : `non-browser-${randomId()}`;
   browserSessionStorage?.setItem(key, created);
   return created;
 })();

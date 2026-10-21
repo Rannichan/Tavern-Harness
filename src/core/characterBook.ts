@@ -1,4 +1,5 @@
 import type { ChatCompletionTool, NetworkMessage } from '../types/models';
+import { randomId } from './randomId';
 
 export const CHARACTER_BOOK_TOOL_NAME = 'recall_memory';
 
@@ -263,7 +264,7 @@ export function injectCharacterBookToolContext(messages: NetworkMessage[], chara
   const recalled = retrieveCharacterBook(characterBook, messages);
   if (!recalled) return messages;
   const keywords = [...new Set(recalled.entries.flatMap((entry) => entry.matchedKeywords))];
-  const id = `character_book_ctx_${crypto.randomUUID()}`;
+  const id = `character_book_ctx_${randomId()}`;
   return [...messages,
     {
       role: 'assistant',

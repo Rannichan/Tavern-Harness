@@ -661,6 +661,7 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
   const [showModels, setShowModels] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const sendMessage = useStore((s) => s.sendMessage);
+  const addToast = useStore((s) => s.addToast);
   const streaming = useStore((s) => s.streaming.sessionId != null);
   const stopStreaming = useStore((s) => s.stopStreaming);
   const session = useStore((s) => s.sessions.find((x) => x.id === sessionId));
@@ -685,7 +686,13 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
       sendingText,
       sendingAttachments.map((a) => a.dataUrl),
       sendingAttachments.map((a) => a.name)
-    ).finally(() => {
+    ).catch((error: unknown) => {
+      // 发送链路本身也可能失败（例如另一个浏览器持有了写锁）：不能静默丢掉
+      // 用户输入，恢复草稿并提示原因。
+      console.error('Failed to send message', error);
+      setText((current) => current || sendingText);
+      addToast(t('toast.genFailed', { msg: error instanceof Error ? error.message : String(error) }), 'error');
+    }).finally(() => {
       setTyping(false);
     });
   };

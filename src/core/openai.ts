@@ -8,7 +8,13 @@ import { fallbackToolCallId } from './turnLoop';
 import { isNetworkLikeError, toProxyUrl } from './proxy';
 import { translate } from './i18n';
 
-const OPENAI_TIMEOUTS = { read: 60_000 };
+/**
+ * 连接超时与读超时分开：
+ * - 连接超时覆盖「还没拿到响应头」的阶段。手机通过局域网打开应用时，Provider
+ *   若只在内网 / 本机可达，直连会一直卡在连接上；这时应该尽快改走同源代理。
+ * - 读超时覆盖「已建立连接、等待下一个数据块」，思考模型首 token 可能很慢。
+ */
+const OPENAI_TIMEOUTS = { connect: 20_000, read: 60_000 };
 
 interface ToolDelta {
   id: string;
@@ -33,6 +39,11 @@ function* urlCandidates(baseUrl: string): Generator<string> {
 // SSE 流式解析器 — 支持 thinking / tool_calls / usage
 // ============================================================
 
+type StreamAttempt =
+  | { status: 'done' }
+  /** 本轮没有收到响应（连接失败 / 连接超时），可以改试下一个候选地址 */
+  | { status: 'retry' };
+
 export async function streamChatCompletions(
   baseUrl: string,
   apiKey: string,
@@ -40,13 +51,17 @@ export async function streamChatCompletions(
   onChunk: (chunk: ChatStreamChunk) => void,
   signal?: AbortSignal
 ): Promise<void> {
-  // 依次尝试：直连 → 同源代理（CORS 被拦截时自动回退）
+  // 依次尝试：直连 → 同源代理（CORS / 内网不可达时自动回退）
   for (const url of urlCandidates(baseUrl)) {
-    const ok = await attemptStream(url, apiKey, request, onChunk, signal);
-    if (ok) return;
-    // 直连失败且是网络层错误（CORS 等）→ 继续尝试下一个候选（代理）
-    // 若是业务错误（HTTP 4xx/5xx、解析失败）则不重试
+    const attempt = await attemptStream(url, apiKey, request, onChunk, signal);
+    if (attempt.status === 'done') return;
   }
+  // 所有候选都连不上：必须显式报错。否则调用方会拿到一次「空回复」并反复重试。
+  if (signal?.aborted) {
+    onChunk({ type: 'done' });
+    return;
+  }
+  onChunk({ type: 'error', message: translate('tool.networkError') });
 }
 
 async function attemptStream(
@@ -55,7 +70,7 @@ async function attemptStream(
   request: ChatCompletionRequest,
   onChunk: (chunk: ChatStreamChunk) => void,
   signal?: AbortSignal
-): Promise<boolean> {
+): Promise<StreamAttempt> {
   const controller = new AbortController();
   const onAbort = () => controller.abort();
   if (signal) {
@@ -63,11 +78,13 @@ async function attemptStream(
     else signal.addEventListener('abort', onAbort);
   }
   let timer: ReturnType<typeof setTimeout> | null = null;
-  const resetReadTimeout = () => {
+  const resetTimeout = (ms: number) => {
     if (timer) clearTimeout(timer);
-    timer = setTimeout(() => controller.abort(), OPENAI_TIMEOUTS.read);
+    timer = setTimeout(() => controller.abort(), ms);
   };
-  resetReadTimeout();
+  /** 是否已经拿到响应头：拿到之后就不再回退代理，避免同一次生成被请求两次 */
+  let responded = false;
+  resetTimeout(OPENAI_TIMEOUTS.connect);
 
   try {
     const resp = await fetch(url, {
@@ -79,6 +96,7 @@ async function attemptStream(
       body: JSON.stringify(request),
       signal: controller.signal,
     });
+    responded = true;
 
     if (!resp.ok) {
       let detail = '';
@@ -89,12 +107,12 @@ async function attemptStream(
         /* ignore */
       }
       onChunk({ type: 'error', message: `HTTP ${resp.status}: ${detail || resp.statusText}` });
-      return true; // 业务性错误，不再重试代理
+      return { status: 'done' }; // 业务性错误，不再重试代理
     }
 
     if (!resp.body) {
       onChunk({ type: 'error', message: 'Response body is empty (streaming not supported?)' });
-      return true;
+      return { status: 'done' };
     }
 
     const reader = resp.body.getReader();
@@ -103,10 +121,11 @@ async function attemptStream(
     // Delta 工具调用按 index 组装
     const toolDeltas = new Map<number, ToolDelta>();
     let buffer = '';
+    resetTimeout(OPENAI_TIMEOUTS.read);
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      resetReadTimeout();
+      resetTimeout(OPENAI_TIMEOUTS.read);
       buffer += decoder.decode(value, { stream: true });
 
       // 按行切分 SSE
@@ -134,22 +153,25 @@ async function attemptStream(
     // 收尾：补发未完成的工具调用
     emitFinalToolCalls(toolDeltas, onChunk);
     onChunk({ type: 'done' });
-    return true;
+    return { status: 'done' };
   } catch (e) {
     if (signal?.aborted) {
       onChunk({ type: 'done' });
-      return true;
+      return { status: 'done' };
     }
     if ((e as Error).name === 'AbortError' || (e as Error).name === 'TimeoutError') {
+      // 连接阶段就超时（手机直连内网地址不可达）→ 交给外层换代理再试；
+      // 已经收到响应头则属于读超时，重试会造成重复生成。
+      if (!responded) return { status: 'retry' };
       onChunk({ type: 'error', message: translate('tool.timeout') });
-      return true;
+      return { status: 'done' };
     }
-    // 网络层错误：若还有代理候选则返回 false 让外层重试；否则报错
+    // 网络层错误：若还没拿到响应则换下一个候选（代理），否则按错误上报
     if (isNetworkLikeError(e)) {
-      return false;
+      if (!responded) return { status: 'retry' };
     }
     onChunk({ type: 'error', message: (e as Error).message || String(e) });
-    return true;
+    return { status: 'done' };
   } finally {
     if (timer) clearTimeout(timer);
     if (signal) signal.removeEventListener('abort', onAbort);

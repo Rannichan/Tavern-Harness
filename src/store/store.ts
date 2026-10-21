@@ -1690,7 +1690,35 @@ function formatMessagesForContextSummary(messages: ChatMessage[], isGroup: boole
   }).join('\n\n');
 }
 
+/**
+ * 安全外壳：任何未预期异常都必须结束「正在生成」状态，否则界面会永远停在
+ * 停止按钮上，而该按钮的 abort 已经没有任何等待者（典型触发：局域网 http
+ * 属于非安全上下文，`crypto.randomUUID` 不可用）。
+ * 正常结束 / 主动停止的路径已在回合内部清理，这里的 finally 只兜住异常逃逸。
+ */
 async function streamAssistantTurn(
+  session: ChatSession,
+  npc: NpcCharacter | null,
+  participantId: number | null = null,
+  participant?: ChatParticipant,
+  turnLoopIndex: number | null = null,
+): Promise<TurnResult> {
+  const sessionId = session.id!;
+  try {
+    return await performAssistantTurn(session, npc, participantId, participant, turnLoopIndex);
+  } catch (error) {
+    console.error('Assistant turn failed unexpectedly', error);
+    useStore.getState().addToast(
+      translate('toast.genFailed', { msg: error instanceof Error ? error.message : String(error) }),
+      'error'
+    );
+    return 'failed';
+  } finally {
+    if (useStore.getState().streaming.sessionId === sessionId) finishSessionActivity(sessionId);
+  }
+}
+
+async function performAssistantTurn(
   session: ChatSession,
   npc: NpcCharacter | null,
   participantId: number | null = null,
