@@ -341,9 +341,11 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'workshop.skillBadJson': '（JSON 解析失败）',
 
     // ---- 成就 / 统计 ----
-    'stats.title': '🏆 成就',
+    'stats.title': '成就',
     'stats.sub': '你的成就奖杯会陈列在这里',
     'stats.resetBtn': '重置统计',
+    'stats.resetTitle': '重置生涯统计',
+    'stats.resetDesc': '清除 Token、对话轮次与角色活跃度统计；已解锁的成就奖杯将被保留。',
     'stats.resetConfirm': '确定重置生涯统计？（不会清除已解锁的成就奖杯）',
     'stats.shelfTitle': '🎖️ 奖杯陈列柜',
     'stats.unlocked': '已解锁',
@@ -840,9 +842,11 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'workshop.skillNoParams': '（無參數）',
     'workshop.skillBadJson': '（JSON 解析失敗）',
 
-    'stats.title': '🏆 成就',
+    'stats.title': '成就',
     'stats.sub': '你的成就獎盃會陳列在這裡',
     'stats.resetBtn': '重置統計',
+    'stats.resetTitle': '重置生涯統計',
+    'stats.resetDesc': '清除 Token、對話輪次與角色活躍度統計；已解鎖的成就獎盃將被保留。',
     'stats.resetConfirm': '確定重置生涯統計？（不會清除已解鎖的成就獎盃）',
     'stats.shelfTitle': '🎖️ 獎盃陳列櫃',
     'stats.unlocked': '已解鎖',
@@ -1332,9 +1336,11 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'workshop.skillNoParams': '(No parameters)',
     'workshop.skillBadJson': '(Failed to parse JSON)',
 
-    'stats.title': '🏆 Achievements',
+    'stats.title': 'Achievements',
     'stats.sub': 'Your achievement trophies are displayed here',
     'stats.resetBtn': 'Reset stats',
+    'stats.resetTitle': 'Reset career stats',
+    'stats.resetDesc': 'Clear token, conversation, and character activity statistics. Unlocked trophies will be kept.',
     'stats.resetConfirm': 'Reset career stats? (Unlocked trophies won\'t be cleared)',
     'stats.shelfTitle': '🎖️ Trophy Shelf',
     'stats.unlocked': 'Unlocked',

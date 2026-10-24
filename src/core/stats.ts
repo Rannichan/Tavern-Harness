@@ -13,6 +13,42 @@ interface StatsDelta {
   npcRounds?: { npcId: number; npcName: string; rounds: number };
 }
 
+export interface CareerStats {
+  inputTokens: number;
+  outputTokens: number;
+  totalRounds: number;
+  sessionCount: number;
+  npcStats: Array<{ npcId: number; npcName: string; rounds: number }>;
+}
+
+let cachedCareerStats: CareerStats | null = null;
+let loadingCareerStats: Promise<CareerStats> | null = null;
+
+async function loadCareerStats(): Promise<CareerStats> {
+  const [stats, npcStats, sessionCount] = await Promise.all([
+    db.careerStats.get(1),
+    db.careerNpcStats.toArray(),
+    db.sessions.count(),
+  ]);
+  return {
+    ...(stats ?? { id: 1, inputTokens: 0, outputTokens: 0, totalRounds: 0 }),
+    npcStats,
+    sessionCount,
+  };
+}
+
+/** 后台预读成就页所需的统计，避免首次打开页面时等待远端持久化服务。 */
+export async function preloadCareerStats(): Promise<void> {
+  if (cachedCareerStats) return;
+  loadingCareerStats ??= loadCareerStats().then((stats) => {
+    cachedCareerStats = stats;
+    return stats;
+  }).finally(() => {
+    loadingCareerStats = null;
+  });
+  await loadingCareerStats;
+}
+
 /** 消息产生后累计到生涯统计（服务器关闭也不丢失：已持久化消息带 usage） */
 export async function accumulateStats(delta: StatsDelta, sessionId: number | null, _npcId: number | null): Promise<void> {
   if (delta.inputTokens <= 0 && delta.outputTokens <= 0 && delta.rounds <= 0) return;
@@ -38,21 +74,30 @@ export async function accumulateStats(delta: StatsDelta, sessionId: number | nul
     }
   }
   void sessionId;
+  cachedCareerStats = null;
 
   // 成就检测（基于累计 Token 数）
   await checkAchievementUnlocks();
 }
 
-export async function getCareerStats() {
-  const stats = (await db.careerStats.get(1)) ?? { id: 1, inputTokens: 0, outputTokens: 0, totalRounds: 0 };
-  const npcStats = await db.careerNpcStats.toArray();
-  const sessions = await db.sessions.count();
-  return { ...stats, npcStats, sessionCount: sessions };
+export async function getCareerStats(): Promise<CareerStats> {
+  if (cachedCareerStats) {
+    const stats = cachedCareerStats;
+    cachedCareerStats = null;
+    return stats;
+  }
+  if (loadingCareerStats) {
+    const stats = await loadingCareerStats;
+    cachedCareerStats = null;
+    return stats;
+  }
+  return loadCareerStats();
 }
 
 export async function resetCareerStats(): Promise<void> {
   await db.careerStats.put({ id: 1, inputTokens: 0, outputTokens: 0, totalRounds: 0 });
   await db.careerNpcStats.clear();
+  cachedCareerStats = null;
 }
 
 

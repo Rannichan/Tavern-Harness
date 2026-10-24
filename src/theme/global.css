@@ -82,6 +82,7 @@ body {
 button {
   font-family: inherit;
   cursor: pointer;
+  white-space: nowrap;
   -webkit-tap-highlight-color: transparent;
 }
 

@@ -729,6 +729,31 @@
 .ach-shelf-summary b {
   color: var(--text);
 }
+.stats-reset-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--danger) 58%, var(--border));
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--danger) 14%, var(--surface));
+}
+.stats-reset-card h3 {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 15.5px;
+}
+.stats-reset-card p {
+  margin: 5px 0 0;
+  color: var(--text-dim);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+.stats-reset-card:hover {
+  border-color: color-mix(in srgb, var(--danger) 78%, var(--border));
+  background: color-mix(in srgb, var(--danger) 19%, var(--surface));
+}
 .set-row {
   display: flex;
   align-items: center;

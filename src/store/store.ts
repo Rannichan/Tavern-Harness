@@ -56,7 +56,7 @@ import {
   localizeBuiltinNpc,
   localizeBuiltinTavernHandbook,
 } from '../db/database';
-import { estimateTokensFromChars, accumulateStats, sessionPreviewText } from '../core/stats';
+import { estimateTokensFromChars, accumulateStats, preloadCareerStats, sessionPreviewText } from '../core/stats';
 import { seedOpeningGreeting } from '../core/openingGreeting';
 import { ACHIEVEMENTS, type AchievementDef } from '../core/achievements';
 import { npcFingerprint, sameRows, toolFingerprint, worldBookFingerprint } from '../core/rowFingerprint';
@@ -225,6 +225,7 @@ async function initializeDeferredData(readOnly: boolean): Promise<void> {
     await Promise.all([
       useStore.getState().refreshProviders(),
       useStore.getState().refreshAchievements(),
+      preloadCareerStats(),
     ]);
   } catch (error) {
     // 首屏数据已就绪时，后台维护失败不应再把用户带回启动错误页。

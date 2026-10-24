@@ -42,13 +42,24 @@ export const StatsView = memo(function StatsView({ active = true }: { active?: b
   return (
     <div className="view-page">
       <div className="view-col">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+        <div>
+          <h2 className="view-title">{t('stats.title')}</h2>
+          <p className="view-sub">{t('stats.sub')}</p>
+        </div>
+
+        {/* 成就陈列柜 */}
+        <AchievementShelf />
+
+        {/* 生涯统计 */}
+        <StatCards data={data} />
+
+        <div className="stats-reset-card">
           <div>
-            <h2 className="view-title">{t('stats.title')}</h2>
-            <p className="view-sub">{t('stats.sub')}</p>
+            <h3>{t('stats.resetTitle')}</h3>
+            <p>{t('stats.resetDesc')}</p>
           </div>
           <button
-            className="btn btn-sm btn-danger"
+            className="btn btn-danger settings-reset-button"
             onClick={async () => {
               if (!confirm(t('stats.resetConfirm'))) return;
               await resetCareerStats();
@@ -59,12 +70,6 @@ export const StatsView = memo(function StatsView({ active = true }: { active?: b
             <Icon name="refresh" size={12} /> {t('stats.resetBtn')}
           </button>
         </div>
-
-        {/* 成就陈列柜 */}
-        <AchievementShelf />
-
-        {/* 生涯统计 */}
-        <StatCards data={data} />
       </div>
     </div>
   );
@@ -120,33 +125,6 @@ function StatCards({ data }: { data: StatsData }) {
 
   return (
     <>
-      <div className="stat-grid">
-        <div className="stat-card">
-          <div className="v">{totalTokens.toLocaleString()}</div>
-          <div className="k">{t('stats.totalTokens')}</div>
-        </div>
-        <div className="stat-card">
-          <div className="v">{data.inputTokens.toLocaleString()}</div>
-          <div className="k">{t('stats.inputTokens')}</div>
-        </div>
-        <div className="stat-card">
-          <div className="v">{data.outputTokens.toLocaleString()}</div>
-          <div className="k">{t('stats.outputTokens')}</div>
-        </div>
-        <div className="stat-card">
-          <div className="v">{data.totalRounds}</div>
-          <div className="k">{t('stats.rounds')}</div>
-        </div>
-        <div className="stat-card">
-          <div className="v">{data.sessionCount}</div>
-          <div className="k">{t('stats.sessions')}</div>
-        </div>
-        <div className="stat-card">
-          <div className="v">{data.totalRounds && data.sessionCount ? (data.totalRounds / data.sessionCount).toFixed(1) : '0'}</div>
-          <div className="k">{t('stats.avgRounds')}</div>
-        </div>
-      </div>
-
       <div className="set-section">
         <h3>{t('stats.mostActive')}</h3>
         {data.npcStats.length > 0 ? (
@@ -187,6 +165,33 @@ function StatCards({ data }: { data: StatsData }) {
           </table>
         </div>
       )}
+
+      <div className="stat-grid">
+        <div className="stat-card">
+          <div className="v">{totalTokens.toLocaleString()}</div>
+          <div className="k">{t('stats.totalTokens')}</div>
+        </div>
+        <div className="stat-card">
+          <div className="v">{data.inputTokens.toLocaleString()}</div>
+          <div className="k">{t('stats.inputTokens')}</div>
+        </div>
+        <div className="stat-card">
+          <div className="v">{data.outputTokens.toLocaleString()}</div>
+          <div className="k">{t('stats.outputTokens')}</div>
+        </div>
+        <div className="stat-card">
+          <div className="v">{data.totalRounds}</div>
+          <div className="k">{t('stats.rounds')}</div>
+        </div>
+        <div className="stat-card">
+          <div className="v">{data.sessionCount}</div>
+          <div className="k">{t('stats.sessions')}</div>
+        </div>
+        <div className="stat-card">
+          <div className="v">{data.totalRounds && data.sessionCount ? (data.totalRounds / data.sessionCount).toFixed(1) : '0'}</div>
+          <div className="k">{t('stats.avgRounds')}</div>
+        </div>
+      </div>
     </>
   );
 }
