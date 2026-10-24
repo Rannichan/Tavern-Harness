@@ -153,7 +153,7 @@ export function NewSessionMenu({ onClose, editingSession }: { onClose: () => voi
   const canCreate = selectedNpcIds.length > 0;
 
   return (
-    <Modal onClose={onClose} width={460} className="new-session-modal">
+    <Modal onClose={onClose} className="new-session-modal">
       <div className="modal-head">
         <span style={{ fontWeight: 800, fontSize: 15 }}>{isEditing ? t('nav.editSession') : t('newSession.title')}</span>
         <button className="icon-btn" onClick={onClose}><Icon name="x" /></button>

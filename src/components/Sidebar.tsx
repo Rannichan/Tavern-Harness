@@ -436,7 +436,7 @@ export function Sidebar() {
 
       {/* 删除会话确认弹窗 */}
       {confirmDelete && (
-        <Modal onClose={() => setConfirmDelete(null)} width="min(400px, calc(100vw - 32px))">
+        <Modal onClose={() => setConfirmDelete(null)} size="compact">
           <div className="modal-head">
             <span style={{ fontWeight: 800, fontSize: 15, display: 'flex', alignItems: 'center', gap: 8 }}>
               <Icon name="trash" size={15} /> {t('nav.deleteSession')}

@@ -10,14 +10,16 @@ import { useAvatarImageUrl } from '../core/avatarThumbnail';
 // 包含块，保证全页面居中、遮罩覆盖全屏、点击可用）
 // ============================================================
 
+type ModalSize = 'compact' | 'standard' | 'wide';
+
 export function Modal({
   onClose,
-  width,
+  size = 'standard',
   className,
   children,
 }: {
   onClose: () => void;
-  width?: string | number;
+  size?: ModalSize;
   className?: string;
   children: React.ReactNode;
 }) {
@@ -25,7 +27,7 @@ export function Modal({
     <>
       <div className="overlay" onClick={onClose} />
       <div className="modal-root" onClick={(e) => e.stopPropagation()}>
-        <div className={`modal card fade-up ${className ?? ''}`.trim()} style={width != null ? { width } : undefined}>
+        <div className={`modal modal-size-${size} card fade-up ${className ?? ''}`.trim()}>
           {children}
         </div>
       </div>

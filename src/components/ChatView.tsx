@@ -239,19 +239,21 @@ export function ChatView({
     return keepStickyBottom(el, undefined, () => suspendStickyScrollRef.current);
   }, []);
 
-  // 编辑弹窗的键盘会改变壳层高度；后台聊天列表不应在弹窗下自动贴底。
+  // 任意通用弹窗内的编辑控件都会触发软键盘；后台聊天列表在此期间保持位置。
   // 焦点进入时立即冻结，失焦并等待键盘收起动画结束后再恢复。
   useEffect(() => {
     let resumeTimer = 0;
-    const isEditorTextarea = (target: EventTarget | null) =>
-      target instanceof HTMLTextAreaElement && target.closest('.message-editor-modal') != null;
+    const isModalEditor = (target: EventTarget | null) =>
+      target instanceof HTMLElement
+      && target.matches('input, textarea, [contenteditable=""], [contenteditable="true"], [contenteditable="plaintext-only"]')
+      && target.closest('.modal-root') != null;
     const onFocusIn = (event: FocusEvent) => {
-      if (!isEditorTextarea(event.target)) return;
+      if (!isModalEditor(event.target)) return;
       window.clearTimeout(resumeTimer);
       suspendStickyScrollRef.current = true;
     };
     const onFocusOut = (event: FocusEvent) => {
-      if (!isEditorTextarea(event.target)) return;
+      if (!isModalEditor(event.target)) return;
       window.clearTimeout(resumeTimer);
       resumeTimer = window.setTimeout(() => {
         suspendStickyScrollRef.current = false;
@@ -607,7 +609,7 @@ function MessageEditorModal({
   const primaryAction = isUserMsg ? doSave : doSaveOnly;
 
   return (
-    <Modal onClose={onDone} className="message-editor-modal" width="min(760px, calc(100vw - 32px))">
+    <Modal onClose={onDone} size="wide" className="message-editor-modal">
       <div className="modal-head">
         <span>{t('chat.editMsg')}</span>
         <button className="icon-btn" onClick={onDone} aria-label={t('common.close')}>×</button>
@@ -1310,7 +1312,7 @@ export function MessageMenu() {
 
   if (compressionSummary) {
     return (
-      <Modal onClose={() => setCompressionSummary(null)} width="min(680px, calc(100vw - 40px))">
+      <Modal onClose={() => setCompressionSummary(null)} size="wide">
         <div className="modal-head">
           <span>{compressionSummary.title}</span>
           <button className="icon-btn" onClick={() => setCompressionSummary(null)} aria-label={t('common.close')}>×</button>
@@ -1441,7 +1443,7 @@ function RawLogModal({ rawLog, title, onClose, onExport }: { rawLog: RawLogData;
   const [autoWrap, setAutoWrap] = useState(true);
 
   return (
-    <Modal onClose={onClose} className="raw-log-modal" width="min(760px, calc(100vw - 40px))">
+    <Modal onClose={onClose} size="wide" className="raw-log-modal">
       <div className="modal-head raw-modal-head">
         <span className="raw-modal-title">
           <Icon name="file" size={15} /> {title}

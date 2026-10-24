@@ -126,7 +126,7 @@ export function WorkspaceFileManagerModal({ sessionId, onClose }: { sessionId: n
   };
 
   return (
-    <Modal onClose={onClose} width="min(640px, calc(100vw - 32px))" className="ws-fm-modal">
+    <Modal onClose={onClose} className="ws-fm-modal">
       <div className="modal-head ws-fm-head">
         <span className="ws-fm-title">
           <Icon name="folder" size={15} />

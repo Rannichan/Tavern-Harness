@@ -250,7 +250,7 @@ export const SettingsView = memo(function SettingsView() {
       {showVersionHistory && <VersionHistoryModal onClose={() => setShowVersionHistory(false)} />}
 
       {showResetConfirm && (
-        <Modal onClose={() => !resetting && setShowResetConfirm(false)} width="min(420px, calc(100vw - 32px))">
+        <Modal onClose={() => !resetting && setShowResetConfirm(false)} size="compact">
           <div className="modal-head">
             <span style={{ fontWeight: 800, fontSize: 15 }}>{t('settings.resetConfirmTitle')}</span>
             <button className="icon-btn" disabled={resetting} onClick={() => setShowResetConfirm(false)}><Icon name="x" /></button>

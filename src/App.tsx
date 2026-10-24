@@ -325,7 +325,7 @@ function SessionHeader({
       )}
 
       {confirmReset && (
-        <Modal onClose={() => setConfirmReset(false)} width="min(400px, calc(100vw - 32px))">
+        <Modal onClose={() => setConfirmReset(false)} size="compact">
           <div className="modal-head">
             <span style={{ fontWeight: 800, fontSize: 15 }}>{t('header.resetSessionTitle')}</span>
             <button className="icon-btn" onClick={() => setConfirmReset(false)}><Icon name="x" /></button>
@@ -350,7 +350,7 @@ function SessionHeader({
       )}
 
       {confirmDelete && (
-        <Modal onClose={() => setConfirmDelete(false)} width="min(400px, calc(100vw - 32px))">
+        <Modal onClose={() => setConfirmDelete(false)} size="compact">
           <div className="modal-head">
             <span style={{ fontWeight: 800, fontSize: 15 }}>{t('header.deleteTitle')}</span>
             <button className="icon-btn" onClick={() => setConfirmDelete(false)}><Icon name="x" /></button>

@@ -46,7 +46,7 @@ export function GameplayExportModal({
   };
 
   return (
-    <Modal onClose={onClose} width={420}>
+    <Modal onClose={onClose} size="compact">
       <div className="modal-head">
         <span style={{ fontWeight: 800, fontSize: 15, display: 'flex', alignItems: 'center', gap: 8 }}>
           <Icon name="share" size={15} /> {t('gameplay.exportTitle')}
@@ -150,7 +150,7 @@ export function GameplayImportModal({
   };
 
   return (
-    <Modal onClose={onClose} width={420}>
+    <Modal onClose={onClose} size="compact">
       <div className="modal-head">
         <span style={{ fontWeight: 800, fontSize: 15, display: 'flex', alignItems: 'center', gap: 8 }}>
           <Icon name="import" size={15} /> {t('gameplay.importTitle')}

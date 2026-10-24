@@ -23,7 +23,7 @@ export function DeleteConfirmDialog({
   const t = useT();
   const danger = dangerText ?? t('common.delete');
   return (
-    <Modal onClose={onCancel} width="min(400px, calc(100vw - 32px))">
+    <Modal onClose={onCancel} size="compact">
       <div className="modal-head">
         <span style={{ fontWeight: 800, fontSize: 15 }}>{title}</span>
         <button className="icon-btn" onClick={onCancel}><Icon name="x" /></button>

@@ -91,7 +91,7 @@ export function VersionHistoryModal({ onClose }: { onClose: () => void }) {
   }, []);
 
   return (
-    <Modal onClose={onClose} width="min(720px, calc(100vw - 24px))">
+    <Modal onClose={onClose} size="wide">
       <div className="modal-head">
         <span style={{ fontWeight: 800, fontSize: 15 }}>{t('changelog.title')}</span>
         <button className="icon-btn" onClick={onClose} aria-label={t('common.close')}>

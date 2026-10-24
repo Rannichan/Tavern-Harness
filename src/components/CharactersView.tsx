@@ -1058,7 +1058,7 @@ function SkillDetailModal({ tool, onClose }: { tool: McpTool; onClose: () => voi
   };
 
   return (
-    <Modal onClose={onClose} width={620}>
+    <Modal onClose={onClose}>
       <div className="modal-head">
         <span style={{ fontWeight: 800, fontSize: 15 }}>
           {t('workshop.skillDetails')}
