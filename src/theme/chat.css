@@ -136,6 +136,7 @@
   flex: 1;
   flex-direction: column;
   gap: 12px;
+  padding-bottom: 12px;
   overflow: hidden;
 }
 .textarea.message-editor-textarea {
@@ -454,7 +455,8 @@
 
 /* ---------- 输入区 ---------- */
 .composer {
-  padding: 8px 22px 12px;
+  --attachment-preview-gap: 8px;
+  padding: var(--attachment-preview-gap) 22px 12px;
   border-top: 1px solid var(--border);
   background: transparent;
 }
@@ -495,6 +497,7 @@
 }
 .composer-box textarea::placeholder {
   color: var(--text-faint);
+  font-size: inherit;
 }
 /* 输入框两端的图标按钮：与发送按钮等大（40×40） */
 .composer-box .composer-attach {
@@ -642,28 +645,37 @@
   flex-wrap: wrap;
   gap: 8px;
   max-width: 820px;
-  margin: 0 auto 8px;
+  margin: 0 auto var(--attachment-preview-gap);
 }
-.attach-preview .attach-card {
+.attach-preview .attach-card,
+.message-editor-attachments .attach-card {
+  padding: 3px 3px 3px 10px;
   background: var(--surface);
+}
+.message-editor-attachments {
+  margin-bottom: 0;
 }
 .attach-rm {
   position: absolute;
   top: -6px;
   right: -6px;
-  width: 18px;
-  height: 18px;
+  width: 24px;
+  height: 20px;
   padding: 0;
-  border-radius: 50%;
-  border: none;
-  background: var(--danger);
-  color: #fff;
+  border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--border));
+  border-radius: 6px;
+  background: var(--primary-soft);
+  color: var(--primary);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   box-shadow: var(--shadow);
   line-height: 1;
+}
+.attach-rm:hover {
+  background: color-mix(in srgb, var(--primary) 18%, var(--surface));
+  border-color: color-mix(in srgb, var(--primary) 55%, var(--border));
 }
 .attach-rm svg {
   display: block;
@@ -672,7 +684,7 @@
 .attach-card .attach-rm {
   position: static;
   flex-shrink: 0;
-  margin-left: 2px;
+  margin-left: 0;
 }
 .cmd-menu {
   max-width: 820px;
@@ -1246,7 +1258,8 @@
   }
 
   .composer {
-    padding: 10px 12px max(10px, env(safe-area-inset-bottom));
+    --attachment-preview-gap: 10px;
+    padding: var(--attachment-preview-gap) 12px max(10px, env(safe-area-inset-bottom));
   }
 
   .composer-box {
