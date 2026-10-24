@@ -9,6 +9,7 @@ import { createServer } from 'vite';
 globalThis.crypto ??= webcrypto;
 globalThis.document = {
   documentElement: { dataset: {}, style: { setProperty() {} } },
+  querySelector: () => null,
 };
 const storage = new Map();
 globalThis.localStorage = {
@@ -108,11 +109,25 @@ try {
         persistenceWriter = clientId;
         return jsonResponse({ ok: true, lock: { writable: true, held: true } });
       }
+      if (path === '/startup/snapshot') {
+        if (!persistenceWriter) persistenceWriter = clientId;
+        const collections = { settings: [], providers: [], npcs: [], sessions: [], worldBooks: [], tools: [], achievementUnlocks: [] };
+        for (const [recordKey, value] of records) {
+          const separator = recordKey.indexOf(':');
+          const name = recordKey.slice(0, separator);
+          if (collections[name]) collections[name].push({ key: recordKey.slice(separator + 1), value });
+        }
+        return jsonResponse({ ok: true, lock: { writable: persistenceWriter === clientId, held: true }, collections });
+      }
       const collection = payload.collection;
       const key = (value) => `${collection}:${String(value)}`;
       if (path === '/records/list') return jsonResponse({ ok: true, records: [...records.entries()]
         .filter(([recordKey]) => recordKey.startsWith(`${collection}:`))
         .map(([recordKey, value]) => ({ key: recordKey.slice(collection.length + 1), value })) });
+      if (path === '/records/list-by-field') return jsonResponse({ ok: true, records: [...records.entries()]
+        .filter(([recordKey]) => recordKey.startsWith(`${collection}:`))
+        .map(([recordKey, value]) => ({ key: recordKey.slice(collection.length + 1), value }))
+        .filter(({ value }) => value?.[payload.field] === payload.value) });
       if (path === '/records/get') return jsonResponse({ ok: true, record: records.has(key(payload.key)) ? { key: payload.key, value: records.get(key(payload.key)) } : null });
       if (persistenceWriter !== clientId) return new Response(JSON.stringify({ ok: false, message: 'Write lock required' }), { status: 423, headers: { 'Content-Type': 'application/json' } });
       if (path === '/records/allocate-id') {
@@ -177,6 +192,8 @@ try {
     matchMedia: () => ({ matches: false, addEventListener() {} }),
     setInterval,
     clearInterval,
+    setTimeout,
+    clearTimeout,
   };
 
   await initDatabase();

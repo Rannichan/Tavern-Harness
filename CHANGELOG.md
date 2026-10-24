@@ -3,6 +3,70 @@
 > 本文件由 `scripts/changelog.mjs` 从 `changelog/v*.md` 生成，请勿手动编辑。
 > 版本对比链接见文末；源文件位于仓库 `changelog/` 目录。
 
+## [0.1.14] - 2026-10-24
+
+### 中文
+
+#### 新增
+
+- 设置 → 生成参数新增「重置」按钮，一键恢复温度、Top P、Top K 等默认值；已是默认值时按钮不可用
+
+#### 改进
+
+- 启动体验：界面先于数据加载显示，启动期间展示加载动画而非空白页；启动数据合并为一次快照请求，长列表通过增量渲染与缓存保持流畅
+- 成就页重新排版：奖杯陈列柜置顶，生涯统计与「重置统计」分区展示
+- 统一弹窗尺寸（紧凑 / 标准 / 宽屏三档）并适配移动端；弹窗不再响应点击遮罩关闭，避免编辑内容时误触丢失
+- 流式生成更稳定：自动跟随最新内容，向上回看历史时不会被拉回底部；键盘弹出时思考与回复内容不再被输入框遮挡
+- 移动端消息编辑器：键盘开合过渡更平滑，消息操作与编辑时的附件按钮更易用
+- 聊天附件、思考面板与工具卡片的样式更清晰，浅色主题配色更柔和统一
+
+#### 修复
+
+- 修复生成失败或模型返回空内容时界面停留在「生成中」的问题：现在会回滚本轮并提示；已收到的部分正文会保留并标注「生成已中断」
+- 修复通过局域网地址（侧栏二维码）在手机上打开时，回合可能一直卡住没有回复的问题；连接超时会自动改用同源代理，全部失败时明确提示网络错误
+- 修复刷新或切换标签页时短暂闪出错误主题的问题，首帧即应用正确的深浅色背景
+- 修复首页角色卡片不显示自定义头像的问题
+- 修复移动端消息操作按钮、编辑附件动作与聊天附件样式的问题
+- 修复启动时模型服务列表可能为空、旧会话消息加载较慢的问题
+
+#### 内部
+
+- 持久化服务新增启动快照与按字段查询接口，减少启动请求数量，并补充相应测试
+- 新增头像缩略图与行指纹缓存，降低长列表重复渲染开销
+- 统一弹窗组件与尺寸定义，移除重复的遮罩点击逻辑
+- 补全 yolo 集成测试所需的持久化接口 mock
+
+### English
+
+#### Added
+
+- New "Reset" button in Settings → Generation parameters restores the default temperature, Top P, Top K, and related values; it is disabled when everything is already at defaults
+
+#### Changed
+
+- Startup: the UI mounts before data loads and shows a loading indicator instead of a blank page; startup data is fetched in a single snapshot request, and long lists stay smooth through incremental rendering and caching
+- Achievements page reorganized: the trophy shelf comes first, with career stats and a separate "Reset stats" section below
+- Modals now share three sizes (compact, standard, wide) and adapt to mobile; clicking the backdrop no longer dismisses them, preventing accidental loss of edits
+- Streaming is more stable: the view follows new content automatically but stops following when you scroll up to read history, and the keyboard no longer covers thinking or reply content
+- Mobile message editor: smoother keyboard transitions and easier access to attachment actions while editing
+- Clearer styling for chat attachments, thinking panels, and tool cards, with softer, more consistent light-theme colors
+
+#### Fixed
+
+- Fixed the UI getting stuck in "generating" when generation failed or the model returned no content: the turn now rolls back with a clear message, while partial text is kept and marked as interrupted
+- Fixed turns occasionally hanging without a reply when the app is opened on a phone through its LAN address (sidebar QR code); connection timeouts now fall back to the same-origin proxy and report a network error when every candidate fails
+- Fixed a brief flash of the wrong theme when refreshing or switching tabs; the correct light/dark background is applied on the first frame
+- Fixed character cards on the home page not showing custom avatars
+- Fixed mobile message action buttons, attachment actions while editing, and chat attachment styling
+- Fixed the model provider list sometimes being empty at startup and slow loading of older session messages
+
+#### Internal
+
+- Added startup snapshot and list-by-field persistence endpoints to reduce startup requests, with tests
+- Added avatar thumbnail and row fingerprint caches to cut repeated rendering work in long lists
+- Unified the modal component and sizing, removing duplicate backdrop-click logic
+- Filled in the persistence endpoint mocks required by the yolo integration test
+
 ## [0.1.13] - 2026-10-21
 
 ### 中文
@@ -330,6 +394,7 @@
 - Vite + React + Zustand + Dexie stack with browser-side local persistence
 
 <!-- 链接定义 -->
+[0.1.14]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.13...v0.1.14
 [0.1.13]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.12...v0.1.13
 [0.1.12]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.11...v0.1.12
 [0.1.11]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.10...v0.1.11
