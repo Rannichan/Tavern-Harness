@@ -122,8 +122,9 @@ export function renderMarkdown(source: string, opts?: { mathEnabled?: boolean })
     return `￼CODE${codeBlocks.length - 1}￼`;
   });
 
-  // 3. marked 渲染
-  let html = marked.parse(withoutCode, { async: false }) as string;
+  // 3. 原始 HTML 仅作为文本显示，避免模型输出改变 Markdown 的 DOM 结构。
+  const htmlSafeMarkdown = withoutCode.replace(/<(?=\/?[A-Za-z][^>]*>)/g, '&lt;');
+  let html = marked.parse(htmlSafeMarkdown, { async: false }) as string;
 
   // 4. 还原代码块并高亮
   html = html.replace(/￼CODE(\d+)￼/g, (_, i) => {
