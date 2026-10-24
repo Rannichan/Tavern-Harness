@@ -7,16 +7,8 @@ import { initMobileViewport } from './core/mobileViewport';
 import { installWeChatTouchSelectionGuard } from './core/wechatTouch';
 import './theme/global.css';
 
-// 在数据层完成异步初始化前先挂载 React。App 会立即显示壳层和启动状态，
-// 避免 IndexedDB / 持久化服务较慢时出现无内容的空白页。
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>
-);
-
 try {
-  // 首帧同步应用主题（读 localStorage 缓存），避免刷新闪动
+  // React 挂载前完成主题变量初始化，避免新标签页先按 CSS 默认主题绘制壳层。
   applyThemeFromCache();
   // 移动端视口高度控制：吸收键盘开合时地址栏/底部工具栏的两段式变化
   initMobileViewport();
@@ -28,3 +20,11 @@ try {
   // 非核心的浏览器增强失败不能阻止应用及其初始化错误界面出现。
   console.error('Failed to configure Tavern Harness browser enhancements', error);
 }
+
+// 在数据层完成异步初始化前先挂载 React。App 会立即显示壳层和启动状态，
+// 避免 IndexedDB / 持久化服务较慢时出现无内容的空白页。
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <App />
+  </StrictMode>
+);

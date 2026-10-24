@@ -77,6 +77,11 @@ export function applyTheme(mode: ThemeMode): void {
 
   root.dataset.theme = dark ? 'dark' : 'light';
   root.style.colorScheme = dark ? 'dark' : 'light';
+  root.style.backgroundColor = dark ? '#20160E' : '#F7F0E4';
+  document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute(
+    'content',
+    dark ? '#20160E' : '#F7F0E4',
+  );
 
   const vars: Record<string, string> = {
     // 主色：浅色模式用深色变体（羊皮纸底上对比足够），深色模式用烛光浅亮色
@@ -87,17 +92,17 @@ export function applyTheme(mode: ThemeMode): void {
     '--grad-to': is(p.primaryLight, p.gradientTo),
     '--glow': is('color-mix(in srgb, var(--primary) 28%, transparent)', p.glow),
 
-    '--bg': is('#F7F2E9', '#17120A'),
-    '--bg-deep': is('#efe8da', '#0f0b06'),
-    '--surface': is('#FDFBF5', '#211A10'),
-    '--surface-2': is('#efe8da', '#2B2215'),
-    '--surface-3': is('#e6ddca', '#362A1A'),
+    '--bg': is('#F7F0E4', '#17120A'),
+    '--bg-deep': is('#E9DDCA', '#0f0b06'),
+    '--surface': is('#FFFDF8', '#211A10'),
+    '--surface-2': is('#F3E7D5', '#2B2215'),
+    '--surface-3': is('#DFCFB8', '#362A1A'),
     '--border': is('rgba(60,40,10,0.14)', 'rgba(255,214,160,0.13)'),
     '--border-soft': is('rgba(60,40,10,0.08)', 'rgba(255,214,160,0.07)'),
 
-    '--text': is('#241c10', '#F2EADC'),
-    '--text-dim': is('#7a6a50', '#AA9C86'),
-    '--text-faint': is('#a3957c', '#6f6352'),
+    '--text': is('#30251C', '#F2EADC'),
+    '--text-dim': is('#66574A', '#AA9C86'),
+    '--text-faint': is('#887665', '#6f6352'),
 
     // 用户气泡：全场唯一保留品牌色的实心块。浓度提到 20% 才和
     // 思考/工具的浅色卡片拉开层级（11% 时与 --surface-2 只差 3 个色阶）
@@ -145,6 +150,4 @@ export function applyThemeFromCache(): void {
       ? 'dark'
       : 'light');
   applyTheme(mode);
-  // 背景在 body 上，确保首帧背景色一致
-  document.documentElement.style.backgroundColor = isDarkMode(mode) ? '#20160E' : '#F7F2E9';
 }

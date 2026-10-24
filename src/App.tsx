@@ -194,13 +194,32 @@ export default function App() {
 /** 保持已访问的视图挂载，并隔离隐藏视图的焦点与辅助功能。 */
 function ViewSlot({ active, children }: { active: boolean; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
+  const lastTheme = useRef<string | undefined>();
+  const revealFrame = useRef<number | null>(null);
+
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
     if (active) {
+      const theme = document.documentElement.dataset.theme;
+      const themeChanged = lastTheme.current !== undefined && lastTheme.current !== theme;
+      if (themeChanged) {
+        // 隐藏视图在 content-visibility 下会延后解析变量；显示的首帧禁用过渡，
+        // 避免旧主题颜色被补绘并动画到新主题。
+        el.dataset.themeReveal = 'true';
+        revealFrame.current = window.requestAnimationFrame(() => {
+          revealFrame.current = window.requestAnimationFrame(() => {
+            delete el.dataset.themeReveal;
+            revealFrame.current = null;
+          });
+        });
+      }
+      lastTheme.current = theme;
       el.removeAttribute('inert');
       el.removeAttribute('aria-hidden');
-      return;
+      return () => {
+        if (revealFrame.current != null) window.cancelAnimationFrame(revealFrame.current);
+      };
     }
     const focused = document.activeElement;
     if (focused instanceof HTMLElement && el.contains(focused)) focused.blur();

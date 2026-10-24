@@ -14,7 +14,7 @@
           const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
           const dark = mode === 'dark' || (mode !== 'light' && systemDark);
           const root = document.documentElement;
-          const background = dark ? '#20160E' : '#F7F2E9';
+          const background = dark ? '#20160E' : '#F7F0E4';
           root.dataset.theme = dark ? 'dark' : 'light';
           root.style.colorScheme = dark ? 'dark' : 'light';
           root.style.backgroundColor = background;

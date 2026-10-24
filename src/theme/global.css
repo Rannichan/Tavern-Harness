@@ -4,7 +4,7 @@
    ============================================================ */
 
 :root {
-  background: #F7F2E9;
+  background: #F7F0E4;
   color-scheme: light;
   --radius: 14px;
   --radius-lg: 18px;
@@ -34,7 +34,7 @@ body,
 
 html,
 body {
-  background: var(--bg, #F7F2E9);
+  background: var(--bg, #F7F0E4);
 }
 
 body {
@@ -923,6 +923,11 @@ body.resizing .sidebar-resizer {
 }
 .view-slot[data-active='false'] {
   display: none;
+}
+/* 隐藏页面在新主题下重新显示时，禁止颜色过渡首帧使用已缓存的旧色。 */
+.view-slot[data-theme-reveal='true'],
+.view-slot[data-theme-reveal='true'] * {
+  transition: none !important;
 }
 @supports (content-visibility: hidden) {
   .view-slot[data-active='false'] {
