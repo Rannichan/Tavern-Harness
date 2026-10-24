@@ -139,16 +139,6 @@ html.wechat-android .session-item * {
   -webkit-user-select: none;
   user-select: none;
 }
-/* 消息内联编辑 / 其它输入控件：恢复选词，避免再次出现无法聚焦或键盘被收起。 */
-html.wechat-android .msg-row input,
-html.wechat-android .msg-row textarea,
-html.wechat-android .msg-row [contenteditable=""],
-html.wechat-android .msg-row [contenteditable="true"] {
-  -webkit-touch-callout: default;
-  -webkit-user-select: text;
-  user-select: text;
-  pointer-events: auto;
-}
 /* 微信 Android 在气泡不可选时会“退而求其次”选中附近其它文字（典型是输入区
    左侧的模型名称）。聊天区、顶栏、底部输入区外壳一并禁止选词；真正的输入
    控件仍保持可选。注意不要作用到 .composer / .app-shell 这类输入框祖先上，
@@ -170,15 +160,6 @@ html.wechat-android .model-popover {
 html.wechat-android .composer-model-label,
 html.wechat-android .model-option-name {
   pointer-events: none;
-}
-/* 聊天区里的内联消息编辑器仍然可选中。 */
-html.wechat-android .chat-scroll input,
-html.wechat-android .chat-scroll textarea,
-html.wechat-android .chat-scroll [contenteditable=""],
-html.wechat-android .chat-scroll [contenteditable="true"] {
-  -webkit-touch-callout: default;
-  -webkit-user-select: text;
-  user-select: text;
 }
 /* 拖拽排序的卡片：任何指针下都不希望拖动过程选中文本。 */
 .sort-item,

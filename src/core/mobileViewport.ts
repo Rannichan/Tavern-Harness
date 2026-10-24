@@ -59,6 +59,8 @@ let openTimer = 0;
 let opening = false;
 let openingStart = 0;
 let appliedHeight: number | null = null;
+/** 输入框获得焦点后，键盘展开完成前临时锁住壳层高度。 */
+let focusHeightLock = false;
 /** 是否用显式像素高度控制壳层（不跟随 100%）。 */
 let explicitHeight = false;
 
@@ -71,7 +73,7 @@ function isEdgeAndroid(): boolean {
 }
 
 function usesExplicitHeight(): boolean {
-  return explicitHeight || isEdgeAndroid();
+  return focusHeightLock || explicitHeight || isEdgeAndroid();
 }
 
 function applyHeight(px: number | null): void {
@@ -119,6 +121,7 @@ function reset(): void {
   keyboardOpen = false;
   focused = false;
   keyboardAtLastTouch = false;
+  focusHeightLock = false;
   pendingSmall = null;
   holdBaseHeight = 0;
   // 需要显式像素高度时（Edge Android，或已观察到工具栏延迟归位）按当前高度排版；
@@ -153,6 +156,7 @@ function scheduleCloseSettle(): void {
 
 function closeSettled(height: number): void {
   keyboardOpen = false;
+  focusHeightLock = false;
   focused = false;
   closedHeight = height;
   closedCandidate = height;
@@ -299,6 +303,7 @@ function onResize(): void {
     pendingSmall = null;
     holdBaseHeight = 0;
     keyboardOpen = true;
+    focusHeightLock = false;
     // 键盘高度可能还会二次变化（候选栏/工具栏收起），等一小段再一次性落位，
     // 避免输入框先弹到较高位置、再落回键盘上方。
     opening = true;
@@ -345,14 +350,24 @@ export function initMobileViewport(): void {
   document.addEventListener(
     'focusin',
     (event) => {
-      if (isEditableTarget(event.target)) focused = true;
+      if (!isEditableTarget(event.target)) return;
+      focused = true;
+      // Android 会先让 `dvh` 收缩一帧、随后才派发足够大的 resize 来识别键盘。
+      // 在这段间隙锁住壳层，编辑弹窗不会先缩小下沉再上移。
+      focusHeightLock = isMobileViewport() && !keyboardOpen;
+      if (focusHeightLock) applyHeight(window.innerHeight);
     },
     true,
   );
   document.addEventListener(
     'focusout',
     (event) => {
-      if (isEditableTarget(event.target)) focused = false;
+      if (!isEditableTarget(event.target)) return;
+      focused = false;
+      if (focusHeightLock && !keyboardOpen) {
+        focusHeightLock = false;
+        followViewport(window.innerHeight);
+      }
     },
     true,
   );

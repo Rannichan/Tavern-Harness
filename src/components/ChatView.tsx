@@ -106,6 +106,7 @@ export function ChatView({
   const streamingScrollTargetRef = useRef(0);
   const streamingProgrammaticScrollTopRef = useRef<number | null>(null);
   const followStreamingRef = useRef(true);
+  const suspendStickyScrollRef = useRef(false);
   const positionedSessionRef = useRef<{ id: number | undefined; messageCount: number } | null>(null);
   const scrollMemory = useRef<{ sessionId: number | undefined; top: number; atBottom: boolean }>({
     sessionId: undefined,
@@ -235,7 +236,34 @@ export function ChatView({
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    return keepStickyBottom(el);
+    return keepStickyBottom(el, undefined, () => suspendStickyScrollRef.current);
+  }, []);
+
+  // 编辑弹窗的键盘会改变壳层高度；后台聊天列表不应在弹窗下自动贴底。
+  // 焦点进入时立即冻结，失焦并等待键盘收起动画结束后再恢复。
+  useEffect(() => {
+    let resumeTimer = 0;
+    const isEditorTextarea = (target: EventTarget | null) =>
+      target instanceof HTMLTextAreaElement && target.closest('.message-editor-modal') != null;
+    const onFocusIn = (event: FocusEvent) => {
+      if (!isEditorTextarea(event.target)) return;
+      window.clearTimeout(resumeTimer);
+      suspendStickyScrollRef.current = true;
+    };
+    const onFocusOut = (event: FocusEvent) => {
+      if (!isEditorTextarea(event.target)) return;
+      window.clearTimeout(resumeTimer);
+      resumeTimer = window.setTimeout(() => {
+        suspendStickyScrollRef.current = false;
+      }, 350);
+    };
+    document.addEventListener('focusin', onFocusIn, true);
+    document.addEventListener('focusout', onFocusOut, true);
+    return () => {
+      window.clearTimeout(resumeTimer);
+      document.removeEventListener('focusin', onFocusIn, true);
+      document.removeEventListener('focusout', onFocusOut, true);
+    };
   }, []);
 
   const npcId = session.associatedId;
@@ -434,20 +462,6 @@ function MessageBubble({
     }
   }, [msg.toolCallsJson]);
 
-  // ---- 内联编辑状态（右键菜单 → 编辑消息，直接在气泡内编辑，不弹窗） ----
-  const [isEditing, setIsEditing] = useState(false);
-  useEffect(() => {
-    const fn = () => {
-      const isTarget = editingMsgState?.msgId === msg.id;
-      setIsEditing(isTarget);
-    };
-    editingMsgListeners.push(fn);
-    return () => {
-      editingMsgListeners = editingMsgListeners.filter((f) => f !== fn);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [msg.id]);
-
   const isUser = msg.role === 'user';
   const speaker = msg.speakerParticipantId != null
     ? participants.find((p) => p.participantId === msg.speakerParticipantId)
@@ -467,7 +481,7 @@ function MessageBubble({
   );
 
   if (isUser) {
-    return <UserBubble msg={msg} session={session} userPersonaName={userPersonaName} editing={isEditing} loopIndex={loopIndex} />;
+    return <UserBubble msg={msg} session={session} userPersonaName={userPersonaName} loopIndex={loopIndex} />;
   }
 
   // 用于「点击队列发言 → 对话定位」：NPC 用 participantId，玩家/未知用 null（定位到循环首条）
@@ -479,21 +493,6 @@ function MessageBubble({
       .filter((p) => p.participantId !== msg.speakerParticipantId)
       .map((p) => p.kind === 'PLAYER' ? 'User' : p.displayName)
     : [];
-
-  if (isEditing) {
-    return (
-      <div className="msg-row fade-up" data-loop={loopIndex ?? undefined} data-speaker={speakerKey ?? undefined}>
-        <Avatar name={speakerName} colorOrdinal={npcHue} imageUrl={npcAvatar} />
-        <div className="msg-body">
-          <div className="msg-head">
-            <span className="msg-name">{speakerName}</span>
-            <span className="msg-time">{fmtTime(msg.timestamp)}</span>
-          </div>
-          <BubbleEditor msg={msg} session={session} onDone={stopEditingMsg} />
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div
@@ -557,8 +556,8 @@ function MessageBubble({
   );
 }
 
-/** 气泡内联编辑器（替换弹窗编辑，支持管理附件） */
-function BubbleEditor({
+/** 统一消息编辑弹窗，集中处理虚拟键盘、滚动与安全区适配。 */
+function MessageEditorModal({
   msg,
   session,
   onDone,
@@ -608,70 +607,69 @@ function BubbleEditor({
   const primaryAction = isUserMsg ? doSave : doSaveOnly;
 
   return (
-    <div className="bubble-editor">
-      <textarea
-        className="textarea mono"
-        rows={Math.max(3, Math.min(12, text.split('\n').length))}
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        autoFocus
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-            e.preventDefault();
-            primaryAction();
-          }
-          if (e.key === 'Escape') {
-            e.preventDefault();
-            onDone();
-          }
-        }}
-      />
-      {/* 附件管理 */}
-      {attachments.length > 0 && (
-        <div className="attachments" style={{ marginBottom: 0 }}>
-          {attachments.map((a, i) => (
-            <AttachCard
-              key={i}
-              name={a.name}
-              onRemove={() => setAttachments(attachments.filter((_, j) => j !== i))}
-            />
-          ))}
-        </div>
-      )}
-      <div className="bubble-editor-actions">
-        <div className="bubble-editor-actions-start">
-          <input
-            ref={fileRef}
-            id={`bubble-editor-attachment-${msg.id}`}
-            type="file"
-            accept="image/*,video/*"
-            multiple
-            hidden
-            onChange={(e) => {
-              const files = e.target.files;
-              if (files) {
-                Array.from(files).forEach((f) => readFileAsDataUrl(f).then((url) => setAttachments((prev) => [...prev, { dataUrl: url, name: f.name }])));
-              }
-              e.target.value = '';
-            }}
-          />
-          <label className="btn btn-sm" htmlFor={`bubble-editor-attachment-${msg.id}`}>
-            <Icon name="image" size={12} /> {t('chat.addAttachment')}
-          </label>
-        </div>
-        <div className="bubble-editor-actions-end">
-          <span className="bubble-editor-hint">{t('chat.saveHint')}</span>
-          <button className="btn btn-sm" onClick={onDone}>{t('common.cancel')}</button>
-          <button className="btn btn-sm btn-primary" disabled={!text.trim() || streaming} onClick={primaryAction}>
-            {isUserMsg ? t('chat.saveRegenerate') : t('chat.saveOnly')}
-          </button>
-        </div>
+    <Modal onClose={onDone} className="message-editor-modal" width="min(760px, calc(100vw - 32px))">
+      <div className="modal-head">
+        <span>{t('chat.editMsg')}</span>
+        <button className="icon-btn" onClick={onDone} aria-label={t('common.close')}>×</button>
       </div>
-    </div>
+      <div className="modal-body message-editor-body">
+        <textarea
+          className="textarea message-editor-textarea"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+              e.preventDefault();
+              void primaryAction();
+            }
+            if (e.key === 'Escape') {
+              e.preventDefault();
+              onDone();
+            }
+          }}
+        />
+        {attachments.length > 0 && (
+          <div className="attachments message-editor-attachments">
+            {attachments.map((a, i) => (
+              <AttachCard
+                key={i}
+                name={a.name}
+                onRemove={() => setAttachments(attachments.filter((_, j) => j !== i))}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="modal-foot message-editor-actions">
+        <input
+          ref={fileRef}
+          id={`message-editor-attachment-${msg.id}`}
+          type="file"
+          accept="image/*,video/*"
+          multiple
+          hidden
+          onChange={(e) => {
+            const files = e.target.files;
+            if (files) {
+              Array.from(files).forEach((f) => readFileAsDataUrl(f).then((url) => setAttachments((prev) => [...prev, { dataUrl: url, name: f.name }])));
+            }
+            e.target.value = '';
+          }}
+        />
+        <label className="btn btn-sm message-editor-attachment" htmlFor={`message-editor-attachment-${msg.id}`}>
+          <Icon name="image" size={12} /> {t('chat.addAttachment')}
+        </label>
+        <span className="message-editor-hint">{t('chat.saveHint')}</span>
+        <button className="btn btn-sm" onClick={onDone}>{t('common.cancel')}</button>
+        <button className="btn btn-sm btn-primary" disabled={!text.trim() || streaming} onClick={() => void primaryAction()}>
+          {isUserMsg ? t('chat.saveRegenerate') : t('chat.saveOnly')}
+        </button>
+      </div>
+    </Modal>
   );
 }
 
-function UserBubble({ msg, session, userPersonaName, editing, loopIndex }: { msg: ChatMessage; session: ChatSession; userPersonaName: string | null; editing?: boolean; loopIndex?: number | null }) {
+function UserBubble({ msg, session, userPersonaName, loopIndex }: { msg: ChatMessage; session: ChatSession; userPersonaName: string | null; loopIndex?: number | null }) {
   const t = useT();
   const participants = useStore((s) => (session.id != null ? (s.participants[session.id] ?? []) : []));
   const longPressProps = useMessageLongPress(msg, session);
@@ -685,7 +683,7 @@ function UserBubble({ msg, session, userPersonaName, editing, loopIndex }: { msg
       className="msg-row user-row fade-up"
       data-loop={loopIndex ?? undefined}
       data-speaker="player"
-      {...(!editing ? longPressProps : {})}
+      {...longPressProps}
     >
       <div className="avatar sm user-avatar">{t('common.me')}</div>
       <div className="msg-body">
@@ -693,22 +691,18 @@ function UserBubble({ msg, session, userPersonaName, editing, loopIndex }: { msg
           <span className="msg-time">{fmtTime(msg.timestamp)}</span>
           <span className="msg-name">{t('common.you')}</span>
         </div>
-        {editing ? (
-          <BubbleEditor msg={msg} session={session} onDone={stopEditingMsg} />
-        ) : (
-          <div className="bubble bubble-user">
-            {msg.attachments.length > 0 && (
-              <div className="attachments">
-                {msg.attachments.map((a, i) => (
-                  <AttachCard key={i} name={msg.attachmentInfos?.[i]?.displayName || attachmentName(a)} />
-                ))}
-              </div>
-            )}
-            <div className="bubble-text">
-              {msg.content && <Markdown text={displayUserPersonaPlaceholder(msg.content, userPersonaName)} mentionNames={mentionNames} />}
+        <div className="bubble bubble-user">
+          {msg.attachments.length > 0 && (
+            <div className="attachments">
+              {msg.attachments.map((a, i) => (
+                <AttachCard key={i} name={msg.attachmentInfos?.[i]?.displayName || attachmentName(a)} />
+              ))}
             </div>
+          )}
+          <div className="bubble-text">
+            {msg.content && <Markdown text={displayUserPersonaPlaceholder(msg.content, userPersonaName)} mentionNames={mentionNames} />}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
@@ -1258,17 +1252,15 @@ function closeMsgMenu() {
   notifyMsgMenu();
 }
 
-// ---- 内联编辑全局状态（编辑目标由 MessageBubble 监听） ----
-let editingMsgState: { msgId: number } | null = null;
-let editingMsgListeners: Array<() => void> = [];
-function startEditingMsg(msgId: number) {
-  editingMsgState = { msgId };
-  editingMsgListeners.forEach((fn) => fn());
+// ---- 消息编辑弹窗状态（由全局消息菜单打开） ----
+let editingMsgState: { msg: ChatMessage; session: ChatSession } | null = null;
+function startEditingMsg(msg: ChatMessage, session: ChatSession) {
+  editingMsgState = { msg, session };
   closeMsgMenu();
 }
 function stopEditingMsg() {
   editingMsgState = null;
-  editingMsgListeners.forEach((fn) => fn());
+  notifyMsgMenu();
 }
 
 export function MessageMenu() {
@@ -1281,6 +1273,7 @@ export function MessageMenu() {
   const npcs = useStore((s) => s.npcs);
   const [rawLog, setRawLog] = useState<{ data: RawLogData; title: string; filename: string } | null>(null);
   const [compressionSummary, setCompressionSummary] = useState<{ content: string; title: string } | null>(null);
+  const editingMessage = editingMsgState;
 
   useEffect(() => {
     const fn = () => force((n) => n + 1);
@@ -1289,6 +1282,10 @@ export function MessageMenu() {
       msgMenuListeners = msgMenuListeners.filter((f) => f !== fn);
     };
   }, []);
+
+  if (editingMessage) {
+    return <MessageEditorModal msg={editingMessage.msg} session={editingMessage.session} onDone={stopEditingMsg} />;
+  }
 
   // 原始日志弹窗（独立状态，优先于右键菜单）
   if (rawLog) {
@@ -1351,7 +1348,7 @@ export function MessageMenu() {
       </PopoverMenu>
     );
   }
-  const { x, y, msg } = msgMenuState;
+  const { x, y, msg, session } = msgMenuState;
 
   const actions: Array<{ label: string; icon: string; onClick: () => void; danger?: boolean }> = [];
   if (msg.content.trim()) {
@@ -1371,7 +1368,7 @@ export function MessageMenu() {
       label: t('chat.editMsg'),
       icon: 'settings',
       onClick: () => {
-        startEditingMsg(msg.id!);
+        startEditingMsg(msg, session);
       },
     });
   }

@@ -78,7 +78,6 @@
      最长时左边缘到达 NPC 头像位 51px
    - 效果：任意时刻 NPC 右边缘 == 用户右边缘；用户长气泡左边缘 == NPC 左边缘 */
 .msg-row:not(.user-row) .msg-body > .bubble,
-.msg-row:not(.user-row) .msg-body > .bubble-editor,
 .msg-row:not(.user-row) .msg-body > .tool-calls,
 .msg-row:not(.user-row) .msg-body > .collp,
 .msg-row:not(.user-row) .msg-body > .msg-metrics {
@@ -87,7 +86,6 @@
   align-self: flex-start;
 }
 .msg-row.user-row .msg-body > .bubble,
-.msg-row.user-row .msg-body > .bubble-editor,
 .msg-row.user-row .msg-body > .tool-calls,
 .msg-row.user-row .msg-body > .collp,
 .msg-row.user-row .msg-body > .msg-metrics {
@@ -129,38 +127,38 @@
   letter-spacing: 0.2px;
 }
 
-/* ---------- 气泡内联编辑 ---------- */
-.bubble-editor {
+/* ---------- 消息编辑弹窗 ---------- */
+.message-editor-modal {
+  height: min(78dvh, 720px);
+}
+.message-editor-body {
   display: flex;
+  flex: 1;
   flex-direction: column;
-  gap: 8px;
-  width: 100%;
-  max-width: none;
+  gap: 12px;
+  overflow: hidden;
 }
-.bubble-editor textarea {
-  width: 100%;
-  border: 1px solid color-mix(in srgb, var(--primary) 48%, transparent);
-  box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--primary) 10%, transparent),
-    inset 0 0 8px color-mix(in srgb, var(--glow) 18%, transparent),
-    0 0 0 1px color-mix(in srgb, var(--primary) 20%, transparent),
-    0 0 8px color-mix(in srgb, var(--glow) 36%, transparent),
-    0 0 14px color-mix(in srgb, var(--glow) 14%, transparent);
-  font-size: 13.5px;
+.textarea.message-editor-textarea {
+  flex: 1;
+  min-height: 180px;
+  resize: none;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.6;
 }
-.bubble-editor-actions {
-  display: flex;
+.message-editor-attachments {
+  flex: 0 1 auto;
+  margin: 0;
+  overflow-y: auto;
+}
+.message-editor-actions {
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
 }
-.bubble-editor-actions-start,
-.bubble-editor-actions-end {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+.message-editor-attachment {
+  margin-right: auto;
 }
-.bubble-editor-hint {
+.message-editor-hint {
+  margin-right: auto;
   font-size: 10.5px;
   color: var(--text-faint);
 }
@@ -1230,7 +1228,6 @@
   }
 
   .msg-row:not(.user-row) .msg-body > .bubble,
-  .msg-row:not(.user-row) .msg-body > .bubble-editor,
   .msg-row:not(.user-row) .msg-body > .tool-calls,
   .msg-row:not(.user-row) .msg-body > .collp,
   .msg-row:not(.user-row) .msg-body > .msg-metrics {
@@ -1238,7 +1235,6 @@
   }
 
   .msg-row.user-row .msg-body > .bubble,
-  .msg-row.user-row .msg-body > .bubble-editor,
   .msg-row.user-row .msg-body > .tool-calls,
   .msg-row.user-row .msg-body > .collp,
   .msg-row.user-row .msg-body > .msg-metrics {
@@ -1305,36 +1301,28 @@
     max-height: min(48dvh, 320px);
   }
 
-  /* 窄屏操作区保持单行：隐藏键位提示，按钮不换行、不压缩，
-     并统一高度，避免「添加附件 / 取消 / 保存」被挤成两行或高低不齐。 */
-  .bubble-editor-actions {
-    align-items: center;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: 4px;
+  .message-editor-modal {
+    width: 100%;
+    /* 跟随 .modal-root 的 --app-height；键盘首帧的 dvh 变化不会单独缩小弹窗。 */
+    height: 100%;
+    max-height: 100%;
+    border-radius: 0;
   }
 
-  .bubble-editor-actions-start,
-  .bubble-editor-actions-end {
-    flex-wrap: nowrap;
-    min-width: 0;
-    gap: 4px;
+  .message-editor-textarea {
+    font-size: 14px;
   }
 
-  .bubble-editor-actions-end {
-    justify-content: flex-end;
+  .message-editor-actions {
+    flex-wrap: wrap;
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
   }
 
-  .bubble-editor-actions .btn {
-    flex-shrink: 0;
-    height: 28px;
-    padding: 0 7px;
-    font-size: 11.5px;
-    gap: 4px;
-    white-space: nowrap;
+  .message-editor-attachment {
+    margin-right: auto;
   }
 
-  .bubble-editor-hint {
+  .message-editor-hint {
     display: none;
   }
 }

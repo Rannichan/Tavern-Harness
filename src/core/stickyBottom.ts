@@ -30,12 +30,20 @@ export function isNearBottom(
  *
  * @returns 解除监听的函数
  */
-export function keepStickyBottom(el: HTMLElement, threshold = STICKY_BOTTOM_THRESHOLD): () => void {
+export function keepStickyBottom(
+  el: HTMLElement,
+  threshold = STICKY_BOTTOM_THRESHOLD,
+  isSuspended: () => boolean = () => false,
+): () => void {
   let lastHeight = el.clientHeight;
   const observer = new ResizeObserver(() => {
     const height = el.clientHeight;
     if (height === 0) return;
     if (height === lastHeight) return;
+    if (isSuspended()) {
+      lastHeight = height;
+      return;
+    }
     // 用变化前的高度判断，避免容器长高时浏览器已经把 scrollTop 夹到新上限而误判。
     const wasNearBottom = isNearBottom(el.scrollHeight, el.scrollTop, lastHeight, threshold);
     lastHeight = height;
