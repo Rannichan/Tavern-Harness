@@ -165,7 +165,7 @@ export function WorkspaceFileManagerModal({ sessionId, onClose }: { sessionId: n
         </span>
         <span className="ws-fm-head-actions">
           <button
-            className="btn btn-ghost ws-fm-location-btn"
+            className="icon-btn ws-fm-location-btn"
             onClick={() => void openWorkspaceLocation()}
             disabled={openingLocation}
             title={t('header.fileManagerOpenLocation')}

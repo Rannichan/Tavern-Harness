@@ -1664,14 +1664,8 @@
 .ws-fm-head-actions {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   margin-left: auto;
-}
-.ws-fm-location-btn {
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  justify-content: center;
 }
 .ws-fm-title {
   display: flex;
