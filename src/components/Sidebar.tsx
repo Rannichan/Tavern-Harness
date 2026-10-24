@@ -12,8 +12,11 @@ import { useTouchLongPress } from '../core/longPress';
 import { fixedViewportPoint } from '../core/viewport';
 import { useHasUnseenVersion } from '../core/version';
 import { PopoverMenu } from './PopoverMenu';
+import { unlockAchievement } from '../core/achievements';
 
 const SIDEBAR_MIN = 240;
+const SHAREHOLDER_CLICK_COUNT = 5;
+const SHAREHOLDER_CLICK_WINDOW_MS = 5_000;
 const SIDEBAR_MAX = 520;
 
 /** 触发 App 级全局游戏导出弹窗（会话右键菜单共用） */
@@ -50,6 +53,7 @@ export function Sidebar() {
   // 群聊会话 → 参与者中的 NPC 角色
   const [groupMembers, setGroupMembers] = useState<Record<number, NpcCharacter[]>>({});
   const sessionLongPressTarget = useRef<ChatSession | null>(null);
+  const homeClickTimes = useRef<number[]>([]);
   const sessionLongPressProps = useTouchLongPress(
     (point) => {
       const session = sessionLongPressTarget.current;
@@ -221,6 +225,20 @@ export function Sidebar() {
       colorOrdinal: n.avatarColorOrdinal,
       imageUrl: n.avatarDataUrl,
     }));
+
+  const returnHome = () => {
+    const now = Date.now();
+    homeClickTimes.current = [...homeClickTimes.current, now]
+      .filter((time) => now - time <= SHAREHOLDER_CLICK_WINDOW_MS)
+      .slice(-SHAREHOLDER_CLICK_COUNT);
+    if (homeClickTimes.current.length === SHAREHOLDER_CLICK_COUNT) {
+      homeClickTimes.current = [];
+      void unlockAchievement('th-shareholder').then(() => useStore.getState().refreshAchievements());
+    }
+    setActiveSession(null);
+    setActiveView('chat');
+  };
+
   return (
     <>
       <div className="mobile-topbar">
@@ -234,6 +252,15 @@ export function Sidebar() {
           <Icon name={mobileOpen ? 'x' : 'menu'} size={22} />
         </button>
         <nav className="mobile-topbar-nav" aria-label={t('nav.chat')}>
+          <button
+            className="mobile-home-button"
+            type="button"
+            title={t('nav.home')}
+            aria-label={t('nav.home')}
+            onClick={returnHome}
+          >
+            <img src="/tavern-harness-logo.png" alt="" />
+          </button>
           <button className={`nav-chip ${activeView === 'chat' ? 'active' : ''}`} onClick={() => setActiveView('chat')}>
             <Icon name="send" size={15} /> <span>{t('nav.chat')}</span>
           </button>
@@ -257,11 +284,11 @@ export function Sidebar() {
           role="button"
           tabIndex={0}
           title={t('nav.home')}
-          onClick={() => setActiveSession(null)}
+          onClick={returnHome}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
-              setActiveSession(null);
+              returnHome();
             }
           }}
         >

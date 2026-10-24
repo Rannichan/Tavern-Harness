@@ -337,6 +337,13 @@ export const useStore = create<AppState>((set, get) => ({
         const sessions = sortSessionsPinnedFirst(snapshot.collections.sessions.map((record) => record.value));
         const worldBooks = sortWorldBooks(snapshot.collections.worldBooks.map((record) => record.value));
         const tools = [...snapshot.collections.tools.map((record) => record.value)].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
+        const unlockedAchievements = new Map(
+          snapshot.collections.achievementUnlocks.map((record) => [record.value.achievementId, record.value.unlockedAt]),
+        );
+        const achievements = ACHIEVEMENTS.map((def) => ({
+          def,
+          unlockedAt: unlockedAchievements.get(def.id) ?? null,
+        }));
         set({
           initStatus: 'ready',
           readOnly,
@@ -347,6 +354,7 @@ export const useStore = create<AppState>((set, get) => ({
           sessions,
           worldBooks,
           tools,
+          achievements,
           activeSessionId: null,
           activeView: 'chat',
         });

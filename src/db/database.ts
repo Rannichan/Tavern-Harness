@@ -343,6 +343,7 @@ type StartupSnapshot = {
     sessions: Array<{ value: ChatSession }>;
     worldBooks: Array<{ value: WorldBook }>;
     tools: Array<{ value: McpTool }>;
+    achievementUnlocks: Array<{ value: AchievementUnlock }>;
   };
 };
 
@@ -357,13 +358,14 @@ export async function loadStartupSnapshot(): Promise<StartupSnapshot> {
     if (!(error instanceof Error) || !error.message.includes('Unknown persistence endpoint: /startup/snapshot')) throw error;
     await initDatabase();
     const readOnly = await isWriteLocked();
-    const [settings, providers, npcs, sessions, worldBooks, tools] = await Promise.all([
+    const [settings, providers, npcs, sessions, worldBooks, tools, achievementUnlocks] = await Promise.all([
       db.settings.toArray(),
       db.providers.toArray(),
       db.npcs.toArray(),
       db.sessions.toArray(),
       db.worldBooks.toArray(),
       db.tools.toArray(),
+      db.achievementUnlocks.toArray(),
     ]);
     return {
       lock: { writable: !readOnly, held: readOnly || hasWriteLock },
@@ -374,6 +376,7 @@ export async function loadStartupSnapshot(): Promise<StartupSnapshot> {
         sessions: sessions.map((value) => ({ value })),
         worldBooks: worldBooks.map((value) => ({ value })),
         tools: tools.map((value) => ({ value })),
+        achievementUnlocks: achievementUnlocks.map((value) => ({ value })),
       },
     };
   }

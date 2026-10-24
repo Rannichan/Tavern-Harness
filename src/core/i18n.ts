@@ -378,6 +378,8 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'ach.nightOwl.desc': '累计使用 1,000,000 Token',
     'ach.legend.name': '酒馆传奇',
     'ach.legend.desc': '累计使用 100,000,000 Token',
+    'ach.thShareholder.name': 'TH股东',
+    'ach.thShareholder.desc': '5 秒内连续点击首页图标 5 次',
 
     // ---- 成就解锁弹窗 ----
     'achModal.title': '🎉 成就解锁！',
@@ -878,6 +880,8 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'ach.nightOwl.desc': '累計使用 1,000,000 Token',
     'ach.legend.name': '酒館傳奇',
     'ach.legend.desc': '累計使用 100,000,000 Token',
+    'ach.thShareholder.name': 'TH股東',
+    'ach.thShareholder.desc': '5 秒內連續點擊首頁圖示 5 次',
 
     'achModal.title': '🎉 成就解鎖！',
     'achModal.total': '生涯已累計 {n} Tokens',
@@ -1372,6 +1376,8 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'ach.nightOwl.desc': 'Cumulatively used 1,000,000 tokens',
     'ach.legend.name': 'Tavern Legend',
     'ach.legend.desc': 'Cumulatively used 100,000,000 tokens',
+    'ach.thShareholder.name': 'TH Shareholder',
+    'ach.thShareholder.desc': 'Clicked the home icon 5 times within 5 seconds',
 
     'achModal.title': '🎉 Achievement unlocked!',
     'achModal.total': 'Lifetime total {n} tokens',

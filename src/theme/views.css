@@ -697,6 +697,13 @@
   font-size: 26px;
   line-height: 1;
 }
+.ach-card-image {
+  display: block;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  object-fit: cover;
+}
 .ach-card-status {
   font-size: 10.5px;
   font-weight: 700;

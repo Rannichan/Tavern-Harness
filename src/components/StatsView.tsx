@@ -103,7 +103,9 @@ function AchievementCard({ data }: { data: AchievementState }) {
   return (
     <div className={`ach-card ${unlocked ? 'unlocked' : ''}`} title={unlocked ? t('stats.unlockedStatus') : t('stats.locked')}>
       <div className="ach-card-head">
-        <span className="ach-card-icon">{unlocked ? data.def.icon : '🔒'}</span>
+        <span className="ach-card-icon">
+          {unlocked && data.def.iconUrl ? <img className="ach-card-image" src={data.def.iconUrl} alt="" /> : unlocked ? data.def.icon : '🔒'}
+        </span>
         <span className="ach-card-status">{unlocked ? t('stats.unlockedStatus') : t('stats.locked')}</span>
       </div>
       <div className="ach-card-name">{unlocked ? t(`ach.${idToKey(data.def.id)}.name`) : t('stats.hidden')}</div>

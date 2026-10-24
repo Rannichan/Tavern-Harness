@@ -8,8 +8,10 @@ export interface AchievementDef {
   id: string;
   name: string;
   icon: string;
-  /** 达成所需累计 Token 数（输入 + 输出） */
-  threshold: number;
+  /** 应用图标类成就使用的图片地址。 */
+  iconUrl?: string;
+  /** 达成所需累计 Token 数（输入 + 输出）；手动触发的彩蛋成就不设置此项。 */
+  threshold?: number;
   description: string;
 }
 
@@ -19,6 +21,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'bard', name: '吟游诗人', icon: '🎻', threshold: 100_000, description: '累计使用 100,000 Token' },
   { id: 'night-owl', name: '午夜不归人', icon: '🌙', threshold: 1_000_000, description: '累计使用 1,000,000 Token' },
   { id: 'legend', name: '酒馆传奇', icon: '🏆', threshold: 100_000_000, description: '累计使用 100,000,000 Token' },
+  { id: 'th-shareholder', name: 'TH股东', icon: '📈', iconUrl: '/tavern-harness-logo.png', description: '连续点击首页图标 5 次' },
 ];
 
 /** 生涯总 token（输入 + 输出） */
@@ -44,6 +47,21 @@ export function registerUnlockDispatcher(
   unlockDispatcher.push = dispatcher;
 }
 
+/** 解锁指定成就（幂等），用于不依赖 Token 门槛的彩蛋成就。 */
+export async function unlockAchievement(id: string): Promise<void> {
+  const def = ACHIEVEMENTS.find((achievement) => achievement.id === id);
+  if (!def) return;
+  const exists = await db.achievementUnlocks.where('achievementId').equals(id).first();
+  if (exists) return;
+
+  await db.achievementUnlocks.add({ achievementId: id, unlockedAt: Date.now() });
+  try {
+    await unlockDispatcher.push(def, await getTotalTokens());
+  } catch {
+    // 忽略 UI 展示层的错误，不影响成就记录。
+  }
+}
+
 let checkLock: Promise<void> | null = null;
 
 /**
@@ -61,7 +79,7 @@ export async function checkAchievementUnlocks(): Promise<void> {
     const newly: Array<{ def: AchievementDef; total: number }> = [];
 
     for (const def of ACHIEVEMENTS) {
-      if (unlocked.has(def.id)) continue;
+      if (unlocked.has(def.id) || def.threshold == null) continue;
       if (total >= def.threshold) {
         await db.achievementUnlocks.add({ achievementId: def.id, unlockedAt: Date.now() });
         newly.push({ def, total });
@@ -69,7 +87,7 @@ export async function checkAchievementUnlocks(): Promise<void> {
     }
     if (newly.length > 0) {
       // 由高到低依次展示（若多级同时达成）
-      for (const { def, total } of newly.sort((a, b) => b.def.threshold - a.def.threshold)) {
+      for (const { def, total } of newly.sort((a, b) => (b.def.threshold ?? 0) - (a.def.threshold ?? 0))) {
         try {
           await unlockDispatcher.push(def, total);
         } catch {

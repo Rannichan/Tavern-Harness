@@ -132,7 +132,9 @@ function CelebrationOverlay({ item }: { item: QueueItem }) {
           ))}
         </div>
         <div className={`ach-trophy ${leaving ? 'leave' : ''}`}>
-          <div className="ach-trophy-badge">{item.ach.icon}</div>
+          <div className="ach-trophy-badge">
+            {item.ach.iconUrl ? <img className="ach-trophy-image" src={item.ach.iconUrl} alt="" /> : item.ach.icon}
+          </div>
           <div className="ach-trophy-glow" />
         </div>
         <div className={`ach-caption ${leaving ? 'leave' : ''}`}>

@@ -161,7 +161,7 @@ const listRecordsByJsonField = database.prepare(`
 const listStartupRecords = database.prepare(`
   SELECT collection, record_key, value_json, updated_at
   FROM app_records
-  WHERE collection IN ('settings', 'providers', 'npcs', 'sessions', 'worldBooks', 'tools')
+  WHERE collection IN ('settings', 'providers', 'npcs', 'sessions', 'worldBooks', 'tools', 'achievementUnlocks')
   ORDER BY collection, record_key
 `);
 const deleteRecord = database.prepare('DELETE FROM app_records WHERE collection = ? AND record_key = ?');
@@ -245,6 +245,7 @@ const server = createServer(async (req, res) => {
         sessions: [],
         worldBooks: [],
         tools: [],
+        achievementUnlocks: [],
       };
       for (const row of listStartupRecords.all()) {
         collections[row.collection].push({
