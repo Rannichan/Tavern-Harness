@@ -2002,34 +2002,56 @@ async function performAssistantTurn(
     let errorMsg = '';
 
     // Large file_write arguments arrive as a growing JSON string. Publishing every token
-    // repeatedly parses/reconciles the whole value and can monopolize the browser main thread.
-    // Persist the same snapshots so a reload can recover an in-progress draft.
+    // repeatedly serializes/reconciles the whole value, so reduce the cadence once an
+    // argument is large. Persist only the latest pending snapshot to avoid an IndexedDB backlog.
     const DRAFT_PUBLISH_INTERVAL_MS = 100;
+    const LARGE_TOOL_ARGUMENT_CHARS = 20_000;
+    const LARGE_TOOL_DRAFT_PUBLISH_INTERVAL_MS = 750;
+    type DraftSnapshot = { content: string; thinkingContent: string | null; toolCallsJson: string };
     let publishTimer: ReturnType<typeof setTimeout> | null = null;
     let lastPublishedAt = 0;
+    let pendingDraftSnapshot: DraftSnapshot | null = null;
+    let persistingDraft = false;
     let draftWrite = Promise.resolve();
+    const queueDraftPersistence = (snapshot: DraftSnapshot) => {
+      pendingDraftSnapshot = snapshot;
+      if (persistingDraft) return;
+      persistingDraft = true;
+      draftWrite = (async () => {
+        while (pendingDraftSnapshot) {
+          const nextSnapshot = pendingDraftSnapshot;
+          pendingDraftSnapshot = null;
+          await db.messages.update(draftId, nextSnapshot);
+        }
+      })().finally(() => {
+        persistingDraft = false;
+      });
+    };
     const publishDraft = () => {
       publishTimer = null;
       lastPublishedAt = Date.now();
-      const contentSnapshot = content;
-      const thinkingContent = thinking || null;
-      const toolCallsJson = JSON.stringify(
-        toolCalls.map((tc) => ({ id: tc.id, name: tc.name, argumentsJson: tc.argumentsJson, contentOffset: tc.contentOffset }))
-      );
+      const snapshot: DraftSnapshot = {
+        content,
+        thinkingContent: thinking || null,
+        toolCallsJson: JSON.stringify(
+          toolCalls.map((tc) => ({ id: tc.id, name: tc.name, argumentsJson: tc.argumentsJson, contentOffset: tc.contentOffset }))
+        ),
+      };
       useStore.setState((s) => {
         const list = [...(s.messages[sessionId] ?? [])];
         const idx = list.findIndex((m) => m.id === draftId);
         if (idx < 0) return {};
-        list[idx] = { ...list[idx], content: contentSnapshot, thinkingContent, toolCallsJson };
+        list[idx] = { ...list[idx], ...snapshot };
         return { messages: { ...s.messages, [sessionId]: list } };
       });
-      draftWrite = draftWrite
-        .then(() => db.messages.update(draftId, { content: contentSnapshot, thinkingContent, toolCallsJson }))
-        .then(() => undefined);
+      queueDraftPersistence(snapshot);
     };
+    const draftPublishInterval = () => toolCalls.some((tc) => tc.argumentsJson.length >= LARGE_TOOL_ARGUMENT_CHARS)
+      ? LARGE_TOOL_DRAFT_PUBLISH_INTERVAL_MS
+      : DRAFT_PUBLISH_INTERVAL_MS;
     const scheduleDraftPublish = () => {
       if (publishTimer) return;
-      const delay = Math.max(0, DRAFT_PUBLISH_INTERVAL_MS - (Date.now() - lastPublishedAt));
+      const delay = Math.max(0, draftPublishInterval() - (Date.now() - lastPublishedAt));
       publishTimer = setTimeout(publishDraft, delay);
     };
 

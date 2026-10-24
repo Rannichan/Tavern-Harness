@@ -9,12 +9,13 @@ import { isNetworkLikeError, toProxyUrl } from './proxy';
 import { translate } from './i18n';
 
 /**
- * 连接超时与读超时分开：
- * - 连接超时覆盖「还没拿到响应头」的阶段。手机通过局域网打开应用时，Provider
- *   若只在内网 / 本机可达，直连会一直卡在连接上；这时应该尽快改走同源代理。
- * - 读超时覆盖「已建立连接、等待下一个数据块」，思考模型首 token 可能很慢。
+ * 仅限制首次连接：手机通过局域网打开应用时，Provider 若只在内网 / 本机可达，
+ * 直连会一直卡在连接上；这时应该尽快改走同源代理。
+ *
+ * 已建立连接的流式响应不设空闲超时。大型工具参数可能长时间生成而暂未传输，
+ * 用户可通过停止生成主动中断。
  */
-const OPENAI_TIMEOUTS = { connect: 20_000, read: 60_000 };
+const OPENAI_CONNECT_TIMEOUT_MS = 20_000;
 
 interface ToolDelta {
   id: string;
@@ -84,7 +85,7 @@ async function attemptStream(
   };
   /** 是否已经拿到响应头：拿到之后就不再回退代理，避免同一次生成被请求两次 */
   let responded = false;
-  resetTimeout(OPENAI_TIMEOUTS.connect);
+  resetTimeout(OPENAI_CONNECT_TIMEOUT_MS);
 
   try {
     const resp = await fetch(url, {
@@ -121,11 +122,13 @@ async function attemptStream(
     // Delta 工具调用按 index 组装
     const toolDeltas = new Map<number, ToolDelta>();
     let buffer = '';
-    resetTimeout(OPENAI_TIMEOUTS.read);
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      resetTimeout(OPENAI_TIMEOUTS.read);
       buffer += decoder.decode(value, { stream: true });
 
       // 按行切分 SSE
@@ -380,8 +383,6 @@ export async function summarizeContext(
     const onAbort = () => controller.abort();
     if (signal?.aborted) controller.abort();
     else signal?.addEventListener('abort', onAbort);
-    const timer = setTimeout(() => controller.abort(), OPENAI_TIMEOUTS.read);
-
     try {
       const response = await fetch(candidates[index], {
         method: 'POST',
@@ -404,7 +405,6 @@ export async function summarizeContext(
       if (isNetworkLikeError(error) && index + 1 < candidates.length) continue;
       throw error;
     } finally {
-      clearTimeout(timer);
       signal?.removeEventListener('abort', onAbort);
     }
   }
