@@ -40,6 +40,11 @@ function isSameOriginRequest(req: IncomingMessage): boolean {
   }
 }
 
+function isLoopbackRequest(req: IncomingMessage): boolean {
+  const address = req.socket.remoteAddress;
+  return address === '127.0.0.1' || address === '::1' || address === '::ffff:127.0.0.1';
+}
+
 function lanAddressPlugin(): Plugin {
   return {
     name: 'lan-address',
@@ -401,11 +406,16 @@ function sandboxProxyPlugin(): Plugin {
       });
       server.middlewares.use((req: IncomingMessage, res: ServerResponse, next) => {
         // 转发与沙箱服务相关的端点：/exec 及真实工作区文件端点
-        const m = /^\/api-v2\/(exec|approve|file_read|file_write|file_delete|file_list|session_create|session_delete)$/.exec(req.url || '');
+        const m = /^\/api-v2\/(exec|approve|file_read|file_write|file_delete|file_list|workspace_open|session_create|session_delete)$/.exec(req.url || '');
         if (!m || req.method !== 'POST') return next();
         if (!isSameOriginRequest(req)) {
           res.writeHead(403, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ ok: false, message: 'sandbox access requires a same-origin browser request' }));
+          return;
+        }
+        if (m[1] === 'workspace_open' && !isLoopbackRequest(req)) {
+          res.writeHead(403, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, code: 'workspace_open_local_only', message: 'opening the workspace in the system file manager is only available on this device' }));
           return;
         }
         void (async () => {

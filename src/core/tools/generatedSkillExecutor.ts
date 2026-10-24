@@ -60,6 +60,22 @@ export async function deleteSessionWorkspace(dir: string | null | undefined): Pr
   }
 }
 
+/** 在系统文件管理器中打开会话工作目录。 */
+export async function openSessionWorkspace(dir: string | null | undefined): Promise<void> {
+  const session = normalizeWorkspaceDir(dir);
+  if (!session) throw new Error('Invalid workspace directory');
+  const response = await fetch('/api-v2/workspace_open', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session }),
+  });
+  const result = (await response.json()) as { ok?: boolean; code?: string; message?: string };
+  if (!response.ok || !result.ok) {
+    if (result.code === 'workspace_open_local_only') throw new Error('WORKSPACE_OPEN_LOCAL_ONLY');
+    throw new Error(result.message ?? `HTTP ${response.status}`);
+  }
+}
+
 /** 规范化会话工作目录名；不合规时返回 null 并禁止访问。 */
 export function normalizeWorkspaceDir(dir: string | null | undefined): string | null {
   if (!dir || typeof dir !== 'string') return null;

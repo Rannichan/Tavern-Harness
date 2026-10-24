@@ -3,7 +3,7 @@ import { Modal, Icon } from './shared';
 import { DeleteConfirmDialog } from './DeleteConfirmDialog';
 import { useT } from '../core/i18n';
 import { applySessionWorkspace } from '../core/tools/toolExecutor';
-import { deleteWorkspaceFile, listSessionWorkspaceFiles } from '../core/tools/generatedSkillExecutor';
+import { deleteWorkspaceFile, listSessionWorkspaceFiles, openSessionWorkspace } from '../core/tools/generatedSkillExecutor';
 import { useStore } from '../store/store';
 
 // ============================================================
@@ -50,6 +50,7 @@ function buildNodes(files: string[]): Node[] {
 
 export function WorkspaceFileManagerModal({ sessionId, onClose }: { sessionId: number; onClose: () => void }) {
   const t = useT();
+  const addToast = useStore((s) => s.addToast);
   const setActiveDisplay = useStore((s) => s.setActiveDisplay);
   const session = useStore((s) => s.sessions.find((x) => x.id === sessionId));
   const associatedNpc = useStore((s) => s.npcs.find((npc) => npc.id === session?.associatedId));
@@ -58,6 +59,7 @@ export function WorkspaceFileManagerModal({ sessionId, onClose }: { sessionId: n
   const [files, setFiles] = useState<string[] | null>(null);
   const [loadState, setLoadState] = useState<'loading' | 'ok' | 'empty' | 'error'>('loading');
   const [pendingDelete, setPendingDelete] = useState<Node | null>(null);
+  const [openingLocation, setOpeningLocation] = useState(false);
   // 当前浏览目录（'' = 根；否则为以 / 结尾的会话内相对路径）
   const [dir, setDir] = useState('');
 
@@ -125,6 +127,18 @@ export function WorkspaceFileManagerModal({ sessionId, onClose }: { sessionId: n
     });
   };
 
+  const openWorkspaceLocation = async () => {
+    setOpeningLocation(true);
+    try {
+      await openSessionWorkspace(await applySessionWorkspace(sessionId));
+    } catch (error) {
+      const message = (error as Error).message;
+      addToast(message === 'WORKSPACE_OPEN_LOCAL_ONLY' ? t('toast.workspaceOpenLocalOnly') : message, 'error');
+    } finally {
+      setOpeningLocation(false);
+    }
+  };
+
   return (
     <Modal onClose={onClose} className="ws-fm-modal">
       <div className="modal-head ws-fm-head">
@@ -149,7 +163,18 @@ export function WorkspaceFileManagerModal({ sessionId, onClose }: { sessionId: n
             )}
           </span>
         </span>
-        <button className="icon-btn" onClick={onClose} title={t('common.close')}><Icon name="x" /></button>
+        <span className="ws-fm-head-actions">
+          <button
+            className="btn btn-ghost ws-fm-location-btn"
+            onClick={() => void openWorkspaceLocation()}
+            disabled={openingLocation}
+            title={t('header.fileManagerOpenLocation')}
+            aria-label={t('header.fileManagerOpenLocation')}
+          >
+            <Icon name="folder" size={14} />
+          </button>
+          <button className="icon-btn" onClick={onClose} title={t('common.close')}><Icon name="x" /></button>
+        </span>
       </div>
       <div className="modal-body ws-fm-body">
         <div className="ws-fm-note">

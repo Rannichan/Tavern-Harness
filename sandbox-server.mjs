@@ -19,7 +19,7 @@
 // ============================================================
 
 import { createServer } from 'node:http';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn, spawnSync, execFile } from 'node:child_process';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import {
   writeFileSync, existsSync, lstatSync, readlinkSync, readFile, writeFile, mkdirSync, mkdtempSync, readdir, statSync, symlinkSync, realpathSync, rmSync, unlink, cpSync,
@@ -527,6 +527,30 @@ const server = createServer(async (req, res) => {
         const sliced = files.slice(0, MAX_LIST_ENTRIES);
         res.end(JSON.stringify({ ok: true, files: sliced, truncated: files.length > MAX_LIST_ENTRIES }));
       }
+    } catch (e) {
+      res.writeHead(400);
+      res.end(JSON.stringify({ ok: false, message: String((e && e.message) || e) }));
+    }
+    return;
+  }
+
+  if (req.url === '/workspace_open') {
+    let body = '';
+    for await (const chunk of req) body += chunk;
+    if (body.length > 64 * 1024) {
+      res.writeHead(413);
+      res.end(JSON.stringify({ ok: false, message: 'body too large' }));
+      return;
+    }
+    try {
+      const payload = JSON.parse(body);
+      const base = resolveSessionBase(payload?.session);
+      ensureSessionBase(base);
+      const command = IS_WIN ? 'explorer.exe' : process.platform === 'darwin' ? 'open' : 'xdg-open';
+      execFile(command, [base], (error) => {
+        if (error) console.warn(`[command-service] failed to open workspace: ${error.message}`);
+      });
+      res.end(JSON.stringify({ ok: true }));
     } catch (e) {
       res.writeHead(400);
       res.end(JSON.stringify({ ok: false, message: String((e && e.message) || e) }));
