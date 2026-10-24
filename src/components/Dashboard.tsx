@@ -1,7 +1,7 @@
 import { memo, useEffect, useMemo, useState } from 'react';
 import { createSession, useStore } from '../store/store';
 import { db } from '../db/database';
-import { Icon, MasonryGrid, SessionVisual } from './shared';
+import { Avatar, Icon, MasonryGrid, SessionVisual } from './shared';
 import { NewSessionMenu } from './NewSessionMenu';
 import { useT, currentLocale } from '../core/i18n';
 import { textPreview } from '../core/textPreview';
@@ -162,9 +162,12 @@ export const Dashboard = memo(function Dashboard() {
             {npcs.map((n) => (
               <div key={n.id} className="char-card">
                 <div className="cname">
-                  <span className="avatar xs" style={{ background: `linear-gradient(135deg, var(--grad-from), var(--grad-to))` }}>
-                    {n.name.slice(0, 1)}
-                  </span>
+                  <Avatar
+                    name={n.name}
+                    colorOrdinal={n.avatarColorOrdinal}
+                    imageUrl={n.avatarDataUrl}
+                    size="xs"
+                  />
                   {n.name}
                   {n.isBuiltIn && <span className="tag">{t('common.builtin')}</span>}
                 </div>
