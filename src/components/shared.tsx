@@ -13,7 +13,7 @@ import { useAvatarImageUrl } from '../core/avatarThumbnail';
 type ModalSize = 'compact' | 'standard' | 'wide';
 
 export function Modal({
-  onClose,
+  onClose: _onClose,
   size = 'standard',
   className,
   children,
@@ -25,7 +25,7 @@ export function Modal({
 }) {
   return createPortal(
     <>
-      <div className="overlay" onClick={onClose} />
+      <div className="overlay" />
       <div className="modal-root" onClick={(e) => e.stopPropagation()}>
         <div className={`modal modal-size-${size} card fade-up ${className ?? ''}`.trim()}>
           {children}

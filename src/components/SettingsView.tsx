@@ -402,30 +402,26 @@ function ProviderManager({ providers, onChanged }: { providers: ApiProvider[]; o
       </div>
 
       {editing && (
-        <div className="overlay" onClick={() => setEditing(null)}>
-          <div className="modal-root" onClick={(e) => e.stopPropagation()}>
-            <div className="modal card">
-              <div className="modal-head">
-                <span style={{ fontWeight: 800, fontSize: 15 }}>{editing.id != null ? t('settings.editProvider') : t('settings.addProvider')}</span>
-                <button className="icon-btn" onClick={() => setEditing(null)}><Icon name="x" /></button>
-              </div>
-              <ProviderForm
-                initial={editing}
-                onSave={async (data) => {
-                  if (editing.id != null) {
-                    await db.providers.update(editing.id, data);
-                    addToast(t('toast.providerUpdated'));
-                  } else {
-                    await db.providers.add(data);
-                    addToast(t('toast.providerAdded'));
-                  }
-                  setEditing(null);
-                  onChanged();
-                }}
-              />
-            </div>
+        <Modal onClose={() => setEditing(null)}>
+          <div className="modal-head">
+            <span style={{ fontWeight: 800, fontSize: 15 }}>{editing.id != null ? t('settings.editProvider') : t('settings.addProvider')}</span>
+            <button className="icon-btn" onClick={() => setEditing(null)}><Icon name="x" /></button>
           </div>
-        </div>
+          <ProviderForm
+            initial={editing}
+            onSave={async (data) => {
+              if (editing.id != null) {
+                await db.providers.update(editing.id, data);
+                addToast(t('toast.providerUpdated'));
+              } else {
+                await db.providers.add(data);
+                addToast(t('toast.providerAdded'));
+              }
+              setEditing(null);
+              onChanged();
+            }}
+          />
+        </Modal>
       )}
 
       {pendingDelete && (

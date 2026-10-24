@@ -483,7 +483,7 @@ export function FileDisplayModal() {
 
   return createPortal(
     <>
-      {!isPictureInPicture && <div key="overlay" className="overlay" onClick={close} />}
+      {!isPictureInPicture && <div key="overlay" className="overlay" />}
       <div
         key="display-container"
         className={isPictureInPicture ? 'display-pip card' : 'modal-root'}

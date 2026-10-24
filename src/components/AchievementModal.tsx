@@ -111,7 +111,7 @@ function CelebrationOverlay({ item }: { item: QueueItem }) {
 
   return createPortal(
     <>
-      <div className="ach-overlay" onClick={() => dismiss(true)} />
+      <div className="ach-overlay" />
       <div className="ach-celebration">
         <div className={`ach-rain ${leaving ? 'leave' : ''}`}>
           {confetti.map((c) => (
