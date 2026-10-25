@@ -293,7 +293,6 @@ function SessionHeader({
   const [exportOpen, setExportOpen] = useState(false);
   const [showWorkspace, setShowWorkspace] = useState(false);
 
-  const modeLabel = session.mode === 'STANDARD' ? t('header.modeStandard') : session.mode === 'NPC' ? t('header.modeNpc') : t('header.modeGroup');
   const messages = useStore((s) => s.messages[session.id!] ?? []);
   const contextTokens = useMemo(() => {
     const assistantMessages = messages.filter((message) => message.role === 'assistant' && message.totalTokens > 0);
@@ -321,15 +320,11 @@ function SessionHeader({
       <SessionVisual mode={session.mode} npcName={npcRef?.name ?? undefined} hue={npcRef?.avatarColorOrdinal ?? 0} imageUrl={npcRef?.avatarDataUrl} members={session.mode === 'GROUP' ? groupMemberAvatars : undefined} size="lg" />
       <div className="tinfo">
         <div className="ttitle">{session.title}</div>
-        <div className="tsub">
-          <span className="tsub-mode">{modeLabel}</span>
-          {contextTokens != null && (
-            <span className="tsub-context-group">
-              <span>·</span>
-              <span className="tsub-mode">{t('nav.contextUsage', { tokens: formatContextTokens(contextTokens) })}</span>
-            </span>
-          )}
-        </div>
+        {contextTokens != null && (
+          <div className="tsub">
+            <span className="tsub-mode">{t('nav.contextUsage', { tokens: formatContextTokens(contextTokens) })}</span>
+          </div>
+        )}
       </div>
       <div className="chat-actions">
         <button className="btn-ghost icon-tooltip" title={t(usesPublicWorkspace ? 'header.workspaceRootHint' : 'header.workspaceHint')} onClick={() => setShowWorkspace(true)}>

@@ -1804,11 +1804,14 @@ hr.sep {
   .chat-actions {
     display: flex;
     flex: 0 1 auto;
+    min-width: 0;
     justify-content: flex-end;
     gap: 0;
     max-width: none;
     overflow-x: auto;
+    overscroll-behavior-x: contain;
     scrollbar-width: none;
+    touch-action: pan-x;
   }
 
   .chat-actions::-webkit-scrollbar {
