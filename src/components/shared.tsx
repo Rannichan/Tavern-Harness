@@ -403,6 +403,7 @@ const ICONS: Record<string, React.ReactNode> = {
   cancel: <path d="M18 6 6 18M6 6l12 12" />,
   x: <path d="M18 6 6 18M6 6l12 12" />,
   share: <><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" /><path d="m16 6-4-4-4 4M12 2v13" /></>,
+  'open-in-new': <><path d="M14 3h7v7M21 3l-9 9" /><path d="M19 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h6" /></>,
   sort: <><path d="M11 5h10M11 9h7M11 13h4" /><path d="m3 17 3 3 3-3M6 20V4" /></>,
   pencil: <><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5l-5 1 1-5Z" /><path d="m15 5 4 4" /></>,
   upload: <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="m17 8-5-5-5 5M12 3v12" /></>,

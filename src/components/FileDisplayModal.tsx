@@ -280,6 +280,11 @@ export function FileDisplayModal() {
     setIsPictureInPicture(false);
   };
 
+  const openHtmlInNewPage = () => {
+    if (!active || !workspaceDir) return;
+    window.open(previewUrl(active.path, workspaceDir), '_blank', 'noopener,noreferrer');
+  };
+
   const startResize = (edge: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right') => (e: ReactPointerEvent<HTMLButtonElement>) => {
     pipGestureRef.current = {
       type: 'resize',
@@ -481,6 +486,16 @@ export function FileDisplayModal() {
               onClick={() => setTextWrap((wrapped) => !wrapped)}
             >
               <Icon name="text-wrap" size={17} />
+            </button>
+          )}
+          {active.kind === 'html' && loadState === 'ok' && workspaceDir && (
+            <button
+              className="icon-btn"
+              title={t('display.openHtmlInNewPage')}
+              aria-label={t('display.openHtmlInNewPage')}
+              onClick={openHtmlInNewPage}
+            >
+              <Icon name="open-in-new" size={17} />
             </button>
           )}
           <button

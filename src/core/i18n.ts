@@ -533,6 +533,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'display.exitPictureInPicture': '退出画中画',
     'display.resizePictureInPicture': '调整画中画大小',
     'display.htmlSandboxNote': 'HTML 应用在受限沙箱中运行，并可加载同目录资源',
+    'display.openHtmlInNewPage': '在新页面打开 HTML',
 
     // ---- 系统提示词 ----
     'prompt.worldBook': '=== 世界书 ===',
@@ -1043,6 +1044,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'display.exitPictureInPicture': '退出畫中畫',
     'display.resizePictureInPicture': '調整畫中畫大小',
     'display.htmlSandboxNote': 'HTML 應用程式在受限沙箱中執行，並可載入同目錄資源',
+    'display.openHtmlInNewPage': '在新頁面開啟 HTML',
 
     'prompt.worldBook': '=== 世界書 ===',
     'prompt.userInfo': '=== USER INFO (用戶扮演的角色) ===',
@@ -1552,6 +1554,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'display.exitPictureInPicture': 'Exit picture in picture',
     'display.resizePictureInPicture': 'Resize picture in picture',
     'display.htmlSandboxNote': 'HTML application runs in a restricted sandbox with same-directory resources available',
+    'display.openHtmlInNewPage': 'Open HTML in a new page',
 
     'prompt.worldBook': '=== LOREBOOK ===',
     'prompt.userInfo': '=== USER INFO (role played by the user) ===',
