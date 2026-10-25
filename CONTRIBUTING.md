@@ -10,7 +10,7 @@ Thank you for contributing to Tavern Harness. Contributions of bug fixes, featur
 
 ## Development Setup
 
-**Requirements:** Node.js 18 or later and npm.
+**Requirements:** Node.js 22.6 or later and npm.
 
 ```bash
 git clone https://github.com/Rannichan/Tavern-Harness.git
