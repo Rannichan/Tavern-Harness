@@ -3,6 +3,28 @@
 > 本文件由 `scripts/changelog.mjs` 从 `changelog/v*.md` 生成，请勿手动编辑。
 > 版本对比链接见文末；源文件位于仓库 `changelog/` 目录。
 
+## [0.1.16] - 2026-10-25
+
+### 中文
+
+#### 修复
+
+- 修复工作区文件管理器在触屏设备上删除按钮不可见、文件夹无法删除的问题：删除按钮现在始终显示，文件夹及其内容可以一并删除，`public` 共享链接仍不可删除
+
+#### 内部
+
+- 工作区删除接口支持递归删除目录并拒绝删除 `public` 软链接，补充对应测试
+
+### English
+
+#### Fixed
+
+- Fixed the delete button staying hidden on touch devices and folders not being deletable in the workspace file manager: the button is now always visible, folders and their contents can be removed together, and the `public` shared link remains protected
+
+#### Internal
+
+- The workspace delete endpoint now removes directories recursively and refuses to delete the `public` symlink, with tests
+
 ## [0.1.15] - 2026-10-25
 
 ### 中文
@@ -444,6 +466,7 @@
 - Vite + React + Zustand + Dexie stack with browser-side local persistence
 
 <!-- 链接定义 -->
+[0.1.16]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.15...v0.1.16
 [0.1.15]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.14...v0.1.15
 [0.1.14]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.13...v0.1.14
 [0.1.13]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.12...v0.1.13
