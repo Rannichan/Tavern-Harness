@@ -79,6 +79,7 @@ export function FileDisplayModal() {
   const [loadState, setLoadState] = useState<'loading' | 'ok' | 'error'>('loading');
   const [imgError, setImgError] = useState(false);
   const [htmlZoom, setHtmlZoom] = useState(1);
+  const lastModalHtmlZoomRef = useRef(1);
   const [textWrap, setTextWrap] = useState(true);
   const [isPictureInPicture, setIsPictureInPicture] = useState(true);
   const [pipRect, setPipRect] = useState<PipRect>(createPipRect);
@@ -124,11 +125,14 @@ export function FileDisplayModal() {
     setImgError(false);
     setZoom(1);
     setPan({ x: 0, y: 0 });
-    setHtmlZoom(1);
     setTextWrap(true);
     if (isNewDisplay) {
+      const opensInPictureInPicture = active.presentation === 'pip' || active.presentation == null;
+      setHtmlZoom(opensInPictureInPicture ? lastModalHtmlZoomRef.current : 1);
       setPipRect(createPipRect());
-      setIsPictureInPicture(active.presentation === 'pip' || active.presentation == null);
+      setIsPictureInPicture(opensInPictureInPicture);
+    } else {
+      setHtmlZoom(1);
     }
   }, [active]);
 
@@ -312,8 +316,16 @@ export function FileDisplayModal() {
 
   const zoomIn = () => setZoom((z) => Math.min(8, +(z * 1.3).toFixed(2)));
   const zoomOut = () => setZoom((z) => Math.max(0.1, +(z / 1.3).toFixed(2)));
-  const htmlZoomIn = () => setHtmlZoom((z) => Math.min(2, +(z + 0.1).toFixed(1)));
-  const htmlZoomOut = () => setHtmlZoom((z) => Math.max(0.5, +(z - 0.1).toFixed(1)));
+  const updateHtmlZoom = (update: (zoom: number) => number) => {
+    setHtmlZoom((zoom) => {
+      const nextZoom = update(zoom);
+      if (!isPictureInPicture) lastModalHtmlZoomRef.current = nextZoom;
+      return nextZoom;
+    });
+  };
+  const htmlZoomIn = () => updateHtmlZoom((z) => Math.min(2, +(z + 0.1).toFixed(1)));
+  const htmlZoomOut = () => updateHtmlZoom((z) => Math.max(0.5, +(z - 0.1).toFixed(1)));
+  const resetHtmlZoom = () => updateHtmlZoom(() => 1);
   const resetView = () => {
     setZoom(1);
     setPan({ x: 0, y: 0 });
@@ -393,7 +405,16 @@ export function FileDisplayModal() {
               }}
             />
           </div>
-          <div className="display-html-note">{t('display.htmlSandboxNote')}</div>
+          <div className="display-html-note">
+            <span>{t('display.htmlSandboxNote')}</span>
+            {!isPictureInPicture && (
+              <span className="display-html-zoom-group">
+                <button className="icon-btn" title={t('display.htmlZoomOut')} onClick={htmlZoomOut}><Icon name="zoom-out" size={15} /></button>
+                <button className="icon-btn" title={t('display.resetHtmlZoom')} onClick={resetHtmlZoom}>{Math.round(htmlZoom * 100)}%</button>
+                <button className="icon-btn" title={t('display.htmlZoomIn')} onClick={htmlZoomIn}><Icon name="zoom-in" size={15} /></button>
+              </span>
+            )}
+          </div>
         </div>
       );
     }
@@ -449,13 +470,6 @@ export function FileDisplayModal() {
               <button className="icon-btn" title={t('display.zoomOut')} onClick={zoomOut}><Icon name="zoom-out" size={15} /></button>
               <button className="icon-btn" title={t('display.resetView')} onClick={resetView}>{Math.round(zoom * 100)}%</button>
               <button className="icon-btn" title={t('display.zoomIn')} onClick={zoomIn}><Icon name="zoom-in" size={15} /></button>
-            </span>
-          )}
-          {active.kind === 'html' && loadState === 'ok' && (
-            <span className="display-zoom-group">
-              <button className="icon-btn" title={t('display.htmlZoomOut')} onClick={htmlZoomOut}><Icon name="zoom-out" size={15} /></button>
-              <button className="icon-btn" title={t('display.resetHtmlZoom')} onClick={() => setHtmlZoom(1)}>{Math.round(htmlZoom * 100)}%</button>
-              <button className="icon-btn" title={t('display.htmlZoomIn')} onClick={htmlZoomIn}><Icon name="zoom-in" size={15} /></button>
             </span>
           )}
           {active.kind === 'text' && !MD_EXTS.has(ext) && loadState === 'ok' && (

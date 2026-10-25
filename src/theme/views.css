@@ -1614,10 +1614,37 @@
   opacity: 1;
 }
 .display-html-note {
-  padding: 7px 14px;
+  min-height: 29px;
+  box-sizing: border-box;
+  padding: 2px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   font-size: 11.5px;
   color: var(--text-faint);
   border-top: 1px solid var(--border-soft);
+}
+.display-html-note > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.display-html-zoom-group {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 2px;
+}
+.display-html-zoom-group .icon-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+}
+.display-html-zoom-group .icon-btn:nth-child(2) {
+  width: 42px;
+  font-size: 11px;
 }
 
 /* 文本 / 代码 / 纯文本 */
