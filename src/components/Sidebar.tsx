@@ -28,6 +28,7 @@ function openGlobalGameplayExport(sessionId: number, includeHistory: boolean) {
 
 export function Sidebar() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const sidebarRef = useRef<HTMLElement>(null);
   const sessions = useStore((s) => s.sessions);
   const npcs = useStore((s) => s.npcs);
   const activeSessionId = useStore((s) => s.activeSessionId);
@@ -120,6 +121,42 @@ export function Sidebar() {
       window.removeEventListener('mouseup', onUp);
     };
   }, []);
+
+  useEffect(() => {
+    const isMobile = () => window.matchMedia('(max-width: 680px)').matches;
+    let startX = 0;
+    let startY = 0;
+    let tracking = false;
+
+    const onTouchStart = (event: TouchEvent) => {
+      if (!isMobile() || event.touches.length !== 1) return;
+      const touch = event.touches[0];
+      const startedInSidebar = sidebarRef.current?.contains(event.target as Node) ?? false;
+      if (!mobileOpen && touch.clientX > 24) return;
+      if (mobileOpen && !startedInSidebar) return;
+      startX = touch.clientX;
+      startY = touch.clientY;
+      tracking = true;
+    };
+
+    const onTouchEnd = (event: TouchEvent) => {
+      if (!tracking || !isMobile() || event.changedTouches.length !== 1) return;
+      tracking = false;
+      const touch = event.changedTouches[0];
+      const deltaX = touch.clientX - startX;
+      const deltaY = touch.clientY - startY;
+      if (Math.abs(deltaX) < 56 || Math.abs(deltaX) <= Math.abs(deltaY)) return;
+      if (!mobileOpen && deltaX > 0) setMobileOpen(true);
+      if (mobileOpen && deltaX < 0) setMobileOpen(false);
+    };
+
+    window.addEventListener('touchstart', onTouchStart, { passive: true });
+    window.addEventListener('touchend', onTouchEnd, { passive: true });
+    return () => {
+      window.removeEventListener('touchstart', onTouchStart);
+      window.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [mobileOpen]);
 
   const npcById = (id: number | null) => (id != null ? npcs.find((n) => n.id === id) : null);
 
@@ -251,7 +288,7 @@ export function Sidebar() {
         >
           <Icon name={mobileOpen ? 'x' : 'menu'} size={22} />
         </button>
-        <nav className="mobile-topbar-nav" aria-label={t('nav.chat')}>
+        <nav className="mobile-topbar-nav" data-hscroll aria-label={t('nav.chat')}>
           <button
             className="mobile-home-button"
             type="button"
@@ -277,7 +314,7 @@ export function Sidebar() {
         </nav>
       </div>
       {mobileOpen && <button className="mobile-sidebar-backdrop" type="button" aria-label={t('common.close')} onClick={() => setMobileOpen(false)} />}
-      <aside className={`sidebar ${mobileOpen ? 'mobile-open' : ''}`}>
+      <aside ref={sidebarRef} className={`sidebar ${mobileOpen ? 'mobile-open' : ''}`}>
       <div className="sidebar-head">
         <div
           className="brand"

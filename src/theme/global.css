@@ -1679,6 +1679,22 @@ hr.sep {
     display: none;
   }
 
+  /* 与桌面导航一致：仅在相应方向仍有内容被遮挡时淡出边缘。 */
+  .mobile-topbar-nav.has-overflow.hidden-left {
+    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 18px);
+    mask-image: linear-gradient(to right, transparent 0, #000 18px);
+  }
+
+  .mobile-topbar-nav.has-overflow.hidden-right {
+    -webkit-mask-image: linear-gradient(to left, transparent 0, #000 18px);
+    mask-image: linear-gradient(to left, transparent 0, #000 18px);
+  }
+
+  .mobile-topbar-nav.has-overflow.hidden-left.hidden-right {
+    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 18px, #000 calc(100% - 18px), transparent 100%);
+    mask-image: linear-gradient(to right, transparent 0, #000 18px, #000 calc(100% - 18px), transparent 100%);
+  }
+
   .mobile-home-button {
     display: inline-flex;
     align-items: center;
