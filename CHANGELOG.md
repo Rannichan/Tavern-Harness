@@ -3,6 +3,30 @@
 > 本文件由 `scripts/changelog.mjs` 从 `changelog/v*.md` 生成，请勿手动编辑。
 > 版本对比链接见文末；源文件位于仓库 `changelog/` 目录。
 
+## [0.1.19] - 2026-10-25
+
+### 中文
+
+#### 新增
+
+- 新增四项「首次行动」成就：首次导出游戏（独乐乐不如众乐乐）、首次导入游戏（发现者）、首次创建角色卡或世界书（创造者）、首次创建自定义技能（探索者）
+
+#### 改进
+
+- 聊天标题栏更简洁：副标题只保留上下文用量，不再重复显示会话模式
+- 手机端标题栏按钮区支持横向滑动，按钮较多时不再被挤出屏幕或误触页面
+
+### English
+
+#### Added
+
+- Four new first-action achievements: export a game (Sharing Is Caring), import a game (Discoverer), create a character card or Lorebook (Creator), and create a custom skill (Explorer)
+
+#### Changed
+
+- The chat header is cleaner: the subtitle now shows only context usage instead of repeating the session mode
+- On mobile, the header action row scrolls horizontally, so buttons are no longer pushed off screen or trigger page gestures
+
 ## [0.1.18] - 2026-10-25
 
 ### 中文
@@ -528,6 +552,7 @@
 - Vite + React + Zustand + Dexie stack with browser-side local persistence
 
 <!-- 链接定义 -->
+[0.1.19]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.18...v0.1.19
 [0.1.18]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.17...v0.1.18
 [0.1.17]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.16...v0.1.17
 [0.1.16]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.15...v0.1.16
