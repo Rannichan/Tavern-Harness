@@ -6,7 +6,7 @@ import net from 'node:net';
 import { randomBytes } from 'node:crypto';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { readFileSync, existsSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { networkInterfaces } from 'node:os';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -262,6 +262,73 @@ function persistenceProxyPlugin(): Plugin {
   };
 }
 
+const PREVIEW_PATH_PREFIX = '/api-v2/preview/';
+const PREVIEW_MIME_TYPES: Record<string, string> = {
+  '.avif': 'image/avif', '.bmp': 'image/bmp', '.css': 'text/css; charset=utf-8', '.gif': 'image/gif',
+  '.htm': 'text/html; charset=utf-8', '.html': 'text/html; charset=utf-8', '.ico': 'image/x-icon',
+  '.jpeg': 'image/jpeg', '.jpg': 'image/jpeg', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.png': 'image/png',
+  '.svg': 'image/svg+xml', '.wasm': 'application/wasm', '.webp': 'image/webp', '.woff': 'font/woff',
+  '.woff2': 'font/woff2', '.xml': 'application/xml; charset=utf-8',
+};
+
+function previewMimeType(path: string): string {
+  return PREVIEW_MIME_TYPES[extname(path).toLowerCase()] ?? 'application/octet-stream';
+}
+
+function isPreviewPath(path: string): boolean {
+  return Boolean(path) && !path.startsWith('/') && !path.split('/').some((segment) => segment === '.' || segment === '..' || !segment);
+}
+
+function workspacePreviewPlugin(): Plugin {
+  const registerMiddleware = (server: ViteDevServer | PreviewServer) => {
+    server.middlewares.use((req: IncomingMessage, res: ServerResponse, next) => {
+      if (req.method !== 'GET' || !req.url?.startsWith(PREVIEW_PATH_PREFIX)) return next();
+      const parsed = new URL(req.url, 'http://preview.local');
+      const encodedPreviewPath = parsed.pathname.slice(PREVIEW_PATH_PREFIX.length);
+      const [encodedSession, ...pathParts] = encodedPreviewPath.split('/');
+      let session: string;
+      let path: string;
+      try {
+        session = decodeURIComponent(encodedSession ?? '');
+        path = pathParts.map(decodeURIComponent).join('/');
+      } catch {
+        res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end('Invalid preview path');
+        return;
+      }
+      if (!/^[a-z0-9_.-]+$/i.test(session) || !isPreviewPath(path)) {
+        res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end('Invalid preview request');
+        return;
+      }
+      const sandbox = (server.config.plugins ?? []).find((plugin) => plugin.name === 'sandbox-proxy') as { previewFile?: (session: string, path: string) => Promise<Buffer | null> } | undefined;
+      if (!sandbox?.previewFile) {
+        res.writeHead(503, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end('Preview service unavailable');
+        return;
+      }
+      void sandbox.previewFile(session, path).then((content) => {
+        if (content == null) {
+          res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+          res.end('Preview file not found');
+          return;
+        }
+        res.writeHead(200, {
+          'Content-Type': previewMimeType(path),
+          'Cache-Control': 'no-store',
+          'X-Content-Type-Options': 'nosniff',
+        });
+        res.end(content);
+      }).catch(() => {
+        res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end('Preview file not found');
+      });
+    });
+  };
+  return { name: 'workspace-preview', configureServer: registerMiddleware, configurePreviewServer: registerMiddleware };
+}
+
 function sandboxProxyPlugin(): Plugin {
   let sandboxChild: ChildProcess | null = null;
   let starting: Promise<number | null> | null = null;
@@ -394,8 +461,49 @@ function sandboxProxyPlugin(): Plugin {
     return starting;
   };
 
+  const previewFile = async (session: string, path: string): Promise<Buffer | null> => {
+    const port = await ensureSandbox();
+    if (!port) return null;
+    const body = JSON.stringify({ session, path });
+    return new Promise((resolvePreview) => {
+      const request = http.request({
+        hostname: '127.0.0.1',
+        port,
+        path: '/preview_read',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(body),
+          'X-Command-Service-Token': serviceToken,
+        },
+        timeout: 5_000,
+      }, (response) => {
+        let raw = '';
+        response.setEncoding('utf8');
+        response.on('data', (chunk) => { raw += chunk; });
+        response.on('end', () => {
+          try {
+            const payload = JSON.parse(raw) as { ok?: boolean; content?: string };
+            resolvePreview(response.statusCode === 200 && payload.ok && typeof payload.content === 'string'
+              ? Buffer.from(payload.content, 'base64')
+              : null);
+          } catch {
+            resolvePreview(null);
+          }
+        });
+      });
+      request.once('timeout', () => {
+        request.destroy();
+        resolvePreview(null);
+      });
+      request.once('error', () => resolvePreview(null));
+      request.end(body);
+    });
+  };
+
   return {
     name: 'sandbox-proxy',
+    previewFile,
     closeBundle() {
       stopSandbox();
     },
@@ -449,7 +557,7 @@ function sandboxProxyPlugin(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), lanAddressPlugin(), corsProxyPlugin(), persistenceProxyPlugin(), sandboxProxyPlugin()],
+  plugins: [react(), lanAddressPlugin(), corsProxyPlugin(), persistenceProxyPlugin(), sandboxProxyPlugin(), workspacePreviewPlugin()],
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
   },

@@ -521,7 +521,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'display.pictureInPicture': '画中画',
     'display.exitPictureInPicture': '退出画中画',
     'display.resizePictureInPicture': '调整画中画大小',
-    'display.htmlSandboxNote': 'HTML 已在沙箱中渲染（脚本可运行，但与外部隔离）',
+    'display.htmlSandboxNote': 'HTML 应用在受限沙箱中运行，并可加载同目录资源',
 
     // ---- 系统提示词 ----
     'prompt.worldBook': '=== 世界书 ===',
@@ -1020,7 +1020,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'display.pictureInPicture': '畫中畫',
     'display.exitPictureInPicture': '退出畫中畫',
     'display.resizePictureInPicture': '調整畫中畫大小',
-    'display.htmlSandboxNote': 'HTML 已在沙箱中渲染（腳本可執行，但與外部隔離）',
+    'display.htmlSandboxNote': 'HTML 應用程式在受限沙箱中執行，並可載入同目錄資源',
 
     'prompt.worldBook': '=== 世界書 ===',
     'prompt.userInfo': '=== USER INFO (用戶扮演的角色) ===',
@@ -1518,7 +1518,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'display.pictureInPicture': 'Picture in picture',
     'display.exitPictureInPicture': 'Exit picture in picture',
     'display.resizePictureInPicture': 'Resize picture in picture',
-    'display.htmlSandboxNote': 'HTML rendered in a sandbox (scripts run, isolated from the outside)',
+    'display.htmlSandboxNote': 'HTML application runs in a restricted sandbox with same-directory resources available',
 
     'prompt.worldBook': '=== LOREBOOK ===',
     'prompt.userInfo': '=== USER INFO (role played by the user) ===',

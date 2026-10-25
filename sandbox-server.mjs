@@ -445,6 +445,33 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  // ---- 预览资源端点（仅由 Vite 代理使用） ----
+  if (req.url === '/preview_read') {
+    let body = '';
+    for await (const chunk of req) body += chunk;
+    if (body.length > 64 * 1024) {
+      res.writeHead(413);
+      res.end(JSON.stringify({ ok: false, message: 'body too large' }));
+      return;
+    }
+    try {
+      const payload = JSON.parse(body);
+      const base = resolveSessionBase(payload?.session);
+      const rel = sanitizeWorkspaceRelativePath(payload?.path);
+      if (resolvesOutsideSession(rel, base)) throw new Error('Path is outside the workspace');
+      const file = resolve(base, rel);
+      if (!existsSync(file) || !lstatSync(file).isFile()) throw new Error('File not found');
+      assertInside(base, realpathSync(file));
+      const content = await readFilePromise(file);
+      if (content.length > 8 * 1024 * 1024) throw new Error('Preview file exceeds the 8MB limit');
+      res.end(JSON.stringify({ ok: true, content: content.toString('base64') }));
+    } catch (e) {
+      res.writeHead(400);
+      res.end(JSON.stringify({ ok: false, message: String((e && e.message) || e) }));
+    }
+    return;
+  }
+
   // ---- 真实文件工作区端点（file_read / file_write / file_delete / file_list） ----
   if (req.url === '/file_read' || req.url === '/file_write' || req.url === '/file_delete' || req.url === '/file_list') {
     let body = '';
@@ -1004,7 +1031,8 @@ function readFileAsync(p) {
 }
 function readFilePromise(p, enc) {
   return new Promise((resolve, reject) => {
-    readFile(p, enc, (err, data) => (err ? reject(err) : resolve(data)));
+    if (enc === undefined) readFile(p, (err, data) => (err ? reject(err) : resolve(data)));
+    else readFile(p, enc, (err, data) => (err ? reject(err) : resolve(data)));
   });
 }
 function writeFilePromise(p, data, enc) {

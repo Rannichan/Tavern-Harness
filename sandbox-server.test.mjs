@@ -52,6 +52,15 @@ async function post(payload) {
   return response.json();
 }
 
+async function previewRead(payload) {
+  const response = await fetch(`http://127.0.0.1:${port}/preview_read`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Command-Service-Token': serviceToken },
+    body: JSON.stringify(payload),
+  });
+  return { status: response.status, body: await response.json() };
+}
+
 async function approve(confirmationRequestId, token = approvalToken) {
   const response = await fetch(`http://127.0.0.1:${port}/approve`, {
     method: 'POST',
@@ -198,6 +207,15 @@ try {
   assert.equal(publicDeleteResponse.status, 400);
   assert.match(publicDelete.message, /The public workspace cannot be deleted/);
   assert.equal(existsSync(join(workspaceRoot, 'public')), true, 'the public workspace must survive a session deletion request');
+
+  writeFileSync(join(workspaceRoot, otherSession, 'preview.bin'), Buffer.from([0, 1, 2, 255]));
+  const preview = await previewRead({ session: otherSession, path: 'preview.bin' });
+  assert.equal(preview.status, 200);
+  assert.equal(preview.body.ok, true);
+  assert.deepEqual(Buffer.from(preview.body.content, 'base64'), Buffer.from([0, 1, 2, 255]));
+  const previewTraversal = await previewRead({ session: otherSession, path: '../public/preview.bin' });
+  assert.equal(previewTraversal.status, 400);
+  assert.match(previewTraversal.body.message, /Path must not contain \.\./);
 
   const externalDir = mkdtempSync(join(tmpdir(), 'command-service-external-'));
   writeFileSync(join(externalDir, 'secret.txt'), 'outside');

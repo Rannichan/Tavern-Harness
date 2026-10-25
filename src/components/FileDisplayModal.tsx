@@ -31,8 +31,6 @@ const PIP_EDGE_GAP = 12;
 const PIP_MIN_WIDTH = 280;
 const PIP_MIN_HEIGHT = 180;
 const PIP_REFRESH_INTERVAL = 1000;
-const HTML_READY_MESSAGE = 'tavern-html-preview-ready';
-const HTML_READY_FALLBACK_MS = 3500;
 
 interface PipRect {
   x: number;
@@ -68,19 +66,8 @@ function basenameOf(path: string): string {
   return parts[parts.length - 1] || path;
 }
 
-function createHtmlPreviewDocument(content: string, token: string): string {
-  const probe = `<script>(()=>{const token=${JSON.stringify(token)};const pause=(ms)=>new Promise(resolve=>setTimeout(resolve,ms));const settledImage=(image)=>image.complete?Promise.resolve():new Promise(resolve=>{image.addEventListener('load',resolve,{once:true});image.addEventListener('error',resolve,{once:true})});addEventListener('load',async()=>{const resources=Promise.all([document.fonts?.ready?.catch(()=>{})??Promise.resolve(),...Array.from(document.images,settledImage)]);await Promise.race([resources,pause(2500)]);await pause(180);requestAnimationFrame(()=>requestAnimationFrame(()=>parent.postMessage({type:${JSON.stringify(HTML_READY_MESSAGE)},token},'*')))},{once:true})})()<\/script>`;
-  const head = /<head(?:\s[^>]*)?>/i.exec(content);
-  if (head?.index !== undefined) {
-    const insertion = head.index + head[0].length;
-    return `${content.slice(0, insertion)}${probe}${content.slice(insertion)}`;
-  }
-  const html = /<html(?:\s[^>]*)?>/i.exec(content);
-  if (html?.index !== undefined) {
-    const insertion = html.index + html[0].length;
-    return `${content.slice(0, insertion)}<head>${probe}</head>${content.slice(insertion)}`;
-  }
-  return `<head>${probe}</head>${content}`;
+function previewUrl(path: string, workspaceDir: string): string {
+  return `/api-v2/preview/${encodeURIComponent(workspaceDir)}/${path.split('/').map(encodeURIComponent).join('/')}`;
 }
 
 export function FileDisplayModal() {
@@ -88,16 +75,14 @@ export function FileDisplayModal() {
   const active = useStore((s) => s.activeDisplay);
   const setActiveDisplay = useStore((s) => s.setActiveDisplay);
   const [content, setContent] = useState<string | null>(null);
+  const [workspaceDir, setWorkspaceDir] = useState<string | null>(null);
   const [loadState, setLoadState] = useState<'loading' | 'ok' | 'error'>('loading');
   const [imgError, setImgError] = useState(false);
   const [htmlZoom, setHtmlZoom] = useState(1);
-  const [htmlReady, setHtmlReady] = useState(false);
   const [textWrap, setTextWrap] = useState(true);
   const [isPictureInPicture, setIsPictureInPicture] = useState(true);
   const [pipRect, setPipRect] = useState<PipRect>(createPipRect);
   const contentRef = useRef<string | null>(null);
-  const htmlRevealGenerationRef = useRef(0);
-  const htmlIframeRef = useRef<HTMLIFrameElement>(null);
   const wasDisplayOpenRef = useRef(false);
   const pipGestureRef = useRef<
     | { type: 'move'; pointerX: number; pointerY: number; startX: number; startY: number }
@@ -110,42 +95,10 @@ export function FileDisplayModal() {
   const dragRef = useRef<{ startX: number; startY: number; panX: number; panY: number } | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
 
-  const hideHtml = () => {
-    htmlRevealGenerationRef.current += 1;
-    setHtmlReady(false);
-  };
-
   const ref: DisplayFileRef | null = useMemo(() => {
     if (!active) return null;
     return { path: active.path, kind: active.kind, title: active.title };
   }, [active]);
-
-  const htmlPreview = useMemo(() => {
-    if (active?.kind !== 'html' || content === null) return null;
-    const token = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    return { token, srcDoc: createHtmlPreviewDocument(content, token) };
-  }, [active?.kind, content]);
-
-  useEffect(() => {
-    if (!htmlPreview) return;
-    const generation = htmlRevealGenerationRef.current;
-    const reveal = () => {
-      if (htmlRevealGenerationRef.current === generation) setHtmlReady(true);
-    };
-    const handleMessage = (event: MessageEvent) => {
-      if (
-        event.source === htmlIframeRef.current?.contentWindow
-        && event.data?.type === HTML_READY_MESSAGE
-        && event.data?.token === htmlPreview.token
-      ) reveal();
-    };
-    const fallback = window.setTimeout(reveal, HTML_READY_FALLBACK_MS);
-    window.addEventListener('message', handleMessage);
-    return () => {
-      window.clearTimeout(fallback);
-      window.removeEventListener('message', handleMessage);
-    };
-  }, [htmlPreview]);
 
   useLayoutEffect(() => {
     if (!active) {
@@ -156,13 +109,13 @@ export function FileDisplayModal() {
     const isNewDisplay = !wasDisplayOpenRef.current;
     wasDisplayOpenRef.current = true;
     setLoadState('loading');
+    setWorkspaceDir(null);
     contentRef.current = null;
     setContent(null);
     setImgError(false);
     setZoom(1);
     setPan({ x: 0, y: 0 });
     setHtmlZoom(1);
-    hideHtml();
     setTextWrap(true);
     if (isNewDisplay) {
       setPipRect(createPipRect());
@@ -182,8 +135,8 @@ export function FileDisplayModal() {
         const workspaceDir = await applySessionWorkspace(active.sessionId);
         const text = await readWorkspaceFileText(active.path, workspaceDir);
         if (cancelled || text === null) return;
+        setWorkspaceDir(workspaceDir);
         if (contentRef.current !== text) {
-          hideHtml();
           contentRef.current = text;
           setContent(text);
         }
@@ -211,6 +164,7 @@ export function FileDisplayModal() {
         const workspaceDir = await applySessionWorkspace(active.sessionId);
         const text = await readWorkspaceFileText(active.path, workspaceDir);
         if (cancelled) return;
+        setWorkspaceDir(workspaceDir);
         if (text === null) {
           setLoadState('error');
           return;
@@ -379,19 +333,15 @@ export function FileDisplayModal() {
     }
 
     if (active.kind === 'html') {
+      if (!workspaceDir) return <div className="display-error">{t('display.fileError', { path: active.path })}</div>;
       return (
         <div className="display-html-wrap">
-          <div className="display-html-viewport" aria-busy={!htmlReady}>
-            <div className={`display-html-loading ${htmlReady ? 'hidden' : ''}`}>
-              <span className="spinner" style={{ width: 22, height: 22 }} />
-              <span>{t('display.loading')}</span>
-            </div>
+          <div className="display-html-viewport">
             <iframe
-              ref={htmlIframeRef}
-              className={`display-iframe ${htmlReady ? 'ready' : ''}`}
-              sandbox="allow-scripts"
+              className="display-iframe ready"
+              sandbox="allow-scripts allow-pointer-lock"
               title={title}
-              srcDoc={htmlPreview?.srcDoc}
+              src={previewUrl(active.path, workspaceDir)}
               style={{
                 width: `calc(${100 / htmlZoom}% + ${2 / htmlZoom}px)`,
                 height: `calc(${100 / htmlZoom}% + ${2 / htmlZoom}px)`,
