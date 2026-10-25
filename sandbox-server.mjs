@@ -336,9 +336,12 @@ const SHELL_ALLOWLIST_GROUPS = {
 };
 const SHELL_ALLOWED_REAL = new Set(Object.values(SHELL_ALLOWLIST_GROUPS).flat());
 
+const TERMUX_BIN = process.platform === 'android' && process.env.PREFIX
+  ? join(process.env.PREFIX, 'bin')
+  : null;
 const TRUSTED_COMMAND_DIRS = (IS_WIN
   ? [GIT_USR_BIN]
-  : ['/bin', '/usr/bin', '/usr/sbin', '/sbin'])
+  : ['/bin', '/usr/bin', '/usr/sbin', '/sbin', TERMUX_BIN])
   .filter(Boolean)
   .map((dir) => {
     try {
@@ -358,10 +361,15 @@ function resolveTrustedCommand(command) {
       try {
         const resolved = realpathSync(candidate);
         if (!resolved.startsWith(trustedDir + sep)) return null;
-        if (IS_WIN) return resolved; // Windows 无 POSIX 权限位（Git usr/bin 的 exe 显示 666），跳过 uid/writable 校验
+        if (IS_WIN) return candidate; // Windows 无 POSIX 权限位（Git usr/bin 的 exe 显示 666），跳过 uid/writable 校验
         const executable = statSync(resolved);
         const writableByNonOwner = (executable.mode & 0o022) !== 0;
-        if (executable.uid === 0 && !writableByNonOwner) return resolved;
+        const trustedSystemExecutable = executable.uid === 0 && !writableByNonOwner;
+        const trustedTermuxExecutable = trustedDir === TERMUX_BIN
+          && executable.uid === process.getuid()
+          && !writableByNonOwner;
+        // Preserve the applet path: resolving /system/bin/head to toybox loses the applet name.
+        if (trustedSystemExecutable || trustedTermuxExecutable) return candidate;
       } catch { /* try next candidate */ }
     }
   }
