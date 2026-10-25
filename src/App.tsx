@@ -324,11 +324,6 @@ function SessionHeader({
               <span className="tsub-mode">{t('nav.contextUsage', { tokens: formatContextTokens(contextTokens) })}</span>
             </span>
           )}
-          {session.mode === 'GROUP' && (
-            <span className="tsub-members">
-              {groupNpcs.map((n) => n!.name).join(' · ')}
-            </span>
-          )}
         </div>
       </div>
       <div className="chat-actions">
