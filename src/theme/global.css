@@ -573,9 +573,10 @@ body.resizing .sidebar-resizer {
 }
 .session-item .stitle-text {
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent);
 }
 .session-item .spinned {
   display: inline-flex;
@@ -615,7 +616,8 @@ body.resizing .sidebar-resizer {
   color: var(--text-faint);
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent);
 }
 /* ---------- 会话区域（头部 + 滚动列表） ---------- */
 .session-section {
@@ -1072,6 +1074,7 @@ body.resizing .sidebar-resizer {
 }
 .chat-header .tsub-mode {
   flex-shrink: 0;
+  font-size: 12px;
   font-weight: 700;
   color: var(--primary);
 }
@@ -1110,6 +1113,10 @@ body.resizing .sidebar-resizer {
 .chat-actions .icon-tooltip.danger:hover {
   color: var(--danger);
   background: var(--danger-soft);
+}
+.chat-actions .chat-actions-more,
+.chat-actions-menu {
+  display: none;
 }
 
 /* ---------- 卡片/仪表盘 ---------- */
@@ -1799,7 +1806,7 @@ hr.sep {
   }
 
   .chat-header .ttitle {
-    max-width: min(28vw, 180px);
+    max-width: min(52vw, 260px);
     font-size: 15px;
   }
 
@@ -1808,14 +1815,65 @@ hr.sep {
   }
 
   .chat-actions {
+    position: relative;
     flex: 0 0 auto;
     gap: 0;
+  }
+
+  .chat-actions .icon-tooltip:not(.chat-actions-more, .chat-theme-toggle) {
+    display: none;
+  }
+
+  .chat-actions .chat-actions-more {
+    display: inline-flex;
   }
 
   .chat-actions .icon-tooltip {
     width: 34px;
     height: 34px;
     flex-shrink: 0;
+  }
+
+  .chat-actions-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 60;
+    display: flex;
+    flex-direction: column;
+    min-width: 164px;
+    padding: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow-lg);
+  }
+
+  .chat-actions-menu button {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: 100%;
+    padding: 8px 10px;
+    border: none;
+    border-radius: 8px;
+    background: none;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 600;
+    text-align: left;
+  }
+
+  .chat-actions-menu button:hover {
+    background: var(--surface-2);
+  }
+
+  .chat-actions-menu button.danger {
+    color: var(--danger);
+  }
+
+  .chat-actions-menu button.danger:hover {
+    background: var(--danger-soft);
   }
 
   .chat-scroll {

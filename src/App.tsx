@@ -327,6 +327,8 @@ function SessionHeader({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [showWorkspace, setShowWorkspace] = useState(false);
+  const [showMobileActions, setShowMobileActions] = useState(false);
+  const mobileActionsRef = useRef<HTMLDivElement>(null);
 
   const messages = useStore((s) => s.messages[session.id!] ?? []);
   const contextTokens = useMemo(() => {
@@ -350,6 +352,17 @@ function SessionHeader({
     || (themeMode === 'system' && document.documentElement.dataset.theme === 'dark');
   const toggleTheme = () => void setSettings({ themeMode: isDarkTheme ? 'light' : 'dark' });
 
+  useEffect(() => {
+    if (!showMobileActions) return;
+    const closeOnOutsidePointerDown = (event: PointerEvent) => {
+      if (!mobileActionsRef.current?.contains(event.target as Node)) {
+        setShowMobileActions(false);
+      }
+    };
+    document.addEventListener('pointerdown', closeOnOutsidePointerDown);
+    return () => document.removeEventListener('pointerdown', closeOnOutsidePointerDown);
+  }, [showMobileActions]);
+
   return (
     <div className="chat-header">
       <SessionVisual mode={session.mode} npcName={npcRef?.name ?? undefined} hue={npcRef?.avatarColorOrdinal ?? 0} imageUrl={npcRef?.avatarDataUrl} members={session.mode === 'GROUP' ? groupMemberAvatars : undefined} size="lg" />
@@ -361,7 +374,7 @@ function SessionHeader({
           </div>
         )}
       </div>
-      <div className="chat-actions">
+      <div className="chat-actions" ref={mobileActionsRef}>
         <button className="btn-ghost icon-tooltip" title={t(usesPublicWorkspace ? 'header.workspaceRootHint' : 'header.workspaceHint')} onClick={() => setShowWorkspace(true)}>
           <Icon name="folder" size={17} />
         </button>
@@ -378,7 +391,17 @@ function SessionHeader({
           <Icon name="trash" size={17} />
         </button>
         <button
-          className="btn-ghost icon-tooltip"
+          className="btn-ghost icon-tooltip chat-actions-more"
+          type="button"
+          title={t('header.moreActions')}
+          aria-label={t('header.moreActions')}
+          aria-expanded={showMobileActions}
+          onClick={() => setShowMobileActions(!showMobileActions)}
+        >
+          <Icon name="more" size={18} />
+        </button>
+        <button
+          className="btn-ghost icon-tooltip chat-theme-toggle"
           type="button"
           title={t(isDarkTheme ? 'header.switchToLightTip' : 'header.switchToDarkTip')}
           aria-label={t(isDarkTheme ? 'header.switchToLightTip' : 'header.switchToDarkTip')}
@@ -386,6 +409,25 @@ function SessionHeader({
         >
           <Icon name={isDarkTheme ? 'sun' : 'moon'} size={17} />
         </button>
+        {showMobileActions && (
+          <div className="chat-actions-menu card">
+            <button onClick={() => { setShowWorkspace(true); setShowMobileActions(false); }}>
+              <Icon name="folder" size={15} /> {t('header.workspaceAction')}
+            </button>
+            <button onClick={() => { setShowEdit(true); setShowMobileActions(false); }}>
+              <Icon name="pencil" size={15} /> {t('nav.editSession')}
+            </button>
+            <button onClick={() => { setConfirmReset(true); setShowMobileActions(false); }}>
+              <Icon name="refresh" size={15} /> {t('header.resetSessionTip')}
+            </button>
+            <button onClick={() => { setExportOpen(true); setShowMobileActions(false); }}>
+              <Icon name="share" size={15} /> {t('nav.exportGameplay')}
+            </button>
+            <button className="danger" onClick={() => { setConfirmDelete(true); setShowMobileActions(false); }}>
+              <Icon name="trash" size={15} /> {t('header.deleteTip')}
+            </button>
+          </div>
+        )}
       </div>
 
       {showEdit && <NewSessionMenu editingSession={session} onClose={() => setShowEdit(false)} />}
