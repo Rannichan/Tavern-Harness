@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { chmodSync, existsSync, lstatSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -156,6 +156,30 @@ try {
   assert.equal(fileDeleteResponse.status, 200);
   assert.equal(fileDelete.ok, true);
   assert.equal(existsSync(join(workspaceRoot, otherSession, 'delete-me.txt')), false);
+
+  const nestedDirectory = join(workspaceRoot, otherSession, 'delete-directory');
+  mkdirSync(join(nestedDirectory, 'nested'), { recursive: true });
+  writeFileSync(join(nestedDirectory, 'nested', 'delete-me.txt'), 'remove recursively');
+  const directoryDeleteResponse = await fetch(`http://127.0.0.1:${port}/file_delete`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Command-Service-Token': serviceToken },
+    body: JSON.stringify({ session: otherSession, path: 'delete-directory' }),
+  });
+  const directoryDelete = await directoryDeleteResponse.json();
+  assert.equal(directoryDeleteResponse.status, 200);
+  assert.equal(directoryDelete.ok, true);
+  assert.equal(existsSync(nestedDirectory), false);
+
+  const publicLinkDeleteResponse = await fetch(`http://127.0.0.1:${port}/file_delete`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Command-Service-Token': serviceToken },
+    body: JSON.stringify({ session: otherSession, path: 'public' }),
+  });
+  const publicLinkDelete = await publicLinkDeleteResponse.json();
+  assert.equal(publicLinkDeleteResponse.status, 400);
+  assert.equal(publicLinkDelete.ok, false);
+  assert.match(publicLinkDelete.message, /public workspace link cannot be deleted/);
+  assert.equal(lstatSync(publicLink).isSymbolicLink(), true);
 
   writeFileSync(join(workspaceRoot, 'public', publicFile), 'shared read-only content');
   const publicReadResponse = await fetch(`http://127.0.0.1:${port}/file_read`, {

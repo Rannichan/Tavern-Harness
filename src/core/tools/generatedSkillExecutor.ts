@@ -462,7 +462,7 @@ export async function writeWorkspaceFileTextFor(
   return diskFileWrite(normalizedPath, content, false, workspaceDir);
 }
 
-/** 删除工作区中的单个文件。 */
+/** 删除工作区中的文件或目录。 */
 export async function deleteWorkspaceFile(path: string, workspaceDir: string): Promise<void> {
   const normalizedPath = normalizePath(path);
   if (!normalizedPath) throw new Error('Invalid path');

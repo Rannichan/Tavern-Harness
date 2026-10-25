@@ -11,7 +11,7 @@ import { useStore } from '../store/store';
 //  - 会话头部的工作目录标签点击打开
 //  - 只展示当前会话专属磁盘工作区（sandbox_workspace/）
 //  - 目录点击进入、支持返回上级与面包屑；文件点击复用 file_display 弹窗预览
-//  - 可在确认后删除文件（不删除目录）
+//  - 可在确认后删除文件或目录（public 软链接除外）
 // ============================================================
 
 function extOf(path: string): string {
@@ -121,7 +121,9 @@ export function WorkspaceFileManagerModal({ sessionId, onClose }: { sessionId: n
     const workspaceDir = await applySessionWorkspace(sessionId);
     await deleteWorkspaceFile(pendingDelete.path, workspaceDir);
     setFiles((current) => {
-      const next = (current ?? []).filter((path) => path !== pendingDelete.path);
+      const next = (current ?? []).filter((path) => (
+        pendingDelete.isDir ? !path.startsWith(pendingDelete.path) : path !== pendingDelete.path
+      ));
       setLoadState(next.length === 0 ? 'empty' : 'ok');
       return next;
     });
@@ -197,33 +199,35 @@ export function WorkspaceFileManagerModal({ sessionId, onClose }: { sessionId: n
                 <span className="ws-fm-name">..</span>
               </div>
             )}
-            {visible.map((n) =>
-              n.isDir ? (
-                <div key={n.path} className="ws-fm-row" role="button" onClick={() => setDir(n.path)} title={n.path}>
+            {visible.map((n) => {
+              const isPublicLink = n.isDir && n.path === 'public/';
+              return (
+                <div
+                  key={n.path}
+                  className="ws-fm-row"
+                  role="button"
+                  onClick={() => n.isDir ? setDir(n.path) : openFile(n)}
+                  title={n.path}
+                >
                   <span className="ws-fm-arrow" />
-                  <Icon name="folder" size={14} />
-                  <span className="ws-fm-name">{n.name}/</span>
+                  <Icon name={n.isDir ? 'folder' : 'file'} size={14} />
+                  <span className={`ws-fm-name${n.isDir ? '' : ' mono'}`}>{n.name}{n.isDir ? '/' : ''}</span>
+                  {!isPublicLink && (
+                    <span className="ws-fm-actions">
+                      <button
+                        className="icon-btn ws-fm-delete"
+                        title={t('common.delete')}
+                        aria-label={t('common.delete')}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setPendingDelete(n);
+                        }}
+                      ><Icon name="trash" size={13} /></button>
+                    </span>
+                  )}
                 </div>
-              ) : (
-                <div key={n.path} className="ws-fm-row" role="button" onClick={() => openFile(n)} title={n.path}>
-                  <span className="ws-fm-arrow" />
-                  <Icon name="file" size={14} />
-                  <span className="ws-fm-name mono">{n.name}</span>
-                  <span className="ws-fm-actions">
-                    <span className="ws-fm-open"><Icon name="eye" size={12} /></span>
-                    <button
-                      className="icon-btn ws-fm-delete"
-                      title={t('common.delete')}
-                      aria-label={t('common.delete')}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setPendingDelete(n);
-                      }}
-                    ><Icon name="trash" size={13} /></button>
-                  </span>
-                </div>
-              )
-            )}
+              );
+            })}
             {visible.length === 0 && <div className="ws-fm-empty">{t('header.fileManagerEmpty')}</div>}
           </div>
         )}

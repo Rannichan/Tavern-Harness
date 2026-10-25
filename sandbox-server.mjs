@@ -670,11 +670,20 @@ const server = createServer(async (req, res) => {
           throw new Error('Path is outside the workspace');
         }
         const fp = resolve(base, rel);
-        if (!existsSync(fp) || !lstatSync(fp).isFile()) throw new Error('File not found');
+        if (!existsSync(fp)) throw new Error('File or directory not found');
+        const entry = lstatSync(fp);
+        if (entry.isSymbolicLink() && rel === 'public') {
+          throw new Error('The public workspace link cannot be deleted');
+        }
+        if (!entry.isFile() && !entry.isDirectory()) throw new Error('Path is not a file or directory');
         if (!deletingPublicLink) assertInside(base, realpathSync(fp));
-        await new Promise((resolveDelete, rejectDelete) => {
-          unlink(fp, (err) => (err ? rejectDelete(err) : resolveDelete()));
-        });
+        if (entry.isDirectory()) {
+          rmSync(fp, { recursive: true, force: false });
+        } else {
+          await new Promise((resolveDelete, rejectDelete) => {
+            unlink(fp, (err) => (err ? rejectDelete(err) : resolveDelete()));
+          });
+        }
         res.end(JSON.stringify({ ok: true, path: rel }));
       } else {
         // file_list：返回会话工作目录内的相对路径（分组目录）
