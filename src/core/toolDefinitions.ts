@@ -1,7 +1,7 @@
 import type { ChatCompletionTool } from '../types/models';
 
-export const MAX_TOOL_CALL_DEPTH = 10;
-export const MAX_TOOL_CALLS_PER_TURN = 20;
+export const MAX_TOOL_CALL_DEPTH = 30;
+export const MAX_TOOL_CALLS_PER_TURN = 100;
 export const MAX_IDENTICAL_TOOL_CALLS = 3;
 export const MAX_CONSECUTIVE_TOOL_FAILURES = 3;
 export const NEW_TOPIC_MARKER = '开始新话题';
