@@ -3,6 +3,44 @@
 > 本文件由 `scripts/changelog.mjs` 从 `changelog/v*.md` 生成，请勿手动编辑。
 > 版本对比链接见文末；源文件位于仓库 `changelog/` 目录。
 
+## [0.1.18] - 2026-10-25
+
+### 中文
+
+#### 新增
+
+- 聊天标题栏新增主题切换按钮，可在浅色与深色之间一键切换
+- 会话标题下方显示当前上下文用量（如 `12.3K`），方便判断何时需要重置对话
+
+#### 改进
+
+- 手机端支持左右滑动：从屏幕左边缘右滑打开侧边栏，在侧边栏内左滑关闭
+- 模型选择按钮更紧凑：名称过长时自动省略，新增展开箭头，选择面板在点击面板外任意位置时关闭
+- 提高单轮工具调用上限：每轮最多 100 次调用、最多 30 层嵌套，复杂任务不再轻易被中断
+- 群聊标题栏不再重复显示成员名单
+
+#### 修复
+
+- 修复 Android 上点击工作区、顶栏等区域时出现灰色高亮块的问题
+
+### English
+
+#### Added
+
+- Added a theme toggle to the chat header for switching between light and dark in one tap
+- The session header now shows current context usage (for example `12.3K`), making it easier to judge when to reset a conversation
+
+#### Changed
+
+- Mobile now supports swipe gestures: swipe in from the left edge to open the sidebar, and swipe left inside it to close
+- The model selector is more compact: long model names are truncated, a caret indicates it opens a panel, and the panel closes when you tap anywhere outside it
+- Raised the per-turn tool limits to 100 calls and 30 levels of nesting, so complex tasks are interrupted far less often
+- Group chat headers no longer repeat the member list
+
+#### Fixed
+
+- Fixed gray tap-highlight boxes appearing when tapping the workspace, top bar, and other areas on Android
+
 ## [0.1.17] - 2026-10-25
 
 ### 中文
@@ -490,6 +528,7 @@
 - Vite + React + Zustand + Dexie stack with browser-side local persistence
 
 <!-- 链接定义 -->
+[0.1.18]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.17...v0.1.18
 [0.1.17]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.16...v0.1.17
 [0.1.16]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.15...v0.1.16
 [0.1.15]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.14...v0.1.15
