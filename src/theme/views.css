@@ -1448,16 +1448,33 @@
 }
 .display-pip-resize {
   position: absolute;
-  right: 0;
-  bottom: 0;
   z-index: 2;
   width: 24px;
   height: 24px;
   border: 0;
   padding: 0;
   background: transparent;
-  cursor: nwse-resize;
   touch-action: none;
+}
+.display-pip-resize-top-left {
+  top: 0;
+  left: 0;
+  cursor: nwse-resize;
+}
+.display-pip-resize-top-right {
+  top: 0;
+  right: 0;
+  cursor: nesw-resize;
+}
+.display-pip-resize-bottom-left {
+  bottom: 0;
+  left: 0;
+  cursor: nesw-resize;
+}
+.display-pip-resize-bottom-right {
+  right: 0;
+  bottom: 0;
+  cursor: nwse-resize;
 }
 .display-modal-head {
   gap: 12px;

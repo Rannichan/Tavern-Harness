@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon, Markdown } from './shared';
 import { useStore } from '../store/store';
@@ -46,8 +46,8 @@ function createPipRect(): PipRect {
   const availableWidth = Math.max(0, bounds.right - bounds.left - PIP_EDGE_GAP * 2);
   const availableHeight = Math.max(0, bounds.bottom - bounds.top - PIP_EDGE_GAP * 2);
   const isMobile = isMobileViewport();
-  const width = Math.min(isMobile ? 360 : 440, availableWidth);
-  const height = Math.min(isMobile ? 300 : 380, availableHeight);
+  const width = Math.min(isMobile ? PIP_MIN_WIDTH : 440, availableWidth);
+  const height = Math.min(isMobile ? PIP_MIN_HEIGHT : 380, availableHeight);
   return {
     x: Math.max(bounds.left + PIP_EDGE_GAP, bounds.right - width - PIP_EDGE_GAP),
     y: Math.max(bounds.top + PIP_EDGE_GAP, bounds.bottom - height - PIP_EDGE_GAP),
@@ -86,7 +86,16 @@ export function FileDisplayModal() {
   const wasDisplayOpenRef = useRef(false);
   const pipGestureRef = useRef<
     | { type: 'move'; pointerX: number; pointerY: number; startX: number; startY: number }
-    | { type: 'resize'; pointerX: number; pointerY: number; startWidth: number; startHeight: number }
+    | {
+      type: 'resize';
+      edge: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+      pointerX: number;
+      pointerY: number;
+      startX: number;
+      startY: number;
+      startWidth: number;
+      startHeight: number;
+    }
     | null
   >(null);
   // 图片缩放 / 平移
@@ -209,14 +218,33 @@ export function FileDisplayModal() {
         });
         return;
       }
-      setPipRect((rect) => {
-        const availableWidth = Math.max(0, bounds.right - rect.x - PIP_EDGE_GAP);
-        const availableHeight = Math.max(0, bounds.bottom - rect.y - PIP_EDGE_GAP);
-        return {
-          ...rect,
-          width: Math.min(availableWidth, Math.max(Math.min(PIP_MIN_WIDTH, availableWidth), gesture.startWidth + e.clientX - gesture.pointerX)),
-          height: Math.min(availableHeight, Math.max(Math.min(PIP_MIN_HEIGHT, availableHeight), gesture.startHeight + e.clientY - gesture.pointerY)),
-        };
+      setPipRect(() => {
+        const minX = bounds.left + PIP_EDGE_GAP;
+        const maxX = bounds.right - PIP_EDGE_GAP;
+        const minY = bounds.top + PIP_EDGE_GAP;
+        const maxY = bounds.bottom - PIP_EDGE_GAP;
+        const minWidth = Math.min(PIP_MIN_WIDTH, maxX - minX);
+        const minHeight = Math.min(PIP_MIN_HEIGHT, maxY - minY);
+        const deltaX = e.clientX - gesture.pointerX;
+        const deltaY = e.clientY - gesture.pointerY;
+        let x = gesture.startX;
+        let y = gesture.startY;
+        let width = gesture.startWidth;
+        let height = gesture.startHeight;
+
+        if (gesture.edge.endsWith('left')) {
+          x = Math.min(gesture.startX + gesture.startWidth - minWidth, Math.max(minX, gesture.startX + deltaX));
+          width = gesture.startX + gesture.startWidth - x;
+        } else {
+          width = Math.max(minWidth, Math.min(maxX - gesture.startX, gesture.startWidth + deltaX));
+        }
+        if (gesture.edge.startsWith('top')) {
+          y = Math.min(gesture.startY + gesture.startHeight - minHeight, Math.max(minY, gesture.startY + deltaY));
+          height = gesture.startY + gesture.startHeight - y;
+        } else {
+          height = Math.max(minHeight, Math.min(maxY - gesture.startY, gesture.startHeight + deltaY));
+        }
+        return { x, y, width, height };
       });
     };
     const stopGesture = () => (pipGestureRef.current = null);
@@ -245,6 +273,21 @@ export function FileDisplayModal() {
 
   const exitPictureInPicture = () => {
     setIsPictureInPicture(false);
+  };
+
+  const startResize = (edge: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right') => (e: ReactPointerEvent<HTMLButtonElement>) => {
+    pipGestureRef.current = {
+      type: 'resize',
+      edge,
+      pointerX: e.clientX,
+      pointerY: e.clientY,
+      startX: pipRect.x,
+      startY: pipRect.y,
+      startWidth: pipRect.width,
+      startHeight: pipRect.height,
+    };
+    e.currentTarget.setPointerCapture(e.pointerId);
+    e.preventDefault();
   };
 
   /** 图片数据：优先 data: URI；否则按扩展名拼 data URI（SVG 直接内联，位图按 base64 文本） */
@@ -384,7 +427,16 @@ export function FileDisplayModal() {
 
   const preview = (
     <>
-      <div className="modal-head display-modal-head">
+      <div
+        className="modal-head display-modal-head"
+        onPointerDown={(e) => {
+          if (!isPictureInPicture || (e.target as HTMLElement).closest('button')) return;
+          pipGestureRef.current = { type: 'move', pointerX: e.clientX, pointerY: e.clientY, startX: pipRect.x, startY: pipRect.y };
+          e.currentTarget.setPointerCapture(e.pointerId);
+          e.preventDefault();
+        }}
+        onLostPointerCapture={() => (pipGestureRef.current = null)}
+      >
         <span className="display-modal-title">
           <Icon name="file" size={15} />
           <span className="mono" style={{ fontSize: 12.5, color: 'var(--text-dim)' }}>{active.path}</span>
@@ -442,36 +494,22 @@ export function FileDisplayModal() {
           : undefined}
         onClick={!isPictureInPicture ? (e) => e.stopPropagation() : undefined}
       >
-        <div
-          className={isPictureInPicture ? 'display-pip-drag-layer' : 'modal card fade-up display-modal'}
-          onPointerDown={(e) => {
-            if (!isPictureInPicture || (e.target as HTMLElement).closest('button')) return;
-            pipGestureRef.current = { type: 'move', pointerX: e.clientX, pointerY: e.clientY, startX: pipRect.x, startY: pipRect.y };
-            e.currentTarget.setPointerCapture(e.pointerId);
-            e.preventDefault();
-          }}
-          onLostPointerCapture={() => (pipGestureRef.current = null)}
-        >
+        <div className={isPictureInPicture ? 'display-pip-drag-layer' : 'modal card fade-up display-modal'}>
           {preview}
         </div>
         {isPictureInPicture && (
-          <button
-            className="display-pip-resize"
-            title={t('display.resizePictureInPicture')}
-            aria-label={t('display.resizePictureInPicture')}
-            onPointerDown={(e) => {
-              pipGestureRef.current = {
-                type: 'resize',
-                pointerX: e.clientX,
-                pointerY: e.clientY,
-                startWidth: pipRect.width,
-                startHeight: pipRect.height,
-              };
-              e.currentTarget.setPointerCapture(e.pointerId);
-              e.preventDefault();
-            }}
-            onLostPointerCapture={() => (pipGestureRef.current = null)}
-          />
+          <>
+            {(['top-left', 'top-right', 'bottom-left', 'bottom-right'] as const).map((edge) => (
+              <button
+                key={edge}
+                className={`display-pip-resize display-pip-resize-${edge}`}
+                title={t('display.resizePictureInPicture')}
+                aria-label={t('display.resizePictureInPicture')}
+                onPointerDown={startResize(edge)}
+                onLostPointerCapture={() => (pipGestureRef.current = null)}
+              />
+            ))}
+          </>
         )}
       </div>
     </>,
