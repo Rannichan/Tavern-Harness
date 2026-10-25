@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useStore, type ActiveView } from './store/store';
 import { Sidebar } from './components/Sidebar';
 import { ChatView, ChatInput, MessageMenu, TurnQueuePanel } from './components/ChatView';
@@ -19,6 +19,10 @@ import { registerUnlockDispatcher } from './core/achievements';
 import { useT } from './core/i18n';
 import './theme/chat.css';
 import './theme/views.css';
+
+function formatContextTokens(tokens: number): string {
+  return `${(tokens / 1_000).toFixed(1)}K`;
+}
 
 export default function App() {
   const [takingControl, setTakingControl] = useState(false);
@@ -288,6 +292,16 @@ function SessionHeader({
   const [showWorkspace, setShowWorkspace] = useState(false);
 
   const modeLabel = session.mode === 'STANDARD' ? t('header.modeStandard') : session.mode === 'NPC' ? t('header.modeNpc') : t('header.modeGroup');
+  const messages = useStore((s) => s.messages[session.id!] ?? []);
+  const contextTokens = useMemo(() => {
+    const assistantMessages = messages.filter((message) => message.role === 'assistant' && message.totalTokens > 0);
+    if (assistantMessages.length === 0) return null;
+    if (session.mode !== 'GROUP') return assistantMessages.at(-1)!.totalTokens;
+    const latestLoopIndex = assistantMessages.at(-1)!.loopIndex;
+    return Math.max(...assistantMessages
+      .filter((message) => message.loopIndex === latestLoopIndex)
+      .map((message) => message.totalTokens));
+  }, [messages, session.mode]);
   const npcRef = session.associatedId ? npcs.find((n) => n.id === session.associatedId) : null;
   const usesPublicWorkspace = session.mode === 'NPC' && npcRef?.isBuiltIn === true;
   const groupNpcs = participants.filter((p) => p.kind === 'NPC').map((p) => npcs.find((n) => n.id === p.npcId)).filter(Boolean);
@@ -304,6 +318,12 @@ function SessionHeader({
         <div className="ttitle">{session.title}</div>
         <div className="tsub">
           <span className="tsub-mode">{modeLabel}</span>
+          {contextTokens != null && (
+            <span className="tsub-context-group">
+              <span>·</span>
+              <span className="tsub-mode">{t('nav.contextUsage', { tokens: formatContextTokens(contextTokens) })}</span>
+            </span>
+          )}
           {session.mode === 'GROUP' && (
             <span className="tsub-members">
               {groupNpcs.map((n) => n!.name).join(' · ')}

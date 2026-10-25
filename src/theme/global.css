@@ -1072,6 +1072,12 @@ body.resizing .sidebar-resizer {
   font-weight: 700;
   color: var(--primary);
 }
+.chat-header .tsub-context-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: -6px;
+}
 
 /* ---------- 聊天头部右侧动作按钮 ---------- */
 .chat-actions {

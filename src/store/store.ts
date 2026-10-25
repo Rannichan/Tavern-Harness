@@ -281,6 +281,23 @@ function sortNpcs(npcs: NpcCharacter[]): NpcCharacter[] {
   return [...npcs].sort((a, b) => Number(b.isBuiltIn) - Number(a.isBuiltIn) || a.createdAt - b.createdAt);
 }
 
+async function updateSessionContextTokens(
+  sessionId: number,
+  totalTokens: number,
+  loopIndex: number | null,
+): Promise<Partial<Pick<ChatSession, 'contextTokens' | 'contextTokensLoopIndex'>>> {
+  const session = await db.sessions.get(sessionId);
+  if (!session) return {};
+  if (session.mode !== 'GROUP') {
+    return { contextTokens: totalTokens, contextTokensLoopIndex: null };
+  }
+  const isCurrentLoop = session.contextTokensLoopIndex === loopIndex;
+  return {
+    contextTokens: isCurrentLoop ? Math.max(session.contextTokens ?? 0, totalTokens) : totalTokens,
+    contextTokensLoopIndex: loopIndex,
+  };
+}
+
 /** 单回合生成结果：ok 成功 / failed 失败（应回退） / stopped 用户主动停止（不回退） */
 type TurnResult = 'ok' | 'failed' | 'stopped';
 
@@ -686,6 +703,8 @@ export const useStore = create<AppState>((set, get) => ({
       turnQueueHistoryJson: session.turnQueueHistoryJson,
       loopIndex: session.loopIndex,
       lastMessage: session.lastMessage,
+      contextTokens: session.contextTokens,
+      contextTokensLoopIndex: session.contextTokensLoopIndex,
       updatedAt: session.updatedAt,
     };
 
@@ -703,6 +722,8 @@ export const useStore = create<AppState>((set, get) => ({
     await db.sessions.update(sessionId, {
       updatedAt: Date.now(),
       lastMessage: lastVisible ? sessionPreviewText(lastVisible.content) || '…' : '',
+      contextTokens: null,
+      contextTokensLoopIndex: null,
     });
 
     let result: TurnResult;
@@ -757,6 +778,8 @@ export const useStore = create<AppState>((set, get) => ({
       turnQueueHistoryJson: originalSession.turnQueueHistoryJson,
       loopIndex: originalSession.loopIndex,
       lastMessage: originalSession.lastMessage,
+      contextTokens: originalSession.contextTokens,
+      contextTokensLoopIndex: originalSession.contextTokensLoopIndex,
       updatedAt: originalSession.updatedAt,
     };
     // 编辑该消息，删除它之后的所有消息（不含自身）
@@ -1085,6 +1108,8 @@ export const useStore = create<AppState>((set, get) => ({
       turnQueueHistoryJson: queueHistoryJson([queue]),
       loopIndex: 0,
       lastMessage,
+      contextTokens: null,
+      contextTokensLoopIndex: null,
       updatedAt: Date.now(),
     });
     await get().loadMessages(sessionId);
@@ -2110,7 +2135,7 @@ async function performAssistantTurn(
     if (errorMsg) {
       const preserved = await persistPartialDraft(
         draftId, sessionId, content, thinking, request, rawLines, promptTokens, completionTokens,
-        startTime, model, !roundCounted, npc,
+        startTime, model, !roundCounted, npc, turnLoopIndex,
       );
       finishSessionActivity(sessionId);
       useStore.getState().addToast(translate('toast.genFailed', { msg: errorMsg }), 'error');
@@ -2121,7 +2146,7 @@ async function performAssistantTurn(
     if (stopped || abortController.signal.aborted) {
       await persistPartialDraft(
         draftId, sessionId, content, thinking, request, rawLines, promptTokens, completionTokens,
-        startTime, model, !roundCounted, npc,
+        startTime, model, !roundCounted, npc, turnLoopIndex,
       );
       break;
     }
@@ -2181,11 +2206,13 @@ async function performAssistantTurn(
       null
     );
 
-    // 更新会话预览
+    // 更新会话预览与本轮上下文占用。群聊同一轮保留各角色请求中的最大值。
     const preview = sessionPreviewText(normalizedContent);
+    const contextTokens = await updateSessionContextTokens(sessionId, promptTokens + finalTokens, turnLoopIndex);
     await db.sessions.update(sessionId, {
       updatedAt: Date.now(),
       lastMessage: preview || '…',
+      ...contextTokens,
     });
 
     if (finalToolCalls.length === 0 && session.mode !== 'GROUP') {
@@ -2400,7 +2427,8 @@ async function persistPartialDraft(
   startTime: number,
   model: string,
   countRound: boolean,
-  npc: NpcCharacter | null
+  npc: NpcCharacter | null,
+  loopIndex: number | null,
 ): Promise<boolean> {
   const latencyMs = Date.now() - startTime;
   const normalizedContent = trimEdgeNewlines(content);
@@ -2436,9 +2464,11 @@ async function persistPartialDraft(
     null
   );
   const preview = sessionPreviewText(normalizedContent);
+  const contextTokens = await updateSessionContextTokens(sessionId, promptTokens + finalTokens, loopIndex);
   await db.sessions.update(sessionId, {
     updatedAt: Date.now(),
     lastMessage: preview || '…',
+    ...contextTokens,
   });
   return true;
 }

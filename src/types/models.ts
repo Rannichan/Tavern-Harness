@@ -151,6 +151,10 @@ export interface ChatSession {
   turnQueueHistoryJson: string;
   loopIndex: number;
   lastMessage: string;
+  /** 最近完成请求的上下文总 Token；群聊中为最新轮次所有请求的最大值。 */
+  contextTokens?: number | null;
+  /** contextTokens 对应的群聊轮次；单人会话为 null。 */
+  contextTokensLoopIndex?: number | null;
   /** 置顶标记：1 = 置顶（侧边栏会话列表置顶区），0 = 未置顶。默认 0（false） */
   pinned: number;
   updatedAt: number;
