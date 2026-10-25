@@ -3,6 +3,42 @@
 > 本文件由 `scripts/changelog.mjs` 从 `changelog/v*.md` 生成，请勿手动编辑。
 > 版本对比链接见文末；源文件位于仓库 `changelog/` 目录。
 
+## [0.1.20] - 2026-10-26
+
+### 中文
+
+#### 新增
+
+- 新增「纯净模式」：只显示消息正文，隐藏思考过程和工具调用；没有正文的消息也会一并隐藏，实际的思考和工具执行不受影响（在「设置 → 工具执行」中开启）
+- HTML 预览可以在新页面打开，方便全屏查看和调试交互式页面
+
+#### 改进
+
+- 长会话加载明显更快：消息列表不再携带每次请求的原始日志，改为打开「查看原始日志」时按需读取；切回已加载过的会话时直接复用内存中的内容，不再重复拉取
+- 长会话下持久化服务更稳定：响应启用 brotli / gzip 压缩，服务繁忙时刷新页面不再误报会话加载失败
+- HTML 预览的缩放按钮移到底部说明栏，不再占用顶部工具栏，预览区域更宽敞
+
+#### 修复
+
+- 会话标题过长时不再挤压右侧按钮：标题限制最大宽度并在末尾渐隐
+
+### English
+
+#### Added
+
+- New "Pure mode": shows only message bodies, hiding reasoning and tool calls; messages without body text are hidden too, while actual reasoning and tool execution keep running (enable it in Settings → Tool execution)
+- HTML previews can be opened in a new page for full-screen viewing and debugging interactive pages
+
+#### Changed
+
+- Long conversations load noticeably faster: message lists no longer carry per-request raw logs — they're fetched only when you open "View raw log" — and switching back to a session you've already loaded reuses the in-memory copy instead of fetching it again
+- The persistence service holds up better with long conversations: responses are brotli / gzip compressed, and a busy service no longer triggers false "failed to load session" errors after a page refresh
+- HTML preview zoom buttons moved to the bottom note bar, freeing the top toolbar and giving the preview more room
+
+#### Fixed
+
+- Long session titles no longer squeeze the header buttons: the title is capped in width and fades out at the end
+
 ## [0.1.19] - 2026-10-25
 
 ### 中文
@@ -552,6 +588,7 @@
 - Vite + React + Zustand + Dexie stack with browser-side local persistence
 
 <!-- 链接定义 -->
+[0.1.20]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.19...v0.1.20
 [0.1.19]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.18...v0.1.19
 [0.1.18]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.17...v0.1.18
 [0.1.17]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.16...v0.1.17
