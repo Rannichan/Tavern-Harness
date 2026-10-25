@@ -1409,9 +1409,13 @@
   font-size: 13px;
 }
 /* ---------- 文件展示弹窗（file_display） ---------- */
+.display-modal-root {
+  z-index: 902;
+}
 .display-modal {
   width: min(880px, calc(100vw - 32px));
   height: min(82%, 720px);
+  overflow: hidden;
 }
 .display-pip {
   position: fixed;
@@ -1787,6 +1791,20 @@
   justify-content: center;
   gap: 10px;
   flex: 1;
+}
+.ws-fm-delete-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 902;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  pointer-events: auto;
+}
+.ws-fm-delete-dialog {
+  width: min(420px, 100%);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
 }
 
 /* ---------- 版本记录（设置 → 关于） ---------- */

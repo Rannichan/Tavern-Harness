@@ -128,7 +128,7 @@ export function FileDisplayModal() {
     setTextWrap(true);
     if (isNewDisplay) {
       setPipRect(createPipRect());
-      setIsPictureInPicture(active.presentation !== 'modal');
+      setIsPictureInPicture(active.presentation === 'pip' || active.presentation == null);
     }
   }, [active]);
 
@@ -263,6 +263,7 @@ export function FileDisplayModal() {
 
   const title = active?.title?.trim() || (active ? basenameOf(active.path) : '');
   const ext = active ? extensionOf(active.path) : '';
+  const isWorkspacePreview = active?.presentation === 'workspace';
 
   const close = () => setActiveDisplay(null);
 
@@ -485,10 +486,10 @@ export function FileDisplayModal() {
 
   return createPortal(
     <>
-      {!isPictureInPicture && <div key="overlay" className="overlay" />}
+      {!isPictureInPicture && !isWorkspacePreview && <div key="overlay" className="overlay" />}
       <div
         key="display-container"
-        className={isPictureInPicture ? 'display-pip card' : 'modal-root'}
+        className={isPictureInPicture ? 'display-pip card' : 'modal-root display-modal-root'}
         style={isPictureInPicture
           ? { left: pipRect.x, top: pipRect.y, width: pipRect.width, height: pipRect.height }
           : undefined}

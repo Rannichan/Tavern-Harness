@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Modal, Icon } from './shared';
-import { DeleteConfirmDialog } from './DeleteConfirmDialog';
 import { useT } from '../core/i18n';
 import { applySessionWorkspace } from '../core/tools/toolExecutor';
 import { deleteWorkspaceFile, listSessionWorkspaceFiles, openSessionWorkspace } from '../core/tools/generatedSkillExecutor';
@@ -59,6 +58,7 @@ export function WorkspaceFileManagerModal({ sessionId, onClose }: { sessionId: n
   const [files, setFiles] = useState<string[] | null>(null);
   const [loadState, setLoadState] = useState<'loading' | 'ok' | 'empty' | 'error'>('loading');
   const [pendingDelete, setPendingDelete] = useState<Node | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [openingLocation, setOpeningLocation] = useState(false);
   // 当前浏览目录（'' = 根；否则为以 / 结尾的会话内相对路径）
   const [dir, setDir] = useState('');
@@ -111,22 +111,29 @@ export function WorkspaceFileManagerModal({ sessionId, onClose }: { sessionId: n
       kind: kindFromPath(node.path),
       title: node.name,
       sessionId,
-      presentation: 'modal',
+      presentation: 'workspace',
     });
-    onClose();
   };
 
   const confirmDelete = async () => {
-    if (!pendingDelete) return;
-    const workspaceDir = await applySessionWorkspace(sessionId);
-    await deleteWorkspaceFile(pendingDelete.path, workspaceDir);
-    setFiles((current) => {
-      const next = (current ?? []).filter((path) => (
-        pendingDelete.isDir ? !path.startsWith(pendingDelete.path) : path !== pendingDelete.path
-      ));
-      setLoadState(next.length === 0 ? 'empty' : 'ok');
-      return next;
-    });
+    if (!pendingDelete || deleting) return;
+    setDeleting(true);
+    try {
+      const workspaceDir = await applySessionWorkspace(sessionId);
+      await deleteWorkspaceFile(pendingDelete.path, workspaceDir);
+      setFiles((current) => {
+        const next = (current ?? []).filter((path) => (
+          pendingDelete.isDir ? !path.startsWith(pendingDelete.path) : path !== pendingDelete.path
+        ));
+        setLoadState(next.length === 0 ? 'empty' : 'ok');
+        return next;
+      });
+      setPendingDelete(null);
+    } catch (error) {
+      addToast((error as Error).message, 'error');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const openWorkspaceLocation = async () => {
@@ -233,12 +240,24 @@ export function WorkspaceFileManagerModal({ sessionId, onClose }: { sessionId: n
         )}
       </div>
       {pendingDelete && (
-        <DeleteConfirmDialog
-          title={t('header.fileManagerDeleteTitle')}
-          itemName={pendingDelete.path}
-          onCancel={() => setPendingDelete(null)}
-          onConfirm={confirmDelete}
-        />
+        <div className="ws-fm-delete-layer" role="dialog" aria-modal="true" aria-labelledby="ws-fm-delete-title">
+          <div className="ws-fm-delete-dialog card fade-up">
+            <div className="modal-head">
+              <span id="ws-fm-delete-title" style={{ fontWeight: 800, fontSize: 15 }}>{t('header.fileManagerDeleteTitle')}</span>
+              <button className="icon-btn" onClick={() => setPendingDelete(null)} disabled={deleting} title={t('common.close')}>
+                <Icon name="x" />
+              </button>
+            </div>
+            <div className="modal-body">{t('common.confirmDelete', { name: pendingDelete.path })}</div>
+            <div className="modal-foot">
+              <button className="btn" onClick={() => setPendingDelete(null)} disabled={deleting}>{t('common.cancel')}</button>
+              <button className="btn btn-danger" onClick={() => void confirmDelete()} disabled={deleting}>
+                {deleting ? <span className="spinner" style={{ width: 13, height: 13 }} /> : <Icon name="trash" size={13} />}
+                {t('common.delete')}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </Modal>
   );

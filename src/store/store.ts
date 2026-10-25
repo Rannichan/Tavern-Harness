@@ -90,8 +90,8 @@ export interface ActiveDisplay {
   title?: string;
   /** 产生该展示的会话 id（读取文件时按其专属工作目录解析，null = 共享工作区） */
   sessionId: number | null;
-  /** 初始展示方式；文件管理器使用大弹窗，file_display 默认使用小窗 */
-  presentation?: 'pip' | 'modal';
+  /** 初始展示方式；文件管理器预览复用其遮罩层，file_display 默认使用小窗 */
+  presentation?: 'pip' | 'modal' | 'workspace';
 }
 
 /** 启动阶段：加载中 / 数据就绪 / 核心数据加载失败（可重试） */
