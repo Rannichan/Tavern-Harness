@@ -787,7 +787,21 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
   const providers = useStore((s) => s.providers);
   const defaultModel = useStore((s) => s.settings?.defaultModel?.trim() || '');
   const defaultProviderId = useStore((s) => s.settings?.defaultProviderId ?? null);
+  const modelLabelRef = useRef<HTMLSpanElement>(null);
+  const [isModelLabelTruncated, setIsModelLabelTruncated] = useState(false);
+  const displayedModelName = defaultModel ? displayModelName(providers, defaultModel, defaultProviderId) : t('chat.chooseModel');
   const composerPlaceholder = session?.mode === 'GROUP' ? t('chat.phGroup') : t('chat.phSingle');
+
+  useLayoutEffect(() => {
+    const label = modelLabelRef.current;
+    if (!label) return;
+
+    const updateTruncation = () => setIsModelLabelTruncated(label.scrollWidth > label.clientWidth);
+    updateTruncation();
+    const observer = new ResizeObserver(updateTruncation);
+    observer.observe(label);
+    return () => observer.disconnect();
+  }, [displayedModelName]);
 
   const canSend = text.trim().length > 0 || attachments.length > 0;
 
@@ -983,10 +997,18 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
           <button
             className={`composer-model-btn ${showModels ? 'open' : ''}`}
             title={t('chat.selectModel')}
+            aria-expanded={showModels}
             disabled={streaming}
             onClick={() => setShowModels(!showModels)}
           >
-            <span className="composer-model-label" title={defaultModel}>{defaultModel ? displayModelName(providers, defaultModel, defaultProviderId) : t('chat.chooseModel')}</span>
+            <span
+              ref={modelLabelRef}
+              className={`composer-model-label ${isModelLabelTruncated ? 'truncated' : ''}`}
+              title={defaultModel}
+            >
+              {displayedModelName}
+            </span>
+            <span className="composer-model-caret" aria-hidden="true" />
           </button>
           {showModels && (
             <ModelPickerPanel onClose={() => setShowModels(false)} />
@@ -1156,7 +1178,8 @@ function ModelPickerPanel({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+      if (e.target instanceof Element && e.target.closest('.composer-model')) return;
+      onClose();
     };
     const onEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();

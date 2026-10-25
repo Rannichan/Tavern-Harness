@@ -465,7 +465,7 @@
   z-index: 1;
   display: flex;
   align-items: flex-end;
-  gap: 8px;
+  gap: 4px;
   max-width: 820px;
   margin: 0 auto;
   background: var(--surface);
@@ -509,37 +509,50 @@
 .composer-box .composer-model-btn {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   height: 40px;
   max-width: 180px;
-  padding: 0 10px;
+  padding: 0 4px;
+  border: 1px solid transparent;
   border-radius: 12px;
   flex-shrink: 0;
   background: var(--surface-2);
-  border: 1px solid var(--border-soft);
-  color: var(--primary);
+  color: var(--text-dim);
   font-size: 12px;
   font-weight: 600;
-  transition: background 0.32s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.32s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: background 0.15s ease, color 0.15s ease;
 }
-.composer-box .composer-model-btn:hover {
-  background: color-mix(in srgb, var(--primary) 8%, transparent);
-  border-color: color-mix(in srgb, var(--primary) 28%, transparent);
-}
-/* 弹层打开（激活态）才显示辉光 */
+.composer-box .composer-model-btn:hover,
+.composer-box .composer-model-btn:active,
 .composer-box .composer-model-btn.open {
-  background: var(--primary-soft);
-  border-color: color-mix(in srgb, var(--primary) 44%, transparent);
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--primary) 22%, transparent),
-    0 0 8px color-mix(in srgb, var(--glow) 38%, transparent),
-    0 0 16px color-mix(in srgb, var(--glow) 16%, transparent);
+  background: var(--surface-2);
+  border-color: transparent;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 24%, transparent);
+  color: var(--primary);
 }
 .composer-model-label {
+  min-width: 0;
+  flex: 1;
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 120px;
+  max-width: 170px;
+}
+.composer-model-caret {
+  width: 0;
+  height: 0;
+  flex: 0 0 auto;
+  border-bottom: 4px solid currentColor;
+  border-right: 4px solid transparent;
+  border-left: 4px solid transparent;
+  opacity: 0.7;
+  transition: transform 0.15s ease;
+}
+.composer-model-btn.open .composer-model-caret {
+  transform: rotate(180deg);
+}
+.composer-model-label.truncated {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 16px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 16px), transparent);
 }
 .composer-model {
   position: relative;
@@ -1269,12 +1282,12 @@
   .composer-box .composer-model-btn {
     width: auto;
     max-width: 104px;
-    padding: 0 8px;
+    padding: 0 4px;
   }
 
   .composer-model-label {
     display: block;
-    max-width: 86px;
+    max-width: 84px;
   }
 
   .composer-box textarea {
