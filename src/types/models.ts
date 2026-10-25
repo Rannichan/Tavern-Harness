@@ -55,6 +55,8 @@ export interface AppSettings {
   isToolCallsEnabled: boolean;
   /** 自动批准工具执行确认（YOLO）；默认关闭。 */
   yoloMode: boolean;
+  /** 隐藏对话中的思考与工具调用，仅保留消息正文；默认关闭。 */
+  pureMode: boolean;
   statsResetTime: number | null;
 }
 

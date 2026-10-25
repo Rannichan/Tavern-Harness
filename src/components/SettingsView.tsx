@@ -82,6 +82,22 @@ export const SettingsView = memo(function SettingsView() {
               <span className="switch-slider" />
             </label>
           </div>
+          <div className="set-row settings-tool-row">
+            <div>
+              <div className="s-label" id="pure-mode-label">{t('settings.pureMode')}</div>
+              <div className="s-desc" id="pure-mode-desc">{t('settings.pureModeDesc')}</div>
+            </div>
+            <label className="switch">
+              <input
+                type="checkbox"
+                aria-labelledby="pure-mode-label"
+                aria-describedby="pure-mode-desc"
+                checked={settings.pureMode === true}
+                onChange={(e) => setSettings({ pureMode: e.target.checked })}
+              />
+              <span className="switch-slider" />
+            </label>
+          </div>
         </div>
 
         {/* 生成参数 */}

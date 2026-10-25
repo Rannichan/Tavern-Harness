@@ -671,6 +671,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   isThinkingModeEnabled: true,
   isToolCallsEnabled: true,
   yoloMode: false,
+  pureMode: false,
   statsResetTime: null,
 };
 
@@ -716,6 +717,9 @@ export async function initDatabase(): Promise<void> {
     }
     if (settings && settings.yoloMode === undefined) {
       await db.settings.update(1, { yoloMode: false });
+    }
+    if (settings && settings.pureMode === undefined) {
+      await db.settings.update(1, { pureMode: false });
     }
     if (settings && (settings.language !== null || settings.themeMode !== 'system')) {
       await db.settings.update(1, { language: null, themeMode: 'system' });

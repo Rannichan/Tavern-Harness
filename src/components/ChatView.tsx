@@ -429,6 +429,7 @@ function MessageBubble({
 }) {
   const t = useT();
   const providers = useStore((s) => s.providers);
+  const pureMode = useStore((s) => s.settings?.pureMode === true);
   const turnStreaming = useStore((s) => s.streaming.sessionId === session.id);
   const longPressProps = useMessageLongPress(msg, session);
   // System 消息（/new 标记）
@@ -441,6 +442,7 @@ function MessageBubble({
 
   // 工具消息
   if (msg.role === 'tool') {
+    if (pureMode) return null;
     // 该结果已并入发起它的工具调用卡片内部 → 不再独立渲染
     if (msg.toolCallId && suppressedResultIds.has(msg.toolCallId)) return null;
     const isError = msg.content.startsWith('ERROR:') || msg.content.startsWith('CANCELLED:');
@@ -493,6 +495,8 @@ function MessageBubble({
     return <UserBubble msg={msg} session={session} userPersonaName={userPersonaName} loopIndex={loopIndex} />;
   }
 
+  if (pureMode && !displayContent && msg.attachments.length === 0) return null;
+
   // 用于「点击队列发言 → 对话定位」：NPC 用 participantId，玩家/未知用 null（定位到循环首条）
   const speakerKey = msg.speakerParticipantId != null ? String(msg.speakerParticipantId) : null;
 
@@ -517,7 +521,7 @@ function MessageBubble({
           {msg.modelUsed && !msg.modelUsed.startsWith('scheduled:') && <span className="msg-model" title={msg.modelUsed}>{displayModelName(providers, msg.modelUsed)}</span>}
           <span className="msg-time">{fmtTime(msg.timestamp)}</span>
         </div>
-        {msg.thinkingContent && (
+        {!pureMode && msg.thinkingContent && (
           <Collapse
             title={t('chat.thinking')}
             icon="🧠"
@@ -528,7 +532,7 @@ function MessageBubble({
             <Markdown text={msg.thinkingContent} mathEnabled={false} />
           </Collapse>
         )}
-        {toolCalls.length > 0 && (
+        {!pureMode && toolCalls.length > 0 && (
           <div className="tool-calls">
             {toolCalls.map((tc, i) => (
               <ToolCallCard
