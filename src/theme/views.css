@@ -1752,6 +1752,7 @@
   color: var(--text-dim);
   font-size: 13px;
   user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 .ws-fm-row:hover {
   background: color-mix(in srgb, var(--primary) 10%, transparent);
