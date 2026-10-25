@@ -1,7 +1,37 @@
 {
-  "latest": "0.1.20",
+  "latest": "0.1.21",
   "repo": "https://github.com/Rannichan/Tavern-Harness",
   "entries": [
+    {
+      "version": "0.1.21",
+      "date": "2026-10-26",
+      "breaking": false,
+      "compare": "v0.1.20...v0.1.21",
+      "groups": {
+        "zh-CN": [
+          {
+            "kind": "changed",
+            "items": [
+              "移动端会话头部的操作按钮收进「更多操作」菜单（工作区文件、编辑对话、重置对话、导出游玩记录、删除对话），头部不再拥挤；主题切换按钮仍然直接显示",
+              "移动端会话标题可用的横向空间明显变大，长标题能显示更多内容",
+              "会话列表中的标题和副标题过长时改为末尾渐隐，不再用省略号生硬截断",
+              "会话头部的上下文用量标签字号略微收小，和标题搭配更协调"
+            ]
+          }
+        ],
+        "en": [
+          {
+            "kind": "changed",
+            "items": [
+              "On mobile, session header actions now collapse into a \"More actions\" menu (workspace files, edit, reset, export gameplay, delete), so the header is no longer cramped; the theme toggle stays one tap away",
+              "Mobile session titles get noticeably more horizontal room, so long titles reveal more of their text",
+              "Long session list titles and subtitles now fade out at the end instead of being cut off with an ellipsis",
+              "The context usage badge in the session header uses a slightly smaller font so it sits better next to the title"
+            ]
+          }
+        ]
+      }
+    },
     {
       "version": "0.1.20",
       "date": "2026-10-26",
