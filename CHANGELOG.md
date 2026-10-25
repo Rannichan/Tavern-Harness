@@ -3,6 +3,30 @@
 > 本文件由 `scripts/changelog.mjs` 从 `changelog/v*.md` 生成，请勿手动编辑。
 > 版本对比链接见文末；源文件位于仓库 `changelog/` 目录。
 
+## [0.1.17] - 2026-10-25
+
+### 中文
+
+#### 改进
+
+- 在工作区文件管理器中预览文件时不再关闭管理器：预览复用管理器的遮罩层，关闭预览即可回到原来的浏览位置
+- 文件删除确认改为管理器内的弹出对话框，删除过程中按钮显示加载状态，失败时会提示原因，不再静默关闭
+
+#### 修复
+
+- 修复在 Termux / Android 环境下 shell 命令无法解析的问题：现在会从 Termux 的 `$PREFIX/bin` 中查找受信任的命令，并保留 `head` 等 applet 的原始名称
+
+### English
+
+#### Changed
+
+- Previewing a file from the workspace file manager no longer closes the manager: the preview reuses the manager's overlay, and closing it returns you to the same browsing position
+- Delete confirmation is now a dialog inside the manager; the delete button shows a loading state while the request runs, and failures surface the reason instead of closing silently
+
+#### Fixed
+
+- Fixed shell commands failing to resolve on Termux / Android: trusted commands are now looked up in Termux's `$PREFIX/bin`, and applets such as `head` keep their original name
+
 ## [0.1.16] - 2026-10-25
 
 ### 中文
@@ -466,6 +490,7 @@
 - Vite + React + Zustand + Dexie stack with browser-side local persistence
 
 <!-- 链接定义 -->
+[0.1.17]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.16...v0.1.17
 [0.1.16]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.15...v0.1.16
 [0.1.15]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.14...v0.1.15
 [0.1.14]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.13...v0.1.14
