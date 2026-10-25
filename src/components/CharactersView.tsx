@@ -29,6 +29,7 @@ import { textPreview } from '../core/textPreview';
 import { AVATAR_STORAGE_SIZE, shrinkAvatarDataUrl } from '../core/avatarThumbnail';
 import { ALL_BUILTIN_TOOL_NAMES } from '../core/toolDefinitions';
 import { useT } from '../core/i18n';
+import { unlockAchievement } from '../core/achievements';
 
 const CharacterBookEditor = lazy(() => import('./CharacterBookEditor'));
 
@@ -297,6 +298,7 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
         ...npc,
         ...npcData,
       });
+      await unlockAchievement('creator');
       addToast(t('toast.charCreated', { name }));
     } else {
       await db.npcs.update(npc.id!, npcData);
@@ -517,6 +519,7 @@ function WorldBookList({ books, onChanged }: {
       addToast(t('toast.wbUpdated'));
     } else {
       await db.worldBooks.add({ ...data, imageUri: null, createdAt: Date.now() });
+      await unlockAchievement('creator');
       addToast(t('toast.wbCreated'));
     }
     setEditing(null);

@@ -9,6 +9,7 @@ import type {
 } from '../../types/models';
 import { BUILTIN_TOOL_NAMES } from '../toolDefinitions';
 import { translate } from '../i18n';
+import { unlockAchievement } from '../achievements';
 import { rollDice } from './builtinTools';
 import {
   createSessionWorkspaceDir,
@@ -409,6 +410,7 @@ async function handleCreateSkill(args: Record<string, unknown>): Promise<string>
   if (exists) return `ERROR: Skill ${name} already exists`;
   const tool = await createSkillTool(name, String(args.description ?? ''), (args.parameters as Record<string, unknown>) ?? {}, args.execution);
   await db.tools.add(tool);
+  await unlockAchievement('explorer');
   return translate('tool.skillCreated', { name });
 }
 
@@ -493,6 +495,7 @@ async function handleCreateCharacter(args: Record<string, unknown>): Promise<str
     isBuiltIn: false,
     createdAt: Date.now(),
   });
+  await unlockAchievement('creator');
   return translate('tool.characterCreated', { name });
 }
 
@@ -638,6 +641,7 @@ async function handleCreateLorebook(args: Record<string, unknown>): Promise<stri
   if (!name || !content) return 'ERROR: name and content are required';
   if (await db.worldBooks.where('name').equals(name).first()) return `ERROR: Lorebook ${name} already exists`;
   await db.worldBooks.add({ name, content: content.slice(0, 10_000), imageUri: null, createdAt: Date.now() });
+  await unlockAchievement('creator');
   return translate('tool.lorebookCreated', { name });
 }
 

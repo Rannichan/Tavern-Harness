@@ -3,6 +3,7 @@ import { useStore } from '../store/store';
 import { Icon, Modal } from './shared';
 import { useT } from '../core/i18n';
 import { exportGameplay, importGameplay } from '../core/gameplay';
+import { unlockAchievement } from '../core/achievements';
 
 // ============================================================
 // 游戏导出 / 导入
@@ -35,6 +36,7 @@ export function GameplayExportModal({
       if (result === 'canceled') {
         addToast(t('toast.exportCanceled'));
       } else {
+        await unlockAchievement('game-exporter');
         addToast(t('toast.gameplayExported'));
       }
       onClose();
@@ -125,6 +127,7 @@ export function GameplayImportModal({
     setBusy(true);
     try {
       const result = await importGameplay(pendingData.current);
+      await unlockAchievement('game-importer');
       pendingData.current = null;
       setSelectedName(null);
       addToast(

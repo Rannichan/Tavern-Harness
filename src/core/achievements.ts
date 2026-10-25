@@ -22,6 +22,10 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'night-owl', name: '午夜不归人', icon: '🌙', threshold: 1_000_000, description: '累计使用 1,000,000 Token' },
   { id: 'legend', name: '酒馆传奇', icon: '🏆', threshold: 100_000_000, description: '累计使用 100,000,000 Token' },
   { id: 'th-shareholder', name: 'TH股东', icon: '📈', iconUrl: '/tavern-harness-logo.png', description: '连续点击首页图标 5 次' },
+  { id: 'game-exporter', name: '独乐乐不如众乐乐', icon: '📤', description: '首次导出游戏' },
+  { id: 'game-importer', name: '发现者', icon: '📥', description: '首次导入游戏' },
+  { id: 'creator', name: '创造者', icon: '🎨', description: '首次创建角色卡或世界书' },
+  { id: 'explorer', name: '探索者', icon: '🧩', description: '首次创建自定义技能' },
 ];
 
 /** 生涯总 token（输入 + 输出） */
