@@ -9,9 +9,9 @@
 //   - 仅监听 127.0.0.1（不回显到局域网）
 //   - 白名单命令直接执行，无需确认
 //   - 任一非白名单命令均需用户批准并回传服务端签发的一次性确认票据
-//   - 支持受控的 &&、||、; 连接符；无 shell 解释器（spawn shell:false），
-//     不支持管道、重定向、变量展开或命令替换
-//   - 单条命令 5s 超时，超时即 kill 进程树
+//   - 支持受控的 &&、||、;、管道及 < / > / >> 重定向；无 shell 解释器（spawn shell:false），
+//     不支持变量展开、命令替换或其它 shell 语法
+//   - 每个命令组 5s 超时，超时即 kill 进程树
 //   - 输出截断 64KB，合并 stderr
 //
 // 启动：node sandbox-server.mjs [port]   （默认 17891）
@@ -22,11 +22,12 @@ import { createServer } from 'node:http';
 import { spawn, spawnSync, execFile } from 'node:child_process';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import {
-  writeFileSync, existsSync, lstatSync, readlinkSync, readFile, writeFile, mkdirSync, mkdtempSync, readdir, statSync, symlinkSync, realpathSync, rmSync, unlink, cpSync,
+  writeFileSync, existsSync, lstatSync, readlinkSync, readFile, writeFile, mkdirSync, mkdtempSync, readdir, statSync, symlinkSync, realpathSync, rmSync, unlink, cpSync, createReadStream, createWriteStream,
 } from 'node:fs';
 import { tmpdir, homedir } from 'node:os';
 import { join, dirname, resolve, sep, delimiter, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { PassThrough } from 'node:stream';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.argv[2] || process.env.SANDBOX_PORT || 17891);
@@ -169,20 +170,149 @@ function parseCommandLine(line) {
       quote = ch;
       continue;
     }
-    const operator = line.startsWith('&&', i) ? '&&' : line.startsWith('||', i) ? '||' : ch === ';' ? ';' : null;
+    const operator = line.startsWith('&&', i) ? '&&' : line.startsWith('||', i) ? '||' : ch === ';' ? ';' : ch === '\n' ? ';' : null;
     if (!operator) continue;
     const command = line.slice(start, i).trim();
-    if (!command) throw new Error(`Missing command before operator ${operator}`);
-    commands.push(command);
-    operators.push(operator);
+    if (!command) {
+      if (ch === '\n') {
+        start = i + 1;
+        continue;
+      }
+      throw new Error(`Missing command before operator ${operator}`);
+    }
+    if (!command.startsWith('#')) {
+      commands.push(command);
+      operators.push(operator);
+    }
     i += operator.length - 1;
     start = i + 1;
   }
   if (quote) throw new Error('Command contains an unclosed quote');
   const command = line.slice(start).trim();
-  if (!command) throw new Error('Missing command after operator');
-  commands.push(command);
+  if (!command) {
+    if (commands.length === 0) return { commands, operators: [] };
+    throw new Error('Missing command after operator');
+  }
+  if (!command.startsWith('#')) commands.push(command);
   return { commands, operators };
+}
+
+/** 在保留引号和转义的前提下，将受支持的重定向操作符变为独立 token。 */
+function separateRedirectOperators(value) {
+  let out = '';
+  let quote = null;
+  let escaped = false;
+  for (let i = 0; i < value.length; i++) {
+    const ch = value[i];
+    if (escaped) {
+      escaped = false;
+      out += ch;
+      continue;
+    }
+    if (ch === '\\') {
+      escaped = true;
+      out += ch;
+      continue;
+    }
+    if (quote) {
+      if (ch === quote) quote = null;
+      out += ch;
+      continue;
+    }
+    if (ch === "'" || ch === '"') {
+      quote = ch;
+      out += ch;
+      continue;
+    }
+    if (ch === '2' && value[i + 1] === '>') {
+      const operator = value.startsWith('2>>', i) ? '2>>' : value.startsWith('2>&1', i) ? '2>&1' : '2>';
+      out += ` ${operator} `;
+      i += operator.length - 1;
+      continue;
+    }
+    if (ch === '<' || ch === '>') {
+      const operator = ch === '>' && value[i + 1] === '>' ? '>>' : ch;
+      out += ` ${operator} `;
+      i += operator.length - 1;
+      continue;
+    }
+    out += ch;
+  }
+  return out;
+}
+
+/** 解析单个命令组中的管道和受控重定向。 */
+function parseCommandGroup(group) {
+  const segments = [];
+  let start = 0;
+  let quote = null;
+  let escaped = false;
+  for (let i = 0; i < group.length; i++) {
+    const ch = group[i];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (ch === '\\') {
+      escaped = true;
+      continue;
+    }
+    if (quote) {
+      if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === "'" || ch === '"') {
+      quote = ch;
+      continue;
+    }
+    if (ch !== '|') continue;
+    const segment = group.slice(start, i).trim();
+    if (!segment) throw new Error('Missing command before pipe');
+    segments.push(segment);
+    start = i + 1;
+  }
+  if (quote) throw new Error('Command contains an unclosed quote');
+  const lastSegment = group.slice(start).trim();
+  if (!lastSegment) throw new Error('Missing command after pipe');
+  segments.push(lastSegment);
+
+  return segments.map((segment) => {
+    const tokens = tokenize(separateRedirectOperators(segment));
+    const args = [];
+    let input = null;
+    let output = null;
+    let errorOutput = null;
+    let mergeErrorToOutput = false;
+    for (let i = 0; i < tokens.length; i++) {
+      const token = tokens[i];
+      const isRedirect = ['<', '>', '>>', '2>', '2>>', '2>&1'].includes(token);
+      if (!isRedirect) {
+        args.push(token);
+        continue;
+      }
+      if (token === '2>&1') {
+        if (mergeErrorToOutput || errorOutput) throw new Error('Multiple standard error redirections are unsupported');
+        mergeErrorToOutput = true;
+        continue;
+      }
+      const path = tokens[++i];
+      if (!path || ['<', '>', '>>', '2>', '2>>', '2>&1'].includes(path)) {
+        throw new Error(`Missing path after ${token}`);
+      }
+      if (token === '<') {
+        if (input) throw new Error('Multiple input redirections are unsupported');
+        input = path;
+      } else if (token === '>' || token === '>>') {
+        if (output) throw new Error('Multiple output redirections are unsupported');
+        output = { path, append: token === '>>' };
+      } else {
+        if (errorOutput || mergeErrorToOutput) throw new Error('Multiple standard error redirections are unsupported');
+        errorOutput = { path, append: token === '2>>' };
+      }
+    }
+    if (!args.length) throw new Error('Missing command');
+    return { cmd: args[0], args: args.slice(1), input, output, errorOutput, mergeErrorToOutput };
+  });
 }
 
 // ---- 白名单：可直接执行；名单外命令统一请求用户许可 ----
@@ -675,27 +805,24 @@ const server = createServer(async (req, res) => {
     return;
   }
 
-  const lines = script.split('\n').filter((l) => l.trim() && !l.trim().startsWith('#'));
   const outputs = [];
-  for (const line of lines) {
-    try {
-      const { commands, operators } = parseCommandLine(line.trim());
-      let lastCode = 0;
-      let lastError = '';
-      for (let i = 0; i < commands.length; i++) {
-        const previousOperator = operators[i - 1];
-        if ((previousOperator === '&&' && lastCode !== 0) || (previousOperator === '||' && lastCode === 0)) continue;
-        const result = await runOne(commands[i], sessionBase);
-        lastCode = result.code;
-        lastError = result.stderr || (lastCode !== 0 ? `Exit code ${lastCode}` : '');
-        if (result.stdout) outputs.push(result.stdout.trimEnd());
-        if (result.stderr) outputs.push(result.stderr.trimEnd());
-      }
-      if (lastCode !== 0) throw new Error(lastError);
-    } catch (e) {
-      res.end(JSON.stringify({ ok: false, message: `${line.trim()}:\n${(e).message}` }));
-      return;
+  try {
+    const { commands, operators } = parseCommandLine(script);
+    let lastCode = 0;
+    let lastError = '';
+    for (let i = 0; i < commands.length; i++) {
+      const previousOperator = operators[i - 1];
+      if ((previousOperator === '&&' && lastCode !== 0) || (previousOperator === '||' && lastCode === 0)) continue;
+      const result = await runCommandGroup(commands[i], sessionBase);
+      lastCode = result.code;
+      lastError = result.stderr || (lastCode !== 0 ? `Exit code ${lastCode}` : '');
+      if (result.stdout) outputs.push(result.stdout.trimEnd());
+      if (result.stderr) outputs.push(result.stderr.trimEnd());
     }
+    if (lastCode !== 0) throw new Error(lastError);
+  } catch (e) {
+    res.end(JSON.stringify({ ok: false, message: `${(e).message}` }));
+    return;
   }
   res.end(JSON.stringify({ ok: true, output: outputs.join('\n').slice(0, MAX_OUTPUT) }));
 });
@@ -920,29 +1047,29 @@ function shellReadTargets(command, args) {
 
 function validateScript(script, sessionBase) {
   if (script.length > MAX_SCRIPT_CHARS) return 'Script exceeds 8,000 characters';
-  const lines = script.split('\n').filter((l) => l.trim() && !l.trim().startsWith('#'));
-  if (lines.length === 0) return 'Script is empty';
+  let groups;
+  try {
+    groups = parseCommandLine(script).commands.map(parseCommandGroup);
+  } catch (e) {
+    return e.message;
+  }
+  if (groups.length === 0) return 'Script is empty';
   let commandCount = 0;
   let hasNonAllowlistedCommand = false;
   let hasExternalWrite = false;
   let hasExternalRead = false;
   let hasExternalPath = false;
-  for (const line of lines) {
-    let commands;
-    try {
-      commands = parseCommandLine(line.trim()).commands;
-    } catch (e) {
-      return e.message;
-    }
+  for (const commands of groups) {
     commandCount += commands.length;
     if (commandCount > MAX_LINES) return 'Script contains more than 20 commands';
-    for (const command of commands) {
-      const [cmd, ...args] = tokenize(command);
+    for (const { cmd, args, input, output, errorOutput } of commands) {
       if (!SHELL_ALLOWED_REAL.has(cmd)) hasNonAllowlistedCommand = true;
-      if (shellWriteTargets(cmd, args).some((arg) => resolvesOutsideSession(arg, sessionBase))) {
+      const writeTargets = [...shellWriteTargets(cmd, args), ...(output ? [output.path] : []), ...(errorOutput ? [errorOutput.path] : [])];
+      if (writeTargets.some((arg) => resolvesOutsideSession(arg, sessionBase) || isPublicLinkReadPath(arg, sessionBase))) {
         hasExternalWrite = true;
       }
-      if (shellReadTargets(cmd, args).some((arg) => (
+      const readTargets = [...shellReadTargets(cmd, args), ...(input ? [input] : [])];
+      if (readTargets.some((arg) => (
         !isPublicLinkReadPath(arg, sessionBase) && resolvesOutsideSession(arg, sessionBase)
       ))) {
         hasExternalRead = true;
@@ -961,65 +1088,137 @@ function validateScript(script, sessionBase) {
   return null;
 }
 
-function runOne(line, sessionBase) {
-  const tokens = tokenize(line);
-  let cmd = tokens[0];
-  const args = tokens.slice(1);
+function commandPath(cmd) {
   const trustedPath = SHELL_ALLOWED_REAL.has(cmd) ? TRUSTED_COMMAND_PATHS.get(cmd) : null;
   if (SHELL_ALLOWED_REAL.has(cmd) && !trustedPath) {
-    return Promise.reject(new Error(`Allowlisted command ${cmd} is unavailable in a trusted system directory`));
+    throw new Error(`Allowlisted command ${cmd} is unavailable in a trusted system directory`);
   }
-  if (trustedPath) {
-    cmd = trustedPath;
+  return trustedPath ?? cmd;
+}
+
+function killChild(child) {
+  try {
+    if (IS_WIN) {
+      const killed = spawnSync('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], {
+        windowsHide: true,
+        stdio: 'ignore',
+      });
+      if (killed.error || killed.status !== 0) child.kill('SIGKILL');
+    } else {
+      process.kill(-child.pid, 'SIGKILL');
+    }
+  } catch { /* ignore */ }
+}
+
+function runCommandGroup(group, sessionBase) {
+  const commands = parseCommandGroup(group);
+  if (commands.some((command, index) => command.input && index !== 0)) {
+    return Promise.reject(new Error('Input redirection is only supported for the first pipeline command'));
   }
+  if (commands.some((command, index) => command.output && index !== commands.length - 1)) {
+    return Promise.reject(new Error('Output redirection is only supported for the last pipeline command'));
+  }
+  if (commands.some((command, index) => command.errorOutput && index !== commands.length - 1)) {
+    return Promise.reject(new Error('Standard error file redirection is only supported for the last pipeline command'));
+  }
+
   return new Promise((resolve, reject) => {
-    const cwd = sessionBase;
-    const child = spawn(cmd, args, {
-      cwd,
-      shell: false,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      env: SPAWN_ENV,
-      detached: !IS_WIN,
-    });
+    const children = [];
+    const input = commands[0].input
+      ? createReadStream(join(sessionBase, commands[0].input))
+      : null;
+    const last = commands.at(-1);
+    const output = last.output
+      ? createWriteStream(join(sessionBase, last.output.path), { flags: last.output.append ? 'a' : 'w' })
+      : null;
+    const errorOutput = last.errorOutput
+      ? createWriteStream(join(sessionBase, last.errorOutput.path), { flags: last.errorOutput.append ? 'a' : 'w' })
+      : null;
     let stdout = '';
     let stderr = '';
     let settled = false;
-    const timer = setTimeout(() => {
+    let closed = 0;
+    const finish = (error) => {
       if (settled) return;
       settled = true;
-      try {
-        if (IS_WIN) {
-          const killed = spawnSync('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], {
-            windowsHide: true,
-            stdio: 'ignore',
+      clearTimeout(timer);
+      input?.destroy();
+      output?.destroy();
+      errorOutput?.destroy();
+      if (error) {
+        children.forEach(killChild);
+        reject(error);
+      } else {
+        resolve({
+          code: children.at(-1)?.exitCode ?? 1,
+          stdout,
+          stderr: stderr.trim(),
+        });
+      }
+    };
+    const timer = setTimeout(() => finish(new Error(`Command timed out (${CMD_TIMEOUT_MS}ms)`)), CMD_TIMEOUT_MS);
+
+    input?.on('error', (error) => finish(new Error(`Failed to read input: ${error.message}`)));
+    output?.on('error', (error) => finish(new Error(`Failed to write output: ${error.message}`)));
+    errorOutput?.on('error', (error) => finish(new Error(`Failed to write standard error: ${error.message}`)));
+
+    try {
+      for (const [index, command] of commands.entries()) {
+        const isLast = index === commands.length - 1;
+        const child = spawn(commandPath(command.cmd), command.args, {
+          cwd: sessionBase,
+          shell: false,
+          stdio: ['pipe', 'pipe', 'pipe'],
+          env: SPAWN_ENV,
+          detached: !IS_WIN,
+        });
+        children.push(child);
+        child.on('error', (error) => finish(new Error(`Failed to execute ${command.cmd}: ${error.message}`)));
+        if (isLast && errorOutput) {
+          child.stderr.pipe(errorOutput);
+        } else if (!command.mergeErrorToOutput) {
+          child.stderr.on('data', (data) => {
+            stderr += data;
+            if (stderr.length > MAX_OUTPUT) child.stderr.pause();
           });
-          if (killed.error || killed.status !== 0) child.kill('SIGKILL');
-        } else {
-          process.kill(-child.pid, 'SIGKILL');
         }
-      } catch { /* ignore */ }
-      reject(new Error(`Command timed out (${CMD_TIMEOUT_MS}ms)`));
-    }, CMD_TIMEOUT_MS);
-    child.stdout.on('data', (d) => {
-      stdout += d;
-      if (stdout.length > MAX_OUTPUT) child.stdout.pause();
-    });
-    child.stderr.on('data', (d) => {
-      stderr += d;
-      if (stderr.length > MAX_OUTPUT) child.stderr.pause();
-    });
-    child.on('error', (e) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      reject(new Error(`Failed to execute ${cmd}: ${e.message}`));
-    });
-    child.on('close', (code) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolve({ code: code ?? 1, stdout, stderr: stderr.trim() });
-    });
+        child.on('close', () => {
+          closed += 1;
+          if (closed === children.length && children.length === commands.length && !settled) finish(null);
+        });
+      }
+      for (let index = 0; index < children.length - 1; index++) {
+        const current = children[index];
+        const next = children[index + 1];
+        if (commands[index].mergeErrorToOutput) {
+          const merged = new PassThrough();
+          current.stdout.pipe(merged, { end: false });
+          current.stderr.pipe(merged);
+          merged.pipe(next.stdin);
+        } else {
+          current.stdout.pipe(next.stdin);
+        }
+      }
+      if (input) input.pipe(children[0].stdin);
+      else children[0].stdin.end();
+      if (output) {
+        children.at(-1).stdout.pipe(output, { end: !last.mergeErrorToOutput });
+        if (last.mergeErrorToOutput) children.at(-1).stderr.pipe(output);
+      } else {
+        children.at(-1).stdout.on('data', (data) => {
+          stdout += data;
+          if (stdout.length > MAX_OUTPUT) children.at(-1).stdout.pause();
+        });
+        if (last.mergeErrorToOutput) {
+          children.at(-1).stderr.on('data', (data) => {
+            stdout += data;
+            if (stdout.length > MAX_OUTPUT) children.at(-1).stderr.pause();
+          });
+        }
+      }
+    } catch (error) {
+      finish(error);
+    }
   });
 }
 

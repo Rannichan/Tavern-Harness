@@ -533,44 +533,48 @@ function interpolateDeep(value: unknown, args: Record<string, unknown>): unknown
 
 // ---------- shell（真实执行：白名单直执 + 其它命令确认）----------
 
-/** 按服务端规则统计换行及 && / || / ; 分隔的命令，忽略引号和转义内的连接符。 */
+/** 按服务端规则统计换行、连接符和管道分隔的命令，忽略引号和转义内的连接符。 */
 function countShellCommands(script: string): number {
-  const lines = script.split('\n').filter((line) => line.trim() && !line.trim().startsWith('#'));
   let count = 0;
-  for (const rawLine of lines) {
-    const line = rawLine.trim();
-    let commandStart = 0;
-    let quote: "'" | '"' | null = null;
-    let escaped = false;
-    for (let index = 0; index < line.length; index++) {
-      const char = line[index];
-      if (escaped) {
-        escaped = false;
-        continue;
-      }
-      if (char === '\\') {
-        escaped = true;
-        continue;
-      }
-      if (quote) {
-        if (char === quote) quote = null;
-        continue;
-      }
-      if (char === "'" || char === '"') {
-        quote = char;
-        continue;
-      }
-      const operator = line.startsWith('&&', index) ? '&&' : line.startsWith('||', index) ? '||' : char === ';' ? ';' : null;
-      if (!operator) continue;
-      if (!line.slice(commandStart, index).trim()) throw new Error(`Missing command before operator ${operator}`);
-      count += 1;
-      index += operator.length - 1;
-      commandStart = index + 1;
+  let commandStart = 0;
+  let quote: "'" | '"' | null = null;
+  let escaped = false;
+  for (let index = 0; index < script.length; index++) {
+    const char = script[index];
+    if (escaped) {
+      escaped = false;
+      continue;
     }
-    if (quote) throw new Error('Command contains an unclosed quote');
-    if (!line.slice(commandStart).trim()) throw new Error('Missing command after operator');
-    count += 1;
+    if (char === '\\') {
+      escaped = true;
+      continue;
+    }
+    if (quote) {
+      if (char === quote) quote = null;
+      continue;
+    }
+    if (char === "'" || char === '"') {
+      quote = char;
+      continue;
+    }
+    const operator = script.startsWith('&&', index) ? '&&' : script.startsWith('||', index) ? '||' : char === ';' ? ';' : char === '|' ? '|' : char === '\n' ? '\n' : null;
+    if (!operator) continue;
+    const command = script.slice(commandStart, index).trim();
+    if (!command) {
+      if (operator === '\n') {
+        commandStart = index + 1;
+        continue;
+      }
+      throw new Error(`Missing command before operator ${operator}`);
+    }
+    if (!command.startsWith('#')) count += 1;
+    index += operator.length - 1;
+    commandStart = index + 1;
   }
+  if (quote) throw new Error('Command contains an unclosed quote');
+  const command = script.slice(commandStart).trim();
+  if (!command) return count;
+  if (!command.startsWith('#')) count += 1;
   return count;
 }
 

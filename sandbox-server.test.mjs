@@ -353,10 +353,59 @@ try {
   assert.equal(compactTargetDirectory.ok, false, 'compact target-directory options must not bypass path restrictions');
   assert.match(compactTargetDirectory.message, /Script write paths must stay within the current session workspace/);
 
-  const metacharacters = await post({ script: 'echo safe & literal | text > file', session });
-  assert.equal(metacharacters.ok, true, 'shell metacharacters must remain literal arguments');
-  assert.equal(metacharacters.output, 'safe & literal | text > file');
-  assert.equal(existsSync(join(workspaceRoot, session, 'file')), false, 'redirection must not create a file');
+  const pipeline = await post({ script: 'printf "alpha\\nbeta\\n" | grep beta', session });
+  assert.equal(pipeline.ok, true, 'allowlisted pipeline must execute without confirmation');
+  assert.equal(pipeline.output, 'beta');
+
+  const redirected = await post({ script: 'printf "first\\n" > output.txt; printf "second\\n" >> output.txt; cat < output.txt', session });
+  assert.equal(redirected.ok, true, 'workspace-contained redirections must execute');
+  assert.equal(redirected.output, 'first\nsecond');
+  assert.equal(readFileSync(join(workspaceRoot, session, 'output.txt'), 'utf8'), 'first\nsecond\n');
+
+  const multilineQuoted = await post({
+    script: 'echo "line1 apple\nline2 banana\nline3 apple\nline4 cherry" > multiline.txt\ncat multiline.txt | grep -c "apple"',
+    session,
+  });
+  assert.equal(multilineQuoted.ok, true, 'newlines inside quoted arguments must remain literal content');
+  assert.equal(multilineQuoted.output, '2');
+  assert.equal(readFileSync(join(workspaceRoot, session, 'multiline.txt'), 'utf8'), 'line1 apple\nline2 banana\nline3 apple\nline4 cherry\n');
+
+  const stderrRedirectRequest = await post({
+    script: 'sh -c "echo stdout-part; echo stderr-part 1>&2" > out.txt 2> err.txt',
+    session,
+  });
+  assert.equal(stderrRedirectRequest.needConfirm, true, 'shell launchers must still require confirmation');
+  assert.equal((await approve(stderrRedirectRequest.confirmationRequestId)).body.ok, true);
+  const stderrRedirect = await post({
+    script: 'sh -c "echo stdout-part; echo stderr-part 1>&2" > out.txt 2> err.txt',
+    session,
+    confirmationRequestId: stderrRedirectRequest.confirmationRequestId,
+  });
+  assert.equal(stderrRedirect.ok, true, 'stdout and stderr must support distinct workspace files');
+  assert.equal(readFileSync(join(workspaceRoot, session, 'out.txt'), 'utf8'), 'stdout-part\n');
+  assert.equal(readFileSync(join(workspaceRoot, session, 'err.txt'), 'utf8'), 'stderr-part\n');
+
+  const mergedStandardErrorRequest = await post({ script: 'sh -c "echo stderr-part 1>&2" 2>&1 | grep stderr', session });
+  assert.equal(mergedStandardErrorRequest.needConfirm, true);
+  assert.equal((await approve(mergedStandardErrorRequest.confirmationRequestId)).body.ok, true);
+  const mergedStandardError = await post({
+    script: 'sh -c "echo stderr-part 1>&2" 2>&1 | grep stderr',
+    session,
+    confirmationRequestId: mergedStandardErrorRequest.confirmationRequestId,
+  });
+  assert.equal(mergedStandardError.ok, true, '2>&1 must merge into a following pipeline');
+  assert.equal(mergedStandardError.output, 'stderr-part');
+
+  const publicRedirect = await post({ script: `echo blocked > public/${publicFile}`, session: otherSession });
+  assert.equal(publicRedirect.ok, false, 'redirection must not write through the public link');
+  assert.match(publicRedirect.message, /Script write paths must stay within the current session workspace/);
+
+  const externalRedirect = await post({ script: `cat < ${forward(join(root, '.gitignore'))}`, session });
+  assert.equal(externalRedirect.ok, false, 'redirection must not read external files');
+  assert.match(externalRedirect.message, /Script read paths must stay within the current session workspace/);
+
+  const confirmedPipeline = await post({ script: 'echo safe | env', session });
+  assert.equal(confirmedPipeline.needConfirm, true, 'each pipeline command must be allowlist checked');
 
   const environmentRequest = await post({ script: 'env', session });
   assert.equal(environmentRequest.needConfirm, true, 'environment inspection must require confirmation');
