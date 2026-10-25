@@ -415,6 +415,8 @@ const ICONS: Record<string, React.ReactNode> = {
   'pip-exit': <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m14 14 5-5M15 9h4v4" /></>,
   'text-wrap': <><path d="M4 6h13a4 4 0 0 1 0 8H9" /><path d="m12 11-3 3 3 3M4 18h3" /></>,
   eye: <><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" /></>,
+  sun: <><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" /></>,
+  moon: <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />,
   folder: <><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></>,
   copy: <><rect x="8" y="8" width="13" height="13" rx="2" /><path d="M5 16V6a2 2 0 0 1 2-2h10" /></>,
 };

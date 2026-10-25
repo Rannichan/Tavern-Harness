@@ -284,6 +284,8 @@ function SessionHeader({
   const addToast = useStore((s) => s.addToast);
   const deleteSession = useStore((s) => s.deleteSession);
   const resetSessionConversation = useStore((s) => s.resetSessionConversation);
+  const themeMode = useStore((s) => s.settings?.themeMode ?? 'system');
+  const setSettings = useStore((s) => s.setSettings);
   const t = useT();
   const [showEdit, setShowEdit] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
@@ -310,6 +312,9 @@ function SessionHeader({
     colorOrdinal: n.avatarColorOrdinal,
     imageUrl: n.avatarDataUrl,
   }));
+  const isDarkTheme = themeMode === 'dark'
+    || (themeMode === 'system' && document.documentElement.dataset.theme === 'dark');
+  const toggleTheme = () => void setSettings({ themeMode: isDarkTheme ? 'light' : 'dark' });
 
   return (
     <div className="chat-header">
@@ -341,6 +346,15 @@ function SessionHeader({
         </button>
         <button className="btn-ghost icon-tooltip danger" title={t('header.deleteTip')} onClick={() => setConfirmDelete(true)}>
           <Icon name="trash" size={17} />
+        </button>
+        <button
+          className="btn-ghost icon-tooltip"
+          type="button"
+          title={t(isDarkTheme ? 'header.switchToLightTip' : 'header.switchToDarkTip')}
+          aria-label={t(isDarkTheme ? 'header.switchToLightTip' : 'header.switchToDarkTip')}
+          onClick={toggleTheme}
+        >
+          <Icon name={isDarkTheme ? 'sun' : 'moon'} size={17} />
         </button>
       </div>
 
