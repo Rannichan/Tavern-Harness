@@ -1045,12 +1045,15 @@ body.resizing .sidebar-resizer {
   min-width: 0;
 }
 .chat-header .ttitle {
+  position: relative;
+  max-width: min(36vw, 420px);
+  overflow: hidden;
   font-family: var(--font-serif);
   font-weight: 700;
   font-size: 17px;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
+  mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
 }
 .chat-header .tsub {
   font-size: 12px;
@@ -1082,6 +1085,7 @@ body.resizing .sidebar-resizer {
 /* ---------- 聊天头部右侧动作按钮 ---------- */
 .chat-actions {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: 4px;
 }
@@ -1096,6 +1100,7 @@ body.resizing .sidebar-resizer {
   background: transparent;
   color: var(--text-dim);
   transition: background 0.15s ease, color 0.15s ease;
+  flex-shrink: 0;
   cursor: pointer;
 }
 .chat-actions .icon-tooltip:hover {
@@ -1794,6 +1799,7 @@ hr.sep {
   }
 
   .chat-header .ttitle {
+    max-width: min(28vw, 180px);
     font-size: 15px;
   }
 
@@ -1802,20 +1808,8 @@ hr.sep {
   }
 
   .chat-actions {
-    display: flex;
-    flex: 0 1 auto;
-    min-width: 0;
-    justify-content: flex-end;
+    flex: 0 0 auto;
     gap: 0;
-    max-width: none;
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
-    scrollbar-width: none;
-    touch-action: pan-x;
-  }
-
-  .chat-actions::-webkit-scrollbar {
-    display: none;
   }
 
   .chat-actions .icon-tooltip {
