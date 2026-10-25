@@ -478,8 +478,16 @@ export const useStore = create<AppState>((set, get) => ({
       return { activeSessionId: id, activeView: 'chat', activitySessionIds };
     });
     if (id != null) {
-      get().loadMessages(id);
-      get().refreshLiveQueue(id);
+      const state = get();
+      // 已加载的会话切回时复用内存快照，避免重复传输、解析并覆盖整段历史。
+      // 生成中的会话仍强制刷新，以合并其他写入路径持久化的最新字段。
+      if (state.messages[id] === undefined || state.streaming.sessionId === id) {
+        void state.loadMessages(id).catch((error) => {
+          console.error(`Failed to load session ${id}`, error);
+          state.addToast(translate('toast.genFailed', { msg: error instanceof Error ? error.message : String(error) }), 'error');
+        });
+      }
+      void state.refreshLiveQueue(id).catch((error) => console.error(`Failed to load queue for session ${id}`, error));
     }
   },
 

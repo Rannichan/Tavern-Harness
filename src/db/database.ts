@@ -282,40 +282,52 @@ let hasWriteLock = false;
 let lockHeartbeat: number | null = null;
 
 const PERSISTENCE_REQUEST_TIMEOUT_MS = 8_000;
+const PERSISTENCE_STARTUP_RETRY_DELAY_MS = 250;
 
 async function persistenceRequest<T>(path: string, body: Record<string, unknown> = {}): Promise<T> {
-  const controller = new AbortController();
-  const timeout = globalThis.setTimeout(() => controller.abort(), PERSISTENCE_REQUEST_TIMEOUT_MS);
-  let response: Response;
-  try {
-    response = await fetch(`/api-v3${path}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...body, clientId }),
-      signal: controller.signal,
-    });
-  } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError') {
-      throw new Error(`Persistence request ${path} timed out`);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const controller = new AbortController();
+    const timeout = globalThis.setTimeout(() => controller.abort(), PERSISTENCE_REQUEST_TIMEOUT_MS);
+    let response: Response;
+    try {
+      response = await fetch(`/api-v3${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...body, clientId }),
+        signal: controller.signal,
+      });
+    } catch (error) {
+      if (attempt === 0) {
+        await new Promise((resolve) => globalThis.setTimeout(resolve, PERSISTENCE_STARTUP_RETRY_DELAY_MS));
+        continue;
+      }
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw new Error(`Persistence request ${path} timed out`);
+      }
+      throw new Error('Unable to reach the persistence service');
+    } finally {
+      globalThis.clearTimeout(timeout);
     }
-    throw new Error('Unable to reach the persistence service');
-  } finally {
-    globalThis.clearTimeout(timeout);
-  }
-  let payload: T & { ok?: boolean; message?: string };
-  try {
-    payload = await response.json() as T & { ok?: boolean; message?: string };
-  } catch {
-    throw new Error(`Persistence service returned an invalid response (${response.status})`);
-  }
-  if (!response.ok || payload.ok === false) {
-    if (response.status === 423) {
-      hasWriteLock = false;
-      markControlReadOnly();
+    let payload: T & { ok?: boolean; message?: string };
+    try {
+      payload = await response.json() as T & { ok?: boolean; message?: string };
+    } catch {
+      throw new Error(`Persistence service returned an invalid response (${response.status})`);
     }
-    throw new Error(`Persistence request ${path} failed: ${payload.message || `HTTP ${response.status}`}`);
+    if (response.status === 503 && payload.message === 'Persistence server not running' && attempt === 0) {
+      await new Promise((resolve) => globalThis.setTimeout(resolve, PERSISTENCE_STARTUP_RETRY_DELAY_MS));
+      continue;
+    }
+    if (!response.ok || payload.ok === false) {
+      if (response.status === 423) {
+        hasWriteLock = false;
+        markControlReadOnly();
+      }
+      throw new Error(`Persistence request ${path} failed: ${payload.message || `HTTP ${response.status}`}`);
+    }
+    return payload;
   }
-  return payload;
+  throw new Error(`Persistence request ${path} failed after retry`);
 }
 
 async function requireWriteLock(): Promise<void> {
@@ -496,6 +508,14 @@ class RemoteTable<T extends object> {
   async get(key: unknown): Promise<T | undefined> {
     const result = await persistenceRequest<{ record: { value: T } | null }>('/records/get', { collection: this.collection, key: Array.isArray(key) ? key.join(':') : String(key) });
     return result.record?.value;
+  }
+  async getRawLog(key: number): Promise<Pick<ChatMessage, 'rawRequestBody' | 'rawResponseBody'> | null> {
+    if (this.collection !== 'messages') throw new Error('Raw logs are only available for messages');
+    const result = await persistenceRequest<{ rawLog: Pick<ChatMessage, 'rawRequestBody' | 'rawResponseBody'> | null }>('/records/message-raw-log', {
+      collection: this.collection,
+      key: String(key),
+    });
+    return result.rawLog;
   }
   async count(): Promise<number> { return (await this.toArray()).length; }
   async add(value: T): Promise<number> {

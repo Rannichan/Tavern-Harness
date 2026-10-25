@@ -1,5 +1,6 @@
 import { Fragment, lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type UIEvent } from 'react';
 import { useStore } from '../store/store';
+import { db } from '../db/database';
 import { type ChatMessage, type ChatParticipant, type ChatSession, type ContextCompression, type ToolCallRecord, displayModelName } from '../types/models';
 import { Avatar, Icon, Markdown, Collapse, Modal, AttachCard } from './shared';
 import { FileDisplayViewButton, parseStoredDisplayRef } from './FileDisplayModal';
@@ -119,6 +120,39 @@ export function ChatView({
     () => new Map(compressions.map((compression) => [compression.endMessageId, compression])),
     [compressions],
   );
+  const parsedToolCallsCache = useRef(new Map<number, { source: string; calls: ToolCallRecord[] }>());
+  const toolMessageData = useMemo(() => {
+    const resultsByCallId = new Map<string, ChatMessage[]>();
+    const displayedCallIds = new Set<string>();
+
+    for (const message of messages) {
+      if (message.role === 'tool' && message.toolCallId) {
+        const results = resultsByCallId.get(message.toolCallId);
+        if (results) results.push(message);
+        else resultsByCallId.set(message.toolCallId, [message]);
+        continue;
+      }
+      if (message.role !== 'assistant' || !message.toolCallsJson) continue;
+
+      const cached = message.id != null ? parsedToolCallsCache.current.get(message.id) : undefined;
+      let calls: ToolCallRecord[];
+      if (cached?.source === message.toolCallsJson) {
+        calls = cached.calls;
+      } else {
+        try {
+          calls = JSON.parse(message.toolCallsJson) as ToolCallRecord[];
+        } catch {
+          calls = [];
+        }
+        if (message.id != null) {
+          parsedToolCallsCache.current.set(message.id, { source: message.toolCallsJson, calls });
+        }
+      }
+      for (const call of calls) if (call.id) displayedCallIds.add(call.id);
+    }
+
+    return { resultsByCallId, displayedCallIds };
+  }, [messages]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -275,33 +309,6 @@ export function ChatView({
     return personaId != null ? s.npcs.find((npc) => npc.id === personaId)?.name ?? null : null;
   });
 
-  // 工具调用结果按 toolCallId 分组；已由 assistant 消息工具卡片展示的调用 id，其结果并入卡片内部渲染
-  const toolResultsByCallId = useMemo(() => {
-    const map = new Map<string, ChatMessage[]>();
-    for (const m of messages) {
-      if (m.role === 'tool' && m.toolCallId) {
-        const arr = map.get(m.toolCallId);
-        if (arr) arr.push(m);
-        else map.set(m.toolCallId, [m]);
-      }
-    }
-    return map;
-  }, [messages]);
-  const displayedToolCallIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const m of messages) {
-      if (m.role !== 'assistant') continue;
-      try {
-        for (const tc of JSON.parse(m.toolCallsJson || '[]') as ToolCallRecord[]) {
-          if (tc.id) ids.add(tc.id);
-        }
-      } catch {
-        /* ignore */
-      }
-    }
-    return ids;
-  }, [messages]);
-
   const handleScroll = (event: UIEvent<HTMLDivElement>) => {
     const el = event.currentTarget;
     // 隐藏过程中浏览器会把滚动位置夹到 0 并派发一次 scroll 事件，
@@ -354,8 +361,8 @@ export function ChatView({
               userPersonaName={userPersonaName}
               loopIndex={isGroup ? (m.loopIndex ?? 0) : null}
               streaming={streaming && m.id === lastMsgId(messages)}
-              toolResultsByCallId={toolResultsByCallId}
-              suppressedResultIds={displayedToolCallIds}
+              toolResultsByCallId={toolMessageData.resultsByCallId}
+              suppressedResultIds={toolMessageData.displayedCallIds}
             />
             {compressionsByEndMessageId.has(m.id!) && (
               <div className="compression-banner-wrap">
@@ -1411,16 +1418,21 @@ export function MessageMenu() {
       },
     });
   }
-  if (msg.rawRequestBody || msg.rawResponseBody) {
+  if (msg.rawRequestBody || msg.rawResponseBody || msg.rawLogAvailable) {
     actions.push({
       label: t('chat.viewRaw'),
       icon: 'file',
-      onClick: () => {
-        setRawLog({
-          data: msg,
-          title: t('chat.rawLogTitle', { id: msg.id ?? '' }),
-          filename: `raw-log-${msg.id}.txt`,
-        });
+      onClick: async () => {
+        const rawLog = msg.rawRequestBody || msg.rawResponseBody
+          ? msg
+          : await db.messages.getRawLog(msg.id!);
+        if (rawLog) {
+          setRawLog({
+            data: { ...rawLog, id: msg.id, role: msg.role },
+            title: t('chat.rawLogTitle', { id: msg.id ?? '' }),
+            filename: `raw-log-${msg.id}.txt`,
+          });
+        }
         closeMsgMenu();
       },
     });

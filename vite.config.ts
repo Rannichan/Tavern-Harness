@@ -179,8 +179,10 @@ function persistenceProxyPlugin(): Plugin {
   const ensurePersistence = async (): Promise<number | null> => {
     if (starting) return starting;
     starting = (async () => {
-      if (childPort != null && (await portOpen(childPort)) && (await serviceReady(childPort))) return childPort;
-      if (persistenceChild) return null;
+      // 已经由本 Vite 实例拉起的子进程无需在每个请求前探活：服务忙于压缩或读取长会话时，
+      // 400 ms 健康检查会误判它已离线，导致刷新后会话请求收到伪 503。
+      if (persistenceChild && childPort != null && persistenceChild.exitCode == null) return childPort;
+      if (persistenceChild) stopPersistence();
       for (let port = DEFAULT_PORT; port < DEFAULT_PORT + 20; port++) {
         if (await portOpen(port)) continue;
         childPort = port;
@@ -240,6 +242,11 @@ function persistenceProxyPlugin(): Plugin {
             proxyRes.pipe(res);
           });
           proxyReq.once('error', (error: Error) => {
+            // 连接错误才说明端口失效；下一个请求会清理并重新拉起服务。
+            if (childPort === port) {
+              persistenceChild = null;
+              childPort = null;
+            }
             res.writeHead(502, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ ok: false, message: `Persistence proxy error: ${error.message}` }));
           });

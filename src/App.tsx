@@ -24,6 +24,27 @@ function formatContextTokens(tokens: number): string {
   return `${(tokens / 1_000).toFixed(1)}K`;
 }
 
+function ChatLoadingPlaceholder({ session }: { session: import('./types/models').ChatSession }) {
+  const npcs = useStore((s) => s.npcs);
+  const t = useT();
+  const npc = session.associatedId != null ? npcs.find((item) => item.id === session.associatedId) : null;
+
+  return (
+    <div className="chat-scroll" aria-busy="true">
+      <div className="chat-col">
+        <div className="empty-state fade-up">
+          <div className="big">🫖</div>
+          <div>
+            {session.mode === 'STANDARD' && <><b>{t('chat.emptyStandardTitle')}</b><br />{t('chat.emptyStandardSub')}</>}
+            {session.mode === 'NPC' && <><b>{t('chat.emptyNpcTitle', { name: npc?.name ?? t('chat.speakerChar') })}</b><br />{npc?.greeting}</>}
+            {session.mode === 'GROUP' && <><b>{t('chat.emptyGroupTitle')}</b><br />{t('chat.emptyGroupSub')}</>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [takingControl, setTakingControl] = useState(false);
   const initStatus = useStore((s) => s.initStatus);
@@ -39,6 +60,7 @@ export default function App() {
     setMountedViews([...mountedViews, activeView]);
   }
   const activeSessionId = useStore((s) => s.activeSessionId);
+  const [renderedSessionId, setRenderedSessionId] = useState<number | null>(activeSessionId);
   const sessions = useStore((s) => s.sessions);
   const messages = useStore((s) => s.messages);
   const contextCompressions = useStore((s) => s.contextCompressions);
@@ -75,9 +97,18 @@ export default function App() {
   }, [isStreaming]);
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) ?? null;
-  const sessionMessages = activeSessionId != null ? (messages[activeSessionId] ?? []) : [];
   const sessionParticipants = activeSessionId != null ? (participants[activeSessionId] ?? []) : [];
   const isStreamingSession = useStore((s) => s.streaming.sessionId === activeSessionId);
+
+  useEffect(() => {
+    if (activeSessionId == null || messages[activeSessionId] !== undefined) {
+      setRenderedSessionId(activeSessionId);
+    }
+  }, [activeSessionId, messages]);
+
+  const renderedSession = sessions.find((s) => s.id === renderedSessionId) ?? null;
+  const renderedSessionMessages = renderedSessionId != null ? (messages[renderedSessionId] ?? []) : [];
+  const renderedSessionParticipants = renderedSessionId != null ? (participants[renderedSessionId] ?? []) : [];
 
   const handleTakeOverControl = async () => {
     setTakingControl(true);
@@ -150,14 +181,18 @@ export default function App() {
                 <SessionHeader session={activeSession} participants={sessionParticipants} />
                 <div className="chat-main-row">
                   <div className="chat-main-col">
-                    <ChatView
-                      session={activeSession}
-                      messages={sessionMessages}
-                      participants={sessionParticipants}
-                      compressions={contextCompressions[activeSession.id!] ?? []}
-                      streaming={isStreamingSession}
-                      active={activeView === 'chat'}
-                    />
+                    {renderedSession != null && renderedSession.id === activeSession.id ? (
+                      <ChatView
+                        session={renderedSession}
+                        messages={renderedSessionMessages}
+                        participants={renderedSessionParticipants}
+                        compressions={contextCompressions[renderedSession.id!] ?? []}
+                        streaming={isStreamingSession}
+                        active={activeView === 'chat'}
+                      />
+                    ) : (
+                      <ChatLoadingPlaceholder session={activeSession} />
+                    )}
                     <ChatInput sessionId={activeSession.id!} />
                   </div>
                   <TurnQueuePanel session={activeSession} participants={sessionParticipants} />

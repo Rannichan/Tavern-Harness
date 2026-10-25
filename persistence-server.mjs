@@ -4,6 +4,7 @@
 
 import { createServer } from 'node:http';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { brotliCompressSync, constants as zlibConstants, gzipSync } from 'node:zlib';
 import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -72,11 +73,26 @@ function setWriteLock(lock) {
 }
 
 function json(res, status, body) {
-  res.writeHead(status, {
+  const payload = Buffer.from(JSON.stringify(body));
+  const acceptedEncodings = String(res.req.headers['accept-encoding'] || '').toLowerCase();
+  const headers = {
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store',
-  });
-  res.end(JSON.stringify(body));
+    'Vary': 'Accept-Encoding',
+  };
+  let encoded = payload;
+  if (payload.length >= 1024 && /\bbr\b/.test(acceptedEncodings)) {
+    encoded = brotliCompressSync(payload, {
+      params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 4 },
+    });
+    headers['Content-Encoding'] = 'br';
+  } else if (payload.length >= 1024 && /\bgzip\b/.test(acceptedEncodings)) {
+    encoded = gzipSync(payload, { level: 6 });
+    headers['Content-Encoding'] = 'gzip';
+  }
+  headers['Content-Length'] = String(encoded.length);
+  res.writeHead(status, headers);
+  res.end(encoded);
 }
 
 function readJson(req, maxBytes) {
@@ -152,6 +168,12 @@ function saveRecord(collection, key, value) {
 
 const getRecord = database.prepare('SELECT value_json, updated_at FROM app_records WHERE collection = ? AND record_key = ?');
 const listRecords = database.prepare('SELECT record_key, value_json, updated_at FROM app_records WHERE collection = ? ORDER BY record_key');
+const getMessageRawLog = database.prepare(`
+  SELECT json_extract(value_json, '$.rawRequestBody') AS raw_request_body,
+         json_extract(value_json, '$.rawResponseBody') AS raw_response_body
+  FROM app_records
+  WHERE collection = 'messages' AND record_key = ?
+`);
 const listRecordsByJsonField = database.prepare(`
   SELECT record_key, value_json, updated_at
   FROM app_records
@@ -268,6 +290,21 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+    if (pathname === '/records/message-raw-log') {
+      if (collection !== 'messages' || !validKey(body.key)) {
+        json(res, 400, { ok: false, message: 'A valid message key is required' });
+        return;
+      }
+      const record = getMessageRawLog.get(body.key);
+      json(res, 200, {
+        ok: true,
+        rawLog: record ? {
+          rawRequestBody: record.raw_request_body ?? null,
+          rawResponseBody: record.raw_response_body ?? null,
+        } : null,
+      });
+      return;
+    }
     if (pathname === '/records/list' || pathname === '/records/list-by-field') {
       let rows;
       if (pathname === '/records/list-by-field') {
@@ -284,11 +321,16 @@ const server = createServer(async (req, res) => {
       } else {
         rows = listRecords.all(collection);
       }
-      const records = rows.map((row) => ({
-        key: row.record_key,
-        value: JSON.parse(row.value_json),
-        updatedAt: row.updated_at,
-      }));
+      const records = rows.map((row) => {
+        const value = JSON.parse(row.value_json);
+        // 原始请求与响应只在用户显式打开日志时按消息 id 获取，避免长会话重复传输大字段。
+        if (collection === 'messages') {
+          value.rawLogAvailable = Boolean(value.rawRequestBody || value.rawResponseBody);
+          value.rawRequestBody = null;
+          value.rawResponseBody = null;
+        }
+        return { key: row.record_key, value, updatedAt: row.updated_at };
+      });
       json(res, 200, { ok: true, records });
       return;
     }

@@ -218,6 +218,8 @@ export interface ChatMessage {
   displayRef: string | null;
   rawRequestBody: string | null;
   rawResponseBody: string | null;
+  /** 列表加载时仅标记原始日志可用；正文在用户打开日志时按需读取。 */
+  rawLogAvailable?: boolean;
 }
 
 /** 保留原始消息的上下文压缩记录，仅用于构建后续 LLM 请求。 */
