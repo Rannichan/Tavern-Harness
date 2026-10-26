@@ -3,6 +3,52 @@
 > 本文件由 `scripts/changelog.mjs` 从 `changelog/v*.md` 生成，请勿手动编辑。
 > 版本对比链接见文末；源文件位于仓库 `changelog/` 目录。
 
+## [0.1.24] - 2026-10-27
+
+### 中文
+
+#### 改进
+
+- 工作区文件管理器现在可以直接进入 public 目录，并预览其中的网页、图片等文件
+- 文件管理器的路径导航移到文件列表上方，窄屏下标题栏不再换行，右侧按钮也不会被挤掉
+- 手机上点击顶部导航的「聊天 / 角色 / 成就 / 设置」或返回首页后，侧边栏会自动收起
+- 手机端的工具调用卡片改用等宽字体并加粗，长工具名和参数更容易看清
+- 输入框提示精简为「输入消息...」，不再把指令说明塞进占位文字
+- 技能列表与原文编辑器的字体、名称截断和「内置」标签对齐统一
+- 工具返回给模型的结果统一使用英文，切换界面语言不再影响模型读取；工具卡片中的结果行也随之显示英文
+
+#### 修复
+
+- 删除会话与会话设置保存改为事务写入，中途出错不会再留下只删了一半的数据
+- 连续点击「删除」「保存」不会再重复提交，也不会卡在加载状态
+- 创建、编辑、删除会话失败时会提示具体原因，而不是静默失败
+
+#### 内部
+
+- 清理工具执行路径中不再需要的界面文案依赖
+
+### English
+
+#### Changed
+
+- The workspace file manager can now browse into `public` and preview pages, images, and other files stored there
+- The file manager's path breadcrumb now sits above the file list, and the header no longer wraps on narrow screens or pushes its buttons aside
+- On mobile, tapping a top navigation tab (Chat, Characters, Achievements, Settings) or going home now closes the sidebar
+- Tool call cards on mobile use a monospace, bolder typeface, so long tool names and arguments are easier to read
+- The composer placeholder is now simply "Type a message..." instead of packing command hints into it
+- The skill list and raw log editor now share consistent typography, name truncation, and Built-in tag alignment
+- Tool results returned to the model are always English now, so switching the UI language no longer affects what the model reads; the result rows in tool cards show English as well
+
+#### Fixed
+
+- Deleting a session and saving session settings are now transactional, so a failure can no longer leave half-deleted data behind
+- Repeatedly clicking delete or save no longer sends duplicate requests or leaves the dialog stuck loading
+- Creating, editing, or deleting a session now reports the actual error instead of failing silently
+
+#### Internal
+
+- Removed the no-longer-needed UI string dependency from the tool execution path
+
 ## [0.1.23] - 2026-10-26
 
 ### 中文
@@ -656,6 +702,7 @@
 - Vite + React + Zustand + Dexie stack with browser-side local persistence
 
 <!-- 链接定义 -->
+[0.1.24]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.23...v0.1.24
 [0.1.23]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.22...v0.1.23
 [0.1.22]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.21...v0.1.22
 [0.1.21]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.20...v0.1.21
