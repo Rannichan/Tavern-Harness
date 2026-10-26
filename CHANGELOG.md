@@ -3,6 +3,34 @@
 > 本文件由 `scripts/changelog.mjs` 从 `changelog/v*.md` 生成，请勿手动编辑。
 > 版本对比链接见文末；源文件位于仓库 `changelog/` 目录。
 
+## [0.1.23] - 2026-10-26
+
+### 中文
+
+#### 改进
+
+- 生成参数滑杆不再需要先点「解锁」：直接拖动即可调整，只有明显的横向滑动才会改变数值，上下滚动设置页时不会再误改温度、上下文压缩等参数
+- 「重置」按钮不再受锁定状态限制，只要参数不是默认值就能一键恢复
+- 酒馆老板的内置文案本地化明显加快：只读取与它相关的消息和参与者，并一次性批量写入，历史记录较多时也不会再逐条卡顿
+
+#### 修复
+
+- 移动端中文衬线字体在缺少对应字重的系统上也能正常显示加粗，不再一律退化成常规字重
+- 移动端点按按钮、滑杆、开关时不再出现系统默认的蓝色高亮块
+
+### English
+
+#### Changed
+
+- Generation parameter sliders no longer need to be unlocked first: drag them directly, and only a clearly horizontal drag changes the value, so scrolling the settings page can no longer alter temperature, context compression, and other values by accident
+- The "Reset" button is no longer tied to a lock state and is available whenever the parameters differ from their defaults
+- Localizing the built-in Tavern Keeper text is much faster: only its own messages and participants are read, and they are written in a single batch, so large chat histories no longer stall
+
+#### Fixed
+
+- Chinese serif text on mobile now renders bold correctly on systems whose fallback fonts lack the requested weight, instead of silently falling back to regular
+- Tapping buttons, sliders, and switches on mobile no longer flashes the system's default blue highlight
+
 ## [0.1.22] - 2026-10-26
 
 ### 中文
@@ -628,6 +656,7 @@
 - Vite + React + Zustand + Dexie stack with browser-side local persistence
 
 <!-- 链接定义 -->
+[0.1.23]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.22...v0.1.23
 [0.1.22]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.21...v0.1.22
 [0.1.21]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.20...v0.1.21
 [0.1.20]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.19...v0.1.20
