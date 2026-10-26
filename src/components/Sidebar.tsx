@@ -288,6 +288,7 @@ export function Sidebar() {
     }));
 
   const returnHome = () => {
+    setMobileOpen(false);
     const now = Date.now();
     homeClickTimes.current = [...homeClickTimes.current, now]
       .filter((time) => now - time <= SHAREHOLDER_CLICK_WINDOW_MS)
@@ -322,16 +323,16 @@ export function Sidebar() {
           >
             <img src="/tavern-harness-logo.png" alt="" />
           </button>
-          <button className={`nav-chip ${activeView === 'chat' ? 'active' : ''}`} onClick={() => setActiveView('chat')}>
+          <button className={`nav-chip ${activeView === 'chat' ? 'active' : ''}`} onClick={() => { setActiveView('chat'); setMobileOpen(false); }}>
             <Icon name="send" size={15} /> <span>{t('nav.chat')}</span>
           </button>
-          <button className={`nav-chip ${activeView === 'characters' ? 'active' : ''}`} onClick={() => setActiveView('characters')}>
+          <button className={`nav-chip ${activeView === 'characters' ? 'active' : ''}`} onClick={() => { setActiveView('characters'); setMobileOpen(false); }}>
             <Icon name="users" size={15} /> <span>{t('nav.characters')}</span>
           </button>
-          <button className={`nav-chip ${activeView === 'stats' ? 'active' : ''}`} onClick={() => setActiveView('stats')}>
+          <button className={`nav-chip ${activeView === 'stats' ? 'active' : ''}`} onClick={() => { setActiveView('stats'); setMobileOpen(false); }}>
             <Icon name="trophy" size={15} /> <span>{t('nav.achievements')}</span>
           </button>
-          <button className={`nav-chip ${activeView === 'settings' ? 'active' : ''}`} onClick={() => setActiveView('settings')}>
+          <button className={`nav-chip ${activeView === 'settings' ? 'active' : ''}`} onClick={() => { setActiveView('settings'); setMobileOpen(false); }}>
             <Icon name="settings" size={15} /> <span>{t('nav.settings')}</span>
             {hasUnseenVersion && <span className="unseen-dot" title={t('changelog.unseen')} />}
           </button>
