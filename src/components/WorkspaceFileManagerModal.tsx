@@ -155,23 +155,6 @@ export function WorkspaceFileManagerModal({ sessionId, onClose }: { sessionId: n
         <span className="ws-fm-title">
           <Icon name="folder" size={15} />
           {t('header.fileManagerTitle')}
-          <span className="mono ws-fm-crumb">
-            {crumbs.length === 0 ? rootLabel : (
-              <>
-                <span className="ws-fm-crumb-link" onClick={() => setDir('')}>{rootLabel}</span>
-                {crumbs.map((c, i) => (
-                  <span key={i}>
-                    <span className="ws-fm-crumb-sep">/</span>
-                    {i === crumbs.length - 1 ? (
-                      <span className="ws-fm-crumb-cur">{c}</span>
-                    ) : (
-                      <span className="ws-fm-crumb-link" onClick={() => setDir(crumbs.slice(0, i + 1).join('/') + '/')}>{c}</span>
-                    )}
-                  </span>
-                ))}
-              </>
-            )}
-          </span>
         </span>
         <span className="ws-fm-head-actions">
           <button
@@ -187,8 +170,22 @@ export function WorkspaceFileManagerModal({ sessionId, onClose }: { sessionId: n
         </span>
       </div>
       <div className="modal-body ws-fm-body">
-        <div className="ws-fm-note">
-          <Icon name="eye" size={12} /> {t('header.fileManagerHint')}
+        <div className="mono ws-fm-crumb">
+          {crumbs.length === 0 ? rootLabel : (
+            <>
+              <span className="ws-fm-crumb-link" onClick={() => setDir('')}>{rootLabel}</span>
+              {crumbs.map((c, i) => (
+                <span key={i}>
+                  <span className="ws-fm-crumb-sep">/</span>
+                  {i === crumbs.length - 1 ? (
+                    <span className="ws-fm-crumb-cur">{c}</span>
+                  ) : (
+                    <span className="ws-fm-crumb-link" onClick={() => setDir(crumbs.slice(0, i + 1).join('/') + '/')}>{c}</span>
+                  )}
+                </span>
+              ))}
+            </>
+          )}
         </div>
         {loadState === 'loading' && (
           <div className="ws-fm-empty">

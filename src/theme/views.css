@@ -1730,9 +1730,9 @@
 }
 .ws-fm-head {
   gap: 10px;
-  flex-wrap: wrap;
 }
 .ws-fm-head-actions {
+  flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -1746,7 +1746,7 @@
   font-weight: 800;
   font-size: 13.5px;
 }
-.ws-fm-title .ws-fm-crumb {
+.ws-fm-crumb {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1774,7 +1774,7 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 14px 18px;
+  padding: 14px;
 }
 .ws-fm-note {
   display: flex;
