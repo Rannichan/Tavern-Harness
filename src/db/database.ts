@@ -530,6 +530,17 @@ class RemoteTable<T extends object> {
   }
   async bulkAdd(values: T[]): Promise<void> { for (const value of values) await this.add(value); }
   async bulkPut(values: T[]): Promise<void> { for (const value of values) await this.put(value); }
+  async bulkUpdate(updates: Array<{ key: unknown; changes: Partial<T> }>): Promise<void> {
+    if (updates.length === 0) return;
+    await requireWriteLock();
+    await persistenceRequest('/records/bulk-update', {
+      collection: this.collection,
+      updates: updates.map(({ key, changes }) => ({
+        key: Array.isArray(key) ? key.join(':') : String(key),
+        changes,
+      })),
+    });
+  }
   async put(value: T): Promise<number> { return this.add(value); }
   async update(key: unknown, changes: Partial<T>): Promise<number> {
     await requireWriteLock();
@@ -797,40 +808,33 @@ export async function localizeBuiltinNpc(): Promise<void> {
   if (isPristine(boss.greeting || '')) updates.greeting = tGreeting;
   if (Object.keys(updates).length > 0) {
     await db.npcs.update(boss.id!, updates);
-    // 会话标题 / 最后一条消息 / 参与者 / 消息里的旧内置文案一并更新（仅限仍是内置原文的记录）
-    const sessions = await db.sessions.toArray();
-    for (const s of sessions) {
-      const changes: Partial<ChatSession> = {};
-      if (s.title === '酒馆老板' || s.title === '酒館老闆' || s.title === 'Tavern Keeper') {
-        changes.title = tName;
-      }
-      if (s.lastMessage && isPristine(s.lastMessage)) {
-        changes.lastMessage = tGreeting;
-      }
-      if (Object.keys(changes).length > 0) {
-        await db.sessions.update(s.id!, changes);
-      }
-    }
-    // 参与者 / 消息里的旧内置文案一并更新（仅限仍是内置原文的记录）
-    const participants = await db.participants.toArray();
-    for (const p of participants) {
-      if (
-        p.kind === 'NPC' &&
-        p.npcId === boss.id &&
-        (p.displayName === '酒馆老板' || p.displayName === '酒館老闆' || p.displayName === 'Tavern Keeper')
-      ) {
-        await db.participants.update(p, { displayName: tName });
-      }
-    }
-    const messages = await db.messages.toArray();
-    for (const m of messages) {
-      if (
-        m.speakerParticipantId === boss.id &&
-        (m.speakerName === '酒馆老板' || m.speakerName === '酒館老闆' || m.speakerName === 'Tavern Keeper')
-      ) {
-        await db.messages.update(m.id!, { speakerName: tName });
-      }
-    }
+    // 仅请求与酒馆老板关联的记录；批量写入可避免大量历史消息产生逐条网络往返。
+    const [sessions, participants, messages] = await Promise.all([
+      db.sessions.toArray(),
+      db.participants.where('npcId').equals(boss.id!).toArray(),
+      db.messages.where('speakerParticipantId').equals(boss.id!).toArray(),
+    ]);
+    await Promise.all([
+      db.sessions.bulkUpdate(sessions.flatMap((session) => {
+        const changes: Partial<ChatSession> = {};
+        if (session.title === '酒馆老板' || session.title === '酒館老闆' || session.title === 'Tavern Keeper') {
+          changes.title = tName;
+        }
+        if (session.lastMessage && isPristine(session.lastMessage)) changes.lastMessage = tGreeting;
+        return Object.keys(changes).length > 0 ? [{ key: session.id!, changes }] : [];
+      })),
+      db.participants.bulkUpdate(participants.flatMap((participant) => (
+        participant.kind === 'NPC' &&
+        (participant.displayName === '酒馆老板' || participant.displayName === '酒館老闆' || participant.displayName === 'Tavern Keeper')
+          ? [{ key: [participant.sessionId, participant.participantId], changes: { displayName: tName } }]
+          : []
+      ))),
+      db.messages.bulkUpdate(messages.flatMap((message) => (
+        message.speakerName === '酒馆老板' || message.speakerName === '酒館老闆' || message.speakerName === 'Tavern Keeper'
+          ? [{ key: message.id!, changes: { speakerName: tName } }]
+          : []
+      ))),
+    ]);
   }
 
   if (prevLang !== lang) {

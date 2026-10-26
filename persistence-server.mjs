@@ -141,6 +141,17 @@ function validKey(value) {
   return typeof value === 'string' && value.length > 0 && value.length <= 255;
 }
 
+function validBulkUpdates(value) {
+  return Array.isArray(value)
+    && value.length <= 10_000
+    && value.every((update) => update
+      && typeof update === 'object'
+      && validKey(update.key)
+      && update.changes
+      && typeof update.changes === 'object'
+      && !Array.isArray(update.changes));
+}
+
 function lockState(clientId) {
   return {
     writable: Boolean(writeLock && writeLock.clientId === clientId),
@@ -188,6 +199,20 @@ const listStartupRecords = database.prepare(`
 `);
 const deleteRecord = database.prepare('DELETE FROM app_records WHERE collection = ? AND record_key = ?');
 const clearCollection = database.prepare('DELETE FROM app_records WHERE collection = ?');
+function bulkUpdateRecords(collection, updates) {
+  database.exec('BEGIN IMMEDIATE');
+  try {
+    for (const { key, changes } of updates) {
+      const record = getRecord.get(collection, key);
+      if (!record) continue;
+      saveRecord(collection, key, { ...JSON.parse(record.value_json), ...changes });
+    }
+    database.exec('COMMIT');
+  } catch (error) {
+    database.exec('ROLLBACK');
+    throw error;
+  }
+}
 const nextNumericRecordKey = database.prepare(`
   SELECT COALESCE(MAX(CAST(record_key AS INTEGER)), 0) + 1 AS next_key
   FROM app_records
@@ -349,6 +374,16 @@ const server = createServer(async (req, res) => {
     if (pathname === '/records/allocate-id') {
       requireWriter(clientId);
       json(res, 200, { ok: true, id: allocateNumericRecordId(collection) });
+      return;
+    }
+    if (pathname === '/records/bulk-update') {
+      if (!validBulkUpdates(body.updates)) {
+        json(res, 400, { ok: false, message: 'Invalid record updates' });
+        return;
+      }
+      requireWriter(clientId);
+      bulkUpdateRecords(collection, body.updates);
+      json(res, 200, { ok: true });
       return;
     }
     if (pathname === '/records/put') {

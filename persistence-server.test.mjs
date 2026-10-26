@@ -57,6 +57,12 @@ try {
   assert.equal((await request('/lock/status', { clientId: clientA })).body.lock.writable, false);
   assert.equal((await request('/records/put', { clientId: clientA, collection: 'settings', key: '1', value: { themeMode: 'light' } })).status, 423);
   assert.equal((await request('/records/put', { clientId: clientB, collection: 'settings', key: '1', value: { themeMode: 'dark' } })).status, 200);
+  assert.equal((await request('/records/bulk-update', {
+    clientId: clientB,
+    collection: 'settings',
+    updates: [{ key: '1', changes: { themeMode: 'system' } }],
+  })).status, 200);
+  assert.equal((await request('/records/get', { collection: 'settings', key: '1' })).body.record.value.themeMode, 'system');
 
   // The same payload as the oversized control request is valid for a record write (images / attachments).
   const largeRecord = await request('/records/put', {
@@ -75,13 +81,13 @@ try {
   assert.equal((await request('/records/allocate-id', { clientId: clientA, collection: 'sessions' })).status, 423);
 
   const record = await request('/records/get', { collection: 'settings', key: '1' });
-  assert.deepEqual(record.body.record.value, { themeMode: 'dark' });
+  assert.deepEqual(record.body.record.value, { themeMode: 'system' });
   assert.equal((await request('/records/put', { clientId: clientB, collection: 'providers', key: '1', value: { id: 1, name: 'Primary provider' } })).status, 200);
   assert.equal((await request('/records/put', { clientId: clientB, collection: 'npcs', key: '1', value: { id: 1, name: 'Keeper' } })).status, 200);
   const snapshot = await request('/startup/snapshot', { clientId: clientB });
   assert.equal(snapshot.status, 200);
   assert.equal(snapshot.body.lock.writable, true);
-  assert.deepEqual(snapshot.body.collections.settings.map((record) => record.value), [{ themeMode: 'dark' }]);
+  assert.deepEqual(snapshot.body.collections.settings.map((record) => record.value), [{ themeMode: 'system' }]);
   assert.deepEqual(snapshot.body.collections.providers.map((record) => record.value), [{ id: 1, name: 'Primary provider' }]);
   assert.deepEqual(snapshot.body.collections.npcs.map((record) => record.value), [{ id: 1, name: 'Keeper' }]);
   assert.equal(snapshot.body.collections.sessions.length, 2);
