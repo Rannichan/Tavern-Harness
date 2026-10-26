@@ -3,6 +3,26 @@
 > 本文件由 `scripts/changelog.mjs` 从 `changelog/v*.md` 生成，请勿手动编辑。
 > 版本对比链接见文末；源文件位于仓库 `changelog/` 目录。
 
+## [0.1.22] - 2026-10-26
+
+### 中文
+
+#### 改进
+
+- 生成参数默认锁定：「设置 → 生成参数」里的滑杆和下拉框要先点「解锁」才能调整，离开设置页后会自动重新锁定，避免滑动页面时误改温度、上下文压缩等参数
+- 「重置」按钮在锁定状态下不可点击，解锁后才能恢复默认值
+- 会话列表的标题和副标题只在内容确实溢出时才做末尾渐隐，短标题不再被淡边影响
+- 移动端顶部导航按钮之间的间距略微加大，点击时更不容易误触相邻按钮
+
+### English
+
+#### Changed
+
+- Generation parameters are now locked by default: the sliders and dropdowns under Settings → Generation parameters stay read-only until you tap "Unlock", and they lock again when you leave the settings page, so scrolling can no longer change temperature, context compression, and other values by accident
+- The "Reset" button is disabled while parameters are locked and becomes available after unlocking
+- Session list titles and subtitles only fade out at the end when the text actually overflows, so short titles are no longer dimmed by the mask
+- Mobile top-bar navigation buttons have a little more spacing, reducing accidental taps on neighbours
+
 ## [0.1.21] - 2026-10-26
 
 ### 中文
@@ -608,6 +628,7 @@
 - Vite + React + Zustand + Dexie stack with browser-side local persistence
 
 <!-- 链接定义 -->
+[0.1.22]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.21...v0.1.22
 [0.1.21]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.20...v0.1.21
 [0.1.20]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.19...v0.1.20
 [0.1.19]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.18...v0.1.19
