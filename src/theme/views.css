@@ -2,6 +2,10 @@
    弹窗 / 覆盖层 / 视图页 / 卡片列表
    ============================================================ */
 
+.generation-slider {
+  touch-action: pan-y;
+}
+
 .overlay {
   position: fixed;
   inset: 0;
@@ -625,13 +629,7 @@
   justify-content: space-between;
   gap: 12px;
 }
-.settings-gen-actions {
-  display: flex;
-  flex-shrink: 0;
-  gap: 6px;
-}
-.settings-gen-reset,
-.settings-gen-lock {
+.settings-gen-reset {
   flex-shrink: 0;
 }
 .settings-reset-section {

@@ -1,4 +1,4 @@
-import { memo, useEffect, useState } from 'react';
+import { memo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useStore } from '../store/store';
 import { db, DEFAULT_GENERATION_SETTINGS } from '../db/database';
 import { type ThemeMode } from '../theme/theme';
@@ -24,24 +24,72 @@ export const SettingsView = memo(function SettingsView() {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
-  const [generationParamsLocked, setGenerationParamsLocked] = useState(true);
-  const activeView = useStore((s) => s.activeView);
+  const generationSliderGesture = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    startValue: number;
+    direction: 'pending' | 'horizontal' | 'vertical';
+  } | null>(null);
   const t = useT();
   const hasUnseenVersion = useHasUnseenVersion();
 
   if (!settings) return null;
+
+  const startGenerationSliderGesture = (event: ReactPointerEvent<HTMLInputElement>) => {
+    if (event.pointerType !== 'touch') return;
+    const input = event.currentTarget;
+    generationSliderGesture.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      startValue: Number(input.value),
+      direction: 'pending',
+    };
+  };
+
+  const classifyGenerationSliderGesture = (event: ReactPointerEvent<HTMLInputElement>) => {
+    const gesture = generationSliderGesture.current;
+    if (!gesture || gesture.pointerId !== event.pointerId || gesture.direction !== 'pending') return gesture?.direction;
+
+    const deltaX = Math.abs(event.clientX - gesture.startX);
+    const deltaY = Math.abs(event.clientY - gesture.startY);
+    if (Math.max(deltaX, deltaY) < 10) return 'pending';
+
+    gesture.direction = deltaX > deltaY ? 'horizontal' : 'vertical';
+    return gesture.direction;
+  };
+
+  const endGenerationSliderGesture = (event: ReactPointerEvent<HTMLInputElement>) => {
+    if (generationSliderGesture.current?.pointerId === event.pointerId) generationSliderGesture.current = null;
+  };
+
+  const updateGenerationSlider = (key: keyof typeof settings, value: number | 'off') => {
+    const gesture = generationSliderGesture.current;
+    if (!gesture) {
+      setSettings({ [key]: value });
+    } else if (gesture.direction === 'horizontal') {
+      setSettings({ [key]: value });
+    } else if (gesture.direction === 'pending') {
+      setSettings({ [key]: gesture.startValue });
+    }
+  };
 
   // 数字滑杆——数值显示固定在行内，不溢出卡片
   const slider = (key: keyof typeof settings, min: number, max: number, step: number, fmt?: (v: number) => string) => (
     <label className="range-row" style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'center' }}>
       <input
         type="range"
+        className="generation-slider"
         min={min}
         max={max}
         step={step}
         value={settings[key] as number}
-        disabled={generationParamsLocked}
-        onChange={(e) => setSettings({ [key]: parseFloat(e.target.value) })}
+        onPointerDown={startGenerationSliderGesture}
+        onPointerMove={classifyGenerationSliderGesture}
+        onPointerUp={endGenerationSliderGesture}
+        onPointerCancel={endGenerationSliderGesture}
+        onChange={(e) => updateGenerationSlider(key, parseFloat(e.target.value))}
       />
       <span className="range-val">{fmt ? fmt(settings[key] as number) : (settings[key] as number)}</span>
     </label>
@@ -55,12 +103,6 @@ export const SettingsView = memo(function SettingsView() {
     await setSettings({ ...generationDefaults });
     addToast(t('toast.genParamsReset'));
   };
-  const toggleGenerationParamsLock = () => setGenerationParamsLocked((locked) => !locked);
-
-  useEffect(() => {
-    if (activeView !== 'settings') setGenerationParamsLocked(true);
-  }, [activeView]);
-
   return (
     <div className="view-page">
       <div className="view-col">
@@ -112,26 +154,15 @@ export const SettingsView = memo(function SettingsView() {
         <div className="set-section">
           <div className="settings-section-head">
             <h3>{t('settings.genParams')}</h3>
-            <div className="settings-gen-actions">
-              <button
-                className="btn btn-sm settings-gen-lock"
-                title={t(generationParamsLocked ? 'settings.genParamsUnlock' : 'settings.genParamsLock')}
-                aria-label={t(generationParamsLocked ? 'settings.genParamsUnlock' : 'settings.genParamsLock')}
-                aria-pressed={generationParamsLocked}
-                onClick={toggleGenerationParamsLock}
-              >
-                <Icon name={generationParamsLocked ? 'lock' : 'unlock'} size={12} /> {t(generationParamsLocked ? 'settings.genParamsLocked' : 'settings.genParamsUnlocked')}
-              </button>
-              <button
-                className="btn btn-sm settings-gen-reset"
-                title={t('settings.genParamsResetTitle')}
-                aria-label={t('settings.genParamsResetTitle')}
-                disabled={generationParamsLocked || isGenerationDefault}
-                onClick={() => void resetGenerationParams()}
-              >
-                <Icon name="refresh" size={12} /> {t('settings.genParamsReset')}
-              </button>
-            </div>
+            <button
+              className="btn btn-sm settings-gen-reset"
+              title={t('settings.genParamsResetTitle')}
+              aria-label={t('settings.genParamsResetTitle')}
+              disabled={isGenerationDefault}
+              onClick={() => void resetGenerationParams()}
+            >
+              <Icon name="refresh" size={12} /> {t('settings.genParamsReset')}
+            </button>
           </div>
           <table className="table param-table">
             <tbody>
@@ -193,12 +224,16 @@ export const SettingsView = memo(function SettingsView() {
                   <label className="range-row" style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'center' }}>
                     <input
                       type="range"
+                      className="generation-slider"
                       min="0"
                       max="100"
                       step="1"
                       value={settings.contextCompressionThreshold === 'off' ? 0 : settings.contextCompressionThreshold}
-                      disabled={generationParamsLocked}
-                      onChange={(e) => setSettings({ contextCompressionThreshold: Number(e.target.value) || 'off' })}
+                      onPointerDown={startGenerationSliderGesture}
+                      onPointerMove={classifyGenerationSliderGesture}
+                      onPointerUp={endGenerationSliderGesture}
+                      onPointerCancel={endGenerationSliderGesture}
+                      onChange={(e) => updateGenerationSlider('contextCompressionThreshold', Number(e.target.value) || 'off')}
                     />
                     <span className="range-val">
                       {settings.contextCompressionThreshold === 'off' ? t('settings.off') : settings.contextCompressionThreshold}
@@ -215,7 +250,6 @@ export const SettingsView = memo(function SettingsView() {
                   <select
                     className="select"
                     value={settings.reasoningEffort}
-                    disabled={generationParamsLocked}
                     onChange={(e) => setSettings({ reasoningEffort: e.target.value as ReasoningEffort })}
                   >
                     {['auto', 'off', 'low', 'medium', 'xhigh'].map((r) => <option key={r} value={r}>{r}</option>)}
