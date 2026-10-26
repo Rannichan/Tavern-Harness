@@ -92,8 +92,9 @@ export function WorkspaceFileManagerModal({ sessionId, onClose }: { sessionId: n
   // 当前目录的直接子项（目录与文件同级）
   const visible = useMemo(() => {
     const directChild = (p: string) => {
-      if (dir === '') return !p.replace(/\/$/, '').includes('/');
-      return p.startsWith(dir) && p !== dir && !p.slice(dir.length).includes('/');
+      const normalized = p.replace(/\/$/, '');
+      if (dir === '') return !normalized.includes('/');
+      return normalized.startsWith(dir) && normalized !== dir.slice(0, -1) && !normalized.slice(dir.length).includes('/');
     };
     return nodes.filter((n) => directChild(n.path));
   }, [nodes, dir]);
