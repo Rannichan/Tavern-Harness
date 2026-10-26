@@ -2278,7 +2278,7 @@ async function performAssistantTurn(
             approved = await requestToolConfirmation(sessionId, tc);
           }
           if (!approved) {
-            result = translate('toast.canceled', { name: tc.name });
+            result = `CANCELLED: user rejected ${tc.name}`;
           } else {
             result = await executeToolCall(tc.name, tc.argumentsJson, {
               sessionId,
@@ -2293,7 +2293,7 @@ async function performAssistantTurn(
         }
         // 工具没有返回任何内容（空模板 / 空文件 / 空输出等）→ 补占位结果，
         // 保证调用卡片立即显示「无结果」而不是空白
-        if (!result || !result.trim()) result = translate('tool.noResult');
+        if (!result || !result.trim()) result = '(no result)';
         // 数据变更类工具执行后即时刷新 store，保证界面（角色工坊等）无需刷新即可看到最新数据
         if (result.startsWith('OK:')) {
           if (tc.name.includes('character')) await useStore.getState().refreshNpcs();

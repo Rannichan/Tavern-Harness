@@ -1,5 +1,3 @@
-import { translate } from '../i18n';
-
 // ============================================================
 // roll_dice — 与 App 的 DiceRoller 一致
 // ============================================================
@@ -28,11 +26,11 @@ export function rollDice(expression: string): string {
 
   let critical = '';
   if (count === 1 && sides === 20) {
-    if (rolls[0] === 20) critical = translate('tool.diceCrit20');
-    else if (rolls[0] === 1) critical = translate('tool.diceCrit1');
+    if (rolls[0] === 20) critical = ' Critical hit!';
+    else if (rolls[0] === 1) critical = ' Critical fail!';
   }
 
   const parts = [rolls.join(', ')];
   if (modifier !== 0) parts.push(`${modifier > 0 ? '+' : ''}${modifier}`);
-  return translate('tool.diceRoll', { expr, rolls: parts.join('] '), total, crit: critical });
+  return `${expr}: [${parts.join('] ')}] = ${total}${critical}`;
 }

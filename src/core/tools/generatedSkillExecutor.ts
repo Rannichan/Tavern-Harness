@@ -120,7 +120,7 @@ export async function executeGeneratedSkill(
 }
 
 export function truncateToolOutput(s: string): string {
-  return s.length > MAX_OUTPUT_CHARS ? s.slice(0, MAX_OUTPUT_CHARS) + translate('tool.truncated') : s;
+  return s.length > MAX_OUTPUT_CHARS ? `${s.slice(0, MAX_OUTPUT_CHARS)}\n…(truncated)` : s;
 }
 
 function normalizePath(path: string): string {
@@ -398,7 +398,7 @@ async function diskFileWrite(
     });
     const data = (await resp.json()) as { ok?: boolean; message?: string };
     if (!resp.ok || !data.ok) throw new Error(data?.message || `HTTP ${resp.status}`);
-    return translate('tool.fileWriteSuccess', { path, count: content.length });
+    return `OK: Wrote ${content.length} characters to ${path}`;
   } catch (e) {
     throw new Error(`Failed to write to disk: ${(e as Error).message}`);
   }
@@ -629,7 +629,7 @@ async function execShell(
         approved = false;
       }
     }
-    if (!approved) return translate('tool.shellDenied', { name: 'shell' });
+    if (!approved) return 'CANCELLED: user rejected shell';
     const approvalError = await approveSandboxScript(confirmationRequestId!);
     if (approvalError) return approvalError;
     return await execSandboxScript(script, confirmationRequestId!, safeWorkspaceDir!);

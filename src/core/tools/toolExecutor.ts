@@ -8,7 +8,6 @@ import type {
   ToolConfirmationRequest,
 } from '../../types/models';
 import { BUILTIN_TOOL_NAMES } from '../toolDefinitions';
-import { translate } from '../i18n';
 import { unlockAchievement } from '../achievements';
 import { rollDice } from './builtinTools';
 import {
@@ -299,7 +298,7 @@ async function handleFileDisplay(args: Record<string, unknown>, ctx: ToolExecuti
     const payload: DisplayPayload = { path: rawPath, kind, title };
     // 第一行携带展示引用（store 解析并写入 displayRef / 自动弹窗）。
     // 不做内容摘要：完整内容在展示弹窗里，模型如需阅读应改用 file_read。
-    return `${DISPLAY_REF_PREFIX}${JSON.stringify(payload)}\n${translate('tool.fileDisplaySuccess', { path: rawPath, kind })}`;
+    return `${DISPLAY_REF_PREFIX}${JSON.stringify(payload)}\nOK: Displayed ${rawPath} in a popup (kind=${kind})`;
   } catch (e) {
     return `ERROR: ${(e as Error).message}`;
   }
@@ -358,7 +357,7 @@ async function handleFileEdit(args: Record<string, unknown>, ctx: ToolExecutionC
       content.split(oldText).join(newText),
       workspaceDir,
     );
-    return translate('tool.fileEditSuccess', { path, count: matches });
+    return `OK: Edited ${path}; replaced ${matches} occurrence(s)`;
   } catch (e) {
     return `ERROR: ${(e as Error).message}`;
   }
@@ -411,7 +410,7 @@ async function handleCreateSkill(args: Record<string, unknown>): Promise<string>
   const tool = await createSkillTool(name, String(args.description ?? ''), (args.parameters as Record<string, unknown>) ?? {}, args.execution);
   await db.tools.add(tool);
   await unlockAchievement('explorer');
-  return translate('tool.skillCreated', { name });
+  return `OK: Created skill ${name}. Note: it is not enabled for any character by default; use update_character with enable_skills to enable it.`;
 }
 
 async function handleUpdateSkill(args: Record<string, unknown>): Promise<string> {
@@ -449,7 +448,7 @@ async function handleUpdateSkill(args: Record<string, unknown>): Promise<string>
       }
     }
   }
-  return translate('tool.skillUpdated', { name });
+  return `OK: Updated skill ${name}`;
 }
 
 async function handleDeleteSkill(args: Record<string, unknown>): Promise<string> {
@@ -465,7 +464,7 @@ async function handleDeleteSkill(args: Record<string, unknown>): Promise<string>
       await db.npcs.update(n.id!, { enabledToolNames: n.enabledToolNames.filter((t) => t !== name) });
     }
   }
-  return translate('tool.skillDeleted', { name });
+  return `OK: Deleted skill ${name}`;
 }
 
 // ---------- 角色 CRUD ----------
@@ -496,7 +495,7 @@ async function handleCreateCharacter(args: Record<string, unknown>): Promise<str
     createdAt: Date.now(),
   });
   await unlockAchievement('creator');
-  return translate('tool.characterCreated', { name });
+  return `OK: Created character ${name}`;
 }
 
 async function handleUpdateCharacter(args: Record<string, unknown>): Promise<string> {
@@ -536,7 +535,7 @@ async function handleUpdateCharacter(args: Record<string, unknown>): Promise<str
     updates.enabledToolNames = [...enabled];
   }
   if (Object.keys(updates).length > 0) await db.npcs.update(npc.id!, updates);
-  return translate('tool.characterUpdated', { name });
+  return `OK: Updated character ${name}`;
 }
 
 async function handleDeleteCharacter(args: Record<string, unknown>): Promise<string> {
@@ -551,7 +550,7 @@ async function handleDeleteCharacter(args: Record<string, unknown>): Promise<str
     await db.sessions.update(s.id!, { associatedId: null });
     await db.participants.where('[sessionId+participantId]').equals([s.id!, npc.id!]).delete();
   }
-  return translate('tool.characterDeleted', { name });
+  return `OK: Deleted character ${name}`;
 }
 
 async function handleCreateConversation(args: Record<string, unknown>): Promise<string> {
@@ -642,7 +641,7 @@ async function handleCreateLorebook(args: Record<string, unknown>): Promise<stri
   if (await db.worldBooks.where('name').equals(name).first()) return `ERROR: Lorebook ${name} already exists`;
   await db.worldBooks.add({ name, content: content.slice(0, 10_000), imageUri: null, createdAt: Date.now() });
   await unlockAchievement('creator');
-  return translate('tool.lorebookCreated', { name });
+  return `OK: Created Lorebook ${name}`;
 }
 
 async function handleUpdateLorebook(args: Record<string, unknown>): Promise<string> {
@@ -651,25 +650,25 @@ async function handleUpdateLorebook(args: Record<string, unknown>): Promise<stri
   if (!book) return `ERROR: Lorebook ${name} does not exist`;
   const updates: Partial<import('../../types/models').WorldBook> = {};
   if (args.new_name) {
-    if (isBuiltinTavernHandbook(book)) return `ERROR: 内置世界书「${builtinTavernHandbookName()}」名称不可修改`;
+    if (isBuiltinTavernHandbook(book)) return `ERROR: Built-in Lorebook ${builtinTavernHandbookName()} cannot be renamed`;
     updates.name = String(args.new_name).slice(0, 60);
   }
   if (args.content != null) updates.content = String(args.content).slice(0, 10_000);
   await db.worldBooks.update(book.id!, updates);
-  return translate('tool.lorebookUpdated', { name });
+  return `OK: Updated Lorebook ${name}`;
 }
 
 async function handleDeleteLorebook(args: Record<string, unknown>): Promise<string> {
   const name = String(args.name ?? '');
   const book = await db.worldBooks.where('name').equals(name).first();
   if (!book) return `ERROR: Lorebook ${name} does not exist`;
-  if (isBuiltinTavernHandbook(book)) return `ERROR: 内置世界书「${builtinTavernHandbookName()}」不可删除`;
+  if (isBuiltinTavernHandbook(book)) return `ERROR: Built-in Lorebook ${builtinTavernHandbookName()} cannot be deleted`;
   await db.worldBooks.delete(book.id!);
   const sessions = await db.sessions.toArray();
   for (const s of sessions) {
     if (s.worldBookId === book.id) await db.sessions.update(s.id!, { worldBookId: null });
   }
-  return translate('tool.lorebookDeleted', { name });
+  return `OK: Deleted Lorebook ${name}`;
 }
 
 // ---------- 工具列举 ----------
