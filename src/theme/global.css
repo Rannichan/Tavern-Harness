@@ -1807,6 +1807,11 @@ hr.sep {
     height: 36px;
   }
 
+  :root {
+    /* Android 中文衬线回退字体常缺少所需字重；移动端统一允许合成字重。 */
+    font-synthesis: weight;
+  }
+
   .chat-header .ttitle {
     max-width: min(52vw, 260px);
     font-size: 15px;
