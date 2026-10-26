@@ -1275,6 +1275,14 @@
     padding: 10px 12px;
   }
 
+  .tool-card-head,
+  .tool-card-name,
+  .tool-args,
+  .tool-card-result-line,
+  .tool-result {
+    font-weight: 700;
+  }
+
   .composer {
     --attachment-preview-gap: 10px;
     padding: var(--attachment-preview-gap) 12px max(10px, env(safe-area-inset-bottom));
