@@ -556,7 +556,7 @@ function WorldBookList({ books, onChanged }: {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <span className="group-label" style={{ margin: 0 }}>{t('workshop.wbCount', { n: books.length })}</span>
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn btn-sm" onClick={() => jsonFileRef.current?.click()} title={t('workshop.jsonImportTip')}>
@@ -963,8 +963,8 @@ function SkillSortItem({
       <div style={{ fontSize: 18 }}>{tool.isBuiltIn ? '🧰' : '⚙️'}</div>
       <div className="l-main">
         <div className="l-title">
-          {tool.name}
-          {tool.isBuiltIn && <span className="tag" style={{ marginLeft: 8 }}>{t('common.builtin')}</span>}
+          <span className="skill-card-name">{tool.name}</span>
+          {tool.isBuiltIn && <span className="tag">{t('common.builtin')}</span>}
         </div>
         <div className="l-sub">{desc}</div>
         {tool.isBuiltIn && impl !== 'native' && <div style={{ fontSize: 10.5, marginTop: 2, color: 'var(--warn)' }}>{t('workshop.implType', { t: impl })}</div>}

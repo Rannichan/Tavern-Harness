@@ -498,10 +498,29 @@
   font-weight: 700;
   font-size: 13.5px;
 }
+.list-item.sortable-skill .l-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.skill-card-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.list-item.sortable-skill .l-title .tag {
+  flex-shrink: 0;
+}
 .list-item .l-sub {
   font-size: 11.5px;
   color: var(--text-faint);
   font-family: var(--font-mono);
+}
+.list-item.sortable-skill .l-sub {
+  color: var(--text-dim);
+  font-family: var(--font-sans);
 }
 
 /* ---------- 技能表：拖拽排序 ---------- */
@@ -1376,6 +1395,7 @@
 }
 .raw-log-editor .cm-editor {
   background: var(--code-bg);
+  font-family: var(--font-mono);
 }
 .raw-wrap-toggle {
   display: inline-flex;

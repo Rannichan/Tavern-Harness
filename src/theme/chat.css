@@ -271,9 +271,9 @@
 .tool-card-name {
   flex: 1;
   min-width: 0;
-  /* 工具名走等宽字体：和对话正文（衬线/无衬线）形成“终端 vs 消息”的区别 */
   font-family: var(--font-mono);
   font-size: 12px;
+  font-weight: 600;
   letter-spacing: -0.1px;
   white-space: nowrap;
   overflow: hidden;
@@ -282,8 +282,11 @@
 .tool-args {
   margin: 0;
   padding: 8px 12px;
-  font-size: 11px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
   line-height: 1.45;
+  color: var(--text-dim);
   /* 与标题同一个底色：直接用卡片底，展开后不再出现一块深米色 */
   background: transparent;
   /* 上方的分隔线由 .tool-card-body 提供，避免两条边线叠成 2px */
@@ -310,6 +313,7 @@
   gap: 6px;
   padding: 6px 12px 7px;
   border-top: 1px solid var(--border-soft);
+  font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 600;
   color: var(--success);
@@ -332,6 +336,7 @@
   display: flex;
   align-items: flex-start;
   gap: 7px;
+  font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 600;
   color: var(--success);
