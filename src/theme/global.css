@@ -23,6 +23,7 @@
 
 * {
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
 }
 
 html,
@@ -83,14 +84,6 @@ button {
   font-family: inherit;
   cursor: pointer;
   white-space: nowrap;
-}
-
-/* Android WebView adds a blue overlay to non-button controls such as switch labels. */
-button,
-a,
-label,
-[role='button'] {
-  -webkit-tap-highlight-color: transparent;
 }
 
 input,
