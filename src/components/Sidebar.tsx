@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentPropsWithoutRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { useStore } from '../store/store';
@@ -18,6 +18,23 @@ const SIDEBAR_MIN = 240;
 const SHAREHOLDER_CLICK_COUNT = 5;
 const SHAREHOLDER_CLICK_WINDOW_MS = 5_000;
 const SIDEBAR_MAX = 520;
+
+function FadeOverflowText({ className, children, ...props }: ComponentPropsWithoutRef<'span'> & { children: ReactNode }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [overflowing, setOverflowing] = useState(false);
+
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    const updateOverflow = () => setOverflowing(element.scrollWidth > element.clientWidth);
+    updateOverflow();
+    const observer = new ResizeObserver(updateOverflow);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [children]);
+
+  return <span ref={ref} className={`${className ?? ''}${overflowing ? ' has-overflow' : ''}`} {...props}>{children}</span>;
+}
 
 /** 触发 App 级全局游戏导出弹窗（会话右键菜单共用） */
 function openGlobalGameplayExport(sessionId: number, includeHistory: boolean) {
@@ -409,10 +426,10 @@ export function Sidebar() {
                   {!!(s as { pinned?: unknown }).pinned && (
                     <span className="spinned" title={t('nav.pinSession')}><Icon name="pin" size={11} /></span>
                   )}
-                  <span className="stitle-text">{s.title}</span>
+                  <FadeOverflowText className="stitle-text">{s.title}</FadeOverflowText>
                   {hasActivity && <span className="session-activity-dot" aria-label={t('nav.sessionActive')} />}
                 </div>
-                <div className="sprev">{s.lastMessage || t('nav.newConversation')}</div>
+                <FadeOverflowText className="sprev">{s.lastMessage || t('nav.newConversation')}</FadeOverflowText>
               </div>
             </button>
           );

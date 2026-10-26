@@ -575,6 +575,9 @@ body.resizing .sidebar-resizer {
   overflow: hidden;
   white-space: nowrap;
   min-width: 0;
+}
+.session-item .stitle-text.has-overflow,
+.session-item .sprev.has-overflow {
   -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent);
   mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent);
 }
@@ -612,12 +615,11 @@ body.resizing .sidebar-resizer {
   }
 }
 .session-item .sprev {
+  display: block;
   font-size: 11.5px;
   color: var(--text-faint);
   white-space: nowrap;
   overflow: hidden;
-  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent);
-  mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent);
 }
 /* ---------- 会话区域（头部 + 滚动列表） ---------- */
 .session-section {
@@ -1680,7 +1682,7 @@ hr.sep {
     display: flex;
     flex: 1;
     min-width: 0;
-    gap: 4px;
+    gap: 8px;
     margin: -12px -10px;
     padding: 12px 10px;
     overflow-x: auto;

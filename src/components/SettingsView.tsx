@@ -1,4 +1,4 @@
-import { memo, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { useStore } from '../store/store';
 import { db, DEFAULT_GENERATION_SETTINGS } from '../db/database';
 import { type ThemeMode } from '../theme/theme';
@@ -24,6 +24,8 @@ export const SettingsView = memo(function SettingsView() {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [generationParamsLocked, setGenerationParamsLocked] = useState(true);
+  const activeView = useStore((s) => s.activeView);
   const t = useT();
   const hasUnseenVersion = useHasUnseenVersion();
 
@@ -38,6 +40,7 @@ export const SettingsView = memo(function SettingsView() {
         max={max}
         step={step}
         value={settings[key] as number}
+        disabled={generationParamsLocked}
         onChange={(e) => setSettings({ [key]: parseFloat(e.target.value) })}
       />
       <span className="range-val">{fmt ? fmt(settings[key] as number) : (settings[key] as number)}</span>
@@ -52,6 +55,11 @@ export const SettingsView = memo(function SettingsView() {
     await setSettings({ ...generationDefaults });
     addToast(t('toast.genParamsReset'));
   };
+  const toggleGenerationParamsLock = () => setGenerationParamsLocked((locked) => !locked);
+
+  useEffect(() => {
+    if (activeView !== 'settings') setGenerationParamsLocked(true);
+  }, [activeView]);
 
   return (
     <div className="view-page">
@@ -104,15 +112,26 @@ export const SettingsView = memo(function SettingsView() {
         <div className="set-section">
           <div className="settings-section-head">
             <h3>{t('settings.genParams')}</h3>
-            <button
-              className="btn btn-sm settings-gen-reset"
-              title={t('settings.genParamsResetTitle')}
-              aria-label={t('settings.genParamsResetTitle')}
-              disabled={isGenerationDefault}
-              onClick={() => void resetGenerationParams()}
-            >
-              <Icon name="refresh" size={12} /> {t('settings.genParamsReset')}
-            </button>
+            <div className="settings-gen-actions">
+              <button
+                className="btn btn-sm settings-gen-lock"
+                title={t(generationParamsLocked ? 'settings.genParamsUnlock' : 'settings.genParamsLock')}
+                aria-label={t(generationParamsLocked ? 'settings.genParamsUnlock' : 'settings.genParamsLock')}
+                aria-pressed={generationParamsLocked}
+                onClick={toggleGenerationParamsLock}
+              >
+                <Icon name={generationParamsLocked ? 'lock' : 'unlock'} size={12} /> {t(generationParamsLocked ? 'settings.genParamsLocked' : 'settings.genParamsUnlocked')}
+              </button>
+              <button
+                className="btn btn-sm settings-gen-reset"
+                title={t('settings.genParamsResetTitle')}
+                aria-label={t('settings.genParamsResetTitle')}
+                disabled={generationParamsLocked || isGenerationDefault}
+                onClick={() => void resetGenerationParams()}
+              >
+                <Icon name="refresh" size={12} /> {t('settings.genParamsReset')}
+              </button>
+            </div>
           </div>
           <table className="table param-table">
             <tbody>
@@ -178,6 +197,7 @@ export const SettingsView = memo(function SettingsView() {
                       max="100"
                       step="1"
                       value={settings.contextCompressionThreshold === 'off' ? 0 : settings.contextCompressionThreshold}
+                      disabled={generationParamsLocked}
                       onChange={(e) => setSettings({ contextCompressionThreshold: Number(e.target.value) || 'off' })}
                     />
                     <span className="range-val">
@@ -195,6 +215,7 @@ export const SettingsView = memo(function SettingsView() {
                   <select
                     className="select"
                     value={settings.reasoningEffort}
+                    disabled={generationParamsLocked}
                     onChange={(e) => setSettings({ reasoningEffort: e.target.value as ReasoningEffort })}
                   >
                     {['auto', 'off', 'low', 'medium', 'xhigh'].map((r) => <option key={r} value={r}>{r}</option>)}

@@ -625,7 +625,13 @@
   justify-content: space-between;
   gap: 12px;
 }
-.settings-gen-reset {
+.settings-gen-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 6px;
+}
+.settings-gen-reset,
+.settings-gen-lock {
   flex-shrink: 0;
 }
 .settings-reset-section {

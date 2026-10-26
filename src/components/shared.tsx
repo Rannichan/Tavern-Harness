@@ -409,6 +409,8 @@ const ICONS: Record<string, React.ReactNode> = {
   upload: <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="m17 8-5-5-5 5M12 3v12" /></>,
   import: <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="M17 14l-5 5-5-5M12 19V7" /></>,
   pin: <><path d="M9 4h6M12 4v3l4 3v3h-8v-3l4-3" /><path d="M12 13v7" /></>,
+  lock: <><rect x="5" y="10" width="14" height="11" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></>,
+  unlock: <><rect x="5" y="10" width="14" height="11" rx="2" /><path d="M8 10V7a4 4 0 0 1 7.4-1.9" /></>,
   'git-branch': <><path d="M6 3v12" /><circle cx="18" cy="6" r="3" /><circle cx="6" cy="18" r="3" /><path d="M18 9a9 9 0 0 1-9 9" /></>,
   'zoom-in': <><circle cx="11" cy="11" r="7" /><path d="m21 21-4.35-4.35M11 8v6M8 11h6" /></>,
   'zoom-out': <><circle cx="11" cy="11" r="7" /><path d="m21 21-4.35-4.35M8 11h6" /></>,
