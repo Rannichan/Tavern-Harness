@@ -520,7 +520,6 @@
 }
 .list-item.sortable-skill .l-sub {
   color: var(--text-dim);
-  font-family: var(--font-sans);
 }
 
 /* ---------- 技能表：拖拽排序 ---------- */

@@ -62,6 +62,7 @@ export function Sidebar() {
 
   const [showNew, setShowNew] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<ChatSession | null>(null);
+  const [deletingSession, setDeletingSession] = useState(false);
   const [editTarget, setEditTarget] = useState<ChatSession | null>(null);
   const [sessionMenu, setSessionMenu] = useState<{ session: ChatSession; x: number; y: number } | null>(null);
   const [query, setQuery] = useState('');
@@ -178,11 +179,17 @@ export function Sidebar() {
   const npcById = (id: number | null) => (id != null ? npcs.find((n) => n.id === id) : null);
 
   const handleDelete = async () => {
-    if (!confirmDelete) return;
-    const sid = confirmDelete.id!;
-    await deleteSession(sid);
-    addToast(t('toast.sessionDeleted'));
-    setConfirmDelete(null);
+    if (!confirmDelete || deletingSession) return;
+    setDeletingSession(true);
+    try {
+      await deleteSession(confirmDelete.id!);
+      addToast(t('toast.sessionDeleted'));
+      setConfirmDelete(null);
+    } catch (error) {
+      addToast(t('toast.sessionDeleteFailed', { msg: (error as Error).message }), 'error');
+    } finally {
+      setDeletingSession(false);
+    }
   };
 
   const openEdit = (session: ChatSession) => {
@@ -531,7 +538,7 @@ export function Sidebar() {
           </div>
           <div className="modal-foot">
             <button className="btn" onClick={() => setConfirmDelete(null)}>{t('common.cancel')}</button>
-            <button className="btn btn-danger" onClick={handleDelete}>
+            <button className="btn btn-danger" disabled={deletingSession} onClick={handleDelete}>
               <Icon name="trash" size={13} /> {t('common.delete')}
             </button>
           </div>

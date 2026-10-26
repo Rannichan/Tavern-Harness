@@ -442,6 +442,8 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     // ---- 提示 ----
     'toast.sessionDeleted': '会话已删除',
     'toast.sessionUpdated': '会话设置已更新',
+    'toast.sessionSaveFailed': '保存会话设置失败：{msg}',
+    'toast.sessionDeleteFailed': '删除会话失败：{msg}',
     'toast.workspaceOpenLocalOnly': '仅可在运行 Tavern Harness 的设备上打开系统文件管理器',
     'toast.sessionReset': '会话已重置',
     'toast.sessionPinned': '已置顶对话',
@@ -960,6 +962,8 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'toast.gameplayImported': '已匯入遊戲「{title}」：新角色 {npc} 個、世界書 {wb}、技能 {tools} 個、對話 {msgs} 條',
     'toast.sessionDeleted': '會話已刪除',
     'toast.sessionUpdated': '會話設定已更新',
+    'toast.sessionSaveFailed': '儲存會話設定失敗：{msg}',
+    'toast.sessionDeleteFailed': '刪除會話失敗：{msg}',
     'toast.workspaceOpenLocalOnly': '僅可在執行 Tavern Harness 的裝置上開啟系統檔案管理員',
     'toast.sessionReset': '會話已重置',
     'toast.sessionPinned': '已置頂對話',
@@ -1472,6 +1476,8 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
 
     'toast.sessionDeleted': 'Session deleted',
     'toast.sessionUpdated': 'Conversation settings updated',
+    'toast.sessionSaveFailed': 'Failed to save conversation settings: {msg}',
+    'toast.sessionDeleteFailed': 'Failed to delete session: {msg}',
     'toast.workspaceOpenLocalOnly': 'The system file manager can only be opened on the device running Tavern Harness',
     'toast.sessionReset': 'Conversation reset',
     'toast.sessionPinned': 'Conversation pinned',

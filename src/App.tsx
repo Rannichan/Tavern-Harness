@@ -325,6 +325,7 @@ function SessionHeader({
   const [showEdit, setShowEdit] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deletingSession, setDeletingSession] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [showWorkspace, setShowWorkspace] = useState(false);
   const [showMobileActions, setShowMobileActions] = useState(false);
@@ -482,10 +483,19 @@ function SessionHeader({
             <button className="btn" onClick={() => setConfirmDelete(false)}>{t('common.cancel')}</button>
             <button
               className="btn btn-danger"
+              disabled={deletingSession}
               onClick={async () => {
-                await deleteSession(session.id!);
-                setConfirmDelete(false);
-                addToast(t('toast.sessionDeleted'));
+                if (deletingSession) return;
+                setDeletingSession(true);
+                try {
+                  await deleteSession(session.id!);
+                  setConfirmDelete(false);
+                  addToast(t('toast.sessionDeleted'));
+                } catch (error) {
+                  addToast(t('toast.sessionDeleteFailed', { msg: (error as Error).message }), 'error');
+                } finally {
+                  setDeletingSession(false);
+                }
               }}
             >
               <Icon name="trash" size={13} /> {t('common.delete')}

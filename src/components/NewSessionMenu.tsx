@@ -52,6 +52,7 @@ export function NewSessionMenu({ onClose, editingSession }: { onClose: () => voi
   const [turnOrderMode, setTurnOrderMode] = useState<'PRESET' | 'RANDOM'>(editingSession?.turnOrderMode ?? 'PRESET');
   const [mentionOnlyMode, setMentionOnlyMode] = useState(editingSession?.mentionOnlyMode === true);
   const [enableGreeting, setEnableGreeting] = useState(editingSession?.enableGreeting !== false);
+  const [saving, setSaving] = useState(false);
   const selectedNpcIds = participantOrder.filter((id) => id !== -1);
   const modeLabel = selectedNpcIds.length === 0 ? t('newSession.notSelected') : selectedNpcIds.length === 1 ? t('newSession.npcChat') : t('newSession.groupChat', { n: selectedNpcIds.length });
   const sensors = useSortableSensors();
@@ -77,55 +78,59 @@ export function NewSessionMenu({ onClose, editingSession }: { onClose: () => voi
   }, [editingSession?.id]);
 
   const create = async () => {
+    if (saving) return;
     if (selectedNpcIds.length === 0) {
       addToast(t('toast.pickOneNpc'), 'error');
       return;
     }
-    const finalTitle = title.trim() || selectedNpcIds.map((id) => npcs.find((n) => n.id === id)?.name).filter(Boolean).join('、');
-    if (isEditing && editingSession?.id) {
-      await updateSessionSettings(editingSession.id, {
-        title: finalTitle,
-        npcIds: selectedNpcIds,
-        worldBookId,
-        userPersonaNpcId,
-        turnOrderMode,
-        participantOrder,
-        mentionOnlyMode,
-        enableGreeting,
-      });
+    setSaving(true);
+    try {
+      const finalTitle = title.trim() || selectedNpcIds.map((id) => npcs.find((n) => n.id === id)?.name).filter(Boolean).join('、');
+      if (isEditing && editingSession?.id) {
+        await updateSessionSettings(editingSession.id, {
+          title: finalTitle,
+          npcIds: selectedNpcIds,
+          worldBookId,
+          userPersonaNpcId,
+          turnOrderMode,
+          participantOrder,
+          mentionOnlyMode,
+          enableGreeting,
+        });
+        addToast(t('toast.sessionUpdated'));
+        onClose();
+        return;
+      }
+      const sid = selectedNpcIds.length === 1
+        ? await createSession('NPC', {
+          associatedId: selectedNpcIds[0],
+          title: finalTitle,
+          worldBookId,
+          userPersonaNpcId,
+          turnOrderMode,
+          participantOrder,
+          mentionOnlyMode,
+          enableGreeting,
+        })
+        : await createSession('GROUP', {
+          npcIds: selectedNpcIds,
+          title: finalTitle,
+          worldBookId,
+          userPersonaNpcId,
+          turnOrderMode,
+          participantOrder,
+          mentionOnlyMode,
+          enableGreeting,
+        });
       await useStore.getState().refreshSessions();
-      useStore.getState().setActiveSession(editingSession.id);
-      addToast(t('toast.sessionUpdated'));
+      useStore.getState().setActiveSession(sid);
       onClose();
-      return;
+    } catch (error) {
+      if (isEditing) addToast(t('toast.sessionSaveFailed', { msg: (error as Error).message }), 'error');
+      else addToast(t('toast.genFailed', { msg: (error as Error).message }), 'error');
+    } finally {
+      setSaving(false);
     }
-    let sid: number;
-    if (selectedNpcIds.length === 1) {
-      sid = await createSession('NPC', {
-        associatedId: selectedNpcIds[0],
-        title: finalTitle,
-        worldBookId,
-        userPersonaNpcId,
-        turnOrderMode,
-        participantOrder,
-        mentionOnlyMode,
-        enableGreeting,
-      });
-    } else {
-      sid = await createSession('GROUP', {
-        npcIds: selectedNpcIds,
-        title: finalTitle,
-        worldBookId,
-        userPersonaNpcId,
-        turnOrderMode,
-        participantOrder,
-        mentionOnlyMode,
-        enableGreeting,
-      });
-    }
-    await useStore.getState().refreshSessions();
-    useStore.getState().setActiveSession(sid);
-    onClose();
   };
 
   const addParticipant = (npcId: number) => {
@@ -273,7 +278,7 @@ export function NewSessionMenu({ onClose, editingSession }: { onClose: () => voi
       </div>
       <div className="modal-foot">
         <button className="btn" onClick={onClose}>{t('common.cancel')}</button>
-        <button className="btn btn-primary" disabled={!canCreate} onClick={create}>{isEditing ? t('common.save') : t('common.ok')}</button>
+        <button className="btn btn-primary" disabled={!canCreate || saving} onClick={create}>{isEditing ? t('common.save') : t('common.ok')}</button>
       </div>
     </Modal>
   );

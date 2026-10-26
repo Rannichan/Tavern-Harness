@@ -907,13 +907,20 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   deleteSession: async (id) => {
-    // 先取会话记录（工作目录在删除后不可查），再清理目录与数据
-    const session = await db.sessions.get(id);
     invalidateContextCompressionJob(id);
-    await db.messages.where('sessionId').equals(id).delete();
-    await db.contextCompressions.where('sessionId').equals(id).delete();
-    await db.participants.where('sessionId').equals(id).delete();
-    await db.sessions.delete(id);
+    const session = await db.transaction(
+      'rw',
+      [db.sessions, db.messages, db.contextCompressions, db.participants],
+      async () => {
+        // 先取会话记录（工作目录在删除后不可查），再原子删除关联数据。
+        const current = await db.sessions.get(id);
+        await db.messages.where('sessionId').equals(id).delete();
+        await db.contextCompressions.where('sessionId').equals(id).delete();
+        await db.participants.where('sessionId').equals(id).delete();
+        await db.sessions.delete(id);
+        return current;
+      },
+    );
     // 删除会话的专属磁盘工作目录；沙箱不可用时静默跳过
     if (session?.workspaceDir) {
       await deleteSessionWorkspace(session.workspaceDir);
@@ -1047,7 +1054,10 @@ export const useStore = create<AppState>((set, get) => ({
     const npcIds = [...new Set((opts.npcIds ?? []).filter((id) => Number.isFinite(id)).map(Number))].slice(0, 5);
     if (npcIds.length === 0) return;
     const participantOrder = opts.participantOrder ?? [-1, ...npcIds];
-    const participants = await buildSessionParticipants(sessionId, npcIds, participantOrder);
+    const [participants, existingParticipants] = await Promise.all([
+      buildSessionParticipants(sessionId, npcIds, participantOrder),
+      db.participants.where('sessionId').equals(sessionId).toArray(),
+    ]);
     const finalNpcIds = participants.filter((p) => p.kind === 'NPC' && p.npcId != null).map((p) => p.npcId!);
     if (finalNpcIds.length === 0) return;
     const finalTitle = opts.title?.trim() || participants
@@ -1055,8 +1065,7 @@ export const useStore = create<AppState>((set, get) => ({
       .map((p) => p.displayName)
       .join('、');
     const turnOrderMode = opts.turnOrderMode === 'RANDOM' ? 'RANDOM' : 'PRESET';
-    const existingParticipants = (await db.participants.where('sessionId').equals(sessionId).toArray())
-      .sort((left, right) => left.seatOrder - right.seatOrder);
+    existingParticipants.sort((left, right) => left.seatOrder - right.seatOrder);
     const queueSettingsChanged = turnOrderMode !== session.turnOrderMode
       || existingParticipants.length !== participants.length
       || existingParticipants.some((existing, index) => {
@@ -1068,29 +1077,30 @@ export const useStore = create<AppState>((set, get) => ({
           || existing.seatOrder !== next.seatOrder;
       });
     const queue = queueSettingsChanged ? initializeTurnQueue(participants, turnOrderMode) : safeParseQueue(session.turnQueueJson);
-    if (queueSettingsChanged) {
-      await db.participants.where('sessionId').equals(sessionId).delete();
-      await db.participants.bulkAdd(participants);
-    }
-    await db.sessions.update(sessionId, {
-      title: finalTitle,
-      mode: finalNpcIds.length === 1 ? 'NPC' : 'GROUP',
-      associatedId: finalNpcIds.length === 1 ? finalNpcIds[0] : null,
-      worldBookId: opts.worldBookId ?? null,
-      userPersonaNpcId: opts.userPersonaNpcId ?? null,
-      enableGreeting: opts.enableGreeting !== false,
-      mentionOnlyMode: opts.mentionOnlyMode === true && finalNpcIds.length > 1,
-      turnOrderMode,
-      ...(queueSettingsChanged ? {
-        turnQueueJson: queueJson(queue),
-        turnQueueHistoryJson: queueHistoryJson([queue]),
-        loopIndex: 0,
-      } : {}),
-      updatedAt: Date.now(),
+    await db.transaction('rw', db.sessions, db.participants, async () => {
+      if (queueSettingsChanged) {
+        await db.participants.where('sessionId').equals(sessionId).delete();
+        await db.participants.bulkAdd(participants);
+      }
+      await db.sessions.update(sessionId, {
+        title: finalTitle,
+        mode: finalNpcIds.length === 1 ? 'NPC' : 'GROUP',
+        associatedId: finalNpcIds.length === 1 ? finalNpcIds[0] : null,
+        worldBookId: opts.worldBookId ?? null,
+        userPersonaNpcId: opts.userPersonaNpcId ?? null,
+        enableGreeting: opts.enableGreeting !== false,
+        mentionOnlyMode: opts.mentionOnlyMode === true && finalNpcIds.length > 1,
+        turnOrderMode,
+        ...(queueSettingsChanged ? {
+          turnQueueJson: queueJson(queue),
+          turnQueueHistoryJson: queueHistoryJson([queue]),
+          loopIndex: 0,
+        } : {}),
+        updatedAt: Date.now(),
+      });
     });
-    await get().loadMessages(sessionId);
     await get().refreshSessions();
-    await get().refreshLiveQueue(sessionId);
+    if (queueSettingsChanged) await get().refreshLiveQueue(sessionId);
   },
 
   resetSessionConversation: async (sessionId) => {
