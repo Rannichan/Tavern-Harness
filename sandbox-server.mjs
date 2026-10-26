@@ -596,10 +596,11 @@ const server = createServer(async (req, res) => {
       const payload = JSON.parse(body);
       const base = resolveSessionBase(payload?.session);
       const rel = sanitizeWorkspaceRelativePath(payload?.path);
-      if (resolvesOutsideSession(rel, base)) throw new Error('Path is outside the workspace');
+      const readingPublicLink = base !== PUBLIC_WORKSPACE && (rel === 'public' || rel.startsWith('public/'));
+      if (!readingPublicLink && resolvesOutsideSession(rel, base)) throw new Error('Path is outside the workspace');
       const file = resolve(base, rel);
       if (!existsSync(file) || !lstatSync(file).isFile()) throw new Error('File not found');
-      assertInside(base, realpathSync(file));
+      assertInside(readingPublicLink ? PUBLIC_WORKSPACE : base, realpathSync(file));
       const content = await readFilePromise(file);
       if (content.length > 8 * 1024 * 1024) throw new Error('Preview file exceeds the 8MB limit');
       res.end(JSON.stringify({ ok: true, content: content.toString('base64') }));

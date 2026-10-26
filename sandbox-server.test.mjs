@@ -240,6 +240,10 @@ try {
   const previewTraversal = await previewRead({ session: otherSession, path: '../public/preview.bin' });
   assert.equal(previewTraversal.status, 400);
   assert.match(previewTraversal.body.message, /Path must not contain \.\./);
+  writeFileSync(join(workspaceRoot, 'public', 'preview.html'), '<!doctype html><title>Public preview</title>');
+  const publicPreview = await previewRead({ session: otherSession, path: 'public/preview.html' });
+  assert.equal(publicPreview.status, 200);
+  assert.equal(Buffer.from(publicPreview.body.content, 'base64').toString('utf8'), '<!doctype html><title>Public preview</title>');
 
   const externalDir = mkdtempSync(join(tmpdir(), 'command-service-external-'));
   writeFileSync(join(externalDir, 'secret.txt'), 'outside');
