@@ -3,6 +3,32 @@
 > 本文件由 `scripts/changelog.mjs` 从 `changelog/v*.md` 生成，请勿手动编辑。
 > 版本对比链接见文末；源文件位于仓库 `changelog/` 目录。
 
+## [0.1.26] - 2026-10-27
+
+### 中文
+
+#### 改进
+
+- 角色卡与世界书的知识库编辑器现在支持 JSON 语法高亮，键名、字符串、数字等用不同颜色区分，长内容更容易扫读
+- 知识库 JSON 格式有误时，提示会指出具体出错的第几行，方便直接定位修改
+
+#### 修复
+
+- 修复手机上编辑角色时，切换「角色 / 知识库」标签会收起键盘、底部按钮随之闪烁跳动的问题
+- 修复技能卡片里过长的工具名在手机上撑出屏幕、把操作按钮挤到看不见的问题
+
+### English
+
+#### Changed
+
+- The character-card and world-book knowledge editors now highlight JSON syntax, coloring keys, strings, and numbers so long entries are easier to scan
+- When knowledge-base JSON is invalid, the error now names the exact line, so the problem can be found and fixed directly
+
+#### Fixed
+
+- Fixed an issue on mobile where switching between the Character and Knowledge tabs while editing a character dismissed the keyboard and made the bottom buttons flicker
+- Fixed overly long tool names in skill cards overflowing the screen on mobile and pushing the action buttons out of view
+
 ## [0.1.25] - 2026-10-27
 
 ### 中文
@@ -716,6 +742,7 @@
 - Vite + React + Zustand + Dexie stack with browser-side local persistence
 
 <!-- 链接定义 -->
+[0.1.26]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.25...v0.1.26
 [0.1.25]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.24...v0.1.25
 [0.1.24]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.23...v0.1.24
 [0.1.23]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.22...v0.1.23
