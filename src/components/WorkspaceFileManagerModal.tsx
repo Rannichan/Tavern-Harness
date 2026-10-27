@@ -241,7 +241,7 @@ export function WorkspaceFileManagerModal({ sessionId, onClose }: { sessionId: n
         <div className="ws-fm-delete-layer" role="dialog" aria-modal="true" aria-labelledby="ws-fm-delete-title">
           <div className="ws-fm-delete-dialog card fade-up">
             <div className="modal-head">
-              <span id="ws-fm-delete-title" style={{ fontWeight: 800, fontSize: 15 }}>{t('header.fileManagerDeleteTitle')}</span>
+              <span id="ws-fm-delete-title" className="typo-dialog-title">{t('header.fileManagerDeleteTitle')}</span>
               <button className="icon-btn" onClick={() => setPendingDelete(null)} disabled={deleting} title={t('common.close')}>
                 <Icon name="x" />
               </button>

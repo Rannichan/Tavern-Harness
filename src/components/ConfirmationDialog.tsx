@@ -23,16 +23,16 @@ export function ConfirmationDialog() {
       <div className="modal-root">
         <div className="modal card confirm fade-up">
           <div className="modal-head">
-            <span style={{ fontWeight: 800, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span className="typo-dialog-title dialog-title-inline dialog-title-compact">
               <Icon name="settings" size={15} /> {isLimit ? pending.title : t('confirm.title')}
             </span>
           </div>
           <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {!isLimit && <div style={{ fontSize: 13, fontWeight: 700 }}>{t('confirm.tool')}<span className="mono" style={{ color: 'var(--primary)' }}>{pending.toolName}</span></div>}
+            {!isLimit && <div className="confirmation-tool-name">{t('confirm.tool')}<span className="mono text-accent">{pending.toolName}</span></div>}
             {!pending.inlineCode && <pre className="confirm-args mono">{argsText}</pre>}
             <div className={isLimit ? undefined : 'confirm-reason'}>
               {!isLimit && <div className="confirm-reason-title">{pending.title}</div>}
-              <div style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.6, whiteSpace: 'pre-line' }}>
+              <div className="typo-confirm-reason">
                 {pending.inlineCode && <code className="confirm-inline-code">{pending.inlineCode}</code>}
                 {pending.message || (isLimit ? '' : t('confirm.modify'))}
               </div>

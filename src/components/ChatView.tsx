@@ -1465,7 +1465,7 @@ export function MessageMenu() {
           <Icon name={a.icon} size={13} /> {a.label}
         </button>
       ))}
-      {actions.length === 0 && <div style={{ padding: 10, fontSize: 12, color: 'var(--text-faint)' }}>{t('chat.noActions')}</div>}
+      {actions.length === 0 && <div className="chat-no-actions">{t('chat.noActions')}</div>}
     </PopoverMenu>
   );
 }

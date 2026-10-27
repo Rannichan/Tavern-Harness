@@ -50,7 +50,7 @@ export function GameplayExportModal({
   return (
     <Modal onClose={onClose} size="compact">
       <div className="modal-head">
-        <span style={{ fontWeight: 800, fontSize: 15, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span className="typo-dialog-title dialog-title-inline">
           <Icon name="share" size={15} /> {t('gameplay.exportTitle')}
         </span>
         <button className="icon-btn" onClick={onClose}><Icon name="x" /></button>
@@ -155,7 +155,7 @@ export function GameplayImportModal({
   return (
     <Modal onClose={onClose} size="compact">
       <div className="modal-head">
-        <span style={{ fontWeight: 800, fontSize: 15, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span className="typo-dialog-title dialog-title-inline">
           <Icon name="import" size={15} /> {t('gameplay.importTitle')}
         </span>
         <button className="icon-btn" onClick={onClose}><Icon name="x" /></button>

@@ -165,7 +165,8 @@ export default function App() {
               type="button"
               disabled={takingControl}
               onClick={() => void handleTakeOverControl()}
-              style={{ padding: '10px 18px', border: 0, borderRadius: 8, cursor: takingControl ? 'wait' : 'pointer', fontWeight: 700, background: 'color-mix(in srgb, var(--primary) 25%, transparent)', color: 'var(--primary)' }}
+              className="control-takeover-btn"
+              style={{ cursor: takingControl ? 'wait' : 'pointer' }}
             >
               {t('control.takeOverHere')}
             </button>
@@ -448,7 +449,7 @@ function SessionHeader({
       {confirmReset && (
         <Modal onClose={() => setConfirmReset(false)} size="compact">
           <div className="modal-head">
-            <span style={{ fontWeight: 800, fontSize: 15 }}>{t('header.resetSessionTitle')}</span>
+            <span className="typo-dialog-title">{t('header.resetSessionTitle')}</span>
             <button className="icon-btn" onClick={() => setConfirmReset(false)}><Icon name="x" /></button>
           </div>
           <div className="modal-body">
@@ -473,7 +474,7 @@ function SessionHeader({
       {confirmDelete && (
         <Modal onClose={() => setConfirmDelete(false)} size="compact">
           <div className="modal-head">
-            <span style={{ fontWeight: 800, fontSize: 15 }}>{t('header.deleteTitle')}</span>
+            <span className="typo-dialog-title">{t('header.deleteTitle')}</span>
             <button className="icon-btn" onClick={() => setConfirmDelete(false)}><Icon name="x" /></button>
           </div>
           <div className="modal-body">

@@ -527,13 +527,13 @@ export function Sidebar() {
       {confirmDelete && (
         <Modal onClose={() => setConfirmDelete(null)} size="compact">
           <div className="modal-head">
-            <span style={{ fontWeight: 800, fontSize: 15, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span className="typo-dialog-title dialog-title-inline">
               <Icon name="trash" size={15} /> {t('nav.deleteSession')}
             </span>
             <button className="icon-btn" onClick={() => setConfirmDelete(null)}><Icon name="x" /></button>
           </div>
           <div className="modal-body">
-            <div style={{ fontSize: 13.5, lineHeight: 1.7 }}>
+            <div className="sidebar-import-description">
               {t('nav.deleteSessionConfirm', { title: confirmDelete.title })}
             </div>
           </div>

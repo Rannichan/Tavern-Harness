@@ -134,18 +134,18 @@ function StatCards({ data }: { data: StatsData }) {
             {(() => {
               const mostActive = [...data.npcStats].sort((a, b) => b.rounds - a.rounds)[0];
               return (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{ fontSize: 26 }}>🎭</div>
+                <div className="stats-most-active">
+                  <div className="stats-most-active-icon">🎭</div>
                   <div>
-                    <div style={{ fontWeight: 800 }}>{mostActive.npcName}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-faint)' }}>{t('stats.roundsCount', { n: mostActive.rounds })}</div>
+                    <div className="stats-most-active-name">{mostActive.npcName}</div>
+                    <div className="stats-most-active-rounds">{t('stats.roundsCount', { n: mostActive.rounds })}</div>
                   </div>
                 </div>
               );
             })()}
           </>
         ) : (
-          <div style={{ color: 'var(--text-faint)', fontSize: 13 }}>{t('stats.noData')}</div>
+          <div className="stats-no-data">{t('stats.noData')}</div>
         )}
       </div>
 

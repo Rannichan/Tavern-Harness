@@ -9,12 +9,71 @@
   --radius: 14px;
   --radius-lg: 18px;
   --radius-sm: 9px;
-  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+  --font-family-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
     'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
   /* 衬线展示栈：本地系统衬线，零网络依赖；用于品牌名 / Hero / 页面标题 / 统计数字 */
-  --font-serif: 'Iowan Old Style', 'Palatino Linotype', 'Songti SC', 'Noto Serif SC',
+  --font-family-display: 'Iowan Old Style', 'Palatino Linotype', 'Songti SC', 'Noto Serif SC',
     'Source Han Serif SC', 'STSong', serif;
-  --font-mono: 'SF Mono', 'JetBrains Mono', 'Fira Code', Consolas, 'Courier New', monospace;
+  --font-family-mono: 'SF Mono', 'JetBrains Mono', 'Fira Code', Consolas, 'Courier New', monospace;
+
+  /* 兼容现有组件；新增样式应使用 --font-family-* 或 typography token。 */
+  --font-sans: var(--font-family-sans);
+  --font-serif: var(--font-family-display);
+  --font-mono: var(--font-family-mono);
+
+  --font-size-2xs: 9.5px;
+  --font-size-xs: 10.5px;
+  --font-size-sm: 11px;
+  --font-size-md: 12px;
+  --font-size-body-sm: 12.5px;
+  --font-size-body: 14px;
+  --font-size-body-lg: 14.5px;
+  --font-size-label: 13px;
+  --font-size-title-sm: 15.5px;
+  --font-size-title-md: 18px;
+  --font-size-title-lg: 24px;
+  --font-size-display: 32px;
+
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --font-weight-extrabold: 800;
+  --font-weight-black: 900;
+
+  --text-primary: var(--text);
+  --text-secondary: var(--text-dim);
+  --text-muted: var(--text-faint);
+  --text-accent: var(--primary);
+  --text-success: var(--success);
+  --text-warning: var(--warn);
+  --text-danger: var(--danger);
+  --text-thinking: var(--think);
+
+  --typography-body-font: var(--font-family-sans);
+  --typography-body-size: var(--font-size-body-lg);
+  --typography-body-weight: var(--font-weight-regular);
+  --typography-body-line-height: 1.6;
+  --typography-label-font: var(--font-family-sans);
+  --typography-label-size: var(--font-size-md);
+  --typography-label-weight: var(--font-weight-bold);
+  --typography-label-line-height: 1.4;
+  --typography-meta-font: var(--font-family-mono);
+  --typography-meta-size: var(--font-size-xs);
+  --typography-meta-weight: var(--font-weight-regular);
+  --typography-meta-line-height: 1.4;
+  --typography-title-sm-font: var(--font-family-display);
+  --typography-title-sm-size: var(--font-size-title-sm);
+  --typography-title-sm-weight: var(--font-weight-bold);
+  --typography-title-sm-line-height: 1.3;
+  --typography-title-md-font: var(--font-family-display);
+  --typography-title-md-size: var(--font-size-title-md);
+  --typography-title-md-weight: var(--font-weight-bold);
+  --typography-title-md-line-height: 1.3;
+  --typography-title-lg-font: var(--font-family-display);
+  --typography-title-lg-size: var(--font-size-title-lg);
+  --typography-title-lg-weight: var(--font-weight-bold);
+  --typography-title-lg-line-height: 1.25;
   /* 移动端顶栏高度：壳层、消息区、侧边栏三处排版共用，避免各写一份 56px */
   --mobile-topbar-h: 56px;
   font-synthesis: none;
@@ -39,14 +98,98 @@ body {
 }
 
 body {
-  font-family: var(--font-sans);
+  font-family: var(--typography-body-font);
   background: var(--bg);
-  color: var(--text);
+  color: var(--text-primary);
   transition: background-color 0.25s ease, color 0.25s ease;
   overflow: hidden;
-  font-size: 14.5px;
-  line-height: 1.6;
+  font-size: var(--typography-body-size);
+  font-weight: var(--typography-body-weight);
+  line-height: var(--typography-body-line-height);
 }
+
+/* ---------- 文字语义工具类 ---------- */
+.typo-body {
+  font-family: var(--typography-body-font);
+  font-size: var(--typography-body-size);
+  font-weight: var(--typography-body-weight);
+  line-height: var(--typography-body-line-height);
+}
+.typo-body-sm {
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-regular);
+  line-height: 1.55;
+}
+.typo-label {
+  font-family: var(--typography-label-font);
+  font-size: var(--typography-label-size);
+  font-weight: var(--typography-label-weight);
+  line-height: var(--typography-label-line-height);
+}
+.typo-meta {
+  font-family: var(--typography-meta-font);
+  font-size: var(--typography-meta-size);
+  font-weight: var(--typography-meta-weight);
+  line-height: var(--typography-meta-line-height);
+}
+.typo-title-sm {
+  font-family: var(--typography-title-sm-font);
+  font-size: var(--typography-title-sm-size);
+  font-weight: var(--typography-title-sm-weight);
+  line-height: var(--typography-title-sm-line-height);
+}
+.typo-title-md {
+  font-family: var(--typography-title-md-font);
+  font-size: var(--typography-title-md-size);
+  font-weight: var(--typography-title-md-weight);
+  line-height: var(--typography-title-md-line-height);
+}
+.typo-title-lg {
+  font-family: var(--typography-title-lg-font);
+  font-size: var(--typography-title-lg-size);
+  font-weight: var(--typography-title-lg-weight);
+  line-height: var(--typography-title-lg-line-height);
+}
+.typo-dialog-title {
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-title-sm);
+  font-weight: var(--font-weight-extrabold);
+  line-height: 1.35;
+}
+.typo-status {
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.4;
+}
+
+.text-primary { color: var(--text-primary); }
+.text-secondary { color: var(--text-secondary); }
+.text-muted { color: var(--text-muted); }
+.text-accent { color: var(--text-accent); }
+.text-success { color: var(--text-success); }
+.text-warning { color: var(--text-warning); }
+.text-danger { color: var(--text-danger); }
+.text-thinking { color: var(--text-thinking); }
+
+.dialog-title-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dialog-title-compact { font-size: var(--font-size-body); }
+.confirmation-tool-name {
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-bold);
+}
+.typo-confirm-reason {
+  font-size: var(--font-size-label);
+  line-height: 1.6;
+  color: var(--text-secondary);
+  white-space: pre-line;
+}
+.control-takeover-btn:disabled { cursor: wait; }
 
 /* 酒馆氛围背景：低饱和度纯色 + 噪点纹理 */
 .tav-bg {
@@ -93,7 +236,7 @@ select {
 }
 
 .mono {
-  font-family: var(--font-mono);
+  font-family: var(--font-family-mono);
 }
 
 /* ---------- 触屏长按 / 拖拽 ---------- */
@@ -199,22 +342,24 @@ html.wechat-android .model-option-name {
   text-align: center;
 }
 .init-error-hint {
-  color: var(--text-faint);
+  color: var(--text-muted);
   line-height: 1.6;
 }
 .init-error-detail {
-  color: var(--text-faint);
-  font-family: var(--font-mono);
-  font-size: 12px;
+  color: var(--text-muted);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-md);
   line-height: 1.6;
   overflow-wrap: anywhere;
 }
-.init-error-retry {
+.init-error-retry,
+.control-takeover-btn {
   padding: 10px 18px;
   border: 0;
   border-radius: 8px;
-  font-weight: 700;
-  color: var(--primary);
+  font-family: var(--font-family-sans);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-accent);
   background: color-mix(in srgb, var(--primary) 25%, transparent);
 }
 
@@ -288,7 +433,7 @@ body.resizing .sidebar-resizer {
   padding: 4px;
   transform: translateY(3px);
   background: transparent;
-  color: var(--primary);
+  color: var(--text-accent);
   flex-shrink: 0;
 }
 .brand-qr > svg {
@@ -302,7 +447,7 @@ body.resizing .sidebar-resizer {
   height: 12px;
   border-radius: 2px;
   background: var(--surface);
-  color: var(--primary);
+  color: var(--text-accent);
 }
 .brand:hover {
   background: color-mix(in srgb, var(--text) 5%, transparent);
@@ -318,7 +463,7 @@ body.resizing .sidebar-resizer {
   display: grid;
   place-items: center;
   color: #fff;
-  font-weight: 800;
+  font-weight: var(--font-weight-extrabold);
   font-size: 19px;
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 45%, transparent), 0 0 22px var(--glow);
   flex-shrink: 0;
@@ -328,14 +473,14 @@ body.resizing .sidebar-resizer {
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 60%, transparent), 0 0 30px var(--glow);
 }
 .brand-name {
-  font-family: var(--font-serif);
-  font-weight: 700;
-  font-size: 18px;
+  font-family: var(--font-family-display);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-title-md);
   letter-spacing: 0.3px;
 }
 .brand-sub {
-  font-size: 11px;
-  color: var(--text-faint);
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
 }
 
 .side-nav {
@@ -375,15 +520,15 @@ body.resizing .sidebar-resizer {
   border-radius: 999px;
   border: 1px solid var(--border);
   background: transparent;
-  color: var(--text-dim);
-  font-size: 13px;
-  font-weight: 600;
+  color: var(--text-secondary);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-semibold);
   transition: all 0.32s cubic-bezier(0.16, 1, 0.3, 1);
   white-space: nowrap;
 }
 .nav-chip:hover {
   background: color-mix(in srgb, var(--primary) 8%, transparent);
-  color: var(--text);
+  color: var(--text-primary);
   border-color: color-mix(in srgb, var(--primary) 25%, transparent);
 }
 .nav-chip.active {
@@ -391,7 +536,7 @@ body.resizing .sidebar-resizer {
   z-index: 1;
   background: color-mix(in srgb, var(--primary) 15%, var(--surface));
   border-color: color-mix(in srgb, var(--primary) 58%, transparent);
-  color: var(--primary);
+  color: var(--text-accent);
   /* 柔和感以 inset 内发光 + 1px 高光环为主；外发光半径收在容器 padding 内避免 overflow 断层 */
   box-shadow:
     inset 0 0 0 1px color-mix(in srgb, var(--primary) 14%, transparent),
@@ -427,7 +572,7 @@ body.resizing .sidebar-resizer {
   border-radius: var(--radius-sm);
   border: 1px solid transparent;
   background: transparent;
-  color: var(--text);
+  color: var(--text-primary);
   text-align: left;
   transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.32s cubic-bezier(0.16, 1, 0.3, 1);
   width: 100%;
@@ -454,7 +599,7 @@ body.resizing .sidebar-resizer {
   border-radius: 10px;
   display: grid;
   place-items: center;
-  font-size: 15px;
+  font-size: var(--font-size-title-sm);
   flex-shrink: 0;
   background: var(--surface-3);
   border: 1px solid var(--border-soft);
@@ -555,9 +700,9 @@ body.resizing .sidebar-resizer {
   min-width: 0;
 }
 .session-item .stitle {
-  font-family: var(--font-serif);
-  font-weight: 700;
-  font-size: 13.8px;
+  font-family: var(--font-family-display);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-label);
   white-space: nowrap;
   overflow: visible;
   display: flex;
@@ -578,7 +723,7 @@ body.resizing .sidebar-resizer {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--primary);
+  color: var(--text-accent);
   flex-shrink: 0;
 }
 .session-item .session-activity-dot {
@@ -609,8 +754,8 @@ body.resizing .sidebar-resizer {
 }
 .session-item .sprev {
   display: block;
-  font-size: 11.5px;
-  color: var(--text-faint);
+  font-size: var(--font-size-body-sm);
+  color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
 }
@@ -640,9 +785,9 @@ body.resizing .sidebar-resizer {
   gap: 3px;
   border: none;
   background: none;
-  color: var(--text);
-  font-size: 13px;
-  font-weight: 800;
+  color: var(--text-primary);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-extrabold);
   padding: 4px 8px;
   border-radius: 8px;
   cursor: pointer;
@@ -650,7 +795,7 @@ body.resizing .sidebar-resizer {
 }
 .session-new-btn:hover {
   background: var(--surface-2);
-  color: var(--primary);
+  color: var(--text-accent);
 }
 /* 会话列表头部的按钮组（导入 + 新建） */
 .session-head-actions {
@@ -669,10 +814,10 @@ body.resizing .sidebar-resizer {
   width: 100%;
   padding: 7px 30px 7px 12px;
   border-radius: 10px;
-  font-size: 12.5px;
+  font-size: var(--font-size-body-sm);
   border: 1px solid var(--border);
   background: var(--surface);
-  color: var(--text);
+  color: var(--text-primary);
   outline: none;
   transition: border-color 0.32s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.32s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -697,14 +842,19 @@ body.resizing .sidebar-resizer {
   border: none;
   border-radius: 50%;
   background: var(--surface-2);
-  color: var(--text-dim);
+  color: var(--text-secondary);
   display: grid;
   place-items: center;
   cursor: pointer;
 }
 .search-clear:hover {
-  color: var(--danger);
+  color: var(--text-danger);
   background: var(--danger-soft);
+}
+
+.sidebar-import-description {
+  font-size: var(--font-size-body-sm);
+  line-height: 1.7;
 }
 
 /* ---------- 通用按钮 ---------- */
@@ -717,9 +867,9 @@ body.resizing .sidebar-resizer {
   border-radius: 10px;
   border: 1px solid var(--border);
   background: color-mix(in srgb, var(--surface) 80%, transparent);
-  color: var(--text);
-  font-size: 13.2px;
-  font-weight: 600;
+  color: var(--text-primary);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-semibold);
     text-decoration: none;
   transition: all 0.32s cubic-bezier(0.16, 1, 0.3, 1);
   user-select: none;
@@ -762,7 +912,7 @@ body.resizing .sidebar-resizer {
   color: #fff;
 }
 .btn-danger {
-  color: var(--danger);
+  color: var(--text-danger);
   border-color: color-mix(in srgb, var(--danger) 30%, transparent);
   background: var(--danger-soft);
 }
@@ -772,16 +922,16 @@ body.resizing .sidebar-resizer {
 .btn-ghost {
   background: transparent;
   border-color: transparent;
-  color: var(--text-dim);
+  color: var(--text-secondary);
   padding: 6px 10px;
 }
 .btn-ghost:hover {
   background: var(--surface-2);
-  color: var(--text);
+  color: var(--text-primary);
 }
 .btn-sm {
   padding: 4px 10px;
-  font-size: 12px;
+  font-size: var(--font-size-md);
   border-radius: 8px;
 }
 /* 导入按钮使用的 SillyTavern 图标（PNG） */
@@ -801,13 +951,13 @@ body.resizing .sidebar-resizer {
   border: none;
   border-radius: 8px;
   background: transparent;
-  color: var(--text-dim);
-  font-size: 14px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-body);
   transition: background 0.15s ease, color 0.15s ease;
 }
 .icon-btn:hover {
   background: var(--surface-2);
-  color: var(--text);
+  color: var(--text-primary);
 }
 
 /* ---------- 输入控件 ---------- */
@@ -818,9 +968,9 @@ body.resizing .sidebar-resizer {
   min-width: 0;
 }
 .field > label {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--text-dim);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-secondary);
   letter-spacing: 0.3px;
   text-transform: uppercase;
 }
@@ -832,8 +982,8 @@ body.resizing .sidebar-resizer {
   border-radius: 10px;
   border: 1px solid var(--border);
   background: var(--surface);
-  color: var(--text);
-  font-size: 13.5px;
+  color: var(--text-primary);
+  font-size: var(--font-size-label);
   transition: border-color 0.32s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.32s cubic-bezier(0.16, 1, 0.3, 1);
   outline: none;
 }
@@ -857,7 +1007,7 @@ body.resizing .sidebar-resizer {
 }
 .input::placeholder,
 .textarea::placeholder {
-  color: var(--text-faint);
+  color: var(--text-muted);
 }
 .select {
   appearance: none;
@@ -874,11 +1024,11 @@ body.resizing .sidebar-resizer {
   align-items: center;
   gap: 8px;
   cursor: pointer;
-  font-size: 13.5px;
+  font-size: var(--font-size-label);
   user-select: none;
 }
 .check input {
-  accent-color: var(--primary);
+  accent-color: var(--text-accent);
   width: 16px;
   height: 16px;
   cursor: pointer;
@@ -892,8 +1042,8 @@ body.resizing .sidebar-resizer {
   border-radius: 999px;
   background: var(--tag-bg);
   color: var(--tag-text);
-  font-size: 11.5px;
-  font-weight: 700;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-bold);
 }
 
 .card {
@@ -979,9 +1129,9 @@ body.resizing .sidebar-resizer {
   border-radius: 12px;
   display: grid;
   place-items: center;
-  font-weight: 700;
-  font-size: 17px;
-  font-family: var(--font-serif);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-title-md);
+  font-family: var(--font-family-display);
   color: #fff;
   flex-shrink: 0;
   background: var(--grad-from);
@@ -1002,13 +1152,13 @@ body.resizing .sidebar-resizer {
 .avatar.sm {
   width: 32px;
   height: 32px;
-  font-size: 14px;
+  font-size: var(--font-size-body);
   border-radius: 10px;
 }
 .avatar.xs {
   width: 26px;
   height: 26px;
-  font-size: 12px;
+  font-size: var(--font-size-md);
   border-radius: 8px;
   box-shadow: none;
 }
@@ -1018,7 +1168,7 @@ body.resizing .sidebar-resizer {
   width: 40px;
   height: 40px;
   border-radius: 12px;
-  font-size: 17px;
+  font-size: var(--font-size-title-md);
   display: grid;
   place-items: center;
   flex-shrink: 0;
@@ -1045,16 +1195,16 @@ body.resizing .sidebar-resizer {
   position: relative;
   max-width: min(36vw, 420px);
   overflow: hidden;
-  font-family: var(--font-serif);
-  font-weight: 700;
-  font-size: 17px;
+  font-family: var(--font-family-display);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-title-md);
   white-space: nowrap;
   -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
   mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
 }
 .chat-header .tsub {
-  font-size: 12px;
-  color: var(--text-faint);
+  font-size: var(--font-size-md);
+  color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1069,9 +1219,9 @@ body.resizing .sidebar-resizer {
 }
 .chat-header .tsub-mode {
   flex-shrink: 0;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--primary);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-accent);
 }
 .chat-header .tsub-context-group {
   display: inline-flex;
@@ -1096,17 +1246,17 @@ body.resizing .sidebar-resizer {
   border: none;
   border-radius: 9px;
   background: transparent;
-  color: var(--text-dim);
+  color: var(--text-secondary);
   transition: background 0.15s ease, color 0.15s ease;
   flex-shrink: 0;
   cursor: pointer;
 }
 .chat-actions .icon-tooltip:hover {
   background: var(--surface-2);
-  color: var(--text);
+  color: var(--text-primary);
 }
 .chat-actions .icon-tooltip.danger:hover {
-  color: var(--danger);
+  color: var(--text-danger);
   background: var(--danger-soft);
 }
 .chat-actions .chat-actions-more,
@@ -1146,15 +1296,15 @@ body.resizing .sidebar-resizer {
 .dash-hero h1 {
   position: relative;
   margin: 0 0 8px;
-  font-family: var(--font-serif);
-  font-size: 32px;
-  font-weight: 700;
+  font-family: var(--font-family-display);
+  font-size: var(--font-size-display);
+  font-weight: var(--font-weight-bold);
   letter-spacing: 0.2px;
 }
 .dash-hero p {
   position: relative;
   margin: 0 0 20px;
-  color: var(--text-dim);
+  color: var(--text-secondary);
   max-width: 720px;
   white-space: pre-line;
   line-height: 1.7;
@@ -1163,11 +1313,11 @@ body.resizing .sidebar-resizer {
 .dash-hero-accent {
   display: block;
   margin-top: 6px;
-  font-family: var(--font-serif);
+  font-family: var(--font-family-display);
   font-size: 1.22em;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   letter-spacing: 0.3px;
-  color: var(--primary);
+  color: var(--text-accent);
   background: linear-gradient(
     100deg,
     color-mix(in srgb, var(--primary) 88%, #fff) 0%,
@@ -1177,7 +1327,7 @@ body.resizing .sidebar-resizer {
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  color: var(--primary);
+  color: var(--text-accent);
   filter: drop-shadow(0 1px 0 color-mix(in srgb, var(--bg) 40%, transparent));
 }
 .dash-hero .actions {
@@ -1205,7 +1355,7 @@ body.resizing .sidebar-resizer {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
-  color: var(--text);
+  color: var(--text-primary);
   cursor: pointer;
   transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
 }
@@ -1242,9 +1392,9 @@ body.resizing .sidebar-resizer {
   gap: 8px;
 }
 .recent-title-text {
-  font-family: var(--font-serif);
-  font-weight: 700;
-  font-size: 14px;
+  font-family: var(--font-family-display);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-body);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1252,13 +1402,13 @@ body.resizing .sidebar-resizer {
 }
 .recent-time {
   flex-shrink: 0;
-  font-size: 11px;
-  color: var(--text-faint);
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
   white-space: nowrap;
 }
 .recent-preview {
-  font-size: 12px;
-  color: var(--text-dim);
+  font-size: var(--font-size-md);
+  color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1271,13 +1421,13 @@ body.resizing .sidebar-resizer {
   width: 28px;
   height: 28px;
   border-radius: 8px;
-  color: var(--text-faint);
+  color: var(--text-muted);
   background: var(--surface-2);
   flex-shrink: 0;
   transition: color 0.18s ease, background 0.18s ease;
 }
 .recent-item:hover .recent-go {
-  color: var(--primary);
+  color: var(--text-accent);
   background: var(--primary-soft);
 }
 
@@ -1293,9 +1443,9 @@ body.resizing .sidebar-resizer {
   background: var(--surface);
 }
 .stat-card .v {
-  font-family: var(--font-serif);
-  font-size: 27px;
-  font-weight: 700;
+  font-family: var(--font-family-display);
+  font-size: var(--font-size-title-lg);
+  font-weight: var(--font-weight-bold);
   background: var(--grad-from);
   -webkit-background-clip: text;
   background-clip: text;
@@ -1303,16 +1453,16 @@ body.resizing .sidebar-resizer {
   line-height: 1.2;
 }
 .stat-card .k {
-  font-size: 12px;
-  color: var(--text-faint);
-  font-weight: 600;
+  font-size: var(--font-size-md);
+  color: var(--text-muted);
+  font-weight: var(--font-weight-semibold);
   letter-spacing: 0.4px;
 }
 .section-title {
-  font-family: var(--font-serif);
-  font-size: 15.5px;
-  font-weight: 700;
-  color: var(--text);
+  font-family: var(--font-family-display);
+  font-size: var(--font-size-title-sm);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
   letter-spacing: 0.4px;
   margin: 6px 0 10px;
   display: flex;
@@ -1343,11 +1493,11 @@ body.resizing .sidebar-resizer {
   justify-content: center;
   gap: 8px;
   padding: 60px 20px;
-  color: var(--text-faint);
+  color: var(--text-muted);
   text-align: center;
 }
 .empty-state .big {
-  font-size: 44px;
+  font-size: calc(var(--font-size-display) * 1.375);
   filter: grayscale(0.15) brightness(1.05);
   opacity: 0.9;
 }
@@ -1418,7 +1568,7 @@ body.resizing .sidebar-resizer {
   height: 128px;
   display: grid;
   place-items: center;
-  font-size: 64px;
+  font-size: calc(var(--font-size-display) * 2);
   border-radius: 50%;
   background: linear-gradient(160deg, #ffe9a8, #f5c24d 55%, #d99a2b);
   box-shadow:
@@ -1480,27 +1630,27 @@ body.resizing .sidebar-resizer {
   }
 }
 .ach-caption-title {
-  font-size: 13px;
-  font-weight: 800;
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-extrabold);
   letter-spacing: 3px;
   color: #ffd166;
   text-shadow: 0 0 18px rgba(255, 209, 102, 0.5);
 }
 .ach-caption-name {
-  font-size: 30px;
-  font-weight: 900;
-  color: var(--text);
+  font-size: var(--font-size-display);
+  font-weight: var(--font-weight-black);
+  color: var(--text-primary);
   text-shadow: 0 2px 22px rgba(0, 0, 0, 0.35);
 }
 .ach-caption-desc {
-  font-size: 13px;
-  color: var(--text-dim);
+  font-size: var(--font-size-label);
+  color: var(--text-secondary);
   line-height: 1.6;
 }
 .ach-caption-total {
-  font-size: 11.5px;
-  color: var(--text-faint);
-  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--text-muted);
+  font-family: var(--font-family-mono);
 }
 .ach-celebration .ach-trophy.leave,
 .ach-celebration .ach-caption.leave {
@@ -1528,15 +1678,15 @@ body.resizing .sidebar-resizer {
   background: var(--surface);
   border: 1px solid var(--border);
   box-shadow: var(--shadow-lg);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
   animation: toastIn 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.2);
   max-width: 70vw;
 }
 .toast.err {
   border-color: color-mix(in srgb, var(--danger) 40%, transparent);
-  color: var(--danger);
+  color: var(--text-danger);
 }
 @keyframes toastIn {
   from {
@@ -1578,7 +1728,7 @@ body.resizing .sidebar-resizer {
   width: 16px;
   height: 16px;
   border: 2px solid var(--border);
-  border-top-color: var(--primary);
+  border-top-color: var(--text-accent);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
   flex-shrink: 0;
@@ -1587,7 +1737,7 @@ body.resizing .sidebar-resizer {
 .table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: var(--font-size-label);
 }
 .table th,
 .table td {
@@ -1596,9 +1746,9 @@ body.resizing .sidebar-resizer {
   text-align: left;
 }
 .table th {
-  color: var(--text-faint);
-  font-weight: 700;
-  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-md);
   text-transform: uppercase;
   letter-spacing: 0.4px;
 }
@@ -1617,9 +1767,8 @@ hr.sep {
 
 @media (max-width: 680px) {
   body {
-    font-size: 14px;
+    --typography-body-size: var(--font-size-body);
   }
-
   .app-shell {
     position: fixed;
     top: 0;
@@ -1668,7 +1817,7 @@ hr.sep {
     flex-shrink: 0;
     border: 0;
     background: transparent;
-    color: var(--text-dim);
+    color: var(--text-secondary);
   }
 
   .mobile-topbar-nav {
@@ -1807,7 +1956,7 @@ hr.sep {
 
   .chat-header .ttitle {
     max-width: min(52vw, 260px);
-    font-size: 15px;
+    font-size: var(--font-size-title-sm);
   }
 
   .chat-header .tsub-members {
@@ -1858,9 +2007,9 @@ hr.sep {
     border: none;
     border-radius: 8px;
     background: none;
-    color: var(--text);
-    font-size: 13px;
-    font-weight: 600;
+    color: var(--text-primary);
+    font-size: var(--font-size-label);
+    font-weight: var(--font-weight-semibold);
     text-align: left;
   }
 
@@ -1869,7 +2018,7 @@ hr.sep {
   }
 
   .chat-actions-menu button.danger {
-    color: var(--danger);
+    color: var(--text-danger);
   }
 
   .chat-actions-menu button.danger:hover {
@@ -1894,13 +2043,13 @@ hr.sep {
   }
 
   .dash-hero h1 {
-    font-size: 26px;
+    font-size: var(--font-size-title-lg);
   }
 
   .input,
   .textarea,
   .select {
-    font-size: 16px;
+    font-size: var(--font-size-title-sm);
   }
 
   .toast-wrap {

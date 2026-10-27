@@ -466,7 +466,7 @@ export function FileDisplayModal() {
       >
         <span className="display-modal-title">
           <Icon name="file" size={15} />
-          <span className="mono" style={{ fontSize: 12.5, color: 'var(--text-dim)' }}>{active.path}</span>
+          <span className="mono typo-body-sm text-secondary">{active.path}</span>
           <span className="display-title-text">{title}</span>
         </span>
         <div className="display-head-actions">

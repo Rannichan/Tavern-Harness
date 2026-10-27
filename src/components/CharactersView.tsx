@@ -316,7 +316,7 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
   return (
     <Modal onClose={onClose} className="modal-editor editor-modal-with-tabs character-editor-modal">
       <div className="modal-head">
-            <span style={{ fontWeight: 800, fontSize: 15 }}>{isNew ? t('workshop.newCharTitle') : t('workshop.editCharTitle')}</span>
+            <span className="typo-dialog-title">{isNew ? t('workshop.newCharTitle') : t('workshop.editCharTitle')}</span>
             <div className="raw-tabs">
               <button className={`raw-tab ${editorTab === 'character' ? 'active' : ''}`} onClick={() => setEditorTab('character')}>{t('workshop.characterTab')}</button>
               <button
@@ -371,7 +371,7 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
                 <textarea className="textarea grow-textarea" value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder={t('workshop.promptPh')} />
               ) : (
                 <div className="bubble preview-scroll wb-render-pane char-prompt-render-pane">
-                  {prompt ? <Markdown text={prompt} /> : <span style={{ color: 'var(--text-faint)', fontSize: 13 }}>{t('workshop.promptPh')}</span>}
+                  {prompt ? <Markdown text={prompt} /> : <span className="typo-label text-muted">{t('workshop.promptPh')}</span>}
                 </div>
               )}
             </div>
@@ -391,7 +391,7 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
                     />
                   ) : (
                     <div className="bubble preview-scroll wb-render-pane greeting-render-pane">
-                      {g ? <Markdown text={g} /> : <span style={{ color: 'var(--text-faint)', fontSize: 13 }}>{t('workshop.greetingPh')}</span>}
+                      {g ? <Markdown text={g} /> : <span className="typo-label text-muted">{t('workshop.greetingPh')}</span>}
                     </div>
                   )}
                   {!renderMarkdown && (
@@ -415,7 +415,7 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
             <div className="field" style={{ flexShrink: 0 }}>
               <label>{t('workshop.enableSkills', { a: enabledToolNames.filter((s) => tools.some((t) => t.name === s)).length, b: tools.length })}</label>
               {tools.length === 0 ? (
-                <div style={{ fontSize: 12, color: 'var(--text-faint)' }}>{t('workshop.noSkills')}</div>
+                <div className="typo-label text-muted">{t('workshop.noSkills')}</div>
               ) : (
                 <div className="skill-list-scroll">
                   {tools.map((t) => (
@@ -595,7 +595,7 @@ function WorldBookList({ books, onChanged }: {
           return (
             <div key={b.id} className="char-card wb-card fade-up">
               <div className="cname">
-                <span style={{ fontSize: 16 }}>📖</span>
+                <span className="character-book-icon">📖</span>
                 <ScrollingCardName name={b.name} />
                 {isBuiltin && <span className="tag">{t('common.builtin')}</span>}
               </div>
@@ -712,7 +712,7 @@ function WorldBookForm({
   return (
     <>
       <div className="modal-head">
-        <span style={{ fontWeight: 800, fontSize: 15 }}>
+        <span className="typo-dialog-title">
           {isEditing ? t('workshop.editWbTitle') : t('workshop.newWbTitle')}
         </span>
         <div className="raw-tabs">
@@ -755,7 +755,7 @@ function WorldBookForm({
               <textarea className="textarea grow-textarea" value={content} onChange={(e) => setContent(e.target.value)} placeholder={t('workshop.wbContentPh')} />
             ) : (
               <div className="bubble preview-scroll wb-render-pane">
-                {content ? <Markdown text={content} /> : <span style={{ color: 'var(--text-faint)', fontSize: 13 }}>{t('workshop.wbContentPh')}</span>}
+                {content ? <Markdown text={content} /> : <span className="typo-label text-muted">{t('workshop.wbContentPh')}</span>}
               </div>
             )}
           </div>
@@ -960,14 +960,14 @@ function SkillSortItem({
       {...attributes}
       {...listeners}
     >
-      <div style={{ fontSize: 18 }}>{tool.isBuiltIn ? '🧰' : '⚙️'}</div>
+      <div className="tool-type-icon">{tool.isBuiltIn ? '🧰' : '⚙️'}</div>
       <div className="l-main">
         <div className="l-title">
           <span className="skill-card-name">{tool.name}</span>
           {tool.isBuiltIn && <span className="tag">{t('common.builtin')}</span>}
         </div>
         <div className="l-sub">{desc}</div>
-        {tool.isBuiltIn && impl !== 'native' && <div style={{ fontSize: 10.5, marginTop: 2, color: 'var(--warn)' }}>{t('workshop.implType', { t: impl })}</div>}
+        {tool.isBuiltIn && impl !== 'native' && <div className="tool-implementation-type">{t('workshop.implType', { t: impl })}</div>}
       </div>
       <div className="skill-item-actions">
         <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); onDetail(); }} title={t('workshop.viewDetails')}>
@@ -1063,7 +1063,7 @@ function SkillDetailModal({ tool, onClose }: { tool: McpTool; onClose: () => voi
   return (
     <Modal onClose={onClose}>
       <div className="modal-head">
-        <span style={{ fontWeight: 800, fontSize: 15 }}>
+        <span className="typo-dialog-title">
           {t('workshop.skillDetails')}
           {tool.isBuiltIn && <span className="tag" style={{ marginLeft: 8 }}>{t('common.builtin')}</span>}
           {!tool.isBuiltIn && execType !== 'native' && <span className="tag" style={{ marginLeft: 8 }}>{t('workshop.implType', { t: execType })}</span>}
@@ -1081,17 +1081,17 @@ function SkillDetailModal({ tool, onClose }: { tool: McpTool; onClose: () => voi
         </div>
         <div className="field">
           <label>{t('workshop.skillParameters')}</label>
-          {editable ? <textarea className="textarea mono skill-detail-textarea" value={parametersText} wrap="soft" spellCheck={false} onChange={(e) => setParametersText(e.target.value)} /> : parametersText ? <pre className="skill-detail-json">{parametersText}</pre> : <div className="skill-detail-text" style={{ color: 'var(--text-faint)' }}>{t('workshop.skillNoParams')}</div>}
+          {editable ? <textarea className="textarea mono skill-detail-textarea" value={parametersText} wrap="soft" spellCheck={false} onChange={(e) => setParametersText(e.target.value)} /> : parametersText ? <pre className="skill-detail-json">{parametersText}</pre> : <div className="skill-detail-text text-muted">{t('workshop.skillNoParams')}</div>}
         </div>
         <div className="field">
           <label>{t('workshop.skillExecution')}</label>
-          {exec ? <pre className="skill-detail-json">{JSON.stringify(exec, null, 2)}</pre> : <div className="skill-detail-text" style={{ color: 'var(--text-faint)' }}>{t('workshop.skillNoExecution')}</div>}
+          {exec ? <pre className="skill-detail-json">{JSON.stringify(exec, null, 2)}</pre> : <div className="skill-detail-text text-muted">{t('workshop.skillNoExecution')}</div>}
         </div>
         <div className="field">
           <label>{t('workshop.skillRawJson')}</label>
           <pre className={`skill-detail-json${rawJson ? '' : ' err'}`}>{rawJson ?? schema.error}</pre>
         </div>
-        {error && <div className="field-hint" style={{ color: 'var(--danger)' }}>{error}</div>}
+        {error && <div className="field-hint text-danger">{error}</div>}
       </div>
       <div className="modal-foot">
         <button className="btn" onClick={onClose}>{t('common.cancel')}</button>

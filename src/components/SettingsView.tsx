@@ -323,7 +323,7 @@ export const SettingsView = memo(function SettingsView() {
       {showResetConfirm && (
         <Modal onClose={() => !resetting && setShowResetConfirm(false)} size="compact">
           <div className="modal-head">
-            <span style={{ fontWeight: 800, fontSize: 15 }}>{t('settings.resetConfirmTitle')}</span>
+            <span className="typo-dialog-title">{t('settings.resetConfirmTitle')}</span>
             <button className="icon-btn" disabled={resetting} onClick={() => setShowResetConfirm(false)}><Icon name="x" /></button>
           </div>
           <div className="modal-body">{t('settings.resetConfirm')}</div>
@@ -435,7 +435,7 @@ function ProviderManager({ providers, onChanged }: { providers: ApiProvider[]; o
     <div className="set-section">
       <h3>{t('settings.providerTitle')}</h3>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {providers.length === 0 && <div style={{ color: 'var(--text-faint)', fontSize: 12.5 }}>{t('settings.noProvider')}</div>}
+        {providers.length === 0 && <div className="typo-body-sm text-muted">{t('settings.noProvider')}</div>}
         {providers.map((p) => {
           const aliases = modelAliases(p);
           const enabledModels = enabledModelIds(p);
@@ -457,7 +457,7 @@ function ProviderManager({ providers, onChanged }: { providers: ApiProvider[]; o
                 </div>
               </div>
               <div className="p-url">{p.baseUrl}</div>
-              <div style={{ fontSize: 11.5, color: 'var(--text-faint)', maxHeight: 60, overflow: 'auto' }}>
+              <div className="provider-inline-detail">
                 <b>{t('settings.models')}</b>
                 {visibleModels.length > 0
                   ? visibleModels.slice(0, 12).map((model) => aliases[model]?.trim() || model).join(', ')
@@ -475,7 +475,7 @@ function ProviderManager({ providers, onChanged }: { providers: ApiProvider[]; o
       {editing && (
         <Modal onClose={() => setEditing(null)}>
           <div className="modal-head">
-            <span style={{ fontWeight: 800, fontSize: 15 }}>{editing.id != null ? t('settings.editProvider') : t('settings.addProvider')}</span>
+            <span className="typo-dialog-title">{editing.id != null ? t('settings.editProvider') : t('settings.addProvider')}</span>
             <button className="icon-btn" onClick={() => setEditing(null)}><Icon name="x" /></button>
           </div>
           <ProviderForm

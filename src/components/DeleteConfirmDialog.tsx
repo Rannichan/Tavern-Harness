@@ -25,7 +25,7 @@ export function DeleteConfirmDialog({
   return (
     <Modal onClose={onCancel} size="compact">
       <div className="modal-head">
-        <span style={{ fontWeight: 800, fontSize: 15 }}>{title}</span>
+        <span className="typo-dialog-title">{title}</span>
         <button className="icon-btn" onClick={onCancel}><Icon name="x" /></button>
       </div>
       <div className="modal-body">

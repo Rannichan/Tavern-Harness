@@ -160,7 +160,7 @@ export function NewSessionMenu({ onClose, editingSession }: { onClose: () => voi
   return (
     <Modal onClose={onClose} className="new-session-modal">
       <div className="modal-head">
-        <span style={{ fontWeight: 800, fontSize: 15 }}>{isEditing ? t('nav.editSession') : t('newSession.title')}</span>
+        <span className="typo-dialog-title">{isEditing ? t('nav.editSession') : t('newSession.title')}</span>
         <button className="icon-btn" onClick={onClose}><Icon name="x" /></button>
       </div>
       <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -203,7 +203,7 @@ export function NewSessionMenu({ onClose, editingSession }: { onClose: () => voi
               </SortableContext>
             </DndContext>
             {npcs.length === 0 ? (
-              <div style={{ fontSize: 12.5, color: 'var(--warn)', background: 'var(--warn-soft)', padding: '8px 12px', borderRadius: 9 }}>
+              <div className="new-session-warning">
                 {t('newSession.noNpcWarn')}
               </div>
             ) : (
