@@ -1,7 +1,17 @@
 import { memo, useEffect, useRef } from 'react';
 import { Compartment, EditorState } from '@codemirror/state';
 import { EditorView, lineNumbers } from '@codemirror/view';
+import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { json } from '@codemirror/lang-json';
+import { tags } from '@lezer/highlight';
+
+const characterBookJsonHighlight = syntaxHighlighting(HighlightStyle.define([
+  { tag: tags.propertyName, color: 'var(--primary-dim)', fontWeight: '600' },
+  { tag: tags.string, color: 'var(--success)' },
+  { tag: [tags.number, tags.bool, tags.null], color: 'var(--think)' },
+  { tag: tags.keyword, color: 'var(--primary)' },
+  { tag: tags.punctuation, color: 'var(--text-dim)' },
+]));
 
 const CharacterBookEditor = memo(function CharacterBookEditor({
   value,
@@ -37,6 +47,7 @@ const CharacterBookEditor = memo(function CharacterBookEditor({
         extensions: [
           lineNumbers(),
           json(),
+          characterBookJsonHighlight,
           wrappingRef.current.of(lineWrapping ? EditorView.lineWrapping : []),
           readOnlyRef.current.of(readOnly ? [EditorState.readOnly.of(true), EditorView.editable.of(false)] : []),
           EditorView.updateListener.of((update) => {

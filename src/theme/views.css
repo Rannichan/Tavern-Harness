@@ -105,7 +105,23 @@
   flex: 1;
   min-height: 0;
 }
-.modal-editor .modal-body.knowledge-tab {
+.character-editor-body {
+  overflow: hidden;
+}
+.character-editor-tab-panel {
+  display: none;
+  min-height: 0;
+}
+.character-editor-tab-panel.active {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.character-editor-tab-panel.knowledge-tab {
   overflow: hidden;
 }
 .modal-editor .grow-textarea {
@@ -161,6 +177,11 @@
 }
 .character-book-editor .cm-content {
   padding: 9px 12px;
+  caret-color: var(--text-primary);
+}
+/* CodeMirror 的默认光标颜色为黑色，不会随应用主题变量切换。 */
+.character-book-editor .cm-cursor {
+  border-left-color: var(--text-primary) !important;
 }
 .character-book-editor .cm-gutters {
   border-right: 1px solid var(--border-soft);
@@ -1397,6 +1418,33 @@
 
   .skill-item-actions .btn {
     padding: 5px 7px;
+  }
+
+  /* 保持隐藏知识库编辑器在布局树中：若用 display:none 隐藏一个仍有
+     焦点的 CodeMirror，移动浏览器会收起键盘并重算动态视口，造成底部按钮闪烁。 */
+  .character-editor-body {
+    position: relative;
+  }
+
+  .character-editor-tab-panel {
+    position: absolute;
+    inset: 16px 14px;
+    display: flex;
+    flex-direction: column;
+    opacity: 0;
+    pointer-events: none;
+    overflow: hidden;
+  }
+
+  .character-editor-tab-panel.active {
+    position: absolute;
+    display: flex;
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .character-editor-tab-panel:not(.active) {
+    overflow-y: auto;
   }
 
   .character-editor-modal .modal-head {

@@ -35,6 +35,19 @@ const CharacterBookEditor = lazy(() => import('./CharacterBookEditor'));
 
 type WorkshopTab = 'characters' | 'worldbooks' | 'skills';
 
+function invalidJsonLine(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  try {
+    JSON.parse(trimmed);
+    return null;
+  } catch (error) {
+    const position = /position (\d+)/i.exec(String(error))?.[1];
+    if (!position) return 1;
+    return trimmed.slice(0, Number(position)).split('\n').length;
+  }
+}
+
 // 内置角色「酒馆老板」默认启用所有技能
 const ALL_DEFAULT_SKILLS = [...ALL_BUILTIN_TOOL_NAMES];
 
@@ -274,13 +287,10 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
       addToast(t('toast.nameRequired'), 'error');
       return;
     }
-    if (characterBook.trim()) {
-      try {
-        JSON.parse(characterBook);
-      } catch {
-        addToast(t('toast.characterBookInvalidJson'), 'error');
-        return;
-      }
+    const characterBookInvalidLine = invalidJsonLine(characterBook);
+    if (characterBookInvalidLine != null) {
+      addToast(t('toast.characterBookInvalidJson', { line: characterBookInvalidLine }), 'error');
+      return;
     }
     // 清理空白/重复项：第一项作为主开场白，其余作为备用
     const cleaned = greetings.map((g) => g.trim()).filter((g, i, arr) => g && arr.indexOf(g) === i);
@@ -318,9 +328,10 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
       <div className="modal-head">
             <span className="typo-dialog-title">{isNew ? t('workshop.newCharTitle') : t('workshop.editCharTitle')}</span>
             <div className="raw-tabs">
-              <button className={`raw-tab ${editorTab === 'character' ? 'active' : ''}`} onClick={() => setEditorTab('character')}>{t('workshop.characterTab')}</button>
+              <button className={`raw-tab ${editorTab === 'character' ? 'active' : ''}`} onPointerDown={(event) => event.preventDefault()} onClick={() => setEditorTab('character')}>{t('workshop.characterTab')}</button>
               <button
                 className={`raw-tab ${editorTab === 'knowledge' ? 'active' : ''}`}
+                onPointerDown={(event) => event.preventDefault()}
                 onClick={() => setEditorTab('knowledge')}
               >
                 {t('workshop.knowledgeTab')}
@@ -337,8 +348,8 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
               <button className="icon-btn" onClick={onClose}><Icon name="x" /></button>
             </div>
           </div>
-          <div className={`modal-body character-editor-body ${editorTab === 'knowledge' ? 'knowledge-tab' : ''}`}>
-            {editorTab === 'character' && <>
+          <div className="modal-body character-editor-body">
+            <div className={`character-editor-tab-panel ${editorTab === 'character' ? 'active' : ''}`}>
             <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
               <Avatar name={name || t('chat.speakerChar')} colorOrdinal={npc.avatarColorOrdinal} imageUrl={avatarDataUrl} size="sm" />
               <div style={{ display: 'flex', gap: 8 }}>
@@ -427,8 +438,8 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
                 </div>
               )}
             </div>
-            </>}
-            {editorTab === 'knowledge' && (
+            </div>
+            <div className={`character-editor-tab-panel knowledge-tab ${editorTab === 'knowledge' ? 'active' : ''}`}>
               <div className="field prompt-field character-book-field">
                 <label>{t('workshop.characterBookLabel')}</label>
                 <Suspense fallback={<div className="character-book-editor-loading" />}>
@@ -439,7 +450,7 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
                   />
                 </Suspense>
               </div>
-            )}
+            </div>
           </div>
           <div className="modal-foot">
             {npc.isBuiltIn && (
@@ -448,7 +459,7 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
               </button>
             )}
             <button className="btn" onClick={onClose}>{t('common.cancel')}</button>
-            <button className="btn btn-primary" onClick={save}>{t('common.save')}</button>
+            <button className="btn btn-primary" type="button" onPointerDown={(event) => event.preventDefault()} onClick={save}>{t('common.save')}</button>
           </div>
     </Modal>
   );
@@ -501,13 +512,10 @@ function WorldBookList({ books, onChanged }: {
       addToast(t('toast.wbNameContentRequired'), 'error');
       return;
     }
-    if (knowledge) {
-      try {
-        JSON.parse(knowledge);
-      } catch {
-        addToast(t('toast.knowledgeInvalidJson'), 'error');
-        return;
-      }
+    const knowledgeInvalidLine = invalidJsonLine(knowledge);
+    if (knowledgeInvalidLine != null) {
+      addToast(t('toast.knowledgeInvalidJson', { line: knowledgeInvalidLine }), 'error');
+      return;
     }
     const data = {
       name: name.trim(),
@@ -791,7 +799,7 @@ function WorldBookForm({
           </button>
         )}
         <button className="btn" onClick={onClose}>{t('common.cancel')}</button>
-        <button className="btn btn-primary" onClick={() => onSave(name, content, characterBook)}>{t('common.save')}</button>
+        <button className="btn btn-primary" type="button" onPointerDown={(event) => event.preventDefault()} onClick={() => onSave(name, content, characterBook)}>{t('common.save')}</button>
       </div>
     </>
   );
