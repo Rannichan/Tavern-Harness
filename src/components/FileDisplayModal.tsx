@@ -79,7 +79,8 @@ export function FileDisplayModal() {
   const [loadState, setLoadState] = useState<'loading' | 'ok' | 'error'>('loading');
   const [imgError, setImgError] = useState(false);
   const [htmlZoom, setHtmlZoom] = useState(1);
-  const lastModalHtmlZoomRef = useRef(1);
+  const [htmlPreviewVersion, setHtmlPreviewVersion] = useState(0);
+  const htmlZoomByFileRef = useRef(new Map<string, number>());
   const [textWrap, setTextWrap] = useState(true);
   const [isPictureInPicture, setIsPictureInPicture] = useState(true);
   const [pipRect, setPipRect] = useState<PipRect>(createPipRect);
@@ -128,12 +129,10 @@ export function FileDisplayModal() {
     setTextWrap(true);
     if (isNewDisplay) {
       const opensInPictureInPicture = active.presentation === 'pip' || active.presentation == null;
-      setHtmlZoom(opensInPictureInPicture ? lastModalHtmlZoomRef.current : 1);
       setPipRect(createPipRect());
       setIsPictureInPicture(opensInPictureInPicture);
-    } else {
-      setHtmlZoom(1);
     }
+    setHtmlZoom(htmlZoomByFileRef.current.get(active.path) ?? 1);
   }, [active]);
 
   useEffect(() => {
@@ -152,6 +151,7 @@ export function FileDisplayModal() {
         if (contentRef.current !== text) {
           contentRef.current = text;
           setContent(text);
+          if (active.kind === 'html') setHtmlPreviewVersion((version) => version + 1);
         }
         setLoadState('ok');
         setImgError(false);
@@ -324,7 +324,7 @@ export function FileDisplayModal() {
   const updateHtmlZoom = (update: (zoom: number) => number) => {
     setHtmlZoom((zoom) => {
       const nextZoom = update(zoom);
-      if (!isPictureInPicture) lastModalHtmlZoomRef.current = nextZoom;
+      htmlZoomByFileRef.current.set(active.path, nextZoom);
       return nextZoom;
     });
   };
@@ -402,7 +402,7 @@ export function FileDisplayModal() {
               className="display-iframe ready"
               sandbox="allow-scripts allow-pointer-lock"
               title={title}
-              src={previewUrl(active.path, workspaceDir)}
+              src={`${previewUrl(active.path, workspaceDir)}?v=${htmlPreviewVersion}`}
               style={{
                 width: `calc(${100 / htmlZoom}% + ${2 / htmlZoom}px)`,
                 height: `calc(${100 / htmlZoom}% + ${2 / htmlZoom}px)`,
@@ -504,7 +504,7 @@ export function FileDisplayModal() {
             aria-label={t(isPictureInPicture ? 'display.exitPictureInPicture' : 'display.pictureInPicture')}
             onClick={() => isPictureInPicture ? exitPictureInPicture() : enterPictureInPicture()}
           >
-            <Icon name={isPictureInPicture ? 'pip-exit' : 'pip'} size={17} />
+            <Icon name="pip" size={17} />
           </button>
           <button className="icon-btn" title={t('common.close')} onClick={close}><Icon name="x" size={17} /></button>
         </div>
