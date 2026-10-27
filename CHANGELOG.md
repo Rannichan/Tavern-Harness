@@ -3,6 +3,20 @@
 > 本文件由 `scripts/changelog.mjs` 从 `changelog/v*.md` 生成，请勿手动编辑。
 > 版本对比链接见文末；源文件位于仓库 `changelog/` 目录。
 
+## [0.1.25] - 2026-10-27
+
+### 中文
+
+#### 内部
+
+- 统一了标题、对话框、工具卡片等界面文字的字体排印样式，改用共享的排版类和样式变量，后续调整字号、字重只需改一处
+
+### English
+
+#### Internal
+
+- Unified the typography of headings, dialogs, tool cards, and other interface text behind shared classes and style variables, so future font-size and weight changes happen in one place
+
 ## [0.1.24] - 2026-10-27
 
 ### 中文
@@ -702,6 +716,7 @@
 - Vite + React + Zustand + Dexie stack with browser-side local persistence
 
 <!-- 链接定义 -->
+[0.1.25]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.24...v0.1.25
 [0.1.24]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.23...v0.1.24
 [0.1.23]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.22...v0.1.23
 [0.1.22]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.21...v0.1.22

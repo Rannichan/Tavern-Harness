@@ -1,7 +1,31 @@
 {
-  "latest": "0.1.24",
+  "latest": "0.1.25",
   "repo": "https://github.com/Rannichan/Tavern-Harness",
   "entries": [
+    {
+      "version": "0.1.25",
+      "date": "2026-10-27",
+      "breaking": false,
+      "compare": "v0.1.24...v0.1.25",
+      "groups": {
+        "zh-CN": [
+          {
+            "kind": "internal",
+            "items": [
+              "统一了标题、对话框、工具卡片等界面文字的字体排印样式，改用共享的排版类和样式变量，后续调整字号、字重只需改一处"
+            ]
+          }
+        ],
+        "en": [
+          {
+            "kind": "internal",
+            "items": [
+              "Unified the typography of headings, dialogs, tool cards, and other interface text behind shared classes and style variables, so future font-size and weight changes happen in one place"
+            ]
+          }
+        ]
+      }
+    },
     {
       "version": "0.1.24",
       "date": "2026-10-27",
