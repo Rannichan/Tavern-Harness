@@ -56,6 +56,7 @@ export function WorkspaceFileManagerModal({ sessionId, onClose }: { sessionId: n
   const usesPublicWorkspace = session?.mode === 'NPC' && associatedNpc?.isBuiltIn === true;
   const rootLabel = usesPublicWorkspace ? t('header.workspaceRoot') : session?.workspaceDir?.trim() || `session-${sessionId}`;
   const [files, setFiles] = useState<string[] | null>(null);
+  const [workspaceDir, setWorkspaceDir] = useState<string | null>(null);
   const [loadState, setLoadState] = useState<'loading' | 'ok' | 'empty' | 'error'>('loading');
   const [pendingDelete, setPendingDelete] = useState<Node | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -73,6 +74,7 @@ export function WorkspaceFileManagerModal({ sessionId, onClose }: { sessionId: n
         const workspaceDir = await applySessionWorkspace(sessionId);
         const list = await listSessionWorkspaceFiles(workspaceDir);
         if (cancelled) return;
+        setWorkspaceDir(workspaceDir);
         setFiles(list);
         setLoadState(list.length === 0 ? 'empty' : 'ok');
       } catch {
@@ -114,6 +116,15 @@ export function WorkspaceFileManagerModal({ sessionId, onClose }: { sessionId: n
       sessionId,
       presentation: 'workspace',
     });
+  };
+
+  const downloadFile = (node: Node) => {
+    if (!workspaceDir) return;
+    const url = `/api-v2/preview/${encodeURIComponent(workspaceDir)}/${node.path.split('/').map(encodeURIComponent).join('/')}`;
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = node.name;
+    anchor.click();
   };
 
   const confirmDelete = async () => {
@@ -217,8 +228,17 @@ export function WorkspaceFileManagerModal({ sessionId, onClose }: { sessionId: n
                   <span className="ws-fm-arrow" />
                   <Icon name={n.isDir ? 'folder' : 'file'} size={14} />
                   <span className={`ws-fm-name${n.isDir ? '' : ' mono'}`}>{n.name}{n.isDir ? '/' : ''}</span>
-                  {!isPublicLink && (
+                  {!n.isDir && (
                     <span className="ws-fm-actions">
+                      <button
+                        className="icon-btn ws-fm-download"
+                        title={t('common.download')}
+                        aria-label={t('common.download')}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          downloadFile(n);
+                        }}
+                      ><span aria-hidden="true">↓</span></button>
                       <button
                         className="icon-btn ws-fm-delete"
                         title={t('common.delete')}
@@ -228,6 +248,27 @@ export function WorkspaceFileManagerModal({ sessionId, onClose }: { sessionId: n
                           setPendingDelete(n);
                         }}
                       ><Icon name="trash" size={13} /></button>
+                    </span>
+                  )}
+                  {n.isDir && (
+                    <span className="ws-fm-actions">
+                      <button
+                        className="icon-btn ws-fm-download"
+                        title={t('common.download')}
+                        aria-label={t('common.download')}
+                        disabled
+                      ><span aria-hidden="true">↓</span></button>
+                      {!isPublicLink && (
+                        <button
+                          className="icon-btn ws-fm-delete"
+                          title={t('common.delete')}
+                          aria-label={t('common.delete')}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setPendingDelete(n);
+                          }}
+                        ><Icon name="trash" size={13} /></button>
+                      )}
                     </span>
                   )}
                 </div>

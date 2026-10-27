@@ -466,10 +466,15 @@ export function FileDisplayModal() {
       >
         <span className="display-modal-title">
           <Icon name="file" size={15} />
-          <span className="mono typo-body-sm text-secondary">{active.path}</span>
           <span className="display-title-text">{title}</span>
         </span>
         <div className="display-head-actions">
+          {active.kind === 'html' && isPictureInPicture && (
+            <span className="display-auto-refresh-badge" role="status">
+              <span className="display-auto-refresh-dot" aria-hidden="true" />
+              {t('display.autoRefreshing')}
+            </span>
+          )}
           {active.kind === 'image' && loadState === 'ok' && !imgError && (
             <span className="display-zoom-group">
               <button className="icon-btn" title={t('display.zoomOut')} onClick={zoomOut}><Icon name="zoom-out" size={15} /></button>

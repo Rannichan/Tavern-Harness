@@ -1621,6 +1621,24 @@
   gap: 6px;
   margin-left: auto;
 }
+.display-auto-refresh-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 7px;
+  border: 1px solid color-mix(in srgb, var(--primary) 30%, var(--border-soft));
+  border-radius: 999px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+}
+.display-auto-refresh-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--primary);
+}
 .display-zoom-group {
   display: flex;
   align-items: center;
@@ -1916,9 +1934,21 @@
   align-items: center;
   gap: 4px;
 }
+.ws-fm-download,
 .ws-fm-delete {
   width: 26px;
   height: 26px;
+  color: var(--text-muted);
+}
+.ws-fm-download:hover {
+  color: var(--text-accent);
+}
+.ws-fm-download:disabled {
+  color: var(--text-muted);
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.ws-fm-download:disabled:hover {
   color: var(--text-muted);
 }
 .ws-fm-delete:hover {

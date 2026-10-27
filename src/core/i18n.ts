@@ -20,6 +20,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'common.cancel': '取消',
     'common.delete': '删除',
     'common.save': '保存',
+    'common.download': '下载',
     'common.ok': '确定',
     'common.clear': '清除',
     'common.close': '关闭',
@@ -538,6 +539,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'display.pictureInPicture': '画中画',
     'display.exitPictureInPicture': '退出画中画',
     'display.resizePictureInPicture': '调整画中画大小',
+    'display.autoRefreshing': '自动刷新中',
     'display.htmlSandboxNote': 'HTML 应用在受限沙箱中运行，并可加载同目录资源',
     'display.openHtmlInNewPage': '在新页面打开 HTML',
 
@@ -552,6 +554,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'common.cancel': '取消',
     'common.delete': '刪除',
     'common.save': '儲存',
+    'common.download': '下載',
     'common.ok': '確定',
     'common.clear': '清除',
     'common.close': '關閉',
@@ -1055,6 +1058,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'display.pictureInPicture': '畫中畫',
     'display.exitPictureInPicture': '退出畫中畫',
     'display.resizePictureInPicture': '調整畫中畫大小',
+    'display.autoRefreshing': '自動重新整理中',
     'display.htmlSandboxNote': 'HTML 應用程式在受限沙箱中執行，並可載入同目錄資源',
     'display.openHtmlInNewPage': '在新頁面開啟 HTML',
 
@@ -1068,6 +1072,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'common.cancel': 'Cancel',
     'common.delete': 'Delete',
     'common.save': 'Save',
+    'common.download': 'Download',
     'common.ok': 'OK',
     'common.clear': 'Clear',
     'common.close': 'Close',
@@ -1571,6 +1576,7 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     'display.pictureInPicture': 'Picture in picture',
     'display.exitPictureInPicture': 'Exit picture in picture',
     'display.resizePictureInPicture': 'Resize picture in picture',
+    'display.autoRefreshing': 'Auto-refreshing',
     'display.htmlSandboxNote': 'HTML application runs in a restricted sandbox with same-directory resources available',
     'display.openHtmlInNewPage': 'Open HTML in a new page',
 
