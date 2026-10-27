@@ -514,11 +514,14 @@
   flex-shrink: 0;
 }
 .list-item .l-sub {
-  font-size: var(--font-size-body-sm);
+  font-size: var(--font-size-caption);
   color: var(--text-muted);
   font-family: var(--font-family-mono);
 }
 .list-item.sortable-skill .l-sub {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   color: var(--text-secondary);
 }
 
@@ -1386,6 +1389,10 @@
 
   .skill-item-actions {
     gap: 4px;
+  }
+
+  .list-item.sortable-skill {
+    min-width: 0;
   }
 
   .skill-item-actions .btn {
