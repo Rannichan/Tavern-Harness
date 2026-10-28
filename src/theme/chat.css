@@ -155,6 +155,9 @@
 .message-editor-actions {
   align-items: center;
 }
+.message-editor-actions .btn {
+  line-height: var(--typography-body-line-height);
+}
 .message-editor-attachment {
   margin-right: auto;
 }
