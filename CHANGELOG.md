@@ -3,6 +3,50 @@
 > 本文件由 `scripts/changelog.mjs` 从 `changelog/v*.md` 生成，请勿手动编辑。
 > 版本对比链接见文末；源文件位于仓库 `changelog/` 目录。
 
+## [0.1.27] - 2026-10-28
+
+### 中文
+
+#### 新增
+
+- 新增 `get_skill_info` 工具：模型可以先查看技能的完整定义（参数、实现方式、执行配置），再决定如何调用
+- 技能里的 JavaScript 执行新增 `$display` 助手：生成报告、图表或网页后可以直接在弹窗中展示给用户（每次执行只展示一个文件）
+
+#### 改进
+
+- 工作区文件管理里每个文件都多了下载按钮，可以直接保存到本地
+- 文件预览会按文件记住缩放比例，切到别的文件再回来不用重新调整
+- 技能的 shell 脚本允许把输出重定向到 /dev/null（Windows 为 NUL），常见的静默输出写法不再被误判为越权
+
+#### 修复
+
+- 修复画中画中的 HTML 预览不会随文件更新而自动刷新、必须关闭重开才能看到最新内容的问题
+
+#### 内部
+
+- 技能的文件读写统一走 JavaScript 助手（`$read` / `$write` / `$append` / `$list`），移除 `file_read` / `file_write` 执行类型
+
+### English
+
+#### Added
+
+- Added `get_skill_info`, so the model can inspect a skill's full definition (parameters, implementation, execution config) before deciding how to call it
+- JavaScript skills can now call `$display` to show a generated report, chart, or page in a popup for the user (one file per execution)
+
+#### Changed
+
+- Every file in the workspace file manager can now be downloaded directly
+- File previews remember the zoom level per file, so switching back no longer resets the view
+- Skill shell scripts may redirect output to /dev/null (NUL on Windows), so common quiet-command patterns are no longer rejected as unsafe writes
+
+#### Fixed
+
+- Fixed HTML previews in picture-in-picture not refreshing when the file changed; the latest content now appears without closing and reopening the preview
+
+#### Internal
+
+- Skill file access now goes through the JavaScript helpers (`$read` / `$write` / `$append` / `$list`); the `file_read` and `file_write` execution types were removed
+
 ## [0.1.26] - 2026-10-27
 
 ### 中文
@@ -742,6 +786,7 @@
 - Vite + React + Zustand + Dexie stack with browser-side local persistence
 
 <!-- 链接定义 -->
+[0.1.27]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.26...v0.1.27
 [0.1.26]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.25...v0.1.26
 [0.1.25]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.24...v0.1.25
 [0.1.24]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.23...v0.1.24
