@@ -818,6 +818,7 @@ function SkillList() {
   const addToast = useStore((s) => s.addToast);
   const t = useT();
   const refresh = useStore((s) => s.refreshTools);
+  const refreshNpcs = useStore((s) => s.refreshNpcs);
   const [pendingDelete, setPendingDelete] = useState<McpTool | null>(null);
   const [detail, setDetail] = useState<McpTool | null>(null);
 
@@ -844,8 +845,16 @@ function SkillList() {
   const sensors = useSortableSensors();
 
   const deleteTool = async (tt: McpTool) => {
-    await db.tools.delete(tt.id!);
-    await refresh();
+    await db.transaction('rw', db.tools, db.npcs, async () => {
+      await db.tools.delete(tt.id!);
+      const npcs = await db.npcs.toArray();
+      await Promise.all(npcs
+        .filter((npc) => npc.enabledToolNames.includes(tt.name))
+        .map((npc) => db.npcs.update(npc.id!, {
+          enabledToolNames: npc.enabledToolNames.filter((toolName) => toolName !== tt.name),
+        })));
+    });
+    await Promise.all([refresh(), refreshNpcs()]);
     addToast(t('toast.skillDeleted'));
   };
 
