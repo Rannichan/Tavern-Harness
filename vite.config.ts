@@ -324,6 +324,7 @@ function workspacePreviewPlugin(): Plugin {
         res.writeHead(200, {
           'Content-Type': previewMimeType(path),
           'Cache-Control': 'no-store',
+          'Access-Control-Allow-Origin': '*',
           'X-Content-Type-Options': 'nosniff',
         });
         res.end(content);
