@@ -40,3 +40,4 @@
 
 ### Skill Creation
 1. **Separate data from presentation in HTML-based skills**: HTML is generally generated once as a static page. When data needs to be updated, the skill should write only the data file, while the page reads that data at runtime.
+2. **Initialize HTML files in HTML-based skills**: Character working directories are isolated and cannot access each other's files. Each HTML-based skill must be able to create and initialize the HTML files it requires in its own working directory.
