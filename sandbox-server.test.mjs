@@ -334,6 +334,37 @@ try {
   assert.equal(redirected.output, 'first\nsecond');
   assert.equal(readFileSync(join(workspaceRoot, session, 'output.txt'), 'utf8'), 'first\nsecond\n');
 
+  const intermediateNullDevice = await post({ script: `ls missing-file 2> ${IS_WIN ? 'NUL' : '/dev/null'} | wc -l`, session });
+  assert.equal(intermediateNullDevice.ok, true, 'stderr may be discarded on a non-last pipeline command');
+  assert.equal(intermediateNullDevice.output.trim(), '0');
+
+  const intermediateStderrFile = `intermediate-stderr-${process.pid}.txt`;
+  const intermediateStderr = await post({ script: `ls missing-file 2> ${intermediateStderrFile} | wc -l`, session });
+  assert.equal(intermediateStderr.ok, true, 'stderr may be redirected to a file on a non-last pipeline command');
+  assert.equal(intermediateStderr.output.trim(), '0');
+  assert.notEqual(
+    readFileSync(join(workspaceRoot, session, intermediateStderrFile), 'utf8'),
+    '',
+    'the intermediate command standard error must be written to its own file',
+  );
+
+  const externalIntermediateStderr = await post({
+    script: `ls missing-file 2> ${forward(join(fakeBin, 'intermediate-stderr.txt'))} | wc -l`,
+    session,
+  });
+  assert.equal(externalIntermediateStderr.ok, false, 'an intermediate stderr redirect outside the session must be rejected');
+  assert.match(externalIntermediateStderr.message, /Script write paths must stay within the current session workspace/);
+
+  const shapeMarker = `shape-marker-${process.pid}.txt`;
+  const invalidOutputShape = await post({ script: `touch ${shapeMarker}; printf "out\\n" > shape-out.txt | cat`, session });
+  assert.equal(invalidOutputShape.ok, false, 'output redirection on a non-last pipeline command must be rejected');
+  assert.match(invalidOutputShape.message, /Output redirection is only supported for the last pipeline command/);
+  assert.equal(existsSync(join(workspaceRoot, session, shapeMarker)), false, 'pipeline shape errors must be rejected before any command runs');
+
+  const invalidInputShape = await post({ script: 'printf "out\\n" | cat < output.txt', session });
+  assert.equal(invalidInputShape.ok, false, 'input redirection on a non-first pipeline command must be rejected');
+  assert.match(invalidInputShape.message, /Input redirection is only supported for the first pipeline command/);
+
   const nullDevice = IS_WIN ? 'NUL' : '/dev/null';
   const nullDeviceRedirect = await post({ script: `ls missing-file 2> ${nullDevice}`, session });
   assert.equal(nullDeviceRedirect.ok, false, 'the command exit status is preserved when standard error is discarded');

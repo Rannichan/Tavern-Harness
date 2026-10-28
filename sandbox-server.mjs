@@ -1075,6 +1075,13 @@ function validateScript(script, sessionBase) {
   for (const commands of groups) {
     commandCount += commands.length;
     if (commandCount > MAX_LINES) return 'Script contains more than 20 commands';
+    // 管道形状错误必须在执行任何命令之前拒绝，否则前面的命令已产生副作用。
+    if (commands.some((command, index) => command.input && index !== 0)) {
+      return 'Input redirection is only supported for the first pipeline command';
+    }
+    if (commands.some((command, index) => command.output && index !== commands.length - 1)) {
+      return 'Output redirection is only supported for the last pipeline command';
+    }
     for (const { cmd, args, input, output, errorOutput } of commands) {
       if (!SHELL_ALLOWED_REAL.has(cmd)) hasNonAllowlistedCommand = true;
       const commandWriteTargets = shellWriteTargets(cmd, args);
@@ -1124,16 +1131,8 @@ function killChild(child) {
 }
 
 function runCommandGroup(group, sessionBase) {
+  // 管道形状（< 只能在首段、> 只能在末段）已由 validateScript 保证。
   const commands = parseCommandGroup(group);
-  if (commands.some((command, index) => command.input && index !== 0)) {
-    return Promise.reject(new Error('Input redirection is only supported for the first pipeline command'));
-  }
-  if (commands.some((command, index) => command.output && index !== commands.length - 1)) {
-    return Promise.reject(new Error('Output redirection is only supported for the last pipeline command'));
-  }
-  if (commands.some((command, index) => command.errorOutput && index !== commands.length - 1)) {
-    return Promise.reject(new Error('Standard error file redirection is only supported for the last pipeline command'));
-  }
 
   return new Promise((resolve, reject) => {
     const children = [];
@@ -1144,20 +1143,21 @@ function runCommandGroup(group, sessionBase) {
     const output = last.output
       ? createWriteStream(redirectWritePath(last.output.path, sessionBase), { flags: last.output.append ? 'a' : 'w' })
       : null;
-    const errorOutput = last.errorOutput
-      ? createWriteStream(redirectWritePath(last.errorOutput.path, sessionBase), { flags: last.errorOutput.append ? 'a' : 'w' })
-      : null;
+    /** 每段各自的 2> / 2>> 目标；中间段的 stderr 写入文件后不再进入后续段。 */
+    const errorSinks = new Set();
     let stdout = '';
     let stderr = '';
     let settled = false;
-    let closed = 0;
+    let childrenClosed = 0;
+    /** 尚未写完的重定向目标（stdout 或某段的 stderr 文件）。 */
+    let pendingWrites = 0;
     const finish = (error) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
       input?.destroy();
       output?.destroy();
-      errorOutput?.destroy();
+      for (const sink of errorSinks) sink.destroy();
       if (error) {
         children.forEach(killChild);
         reject(error);
@@ -1169,15 +1169,34 @@ function runCommandGroup(group, sessionBase) {
         });
       }
     };
+    /** 所有子进程退出且重定向文件都写完后再返回，避免读到只落盘一半的结果。 */
+    const resolveAfterFlush = () => {
+      if (!settled && childrenClosed === commands.length && pendingWrites === 0) finish(null);
+    };
+    const trackWrite = (stream) => {
+      if (!stream) return;
+      pendingWrites += 1;
+      stream.on('finish', () => {
+        pendingWrites -= 1;
+        resolveAfterFlush();
+      });
+    };
     const timer = setTimeout(() => finish(new Error(`Command timed out (${CMD_TIMEOUT_MS}ms)`)), CMD_TIMEOUT_MS);
 
     input?.on('error', (error) => finish(new Error(`Failed to read input: ${error.message}`)));
     output?.on('error', (error) => finish(new Error(`Failed to write output: ${error.message}`)));
-    errorOutput?.on('error', (error) => finish(new Error(`Failed to write standard error: ${error.message}`)));
+    trackWrite(output);
 
     try {
-      for (const [index, command] of commands.entries()) {
-        const isLast = index === commands.length - 1;
+      for (const command of commands) {
+        const stderrSink = command.errorOutput
+          ? createWriteStream(redirectWritePath(command.errorOutput.path, sessionBase), { flags: command.errorOutput.append ? 'a' : 'w' })
+          : null;
+        if (stderrSink) {
+          stderrSink.on('error', (error) => finish(new Error(`Failed to write standard error: ${error.message}`)));
+          errorSinks.add(stderrSink);
+          trackWrite(stderrSink);
+        }
         const child = spawn(commandPath(command.cmd), command.args, {
           cwd: sessionBase,
           shell: false,
@@ -1187,8 +1206,8 @@ function runCommandGroup(group, sessionBase) {
         });
         children.push(child);
         child.on('error', (error) => finish(new Error(`Failed to execute ${command.cmd}: ${error.message}`)));
-        if (isLast && errorOutput) {
-          child.stderr.pipe(errorOutput);
+        if (stderrSink) {
+          child.stderr.pipe(stderrSink);
         } else if (!command.mergeErrorToOutput) {
           child.stderr.on('data', (data) => {
             stderr += data;
@@ -1196,8 +1215,8 @@ function runCommandGroup(group, sessionBase) {
           });
         }
         child.on('close', () => {
-          closed += 1;
-          if (closed === children.length && children.length === commands.length && !settled) finish(null);
+          childrenClosed += 1;
+          resolveAfterFlush();
         });
       }
       for (let index = 0; index < children.length - 1; index++) {
