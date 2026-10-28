@@ -279,7 +279,7 @@ export interface WorldBook {
   /** 世界书的原始 Character Book JSON（与角色卡知识库字段标准完全一致）。 */
   characterBook?: string;
   imageUri: string | null;
-  /** 内置世界书的名称受保护，但内容允许编辑和重置。 */
+  /** 内置世界书由应用维护，内容和名称均不可由用户修改。 */
   isBuiltIn?: boolean;
   createdAt: number;
 }

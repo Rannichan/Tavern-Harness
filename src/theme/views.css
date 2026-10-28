@@ -969,6 +969,18 @@
   transform: translateX(16px);
   background: #fff;
 }
+.switch.disabled,
+.switch input:disabled + .switch-slider {
+  cursor: not-allowed;
+}
+.switch input:disabled + .switch-slider {
+  background: var(--surface-3);
+  border-color: var(--border);
+  opacity: 0.55;
+}
+.switch input:disabled:checked + .switch-slider::before {
+  background: var(--text-faint);
+}
 
 /* ---------- 参数表 ---------- */
 .param-table td {

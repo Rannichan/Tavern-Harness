@@ -769,7 +769,7 @@ export async function initDatabase(): Promise<void> {
   await backfillToolOrigins();
   // 内置角色「酒馆老板」默认启用所有内置技能（老数据升级）
   await ensureBossDefaultSkills();
-  // 内置世界书始终存在，名称随当前界面语言本地化，内容可由用户编辑。
+  // 内置世界书始终存在，并在每次初始化时同步应用内置的最新内容。
   await localizeBuiltinTavernHandbook();
   // v2 升级：把存量会话的 pinned 归一化为 0/1
   await db.normalizePinned();
@@ -847,7 +847,12 @@ export async function localizeBuiltinTavernHandbook(): Promise<void> {
   const book = await db.worldBooks.filter(isBuiltinTavernHandbook).first();
   const name = builtinTavernHandbookName();
   if (book) {
-    if (!book.isBuiltIn || book.name !== name) await db.worldBooks.update(book.id!, { isBuiltIn: true, name });
+    await db.worldBooks.update(book.id!, {
+      isBuiltIn: true,
+      name,
+      content: BUILTIN_TAVERN_HANDBOOK_CONTENT,
+      characterBook: undefined,
+    });
     return;
   }
   await db.worldBooks.add({

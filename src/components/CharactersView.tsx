@@ -14,8 +14,6 @@ import { CSS } from '@dnd-kit/utilities';
 import { useSortableSensors } from '../core/sortableSensors';
 import { useStore } from '../store/store';
 import {
-  BUILTIN_TAVERN_HANDBOOK_CONTENT,
-  builtinTavernHandbookName,
   db,
   isBuiltinTavernHandbook,
 } from '../db/database';
@@ -523,6 +521,7 @@ function WorldBookList({ books, onChanged }: {
       characterBook: knowledge || undefined,
     };
     if (editing && 'id' in editing && editing.id != null) {
+      if (isBuiltinTavernHandbook(editing)) return;
       await db.worldBooks.update(editing.id, data);
       addToast(t('toast.wbUpdated'));
     } else {
@@ -686,19 +685,13 @@ function WorldBookForm({
   onClose: () => void;
 }) {
   const t = useT();
+  const isBuiltin = isBuiltinTavernHandbook(initial);
   const [name, setName] = useState(initial.name);
   const [content, setContent] = useState(initial.content);
   const [characterBook, setCharacterBook] = useState(initial.characterBook ?? '');
-  const [renderMarkdown, setRenderMarkdown] = useState(false);
-  const isBuiltin = isBuiltinTavernHandbook(initial);
+  const [renderMarkdown, setRenderMarkdown] = useState(isBuiltin);
   const knowledge = useMemo(() => characterBookEntryStats(characterBook), [characterBook]);
   const isEditing = 'id' in initial && initial.id != null;
-
-  const resetToDefault = () => {
-    setName(builtinTavernHandbookName());
-    setContent(BUILTIN_TAVERN_HANDBOOK_CONTENT);
-    setCharacterBook('');
-  };
 
   /** 批量启用/停用知识库条目（SillyTavern 导入的条目可能默认停用）。 */
   const setAllEntriesEnabled = (enabled: boolean) => {
@@ -735,8 +728,13 @@ function WorldBookForm({
           {tab === 'worldbook' && (
             <div className="raw-wrap-toggle">
               <span className="raw-wrap-label">{t('workshop.wbMarkdownRender')}</span>
-              <label className="switch">
-                <input type="checkbox" checked={renderMarkdown} onChange={(e) => setRenderMarkdown(e.target.checked)} />
+              <label className={`switch${isBuiltin ? ' disabled' : ''}`}>
+                <input
+                  type="checkbox"
+                  checked={renderMarkdown}
+                  disabled={isBuiltin}
+                  onChange={(e) => setRenderMarkdown(e.target.checked)}
+                />
                 <span className="switch-slider" />
               </label>
             </div>
@@ -760,7 +758,9 @@ function WorldBookForm({
           <div className="field" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
             <label>{t('workshop.wbContentLabel')}</label>
             {!renderMarkdown ? (
-              <textarea className="textarea grow-textarea" value={content} onChange={(e) => setContent(e.target.value)} placeholder={t('workshop.wbContentPh')} />
+              isBuiltin
+                ? <div className="bubble preview-scroll wb-render-pane"><Markdown text={content} /></div>
+                : <textarea className="textarea grow-textarea" value={content} onChange={(e) => setContent(e.target.value)} placeholder={t('workshop.wbContentPh')} />
             ) : (
               <div className="bubble preview-scroll wb-render-pane">
                 {content ? <Markdown text={content} /> : <span className="typo-label text-muted">{t('workshop.wbContentPh')}</span>}
@@ -771,7 +771,7 @@ function WorldBookForm({
         {tab === 'knowledge' && (
           <div className="field prompt-field character-book-field">
             <label>{t('workshop.wbKnowledgeLabel')}</label>
-            {knowledge.total > 0 && (
+            {knowledge.total > 0 && !isBuiltin && (
               <div className="knowledge-bulk-actions">
                 <span>{t('workshop.wbKnowledgeMeta', { enabled: knowledge.enabled, total: knowledge.total })}</span>
                 <button type="button" className="btn btn-sm btn-ghost" onClick={() => setAllEntriesEnabled(true)}>
@@ -785,21 +785,25 @@ function WorldBookForm({
             <Suspense fallback={<div className="character-book-editor-loading" />}>
               <CharacterBookEditor
                 value={characterBook}
-                onChange={setCharacterBook}
+                onChange={isBuiltin ? undefined : setCharacterBook}
                 placeholder={t('workshop.wbKnowledgePh')}
+                readOnly={isBuiltin}
               />
             </Suspense>
           </div>
         )}
       </div>
       <div className="modal-foot">
-        {isBuiltin && (
-          <button className="btn" type="button" onClick={resetToDefault} title={t('workshop.resetWbTip')}>
-            <Icon name="refresh" size={12} /> {t('workshop.resetWb')}
-          </button>
-        )}
         <button className="btn" onClick={onClose}>{t('common.cancel')}</button>
-        <button className="btn btn-primary" type="button" onPointerDown={(event) => event.preventDefault()} onClick={() => onSave(name, content, characterBook)}>{t('common.save')}</button>
+        <button
+          className="btn btn-primary"
+          type="button"
+          disabled={isBuiltin}
+          onPointerDown={(event) => event.preventDefault()}
+          onClick={() => onSave(name, content, characterBook)}
+        >
+          {t('common.save')}
+        </button>
       </div>
     </>
   );
