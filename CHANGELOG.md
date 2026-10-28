@@ -3,6 +3,32 @@
 > 本文件由 `scripts/changelog.mjs` 从 `changelog/v*.md` 生成，请勿手动编辑。
 > 版本对比链接见文末；源文件位于仓库 `changelog/` 目录。
 
+## [0.1.29] - 2026-10-28
+
+### 中文
+
+#### 改进
+
+- 消息编辑器中编辑用户消息后，主按钮由「保存并重新生成」改为「保存并发送」，文案与实际行为一致，操作按钮的文字对齐也更整齐
+- 普通会话的工作区不再包含只读的 `public` 公共目录：文件管理器和工具只能看到当前会话自己的文件，列表中所有内容都可以删除；旧会话残留的 `public` 链接会在下次使用该会话时自动清理
+
+#### 内部
+
+- 将内置 `file_display` 工具移到文件读写工具之后，让模型更早看到它
+- 酒馆手册补充技能编写建议：HTML 技能应把数据与页面分离，更新数据时只写数据文件
+
+### English
+
+#### Changed
+
+- In the message editor, the user-message action is now labeled "Save & send" instead of "Save & regenerate", matching what it actually does; action buttons are also aligned more neatly
+- Regular sessions no longer expose a read-only `public` directory in their workspace: the file manager and tools see only the session's own files, and everything listed can be deleted. Leftover `public` links are removed the next time the session is used
+
+#### Internal
+
+- Moved the built-in `file_display` tool right after the file read/write tools so models notice it earlier
+- Added skill authoring guidance to the tavern handbook: HTML skills should separate data from presentation and only rewrite the data file on updates
+
 ## [0.1.28] - 2026-10-28
 
 ### 中文
@@ -800,6 +826,7 @@
 - Vite + React + Zustand + Dexie stack with browser-side local persistence
 
 <!-- 链接定义 -->
+[0.1.29]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.28...v0.1.29
 [0.1.28]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.27...v0.1.28
 [0.1.27]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.26...v0.1.27
 [0.1.26]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.25...v0.1.26
