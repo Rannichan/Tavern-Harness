@@ -18,6 +18,7 @@ export const BUILTIN_TOOL_NAMES = [
   'get_tavern_info',
   'get_character_info',
   'get_lorebook_info',
+  'get_skill_info',
   'file_display',
   'create_character',
   'update_character',
@@ -197,7 +198,7 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
   ),
   fn(
     'get_tavern_info',
-    'Read-only snapshot of the tavern: characters, Lorebooks, skills and career statistics.',
+    'Read a read-only tavern overview: characters, Lorebooks, skill summaries, and career statistics.',
     {
       type: 'object',
       properties: {
@@ -229,6 +230,16 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
     {
       type: 'object',
       properties: { name: { type: 'string', description: 'Existing Lorebook name' } },
+      required: ['name'],
+      additionalProperties: false,
+    }
+  ),
+  fn(
+    'get_skill_info',
+    'Get the full definition of a skill by name, including generated skill parameters and execution configuration.',
+    {
+      type: 'object',
+      properties: { name: { type: 'string', description: 'Existing skill name' } },
       required: ['name'],
       additionalProperties: false,
     }

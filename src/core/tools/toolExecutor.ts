@@ -131,6 +131,8 @@ async function runNativeTool(
 
     case 'get_tavern_info':
       return await handleGetTavernInfo(args);
+    case 'get_skill_info':
+      return await handleGetSkillInfo(args);
     case 'get_character_info':
       return await handleGetCharacterInfo(args);
     case 'get_lorebook_info':
@@ -220,6 +222,34 @@ async function handleGetTavernInfo(args: Record<string, unknown>): Promise<strin
     };
   }
   return JSON.stringify(out, null, 2);
+}
+
+async function handleGetSkillInfo(args: Record<string, unknown>): Promise<string> {
+  const name = String(args.name ?? '').trim();
+  if (!name) return 'ERROR: Missing name';
+  const tool = await db.tools.where('name').equals(name).first();
+  if (!tool) return `ERROR: Skill ${name} does not exist`;
+
+  const definition = safeJsonParse<ChatCompletionTool>(tool.jsonContent);
+  if (!definition?.function) return `ERROR: Skill ${name} has an invalid definition`;
+
+  const result: Record<string, unknown> = {
+    name: tool.name,
+    description: definition.function.description ?? '',
+    parameters: definition.function.parameters,
+    is_default: tool.isBuiltIn,
+  };
+
+  if (tool.isBuiltIn) {
+    result.implementation_type = 'native';
+  } else {
+    const execution = safeJsonParse<GeneratedSkillExecution>(tool.executionJson);
+    if (!execution) return `ERROR: Skill ${name} has an invalid implementation`;
+    result.implementation_type = execution.type;
+    result.execution = execution;
+  }
+
+  return JSON.stringify(result, null, 2);
 }
 
 async function handleGetCharacterInfo(args: Record<string, unknown>): Promise<string> {
