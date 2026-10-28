@@ -10,7 +10,7 @@ import { useStore } from '../store/store';
 //  - 会话头部的工作目录标签点击打开
 //  - 只展示当前会话专属磁盘工作区（sandbox_workspace/）
 //  - 目录点击进入、支持返回上级与面包屑；文件点击复用 file_display 弹窗预览
-//  - 可在确认后删除文件或目录（public 软链接除外）
+//  - 可在确认后删除文件或目录
 // ============================================================
 
 function extOf(path: string): string {
@@ -215,10 +215,8 @@ export function WorkspaceFileManagerModal({ sessionId, onClose }: { sessionId: n
                 <span className="ws-fm-name">..</span>
               </div>
             )}
-            {visible.map((n) => {
-              const isPublicLink = n.isDir && n.path === 'public/';
-              return (
-                <div
+            {visible.map((n) => (
+              <div
                   key={n.path}
                   className="ws-fm-row"
                   role="button"
@@ -258,22 +256,19 @@ export function WorkspaceFileManagerModal({ sessionId, onClose }: { sessionId: n
                         aria-label={t('common.download')}
                         disabled
                       ><span aria-hidden="true">↓</span></button>
-                      {!isPublicLink && (
-                        <button
-                          className="icon-btn ws-fm-delete"
-                          title={t('common.delete')}
-                          aria-label={t('common.delete')}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            setPendingDelete(n);
-                          }}
-                        ><Icon name="trash" size={13} /></button>
-                      )}
+                      <button
+                        className="icon-btn ws-fm-delete"
+                        title={t('common.delete')}
+                        aria-label={t('common.delete')}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setPendingDelete(n);
+                        }}
+                      ><Icon name="trash" size={13} /></button>
                     </span>
                   )}
-                </div>
-              );
-            })}
+              </div>
+            ))}
             {visible.length === 0 && <div className="ws-fm-empty">{t('header.fileManagerEmpty')}</div>}
           </div>
         )}

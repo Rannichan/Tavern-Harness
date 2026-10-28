@@ -118,9 +118,7 @@ try {
   const sessionCreate = await sessionCreateResponse.json();
   assert.equal(sessionCreateResponse.status, 200);
   assert.equal(sessionCreate.ok, true);
-  const createdPublicLink = join(workspaceRoot, createdSession, 'public');
-  assert.equal(lstatSync(createdPublicLink).isSymbolicLink(), true, 'session_create must add a public symlink');
-  assert.equal(realpathSync(createdPublicLink), realpathSync(join(workspaceRoot, 'public')));
+  assert.equal(existsSync(join(workspaceRoot, createdSession, 'public')), false, 'session_create must not add a public symlink');
 
   rmSync(join(workspaceRoot, otherSession), { recursive: true, force: true });
   const missingDirectoryListResponse = await fetch(`http://127.0.0.1:${port}/file_list`, {
@@ -143,53 +141,25 @@ try {
   assert.equal(createOnWrite.ok, true);
   assert.equal(readFileSync(join(workspaceRoot, otherSession, 'created.txt'), 'utf8'), 'created on write');
   const publicLink = join(workspaceRoot, otherSession, 'public');
-  assert.equal(lstatSync(publicLink).isSymbolicLink(), true, 'session creation must add a public symlink');
-  assert.equal(realpathSync(publicLink), realpathSync(join(workspaceRoot, 'public')));
+  assert.equal(existsSync(publicLink), false, 'session creation must not add a public symlink');
 
-  writeFileSync(join(workspaceRoot, otherSession, 'delete-me.txt'), 'remove me');
-  const fileDeleteResponse = await fetch(`http://127.0.0.1:${port}/file_delete`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Command-Service-Token': serviceToken },
-    body: JSON.stringify({ session: otherSession, path: 'delete-me.txt' }),
-  });
-  const fileDelete = await fileDeleteResponse.json();
-  assert.equal(fileDeleteResponse.status, 200);
-  assert.equal(fileDelete.ok, true);
-  assert.equal(existsSync(join(workspaceRoot, otherSession, 'delete-me.txt')), false);
-
-  const nestedDirectory = join(workspaceRoot, otherSession, 'delete-directory');
-  mkdirSync(join(nestedDirectory, 'nested'), { recursive: true });
-  writeFileSync(join(nestedDirectory, 'nested', 'delete-me.txt'), 'remove recursively');
-  const directoryDeleteResponse = await fetch(`http://127.0.0.1:${port}/file_delete`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Command-Service-Token': serviceToken },
-    body: JSON.stringify({ session: otherSession, path: 'delete-directory' }),
-  });
-  const directoryDelete = await directoryDeleteResponse.json();
-  assert.equal(directoryDeleteResponse.status, 200);
-  assert.equal(directoryDelete.ok, true);
-  assert.equal(existsSync(nestedDirectory), false);
-
-  const publicLinkDeleteResponse = await fetch(`http://127.0.0.1:${port}/file_delete`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Command-Service-Token': serviceToken },
-    body: JSON.stringify({ session: otherSession, path: 'public' }),
-  });
-  const publicLinkDelete = await publicLinkDeleteResponse.json();
-  assert.equal(publicLinkDeleteResponse.status, 400);
-  assert.equal(publicLinkDelete.ok, false);
-  assert.match(publicLinkDelete.message, /public workspace link cannot be deleted/);
-  assert.equal(lstatSync(publicLink).isSymbolicLink(), true);
-
-  writeFileSync(join(workspaceRoot, 'public', publicFile), 'shared read-only content');
+  writeFileSync(join(workspaceRoot, 'public', publicFile), 'shared content');
   const publicReadResponse = await fetch(`http://127.0.0.1:${port}/file_read`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Command-Service-Token': serviceToken },
     body: JSON.stringify({ session: otherSession, path: `public/${publicFile}` }),
   });
   const publicRead = await publicReadResponse.json();
-  assert.equal(publicReadResponse.status, 200);
-  assert.equal(publicRead.content, 'shared read-only content');
+  assert.notEqual(publicRead.content, 'shared content', 'ordinary sessions must not read the public workspace');
+
+  const publicWriteResponse = await fetch(`http://127.0.0.1:${port}/file_write`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Command-Service-Token': serviceToken },
+    body: JSON.stringify({ session: otherSession, path: `public/${publicFile}`, content: 'session-local content' }),
+  });
+  assert.equal(publicWriteResponse.status, 200);
+  assert.equal(readFileSync(join(workspaceRoot, otherSession, 'public', publicFile), 'utf8'), 'session-local content');
+  assert.equal(readFileSync(join(workspaceRoot, 'public', publicFile), 'utf8'), 'shared content');
 
   const publicListResponse = await fetch(`http://127.0.0.1:${port}/file_list`, {
     method: 'POST',
@@ -198,29 +168,7 @@ try {
   });
   const publicList = await publicListResponse.json();
   assert.equal(publicListResponse.status, 200);
-  assert.equal(publicList.files.includes(`public/${publicFile}`), true, 'file_list must expose public files through the session link');
-
-  const publicWriteResponse = await fetch(`http://127.0.0.1:${port}/file_write`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Command-Service-Token': serviceToken },
-    body: JSON.stringify({ session: otherSession, path: `public/${publicFile}`, content: 'must not change' }),
-  });
-  const publicWrite = await publicWriteResponse.json();
-  assert.equal(publicWriteResponse.status, 400);
-  assert.equal(publicWrite.ok, false);
-  assert.match(publicWrite.message, /The public directory is read-only/);
-  assert.equal(readFileSync(join(workspaceRoot, 'public', publicFile), 'utf8'), 'shared read-only content');
-
-  const publicFileDeleteResponse = await fetch(`http://127.0.0.1:${port}/file_delete`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Command-Service-Token': serviceToken },
-    body: JSON.stringify({ session: otherSession, path: `public/${publicFile}` }),
-  });
-  const publicFileDelete = await publicFileDeleteResponse.json();
-  assert.equal(publicFileDeleteResponse.status, 200);
-  assert.equal(publicFileDelete.ok, true);
-  assert.equal(existsSync(join(workspaceRoot, 'public', publicFile)), false);
-  writeFileSync(join(workspaceRoot, 'public', publicFile), 'shared read-only content');
+  assert.equal(lstatSync(publicLink).isSymbolicLink(), false, 'a session-local public directory must not become a shared link');
 
   const publicDeleteResponse = await fetch(`http://127.0.0.1:${port}/session_delete`, {
     method: 'POST',
@@ -242,8 +190,7 @@ try {
   assert.match(previewTraversal.body.message, /Path must not contain \.\./);
   writeFileSync(join(workspaceRoot, 'public', 'preview.html'), '<!doctype html><title>Public preview</title>');
   const publicPreview = await previewRead({ session: otherSession, path: 'public/preview.html' });
-  assert.equal(publicPreview.status, 200);
-  assert.equal(Buffer.from(publicPreview.body.content, 'base64').toString('utf8'), '<!doctype html><title>Public preview</title>');
+  assert.equal(publicPreview.status, 400);
 
   const externalDir = mkdtempSync(join(tmpdir(), 'command-service-external-'));
   writeFileSync(join(externalDir, 'secret.txt'), 'outside');
@@ -316,30 +263,27 @@ try {
   assert.match(externalCopyRequest.message, /Script read paths must stay within the current session workspace/);
   assert.equal(existsSync(join(workspaceRoot, session, 'copied-from-external.txt')), false);
   const publicPathRequest = await post({ script: `cat public/${publicFile}`, session });
-  assert.equal(publicPathRequest.ok, true, 'reading through the public link must not require confirmation');
-  assert.equal(publicPathRequest.output, 'shared read-only content');
+  assert.equal(publicPathRequest.ok, false, 'ordinary sessions must not read the public workspace');
 
   const absoluteExternalRead = await post({ script: `cat ${forward(join(root, '.gitignore'))}`, session });
   assert.equal(absoluteExternalRead.ok, false, 'reading an absolute external path must be rejected');
   assert.match(absoluteExternalRead.message, /Script read paths must stay within the current session workspace/);
 
-  const copyToMissingPublicPath = await post({ script: `cp created.txt public/${missingPublicTarget}`, session: otherSession });
-  assert.equal(copyToMissingPublicPath.ok, false, 'copying to public must be rejected');
-  assert.match(copyToMissingPublicPath.message, /Script write paths must stay within the current session workspace/);
-  assert.equal(existsSync(join(workspaceRoot, 'public', missingPublicTarget)), false, 'the copy must not run before approval');
+  const copyToSessionPublicPath = await post({ script: `cp created.txt public/${missingPublicTarget}`, session: otherSession });
+  assert.equal(copyToSessionPublicPath.ok, true, 'public is an ordinary session-local directory');
+  assert.equal(existsSync(join(workspaceRoot, otherSession, 'public', missingPublicTarget)), true);
+  assert.equal(existsSync(join(workspaceRoot, 'public', missingPublicTarget)), false, 'the shared public workspace must remain unchanged');
 
   // 非白名单改动型命令（mv / rm 等）同样先做路径分类：越界直接拒绝，不得进入确认通道
-  const mvToPublic = await post({ script: `mv created.txt public/${missingPublicTarget}`, session: otherSession });
-  assert.equal(mvToPublic.ok, false, 'moving a file into public must be rejected without a confirmation ticket');
-  assert.equal(mvToPublic.needConfirm, undefined, 'an out-of-session write must not offer confirmation');
-  assert.match(mvToPublic.message, /Script write paths must stay within the current session workspace/);
-  assert.equal(existsSync(join(workspaceRoot, otherSession, 'created.txt')), true, 'the source file must survive a rejected mv');
-  assert.equal(existsSync(join(workspaceRoot, 'public', missingPublicTarget)), false, 'the move must not run before approval');
+  const mvToSessionPublic = await post({ script: `mv created.txt public/moved-${missingPublicTarget}`, session: otherSession });
+  assert.equal(mvToSessionPublic.ok, false, 'non-allowlisted mv still requires confirmation');
+  assert.equal(mvToSessionPublic.needConfirm, true);
+  assert.equal(existsSync(join(workspaceRoot, otherSession, 'created.txt')), true, 'the source file must survive without confirmation');
+  assert.equal(existsSync(join(workspaceRoot, 'public', `moved-${missingPublicTarget}`)), false, 'the shared workspace must remain unchanged');
 
-  const mvFromPublic = await post({ script: `mv public/${publicFile} moved-from-public.txt`, session: otherSession });
-  assert.equal(mvFromPublic.ok, false, 'moving a file out of public must be rejected (mv deletes its source)');
-  assert.match(mvFromPublic.message, /Script write paths must stay within the current session workspace/);
-  assert.equal(existsSync(join(workspaceRoot, 'public', publicFile)), true, 'the public file must survive a rejected mv');
+  const mvFromSessionPublic = await post({ script: `mv public/${publicFile} moved-from-public.txt`, session: otherSession });
+  assert.equal(mvFromSessionPublic.ok, false);
+  assert.equal(mvFromSessionPublic.needConfirm, true);
 
   const rmExternal = await post({ script: `rm ${forward(join(root, '.gitignore'))}`, session: otherSession });
   assert.equal(rmExternal.ok, false, 'removing an external file must be rejected');
@@ -437,9 +381,10 @@ try {
   assert.equal(mergedStandardError.ok, true, '2>&1 must merge into a following pipeline');
   assert.equal(mergedStandardError.output, 'stderr-part');
 
-  const publicRedirect = await post({ script: `echo blocked > public/${publicFile}`, session: otherSession });
-  assert.equal(publicRedirect.ok, false, 'redirection must not write through the public link');
-  assert.match(publicRedirect.message, /Script write paths must stay within the current session workspace/);
+  const sessionPublicRedirect = await post({ script: `echo session-local > public/${publicFile}`, session: otherSession });
+  assert.equal(sessionPublicRedirect.ok, true, 'redirection may write to a session-local public directory');
+  assert.equal(readFileSync(join(workspaceRoot, otherSession, 'public', publicFile), 'utf8'), 'session-local\n');
+  assert.equal(readFileSync(join(workspaceRoot, 'public', publicFile), 'utf8'), 'shared content');
 
   const externalRedirect = await post({ script: `cat < ${forward(join(root, '.gitignore'))}`, session });
   assert.equal(externalRedirect.ok, false, 'redirection must not read external files');

@@ -89,7 +89,7 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
       properties: {
         path: {
           type: 'string',
-          description: 'Relative path inside the current conversation workspace. Absolute paths and parent traversal are rejected. public link is read-only in normal sessions.',
+          description: 'Relative path inside the current conversation workspace. Absolute paths and parent traversal are rejected.',
         },
         content: {
           type: 'string',
@@ -112,7 +112,7 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
       properties: {
         path: {
           type: 'string',
-          description: 'Relative path inside the current conversation workspace. Absolute paths and parent traversal are rejected. The file must exist. The public link is read-only in normal sessions.',
+          description: 'Relative path inside the current conversation workspace. Absolute paths and parent traversal are rejected. The file must exist.',
         },
         old_text: {
           type: 'string',

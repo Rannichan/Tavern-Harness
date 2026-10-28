@@ -490,18 +490,18 @@ function resolveSessionBase(session) {
   return join(RESOLVED_WORKSPACE_ROOT, raw);
 }
 
-/** 创建会话目录，并为普通会话提供固定的只读公共目录入口。 */
+/** 创建会话目录；普通会话不暴露公共工作区。 */
 function ensureSessionBase(base) {
   mkdirSync(PUBLIC_WORKSPACE, { recursive: true });
   mkdirSync(base, { recursive: true });
   if (base === PUBLIC_WORKSPACE) return;
-  const publicLink = join(base, 'public');
-  if (existsSync(publicLink)) {
-    if (!lstatSync(publicLink).isSymbolicLink() || realpathSync(publicLink) !== realpathSync(PUBLIC_WORKSPACE)) {
-      throw new Error('The session public entry is not a valid link to the public workspace');
-    }
-  } else {
-    symlinkSync(IS_WIN ? PUBLIC_WORKSPACE : '../public', publicLink, IS_WIN ? 'junction' : 'dir');
+  const legacyPublicLink = join(base, 'public');
+  if (
+    existsSync(legacyPublicLink)
+    && lstatSync(legacyPublicLink).isSymbolicLink()
+    && realpathSync(legacyPublicLink) === realpathSync(PUBLIC_WORKSPACE)
+  ) {
+    rmSync(legacyPublicLink);
   }
 }
 
@@ -596,11 +596,10 @@ const server = createServer(async (req, res) => {
       const payload = JSON.parse(body);
       const base = resolveSessionBase(payload?.session);
       const rel = sanitizeWorkspaceRelativePath(payload?.path);
-      const readingPublicLink = base !== PUBLIC_WORKSPACE && (rel === 'public' || rel.startsWith('public/'));
-      if (!readingPublicLink && resolvesOutsideSession(rel, base)) throw new Error('Path is outside the workspace');
+      if (resolvesOutsideSession(rel, base)) throw new Error('Path is outside the workspace');
       const file = resolve(base, rel);
       if (!existsSync(file) || !lstatSync(file).isFile()) throw new Error('File not found');
-      assertInside(readingPublicLink ? PUBLIC_WORKSPACE : base, realpathSync(file));
+      assertInside(base, realpathSync(file));
       const content = await readFilePromise(file);
       if (content.length > 8 * 1024 * 1024) throw new Error('Preview file exceeds the 8MB limit');
       res.end(JSON.stringify({ ok: true, content: content.toString('base64') }));
@@ -635,8 +634,7 @@ const server = createServer(async (req, res) => {
         const rawPath = String(payload?.path ?? '').replace(/\\/g, '/').trim();
         if (!rawPath) throw new Error('Invalid path');
         const rel = sanitizeWorkspaceRelativePath(rawPath);
-        const readingPublicLink = base !== PUBLIC_WORKSPACE && (rel === 'public' || rel.startsWith('public/'));
-        if (!readingPublicLink && resolvesOutsideSession(rel, base)) {
+        if (resolvesOutsideSession(rel, base)) {
           throw new Error('Path is outside the workspace');
         }
         const fp = resolve(base, rel);
@@ -649,9 +647,6 @@ const server = createServer(async (req, res) => {
         const content = String(payload?.content ?? '');
         ensureSessionBase(base);
         const rel = sanitizeWorkspaceRelativePath(rawPath);
-        if (base !== PUBLIC_WORKSPACE && (rel === 'public' || rel.startsWith('public/'))) {
-          throw new Error('The public directory is read-only');
-        }
         if (resolvesOutsideSession(rel, base)) {
           throw new Error('Path is outside the workspace');
         }
@@ -674,18 +669,14 @@ const server = createServer(async (req, res) => {
         const rawPath = String(payload?.path ?? '').replace(/\\/g, '/').trim();
         if (!rawPath) throw new Error('Invalid path');
         const rel = sanitizeWorkspaceRelativePath(rawPath);
-        const deletingPublicLink = base !== PUBLIC_WORKSPACE && (rel === 'public' || rel.startsWith('public/'));
-        if (!deletingPublicLink && resolvesOutsideSession(rel, base)) {
+        if (resolvesOutsideSession(rel, base)) {
           throw new Error('Path is outside the workspace');
         }
         const fp = resolve(base, rel);
         if (!existsSync(fp)) throw new Error('File or directory not found');
         const entry = lstatSync(fp);
-        if (entry.isSymbolicLink() && rel === 'public') {
-          throw new Error('The public workspace link cannot be deleted');
-        }
         if (!entry.isFile() && !entry.isDirectory()) throw new Error('Path is not a file or directory');
-        if (!deletingPublicLink) assertInside(base, realpathSync(fp));
+        assertInside(base, realpathSync(fp));
         if (entry.isDirectory()) {
           rmSync(fp, { recursive: true, force: false });
         } else {
@@ -867,14 +858,6 @@ function extractPathCandidate(value) {
     candidate = value.slice(pathIndex);
   }
   return candidate || null;
-}
-
-function isPublicLinkReadPath(value, sessionBase) {
-  if (sessionBase === PUBLIC_WORKSPACE) return false;
-  const candidate = extractPathCandidate(value);
-  if (!candidate) return false;
-  const normalized = candidate.replace(/\\/g, '/').trim();
-  return normalized === 'public' || normalized.startsWith('public/');
 }
 
 /** Only the platform null device may be used outside the workspace, and only as a redirect sink. */
@@ -1097,29 +1080,23 @@ function validateScript(script, sessionBase) {
       const commandWriteTargets = shellWriteTargets(cmd, args);
       const redirectWriteTargets = [...(output ? [output.path] : []), ...(errorOutput ? [errorOutput.path] : [])];
       if (
-        commandWriteTargets.some((arg) => resolvesOutsideSession(arg, sessionBase) || isPublicLinkReadPath(arg, sessionBase))
-        || redirectWriteTargets.some((arg) => (
-          !isNullDeviceSink(arg) && (resolvesOutsideSession(arg, sessionBase) || isPublicLinkReadPath(arg, sessionBase))
-        ))
+        commandWriteTargets.some((arg) => resolvesOutsideSession(arg, sessionBase))
+        || redirectWriteTargets.some((arg) => !isNullDeviceSink(arg) && resolvesOutsideSession(arg, sessionBase))
       ) {
         hasExternalWrite = true;
       }
       const readTargets = [...shellReadTargets(cmd, args), ...(input ? [input] : [])];
-      if (readTargets.some((arg) => (
-        !isPublicLinkReadPath(arg, sessionBase) && resolvesOutsideSession(arg, sessionBase)
-      ))) {
+      if (readTargets.some((arg) => resolvesOutsideSession(arg, sessionBase))) {
         hasExternalRead = true;
       }
-      if ([cmd, ...args].some((arg) => (
-        !isPublicLinkReadPath(arg, sessionBase) && resolvesOutsideSession(arg, sessionBase)
-      ))) {
+      if ([cmd, ...args].some((arg) => resolvesOutsideSession(arg, sessionBase))) {
         hasExternalPath = true;
       }
     }
   }
-  if (hasExternalRead) return 'Script read paths must stay within the current session workspace; public files may only be read through the public link';
-  if (hasExternalWrite) return 'Script write paths must stay within the current session workspace and cannot use the public symlink';
-  if (hasExternalPath) return 'Script paths must stay within the current session workspace; public files may only be read through the public link';
+  if (hasExternalRead) return 'Script read paths must stay within the current session workspace';
+  if (hasExternalWrite) return 'Script write paths must stay within the current session workspace';
+  if (hasExternalPath) return 'Script paths must stay within the current session workspace';
   if (hasNonAllowlistedCommand) return { needConfirmReason: 'non_allowlisted' };
   return null;
 }
@@ -1293,8 +1270,6 @@ async function walkWorkspace(dir, prefix, out) {
     const full = join(dir, ent.name);
     try {
       if (ent.isDirectory()) {
-        await walkWorkspace(full, rel, out);
-      } else if (ent.isSymbolicLink() && rel === 'public' && realpathSync(full) === realpathSync(PUBLIC_WORKSPACE)) {
         await walkWorkspace(full, rel, out);
       } else if (ent.isFile()) {
         out.push(rel);
