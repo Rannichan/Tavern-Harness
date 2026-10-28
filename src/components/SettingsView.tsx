@@ -5,7 +5,7 @@ import { type ThemeMode } from '../theme/theme';
 import { type ApiProvider, type AppLanguage, type ReasoningEffort, enabledModelIds, modelAliases } from '../types/models';
 import { Icon, Modal } from './shared';
 import { DeleteConfirmDialog } from './DeleteConfirmDialog';
-import { isProxyUrl, isNetworkLikeError, toProxyUrl } from '../core/proxy';
+import { isNetworkLikeError, toProxyUrl } from '../core/proxy';
 import { useT } from '../core/i18n';
 import { APP_VERSION, useHasUnseenVersion } from '../core/version';
 import { VersionHistoryModal } from './VersionHistoryModal';
@@ -524,10 +524,8 @@ function ProviderForm({ initial, onSave }: { initial: ApiProvider; onSave: (p: A
     setTesting(true);
     try {
       const { models: fetchedModels, viaProxy } = await fetchModelsSmart(baseUrl.trim(), apiKey);
-      const nextBaseUrl = viaProxy && !isProxyUrl(baseUrl) ? toProxyUrl(baseUrl) ?? baseUrl.trim() : baseUrl.trim();
       const updatedAliases = Object.fromEntries(Object.entries(aliases).filter(([model]) => fetchedModels.includes(model)));
       const updatedEnabledModels = new Set(fetchedModels.filter((model) => !models.includes(model) || enabledModels.has(model)));
-      setBaseUrl(nextBaseUrl);
       setModels(fetchedModels);
       setAliases(updatedAliases);
       setEnabledModels(updatedEnabledModels);
@@ -598,14 +596,16 @@ function ProviderForm({ initial, onSave }: { initial: ApiProvider; onSave: (p: A
           className="btn btn-primary"
           disabled={!name.trim() || !baseUrl.trim()}
           onClick={() => {
-            const modelNames = models.map((model) => (aliases[model]?.trim() || model).trim());
+            const modelNames = models
+              .filter((model) => enabledModels.has(model))
+              .map((model) => (aliases[model]?.trim() || model).trim());
             const otherModelNames = new Set(
               providers
                 .filter((provider) => provider.id !== initial.id)
                 .flatMap((provider) => provider.cachedModelsCsv
                   .split(',')
                   .map((model) => model.trim())
-                  .filter(Boolean)
+                  .filter((model) => model && enabledModelIds(provider).has(model))
                   .map((model) => (modelAliases(provider)[model]?.trim() || model).trim())),
             );
             const duplicate = modelNames.find((model, index) =>
