@@ -3,6 +3,20 @@
 > 本文件由 `scripts/changelog.mjs` 从 `changelog/v*.md` 生成，请勿手动编辑。
 > 版本对比链接见文末；源文件位于仓库 `changelog/` 目录。
 
+## [0.1.28] - 2026-10-28
+
+### 中文
+
+#### 修复
+
+- 修复沙盒里打开的 HTML 预览加载不了图片、样式和字体等文件的问题：预览页面引用的工作区资源现在可以正常读取，生成报告或小工具时不用再把资源全部塞进单个 HTML
+
+### English
+
+#### Fixed
+
+- Fixed HTML previews in the sandboxed viewer failing to load images, stylesheets, and fonts from the workspace; generated reports and small tools can now reference separate asset files instead of inlining everything into one HTML file
+
 ## [0.1.27] - 2026-10-28
 
 ### 中文
@@ -786,6 +800,7 @@
 - Vite + React + Zustand + Dexie stack with browser-side local persistence
 
 <!-- 链接定义 -->
+[0.1.28]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.27...v0.1.28
 [0.1.27]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.26...v0.1.27
 [0.1.26]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.25...v0.1.26
 [0.1.25]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.24...v0.1.25
