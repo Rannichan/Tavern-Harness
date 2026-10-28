@@ -37,3 +37,6 @@
 1. **Create the minimum number of skills**: Assess responsibilities against the user's needs. If one skill can accomplish the goal, do not split it into or add multiple redundant skills.
 2. **Document skill usage and workflows clearly**: In both World Info and the character persona, clearly record each skill's trigger conditions and usage steps so the character can invoke it as required.
 3. **Verify character skill equipment**: After creating or configuring a game, confirm that each relevant character has every skill required by the workflow. In particular, verify that relevant built-in skills are enabled.
+
+### Skill Creation
+1. **Separate data from presentation in HTML-based skills**: HTML is generally generated once as a static page. When data needs to be updated, the skill should write only the data file, while the page reads that data at runtime.
