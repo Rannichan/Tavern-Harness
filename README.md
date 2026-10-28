@@ -102,7 +102,7 @@ The tavern is designed around AI assistance to make creating and playing games e
 
 Characters are more than chat partners: they are **agents with extensible skills**. Equip each character with the abilities needed for richer gameplay.
 
-The tavern includes essential skills such as dice rolling. You can also ask the Tavern Keeper to **create any skill you need**.
+The tavern includes essential skills such as dice rolling and a default, editable **Memory** skill. Memory lets characters keep important preferences, world details, plot progress, and agreements in a local long-term-memory store. You can also ask the Tavern Keeper to **create any skill you need**.
 
 ### 💬 Multi-Character Group Chats
 

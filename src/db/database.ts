@@ -19,6 +19,7 @@ import { currentLanguage, translate } from '../core/i18n';
 import { hasBrowserUiPreferences, saveBrowserUiPreferences } from '../core/browserPreferences';
 import { randomId } from '../core/randomId';
 import BUILTIN_TAVERN_HANDBOOK_CONTENT from '../assets/tavern-handbook.md?raw';
+import BUILTIN_MEMORY_SKILL from '../assets/memory-skill.json';
 
 export class TavernDB extends Dexie {
   settings!: Table<AppSettings, number>;
@@ -763,6 +764,8 @@ export async function initDatabase(): Promise<void> {
   await retireRemovedBuiltinTools();
   // 预载内置技能表
   await seedBuiltinTools();
+  // 首次初始化时提供可编辑、可删除的默认记忆技能。
+  await seedDefaultMemorySkill();
   // 旧数据兼容：enabledToolNames 可能是 CSV 字符串
   await migrateLegacyFields();
   // 补全技能 origin 字段（旧记录：内置 → builtin，其余 → custom）
@@ -979,6 +982,20 @@ async function seedBuiltinTools(): Promise<void> {
       displayOrder: await db.tools.count(),
     });
   }
+}
+
+/** 首次初始化时写入默认记忆技能；后续由用户自行编辑、删除或启用。 */
+async function seedDefaultMemorySkill(): Promise<void> {
+  if (await db.tools.where('name').equals(BUILTIN_MEMORY_SKILL.name).first()) return;
+  await db.tools.add({
+    name: BUILTIN_MEMORY_SKILL.name,
+    jsonContent: JSON.stringify(BUILTIN_MEMORY_SKILL.tool),
+    executionJson: JSON.stringify(BUILTIN_MEMORY_SKILL.execution),
+    isBuiltIn: false,
+    origin: 'custom',
+    createdAt: Date.now(),
+    displayOrder: await db.tools.count(),
+  });
 }
 
 /** 内置角色「酒馆老板」默认启用全部内置技能（老数据只启用了 roll_dice 等） */
