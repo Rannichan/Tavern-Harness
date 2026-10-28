@@ -12,6 +12,7 @@ export const BUILTIN_TOOL_NAMES = [
   'file_read',
   'file_write',
   'file_edit',
+  'file_display',
   'create_skill',
   'update_skill',
   'delete_skill',
@@ -19,7 +20,6 @@ export const BUILTIN_TOOL_NAMES = [
   'get_character_info',
   'get_lorebook_info',
   'get_skill_info',
-  'file_display',
   'create_character',
   'update_character',
   'delete_character',
@@ -136,6 +136,25 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
     }
   ),
   fn(
+    'file_display',
+    'Display any file from the current workspace to the user in a popup. Useful for inspecting existing files, reviewing generated output (reports, dashboards, images, HTML pages), or browsing the workspace content. Only shows the file in the UI — it does NOT return the file content; use file_read to actually read the content.',
+    {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          description: 'Relative path inside the current workspace. Must exist.',
+        },
+        title: {
+          type: 'string',
+          description: 'Optional popup title. Defaults to the file name.',
+        },
+      },
+      required: ['path'],
+      additionalProperties: false,
+    }
+  ),
+  fn(
     'create_skill',
     'Create a new generated skill (tool) usable by characters. The skill is defined by a declarative execution schema. New skill is NOT enabled for any character until you enable it via update_character.',
     {
@@ -241,25 +260,6 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
       type: 'object',
       properties: { name: { type: 'string', description: 'Existing skill name' } },
       required: ['name'],
-      additionalProperties: false,
-    }
-  ),
-  fn(
-    'file_display',
-    'Display any file from the current workspace to the user in a popup. Useful for inspecting existing files, reviewing generated output (reports, dashboards, images, HTML pages), or browsing the workspace content. Only shows the file in the UI — it does NOT return the file content; use file_read to actually read the content.',
-    {
-      type: 'object',
-      properties: {
-        path: {
-          type: 'string',
-          description: 'Relative path inside the current workspace. Must exist.',
-        },
-        title: {
-          type: 'string',
-          description: 'Optional popup title. Defaults to the file name.',
-        },
-      },
-      required: ['path'],
       additionalProperties: false,
     }
   ),
