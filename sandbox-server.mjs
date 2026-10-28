@@ -877,6 +877,18 @@ function isPublicLinkReadPath(value, sessionBase) {
   return normalized === 'public' || normalized.startsWith('public/');
 }
 
+/** Only the platform null device may be used outside the workspace, and only as a redirect sink. */
+function isNullDeviceSink(value) {
+  const candidate = extractPathCandidate(value);
+  if (!candidate) return false;
+  const normalized = candidate.replace(/\\/g, '/').trim();
+  return IS_WIN ? normalized.toUpperCase() === 'NUL' : normalized === '/dev/null';
+}
+
+function redirectWritePath(value, sessionBase) {
+  return isNullDeviceSink(value) ? (IS_WIN ? 'NUL' : '/dev/null') : join(sessionBase, value);
+}
+
 function resolvesOutsideSession(value, sessionBase) {
   const candidate = extractPathCandidate(value);
   if (!candidate) return false;
@@ -1082,8 +1094,14 @@ function validateScript(script, sessionBase) {
     if (commandCount > MAX_LINES) return 'Script contains more than 20 commands';
     for (const { cmd, args, input, output, errorOutput } of commands) {
       if (!SHELL_ALLOWED_REAL.has(cmd)) hasNonAllowlistedCommand = true;
-      const writeTargets = [...shellWriteTargets(cmd, args), ...(output ? [output.path] : []), ...(errorOutput ? [errorOutput.path] : [])];
-      if (writeTargets.some((arg) => resolvesOutsideSession(arg, sessionBase) || isPublicLinkReadPath(arg, sessionBase))) {
+      const commandWriteTargets = shellWriteTargets(cmd, args);
+      const redirectWriteTargets = [...(output ? [output.path] : []), ...(errorOutput ? [errorOutput.path] : [])];
+      if (
+        commandWriteTargets.some((arg) => resolvesOutsideSession(arg, sessionBase) || isPublicLinkReadPath(arg, sessionBase))
+        || redirectWriteTargets.some((arg) => (
+          !isNullDeviceSink(arg) && (resolvesOutsideSession(arg, sessionBase) || isPublicLinkReadPath(arg, sessionBase))
+        ))
+      ) {
         hasExternalWrite = true;
       }
       const readTargets = [...shellReadTargets(cmd, args), ...(input ? [input] : [])];
@@ -1147,10 +1165,10 @@ function runCommandGroup(group, sessionBase) {
       : null;
     const last = commands.at(-1);
     const output = last.output
-      ? createWriteStream(join(sessionBase, last.output.path), { flags: last.output.append ? 'a' : 'w' })
+      ? createWriteStream(redirectWritePath(last.output.path, sessionBase), { flags: last.output.append ? 'a' : 'w' })
       : null;
     const errorOutput = last.errorOutput
-      ? createWriteStream(join(sessionBase, last.errorOutput.path), { flags: last.errorOutput.append ? 'a' : 'w' })
+      ? createWriteStream(redirectWritePath(last.errorOutput.path, sessionBase), { flags: last.errorOutput.append ? 'a' : 'w' })
       : null;
     let stdout = '';
     let stderr = '';

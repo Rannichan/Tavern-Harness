@@ -390,6 +390,19 @@ try {
   assert.equal(redirected.output, 'first\nsecond');
   assert.equal(readFileSync(join(workspaceRoot, session, 'output.txt'), 'utf8'), 'first\nsecond\n');
 
+  const nullDevice = IS_WIN ? 'NUL' : '/dev/null';
+  const nullDeviceRedirect = await post({ script: `ls missing-file 2> ${nullDevice}`, session });
+  assert.equal(nullDeviceRedirect.ok, false, 'the command exit status is preserved when standard error is discarded');
+  assert.doesNotMatch(nullDeviceRedirect.message, /Script write paths must stay within the current session workspace/);
+
+  const nullDeviceOutput = await post({ script: `printf discarded > ${nullDevice}`, session });
+  assert.equal(nullDeviceOutput.ok, true, 'the platform null device may be used as an output redirect sink');
+  assert.equal(nullDeviceOutput.output, '');
+
+  const nullDeviceCommandTarget = await post({ script: `touch ${nullDevice}`, session });
+  assert.equal(nullDeviceCommandTarget.ok, false, 'the platform null device must not be accepted as a command file target');
+  assert.match(nullDeviceCommandTarget.message, /Script write paths must stay within the current session workspace/);
+
   const multilineQuoted = await post({
     script: 'echo "line1 apple\nline2 banana\nline3 apple\nline4 cherry" > multiline.txt\ncat multiline.txt | grep -c "apple"',
     session,
