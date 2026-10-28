@@ -2322,13 +2322,13 @@ async function performAssistantTurn(
           modelUsed: null,
           attachments: [],
           attachmentInfos: [],
-          displayRef: displayRefForToolName(tc.name, result),
+          displayRef: displayRefForResult(result, sessionId),
           rawRequestBody: null,
           rawResponseBody: null,
         });
 
-        // 展示类工具（file_display）：执行成功后自动打开展示弹窗
-        const displayPayload = tc.name === 'file_display' ? parseDisplayRef(result) : null;
+        // 展示工具与 JavaScript 的 $display：执行成功后自动打开展示弹窗
+        const displayPayload = parseDisplayRef(result);
         if (displayPayload) {
           useStore.getState().setActiveDisplay({
             path: displayPayload.path,
@@ -2678,17 +2678,12 @@ function requestLimitConfirmation(
 }
 
 /**
- * 展示类工具（file_display）的结果会携带展示引用（DISPLAY_REF 前缀）。
- * 解析成功 → 返回序列化后的 DisplayFileRef（写入工具结果消息的 displayRef 字段，
- * 供对话流中的「查看」按钮回看）；其他工具一律返回 null。
+ * 展示工具与 JavaScript 的 $display 都以 DISPLAY_REF 前缀返回展示引用。
+ * 解析成功后将最小展示信息持久化，供对话流的「查看」按钮回看。
  */
-function displayRefForToolName(toolName: string, result: string): string | null {
-  if (toolName !== 'file_display') return null;
+function displayRefForResult(result: string, sessionId: number): string | null {
   const payload = parseDisplayRef(result);
   if (!payload) return null;
-  // path 前面去展示前缀的剩余文本是给模型看的（留在 content 中）。
-  // displayRef 只保存展示所需的最小信息；sessionId 用于回看时定位会话工作目录。
-  const sessionId = useStore.getState().activeSessionId;
   return JSON.stringify({
     path: payload.path,
     kind: payload.kind,

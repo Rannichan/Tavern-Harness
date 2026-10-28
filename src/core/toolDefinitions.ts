@@ -371,15 +371,10 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
 
 function executionProperties(): Record<string, unknown> {
   return {
-    type: { type: 'string', enum: ['template', 'http_get', 'javascript', 'file_read', 'file_write', 'shell'] },
+    type: { type: 'string', enum: ['template', 'http_get', 'javascript', 'shell'] },
     template: { type: 'string', description: 'template type: result template with {{param}} placeholders' },
     url: { type: 'string', description: "http_get type: public https URL with {{param}} placeholders" },
-    code: { type: 'string', maxLength: 20000, description: "javascript type: JS code. Reads 'input' (args object), assigns JSON-safe 'result'. Supports async/await. Injected helpers: await $read(path)->string, $write(path, content), $append(path, content), $list()->[paths]. Helper paths must be relative to the current session workspace; absolute paths and parent traversal (..) are rejected." },
-    path: { type: 'string', description: 'file_read/file_write: relative path inside the current session workspace' },
-    content: { type: 'string', description: 'file_write: text content with {{param}} placeholders' },
-    json_content: { type: 'object', description: 'file_write: JSON content, interpolated recursively' },
-    append: { type: 'boolean', description: 'file_write: append instead of overwrite' },
-    append_newline: { type: 'boolean', description: 'file_write: append a trailing newline to the written content' },
+    code: { type: 'string', maxLength: 20000, description: "javascript type: JS code. Reads 'input' (args object), assigns JSON-safe 'result'. Supports async/await. Injected helpers: await $read(path)->string, $write(path, content), $append(path, content), $list()->[paths], and $display(path, { title? }) to open a workspace file in a popup. Helper paths must be relative to the current session workspace; absolute paths and parent traversal (..) are rejected. Only one file may be displayed per execution." },
     script: { type: 'string', maxLength: 8000, description: 'shell: local command script (max 20 commands) executed in the current session workspace. Unsupported: shell expansion, command substitution, heredocs, background execution, arbitrary file-descriptor operations, and interactive commands.' },
   };
 }
@@ -389,9 +384,7 @@ function getExecutionDescription(): string {
     'Declarative implementation of the skill. One of:',
     '- template: `{template: "As of {{date}}, the price is {{price}}"}`, placeholders interpolated from args',
     '- http_get: `{url: "https://public.example.com/api?q={{q}}"}`, public HTTPS hostname required',
-    '- javascript: `{code: "result = { sum: input.a + input.b }"}`, reads `input`, assigns JSON-safe `result`; supports async/await and can read or write workspace files via `await $read/$write/$append/$list`. These helpers only accept relative paths in the current session workspace; absolute paths and `..` are rejected',
-    '- file_read: `{path: "notes.md"}` — read a file from the current session workspace through the required local workspace service (100KB cap)',
-    '- file_write: `{path: "notes.jsonl", json_content: {...}, append: true, append_newline: true}` — write to the current session workspace through the required local workspace service',
+    '- javascript: `{code: "await $display(\'dashboard.html\', { title: \'Dashboard\' }); result = { ok: true };"}`, reads `input`, assigns JSON-safe `result`; supports async/await and can access the workspace through `await $read/$write/$append/$list/$display`. `$display` opens one existing text, image, or HTML file in a popup. Helpers only accept relative paths in the current session workspace; absolute paths and `..` are rejected',
     '- shell: `{script: "..."}` — execute a local command script in the current session workspace (max 20 commands). Unsupported: shell expansion, command substitution, heredocs, background execution, arbitrary file-descriptor operations, and interactive commands.',
   ].join(' ');
 }

@@ -368,19 +368,13 @@ export interface ToolConfirmationRequest {
 }
 
 export interface GeneratedSkillExecution {
-  type: 'template' | 'http_get' | 'javascript' | 'file_read' | 'file_write' | 'shell';
+  type: 'template' | 'http_get' | 'javascript' | 'shell';
   // template
   template?: string;
   // http_get
   url?: string;
   // javascript
   code?: string;
-  // file_read / file_write
-  path?: string;
-  content?: string;
-  json_content?: unknown;
-  append?: boolean;
-  append_newline?: boolean;
   // shell
   script?: string;
   [k: string]: unknown;

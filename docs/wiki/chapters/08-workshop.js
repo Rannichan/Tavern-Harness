@@ -64,10 +64,8 @@ window.WIKI.chapters.push({
       <tbody>
         <tr><td><span class="mono">template</span></td><td>输出固定模板的文本</td></tr>
         <tr><td><span class="mono">http_get</span></td><td>进行安全的网络请求</td></tr>
-        <tr><td><span class="mono">file_read</span></td><td>读文件</td></tr>
-        <tr><td><span class="mono">file_write</span></td><td>写文件</td></tr>
         <tr><td><span class="mono">shell</span></td><td>shell脚本执行能力</td></tr>
-        <tr><td><span class="mono">javascript</span></td><td>js代码执行能力</td></tr>
+        <tr><td><span class="mono">javascript</span></td><td>JS 代码执行，以及受控的文件读写、列举与弹窗展示能力</td></tr>
       </tbody>
     </table></div>
 

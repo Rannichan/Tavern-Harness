@@ -322,13 +322,14 @@ async function handleFileRead(args: Record<string, unknown>, ctx: ToolExecutionC
 }
 
 async function handleFileWrite(args: Record<string, unknown>, ctx: ToolExecutionContext): Promise<string> {
-  const workspaceDir = await applySessionWorkspace(ctx.sessionId, ctx.npcId);
-  return executeGeneratedSkill(
-    { type: 'file_write', path: String(args.path ?? ''), content: String(args.content ?? ''), append: args.append === true },
-    args,
-    ctx.requestConfirmation,
-    workspaceDir,
-  );
+  try {
+    const workspaceDir = await applySessionWorkspace(ctx.sessionId, ctx.npcId);
+    const path = String(args.path ?? '').replace(/\\/g, '/').trim();
+    if (!path) return 'ERROR: Invalid path';
+    return await writeWorkspaceFileTextFor(path, String(args.content ?? ''), workspaceDir, args.append === true);
+  } catch (e) {
+    return `ERROR: ${(e as Error).message}`;
+  }
 }
 
 async function handleFileEdit(args: Record<string, unknown>, ctx: ToolExecutionContext): Promise<string> {

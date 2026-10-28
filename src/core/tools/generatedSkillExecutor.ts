@@ -108,10 +108,6 @@ export async function executeGeneratedSkill(
       return execHttpGet(execution, args);
     case 'javascript':
       return execJavaScript(execution, args, workspaceDir);
-    case 'file_read':
-      return execFileRead(execution, args, workspaceDir);
-    case 'file_write':
-      return execFileWrite(execution, args, workspaceDir);
     case 'shell':
       return execShell(execution, args, confirm, workspaceDir);
     default:
@@ -186,9 +182,10 @@ self.__run = async (ev) => {
   const $write = async (p, c) => (await self.__req('write', { path: p, content: c })).result;
   const $append = async (p, c) => (await self.__req('append', { path: p, content: c })).result;
   const $list = async () => (await self.__req('list', {})).files;
+  const $display = async (p, options = {}) => (await self.__req('display', { path: p, options })).result;
   try {
-    const fn = new Function('input', '$read', '$write', '$append', '$list', CODE_FN);
-    const result = await fn(input, $read, $write, $append, $list);
+    const fn = new Function('input', '$read', '$write', '$append', '$list', '$display', CODE_FN);
+    const result = await fn(input, $read, $write, $append, $list, $display);
     let safe;
     try {
       safe = JSON.parse(JSON.stringify(result ?? null));
@@ -223,6 +220,16 @@ function createSandboxWorker(code: string): Worker {
   return new Worker(URL.createObjectURL(blob));
 }
 
+const DISPLAY_REF_PREFIX = 'DISPLAY_REF: ';
+
+type DisplayKind = 'text' | 'image' | 'html';
+
+interface DisplayPayload {
+  path: string;
+  kind: DisplayKind;
+  title?: string;
+}
+
 async function execJavaScript(
   execution: GeneratedSkillExecution,
   args: Record<string, unknown>,
@@ -234,6 +241,7 @@ async function execJavaScript(
 
   return new Promise((resolve) => {
     let worker: Worker;
+    let displayPayload: DisplayPayload | null = null;
     try {
       worker = createSandboxWorker(code);
     } catch (e) {
@@ -250,8 +258,11 @@ async function execJavaScript(
       const d = ev.data;
       if (!d) return;
       if (d.__bridge__) {
-        void handleBridgeCall(d, workspaceDir).then(
-          (result) => worker.postMessage({ __bridge_resp__: true, id: d.id, ok: true, result }),
+        void handleBridgeCall(d, workspaceDir, displayPayload).then(
+          (result) => {
+            if (d.method === 'display' && result.ok === true && result.payload) displayPayload = result.payload;
+            worker.postMessage({ __bridge_resp__: true, id: d.id, ok: true, result });
+          },
           (err) => worker.postMessage({ __bridge_resp__: true, id: d.id, ok: false, error: String((err && err.message) || err) })
         );
         return;
@@ -265,7 +276,8 @@ async function execJavaScript(
       if ('__result__' in d) {
         clearTimeout(timer);
         worker.terminate();
-        resolve(truncateToolOutput(JSON.stringify(d.__result__ ?? null)));
+        const result = truncateToolOutput(JSON.stringify(d.__result__ ?? null));
+        resolve(displayPayload ? `${DISPLAY_REF_PREFIX}${JSON.stringify(displayPayload)}\n${result}` : result);
         return;
       }
     };
@@ -278,15 +290,25 @@ async function execJavaScript(
   });
 }
 
+interface BridgeResponse {
+  ok: boolean;
+  content?: string;
+  result?: string;
+  files?: string[];
+  payload?: DisplayPayload;
+  error?: string;
+}
+
 /**
  * 主线程侧桥接实现：全部复用已验证的文件沙箱逻辑。
- * 统一返回 { ok, content?/result?/files?, error? }，Worker 内 $read 等
+ * 统一返回 { ok, content?/result?/files?/payload?, error? }，Worker 内 $read 等
  * 在失败时 reject 成 Error，技能代码用 try/catch 接住。
  */
 async function handleBridgeCall(
   req: { method: string; payload: Record<string, unknown> },
   workspaceDir?: string | null,
-): Promise<unknown> {
+  existingDisplay?: DisplayPayload | null,
+): Promise<BridgeResponse> {
   const { method, payload } = req;
   switch (method) {
     case 'read': {
@@ -312,6 +334,26 @@ async function handleBridgeCall(
       await requireFileServer(workspaceDir);
       const files = await diskFileList(workspaceDir!);
       return { ok: true, files: files.slice(0, 500) };
+    }
+    case 'display': {
+      if (existingDisplay) return { ok: false, error: 'Only one file can be displayed per script execution' };
+      const path = sanitizeRelativePath(String(payload.path ?? ''));
+      await requireFileServer(workspaceDir);
+      if (await diskFileRead(path, workspaceDir!) === null) return { ok: false, error: `File not found: ${path}` };
+      const rawOptions = payload.options;
+      const options = rawOptions && typeof rawOptions === 'object' && !Array.isArray(rawOptions)
+        ? rawOptions as Record<string, unknown>
+        : {};
+      const rawTitle = options.title;
+      const title = typeof rawTitle === 'string' && rawTitle.trim() ? rawTitle.trim() : undefined;
+      const extension = /\.([A-Za-z0-9]+)$/.exec(path)?.[1]?.toLowerCase() ?? '';
+      const kind: DisplayKind = /^(html?)$/.test(extension)
+        ? 'html'
+        : /^(png|jpe?g|gif|webp|svg|bmp|ico)$/.test(extension)
+          ? 'image'
+          : 'text';
+      const displayPayload: DisplayPayload = { path, kind, title };
+      return { ok: true, result: `Displayed ${path} in a popup`, payload: displayPayload };
     }
     default:
       return { ok: false, error: `Unknown bridge method ${method}` };
@@ -455,11 +497,12 @@ export async function writeWorkspaceFileTextFor(
   path: string,
   content: string,
   workspaceDir: string,
+  append = false,
 ): Promise<string> {
   const normalizedPath = normalizePath(path);
   if (!normalizedPath) throw new Error('Invalid path');
   await requireFileServer(workspaceDir);
-  return diskFileWrite(normalizedPath, content, false, workspaceDir);
+  return diskFileWrite(normalizedPath, content, append, workspaceDir);
 }
 
 /** 删除工作区中的文件或目录。 */
@@ -478,57 +521,6 @@ export async function deleteWorkspaceFile(path: string, workspaceDir: string): P
 export async function listSessionWorkspaceFiles(workspaceDir: string): Promise<string[]> {
   await requireFileServer(workspaceDir);
   return (await diskFileList(workspaceDir)).slice(0, 500);
-}
-
-async function execFileRead(
-  execution: GeneratedSkillExecution,
-  args: Record<string, unknown>,
-  workspaceDir?: string | null,
-): Promise<string> {
-  try {
-    const path = normalizePath(interpolate(execution.path ?? '', args));
-    if (!path) throw new Error('Invalid path');
-    const text = await readWorkspaceFileText(path, normalizeWorkspaceDir(workspaceDir) ?? '');
-    if (text === null) return `ERROR: File not found: ${path}`;
-    return truncateToolOutput(text);
-  } catch (e) {
-    return `ERROR: ${(e as Error).message}`;
-  }
-}
-
-// ---------- file_write ----------
-async function execFileWrite(
-  execution: GeneratedSkillExecution,
-  args: Record<string, unknown>,
-  workspaceDir?: string | null,
-): Promise<string> {
-  try {
-    const path = normalizePath(interpolate(execution.path ?? '', args));
-    if (!path) throw new Error('Invalid path');
-    let content: string;
-    if (execution.json_content != null) {
-      content = JSON.stringify(interpolateDeep(execution.json_content, args), null, 2);
-    } else {
-      content = interpolate(execution.content ?? '', args);
-    }
-    const safeWorkspaceDir = normalizeWorkspaceDir(workspaceDir);
-    await requireFileServer(safeWorkspaceDir);
-    const diskContent = execution.append && execution.append_newline ? `${content}\n` : content;
-    return await diskFileWrite(path, diskContent, execution.append ?? false, safeWorkspaceDir!);
-  } catch (e) {
-    return `ERROR: ${(e as Error).message}`;
-  }
-}
-
-function interpolateDeep(value: unknown, args: Record<string, unknown>): unknown {
-  if (typeof value === 'string') return interpolate(value, args);
-  if (Array.isArray(value)) return value.map((v) => interpolateDeep(v, args));
-  if (value && typeof value === 'object') {
-    const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(value as Record<string, unknown>)) out[k] = interpolateDeep(v, args);
-    return out;
-  }
-  return value;
 }
 
 // ---------- shell（真实执行：白名单直执 + 其它命令确认）----------
