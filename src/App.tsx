@@ -386,11 +386,11 @@ function SessionHeader({
         <button className="btn-ghost icon-tooltip" title={t('header.resetSessionTip')} onClick={() => setConfirmReset(true)}>
           <Icon name="refresh" size={17} />
         </button>
-        <button className="btn-ghost icon-tooltip" title={t('header.exportGameplayTip')} onClick={() => setExportOpen(true)}>
-          <Icon name="share" size={17} />
-        </button>
         <button className="btn-ghost icon-tooltip danger" title={t('header.deleteTip')} onClick={() => setConfirmDelete(true)}>
           <Icon name="trash" size={17} />
+        </button>
+        <button className="btn-ghost icon-tooltip chat-actions-export" title={t('header.exportGameplayTip')} onClick={() => setExportOpen(true)}>
+          <Icon name="share" size={17} />
         </button>
         <button
           className="btn-ghost icon-tooltip chat-actions-more"
@@ -421,9 +421,6 @@ function SessionHeader({
             </button>
             <button onClick={() => { setConfirmReset(true); setShowMobileActions(false); }}>
               <Icon name="refresh" size={15} /> {t('header.resetSessionTip')}
-            </button>
-            <button onClick={() => { setExportOpen(true); setShowMobileActions(false); }}>
-              <Icon name="share" size={15} /> {t('nav.exportGameplay')}
             </button>
             <button className="danger" onClick={() => { setConfirmDelete(true); setShowMobileActions(false); }}>
               <Icon name="trash" size={15} /> {t('header.deleteTip')}
