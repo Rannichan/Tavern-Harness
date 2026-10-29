@@ -198,7 +198,7 @@ export function FileDisplayModal() {
   }, [active]);
 
   useEffect(() => {
-    if (!active || !isPictureInPicture) return;
+    if (!active || active.kind === 'unsupported' || !isPictureInPicture) return;
     let cancelled = false;
     let reading = false;
     const refresh = async () => {
@@ -228,7 +228,7 @@ export function FileDisplayModal() {
   }, [active, isPictureInPicture]);
 
   useEffect(() => {
-    if (!active) return;
+    if (!active || active.kind === 'unsupported') return;
     let cancelled = false;
     // 按产生该展示的会话设置工作目录：普通弹窗（active.sessionId = 当前会话）读当前会话工作区；
     // 回看历史消息（sessionId 持久化）读该会话自己的工作区
@@ -376,6 +376,9 @@ export function FileDisplayModal() {
   const resetHtmlZoom = () => updateHtmlZoom(() => 1);
 
   const renderBody = () => {
+    if (active.kind === 'unsupported') {
+      return <div className="display-error">{t('display.unsupportedFileType')}</div>;
+    }
     if (loadState === 'loading') {
       return (
         <div className="display-loading">
@@ -545,7 +548,7 @@ export function parseStoredDisplayRef(json: string | null): DisplayFileRef | nul
   if (!json) return null;
   try {
     const obj = JSON.parse(json) as Partial<DisplayFileRef>;
-    if (!obj || typeof obj.path !== 'string' || !['text', 'html'].includes(obj.kind ?? '')) return null;
+    if (!obj || typeof obj.path !== 'string' || !['text', 'html', 'unsupported'].includes(obj.kind ?? '')) return null;
     return {
       path: obj.path,
       kind: obj.kind as DisplayFileRef['kind'],

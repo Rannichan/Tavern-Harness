@@ -86,7 +86,7 @@ export interface AchievementState {
 /** 展示类工具（file_display）当前打开的弹窗载荷 */
 export interface ActiveDisplay {
   path: string;
-  kind: 'text' | 'html';
+  kind: 'text' | 'html' | 'unsupported';
   title?: string;
   /** 产生该展示的会话 id（读取文件时按其专属工作目录解析，null = 共享工作区） */
   sessionId: number | null;

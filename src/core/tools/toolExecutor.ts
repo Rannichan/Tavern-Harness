@@ -286,7 +286,7 @@ const DISPLAY_REF_PREFIX = 'DISPLAY_REF: ';
 
 interface DisplayPayload {
   path: string;
-  kind: 'text' | 'html';
+  kind: 'text' | 'html' | 'unsupported';
   title?: string;
 }
 
@@ -297,7 +297,7 @@ export function parseDisplayRef(result: string): DisplayPayload | null {
   const firstLine = result.slice(DISPLAY_REF_PREFIX.length).split('\n')[0]!;
   try {
     const obj = JSON.parse(firstLine) as DisplayPayload;
-    if (!obj || typeof obj.path !== 'string' || !['text', 'html'].includes(obj.kind)) return null;
+    if (!obj || typeof obj.path !== 'string' || !['text', 'html', 'unsupported'].includes(obj.kind)) return null;
     return { path: obj.path, kind: obj.kind, title: typeof obj.title === 'string' ? obj.title : undefined };
   } catch {
     return null;
@@ -316,7 +316,11 @@ async function handleFileDisplay(args: Record<string, unknown>, ctx: ToolExecuti
     // 从文件后缀推断展示方式
     const ext = /\.([A-Za-z0-9]+)$/.exec(rawPath);
     const extLower = ext ? ext[1].toLowerCase() : '';
-    const kind: DisplayPayload['kind'] = /^(html?)$/i.test(extLower) ? 'html' : 'text';
+    const kind: DisplayPayload['kind'] = /^(html?)$/i.test(extLower)
+      ? 'html'
+      : /^(png|jpe?g|gif|webp|svg|bmp|ico)$/i.test(extLower)
+        ? 'unsupported'
+        : 'text';
 
     const content = await readWorkspaceFileText(rawPath, workspaceDir);
     if (content === null) {
