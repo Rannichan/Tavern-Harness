@@ -69,6 +69,7 @@ export function Sidebar() {
   const [appUrl, setAppUrl] = useState(() => window.location.href);
   // 搜索命中的会话 id 集合（null = 未在搜索中）
   const [searchHits, setSearchHits] = useState<Set<number> | null>(null);
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   // 群聊会话 → 参与者中的 NPC 角色
   const [groupMembers, setGroupMembers] = useState<Record<number, NpcCharacter[]>>({});
   const sessionLongPressTarget = useRef<ChatSession | null>(null);
@@ -209,42 +210,37 @@ export function Sidebar() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [sessionMenu, editTarget]);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedQuery(query), 250);
+    return () => window.clearTimeout(timer);
+  }, [query]);
+
   // 搜索：标题 / 消息内容关键词匹配
   useEffect(() => {
-    const keyword = query.trim().toLowerCase();
+    const keyword = debouncedQuery.trim().toLowerCase();
     if (!keyword) {
       setSearchHits(null);
       return;
     }
     let cancelled = false;
     (async () => {
-      // 标题匹配
       const titleHits = new Set(
         sessions.filter((s) => s.title.toLowerCase().includes(keyword)).map((s) => s.id!)
       );
-      // 消息内容匹配（分页扫描，避免大结果集）
       const contentHits = new Set<number>();
-      let offset = 0;
-      const pageSize = 500;
-      while (true) {
-        const page = await db.messages.orderBy('timestamp').offset(offset).limit(pageSize).toArray();
-        if (page.length === 0) break;
-        for (const m of page) {
-          const text = (m.content || '').toLowerCase();
-          if (text.includes(keyword)) contentHits.add(m.sessionId);
+      const messages = await db.messages.toArray();
+      for (const message of messages) {
+        if (cancelled) return;
+        if ((message.content || '').toLowerCase().includes(keyword)) {
+          contentHits.add(message.sessionId);
         }
-        if (page.length < pageSize) break;
-        offset += pageSize;
       }
-      if (!cancelled) {
-        const merged = new Set([...titleHits, ...contentHits]);
-        setSearchHits(merged);
-      }
+      if (!cancelled) setSearchHits(new Set([...titleHits, ...contentHits]));
     })();
     return () => {
       cancelled = true;
     };
-  }, [query, sessions]);
+  }, [debouncedQuery, sessions]);
 
   const visibleSessions = useMemo(() => {
     const list = [...sessions];
