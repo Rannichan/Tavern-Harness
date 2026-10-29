@@ -519,8 +519,16 @@ export async function deleteWorkspaceFile(path: string, workspaceDir: string): P
  * 仅通过本地沙箱服务枚举；服务不可用时抛出明确错误。
  */
 export async function listSessionWorkspaceFiles(workspaceDir: string): Promise<string[]> {
-  await requireFileServer(workspaceDir);
-  return (await diskFileList(workspaceDir)).slice(0, 500);
+  // 文件列表响应本身即可确认服务可用，避免首次打开文件管理器时重复请求同一端点。
+  try {
+    const files = await diskFileList(workspaceDir);
+    fileServerProbe.available = true;
+    return files.slice(0, 500);
+  } catch (error) {
+    fileServerProbe.available = false;
+    fileServerProbe.retryAt = Date.now() + 5000;
+    throw error;
+  }
 }
 
 // ---------- shell（真实执行：白名单直执 + 其它命令确认）----------
