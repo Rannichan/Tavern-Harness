@@ -222,7 +222,7 @@ function createSandboxWorker(code: string): Worker {
 
 const DISPLAY_REF_PREFIX = 'DISPLAY_REF: ';
 
-type DisplayKind = 'text' | 'image' | 'html';
+type DisplayKind = 'text' | 'html';
 
 interface DisplayPayload {
   path: string;
@@ -347,11 +347,7 @@ async function handleBridgeCall(
       const rawTitle = options.title;
       const title = typeof rawTitle === 'string' && rawTitle.trim() ? rawTitle.trim() : undefined;
       const extension = /\.([A-Za-z0-9]+)$/.exec(path)?.[1]?.toLowerCase() ?? '';
-      const kind: DisplayKind = /^(html?)$/.test(extension)
-        ? 'html'
-        : /^(png|jpe?g|gif|webp|svg|bmp|ico)$/.test(extension)
-          ? 'image'
-          : 'text';
+      const kind: DisplayKind = /^(html?)$/.test(extension) ? 'html' : 'text';
       const displayPayload: DisplayPayload = { path, kind, title };
       return { ok: true, result: `Displayed ${path} in a popup`, payload: displayPayload };
     }

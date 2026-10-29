@@ -19,8 +19,8 @@ export type AppLanguage = 'zh-CN' | 'zh-TW' | 'en' | null;
 export interface DisplayFileRef {
   /** 工作区相对路径（与 file_read / file_write 同一沙箱工作区） */
   path: string;
-  /** 展示方式：text（按扩展名智能渲染）/ image / html */
-  kind: 'text' | 'image' | 'html';
+  /** 展示方式：text（按扩展名智能渲染）/ html */
+  kind: 'text' | 'html';
   /** 展示标题（默认取文件名） */
   title?: string;
   /** 产生该展示的会话 id（回看时按其专属工作目录解析；null = 共享工作区） */

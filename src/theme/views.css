@@ -1930,6 +1930,14 @@
   background: color-mix(in srgb, var(--primary) 10%, transparent);
   color: var(--text-primary);
 }
+.ws-fm-row-disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+.ws-fm-row-disabled:hover {
+  background: transparent;
+  color: var(--text-muted);
+}
 .ws-fm-arrow {
   width: 10px;
   flex-shrink: 0;

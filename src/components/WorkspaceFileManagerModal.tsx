@@ -18,12 +18,19 @@ function extOf(path: string): string {
   return m ? m[1].toLowerCase() : '';
 }
 
-/** 与 file_display 相同的「按扩展名推断展示方式」逻辑 */
-function kindFromPath(path: string): 'text' | 'image' | 'html' {
-  const ext = extOf(path);
-  if (/^(html?)$/i.test(ext)) return 'html';
-  if (/^(png|jpe?g|gif|webp|svg|bmp|ico)$/i.test(ext)) return 'image';
-  return 'text';
+const TEXT_PREVIEW_EXTENSIONS = new Set([
+  'txt', 'md', 'markdown', 'mdx', 'js', 'ts', 'tsx', 'jsx', 'mjs', 'cjs', 'mts', 'cts',
+  'py', 'java', 'kt', 'kts', 'c', 'h', 'cpp', 'hpp', 'cc', 'cs', 'go', 'rs', 'rb',
+  'php', 'swift', 'scala', 'sh', 'bash', 'zsh', 'fish', 'ps1', 'bat', 'cmd',
+  'json', 'jsonl', 'yaml', 'yml', 'toml', 'ini', 'conf', 'cfg', 'env',
+  'css', 'scss', 'less', 'sql', 'graphql', 'xml', 'vue', 'svelte',
+  'lua', 'pl', 'r', 'dart', 'ex', 'exs', 'erl', 'hs', 'clj', 'ml',
+]);
+
+function previewKindFromPath(path: string): 'text' | 'html' | null {
+  const extension = extOf(path);
+  if (/^(html?)$/i.test(extension)) return 'html';
+  return TEXT_PREVIEW_EXTENSIONS.has(extension) ? 'text' : null;
 }
 
 interface Node {
@@ -109,9 +116,11 @@ export function WorkspaceFileManagerModal({ sessionId, onClose }: { sessionId: n
   };
 
   const openFile = (node: Node) => {
+    const kind = previewKindFromPath(node.path);
+    if (!kind) return;
     setActiveDisplay({
       path: node.path,
-      kind: kindFromPath(node.path),
+      kind,
       title: node.name,
       sessionId,
       presentation: 'workspace',
@@ -215,11 +224,15 @@ export function WorkspaceFileManagerModal({ sessionId, onClose }: { sessionId: n
                 <span className="ws-fm-name">..</span>
               </div>
             )}
-            {visible.map((n) => (
+            {visible.map((n) => {
+              const previewKind = n.isDir ? null : previewKindFromPath(n.path);
+              const isPreviewable = n.isDir || previewKind !== null;
+              return (
               <div
                   key={n.path}
-                  className="ws-fm-row"
+                  className={`ws-fm-row${isPreviewable ? '' : ' ws-fm-row-disabled'}`}
                   role="button"
+                  aria-disabled={!isPreviewable}
                   onClick={() => n.isDir ? setDir(n.path) : openFile(n)}
                   title={n.path}
                 >
@@ -268,7 +281,8 @@ export function WorkspaceFileManagerModal({ sessionId, onClose }: { sessionId: n
                     </span>
                   )}
               </div>
-            ))}
+              );
+            })}
             {visible.length === 0 && <div className="ws-fm-empty">{t('header.fileManagerEmpty')}</div>}
           </div>
         )}

@@ -11,7 +11,6 @@ import type { DisplayFileRef } from '../types/models';
 
 // ============================================================
 // 文件展示弹窗（file_display 内置工具）
-//  - image: 图片直接展示，支持滚轮/按钮缩放与拖拽平移
 //  - html : 在隔离 iframe（sandbox）中渲染，可运行动画/交互脚本
 //  - text : 按扩展名智能渲染：markdown → MD 渲染（含代码高亮与公式），
 //           代码文件 → 等宽字体 + 语法高亮，纯文本 → 原样展示
@@ -30,7 +29,11 @@ const MD_EXTS = new Set(['md', 'markdown', 'mdx']);
 const PIP_EDGE_GAP = 12;
 const PIP_MIN_WIDTH = 280;
 const PIP_MIN_HEIGHT = 180;
+const PIP_RECT_STORAGE_KEY = 'tav-file-display-pip-rect';
+const PREVIEW_ZOOMS_STORAGE_KEY = 'tav-file-display-preview-zooms';
 const PIP_REFRESH_INTERVAL = 1000;
+
+type PreviewZoomKind = 'html';
 
 interface PipRect {
   x: number;
@@ -39,21 +42,91 @@ interface PipRect {
   height: number;
 }
 
-function createPipRect(): PipRect {
+function clampPipRect(rect: PipRect): PipRect {
   // 用 visualViewport 边界（而不是 innerWidth/innerHeight）：Edge Android 的
   // 底部工具栏不在布局视口里，PiP 落到底部时会被工具栏盖住。
+  const bounds = fixedViewportBounds();
+  const minX = bounds.left + PIP_EDGE_GAP;
+  const minY = bounds.top + PIP_EDGE_GAP;
+  const maxWidth = Math.max(0, bounds.right - minX - PIP_EDGE_GAP);
+  const maxHeight = Math.max(0, bounds.bottom - minY - PIP_EDGE_GAP);
+  const minWidth = Math.min(PIP_MIN_WIDTH, maxWidth);
+  const minHeight = Math.min(PIP_MIN_HEIGHT, maxHeight);
+  const width = Math.min(maxWidth, Math.max(minWidth, rect.width));
+  const height = Math.min(maxHeight, Math.max(minHeight, rect.height));
+  return {
+    x: Math.min(Math.max(minX, rect.x), Math.max(minX, bounds.right - width - PIP_EDGE_GAP)),
+    y: Math.min(Math.max(minY, rect.y), Math.max(minY, bounds.bottom - height - PIP_EDGE_GAP)),
+    width,
+    height,
+  };
+}
+
+function createPipRect(): PipRect {
   const bounds = fixedViewportBounds();
   const availableWidth = Math.max(0, bounds.right - bounds.left - PIP_EDGE_GAP * 2);
   const availableHeight = Math.max(0, bounds.bottom - bounds.top - PIP_EDGE_GAP * 2);
   const isMobile = isMobileViewport();
   const width = Math.min(isMobile ? PIP_MIN_WIDTH : 440, availableWidth);
   const height = Math.min(isMobile ? PIP_MIN_HEIGHT : 380, availableHeight);
-  return {
-    x: Math.max(bounds.left + PIP_EDGE_GAP, bounds.right - width - PIP_EDGE_GAP),
-    y: Math.max(bounds.top + PIP_EDGE_GAP, bounds.bottom - height - PIP_EDGE_GAP),
+  return clampPipRect({
+    x: bounds.right - width - PIP_EDGE_GAP,
+    y: bounds.bottom - height - PIP_EDGE_GAP,
     width,
     height,
-  };
+  });
+}
+
+function restorePipRect(): PipRect | null {
+  try {
+    const saved: unknown = JSON.parse(localStorage.getItem(PIP_RECT_STORAGE_KEY) || 'null');
+    if (!saved || typeof saved !== 'object') return null;
+    const { x, y, width, height } = saved as Partial<PipRect>;
+    if (![x, y, width, height].every((value) => typeof value === 'number' && Number.isFinite(value))) return null;
+    return clampPipRect({ x, y, width, height } as PipRect);
+  } catch {
+    return null;
+  }
+}
+
+function persistPipRect(rect: PipRect) {
+  try {
+    localStorage.setItem(PIP_RECT_STORAGE_KEY, JSON.stringify(rect));
+  } catch {
+    // 私密模式或禁用存储时，画中画仍可正常使用。
+  }
+}
+
+function previewZoomKey(kind: PreviewZoomKind, path: string) {
+  return `${kind}:${path}`;
+}
+
+function readPreviewZooms(): Record<string, number> {
+  try {
+    const saved: unknown = JSON.parse(localStorage.getItem(PREVIEW_ZOOMS_STORAGE_KEY) || '{}');
+    if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return {};
+    return Object.fromEntries(
+      Object.entries(saved).filter((entry): entry is [string, number] =>
+        typeof entry[1] === 'number' && Number.isFinite(entry[1]),
+      ),
+    );
+  } catch {
+    return {};
+  }
+}
+
+function restorePreviewZoom(kind: PreviewZoomKind, path: string, fallback: number) {
+  return readPreviewZooms()[previewZoomKey(kind, path)] ?? fallback;
+}
+
+function persistPreviewZoom(kind: PreviewZoomKind, path: string, zoom: number) {
+  try {
+    const zooms = readPreviewZooms();
+    zooms[previewZoomKey(kind, path)] = zoom;
+    localStorage.setItem(PREVIEW_ZOOMS_STORAGE_KEY, JSON.stringify(zooms));
+  } catch {
+    // 私密模式或禁用存储时，预览仍可正常使用。
+  }
 }
 
 function extensionOf(path: string): string {
@@ -77,10 +150,8 @@ export function FileDisplayModal() {
   const [content, setContent] = useState<string | null>(null);
   const [workspaceDir, setWorkspaceDir] = useState<string | null>(null);
   const [loadState, setLoadState] = useState<'loading' | 'ok' | 'error'>('loading');
-  const [imgError, setImgError] = useState(false);
   const [htmlZoom, setHtmlZoom] = useState(1);
   const [htmlPreviewVersion, setHtmlPreviewVersion] = useState(0);
-  const htmlZoomByFileRef = useRef(new Map<string, number>());
   const [textWrap, setTextWrap] = useState(true);
   const [isPictureInPicture, setIsPictureInPicture] = useState(true);
   const [pipRect, setPipRect] = useState<PipRect>(createPipRect);
@@ -100,12 +171,6 @@ export function FileDisplayModal() {
     }
     | null
   >(null);
-  // 图片缩放 / 平移
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const dragRef = useRef<{ startX: number; startY: number; panX: number; panY: number } | null>(null);
-  const viewportRef = useRef<HTMLDivElement>(null);
-
   const ref: DisplayFileRef | null = useMemo(() => {
     if (!active) return null;
     return { path: active.path, kind: active.kind, title: active.title };
@@ -123,16 +188,13 @@ export function FileDisplayModal() {
     setWorkspaceDir(null);
     contentRef.current = null;
     setContent(null);
-    setImgError(false);
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
     setTextWrap(true);
     if (isNewDisplay) {
       const opensInPictureInPicture = active.presentation === 'pip' || active.presentation == null;
-      setPipRect(createPipRect());
+      setPipRect(restorePipRect() ?? createPipRect());
       setIsPictureInPicture(opensInPictureInPicture);
     }
-    setHtmlZoom(htmlZoomByFileRef.current.get(active.path) ?? 1);
+    setHtmlZoom(active.kind === 'html' ? restorePreviewZoom('html', active.path, 1) : 1);
   }, [active]);
 
   useEffect(() => {
@@ -154,7 +216,6 @@ export function FileDisplayModal() {
           if (active.kind === 'html') setHtmlPreviewVersion((version) => version + 1);
         }
         setLoadState('ok');
-        setImgError(false);
       } finally {
         reading = false;
       }
@@ -272,11 +333,12 @@ export function FileDisplayModal() {
   const close = () => setActiveDisplay(null);
 
   const enterPictureInPicture = () => {
-    setPipRect(createPipRect());
+    setPipRect(restorePipRect() ?? createPipRect());
     setIsPictureInPicture(true);
   };
 
   const exitPictureInPicture = () => {
+    persistPipRect(pipRect);
     setIsPictureInPicture(false);
   };
 
@@ -300,41 +362,18 @@ export function FileDisplayModal() {
     e.preventDefault();
   };
 
-  /** 图片数据：优先 data: URI；否则按扩展名拼 data URI（SVG 直接内联，位图按 base64 文本） */
-  const imageSrc = useMemo(() => {
-    if (content === null) return null;
-    if (/^data:/i.test(content)) return content;
-    const extMime: Record<string, string> = {
-      png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
-      webp: 'image/webp', svg: 'image/svg+xml', bmp: 'image/bmp', ico: 'image/x-icon',
-    };
-    const mime = extMime[ext] || 'image/png';
-    if (ext === 'svg') {
-      // SVG 是文本格式：直接内联（含缩进的空格保留，避免破坏标记）
-      return `data:image/svg+xml,${encodeURIComponent(content)}`;
-    }
-    const cleaned = content.replace(/\s+/g, '');
-    return `data:${mime};base64,${cleaned}`;
-  }, [content, ext]);
-
   if (!active || !ref) return null;
 
-  const zoomIn = () => setZoom((z) => Math.min(8, +(z * 1.3).toFixed(2)));
-  const zoomOut = () => setZoom((z) => Math.max(0.1, +(z / 1.3).toFixed(2)));
   const updateHtmlZoom = (update: (zoom: number) => number) => {
     setHtmlZoom((zoom) => {
       const nextZoom = update(zoom);
-      htmlZoomByFileRef.current.set(active.path, nextZoom);
+      persistPreviewZoom('html', active.path, nextZoom);
       return nextZoom;
     });
   };
   const htmlZoomIn = () => updateHtmlZoom((z) => Math.min(2, +(z + 0.1).toFixed(1)));
   const htmlZoomOut = () => updateHtmlZoom((z) => Math.max(0.5, +(z - 0.1).toFixed(1)));
   const resetHtmlZoom = () => updateHtmlZoom(() => 1);
-  const resetView = () => {
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
-  };
 
   const renderBody = () => {
     if (loadState === 'loading') {
@@ -347,50 +386,6 @@ export function FileDisplayModal() {
     }
     if (loadState === 'error' || content === null) {
       return <div className="display-error">{t('display.fileError', { path: active.path })}</div>;
-    }
-
-    if (active.kind === 'image') {
-      return (
-        <div
-          ref={viewportRef}
-          className="display-image-viewport"
-          onWheel={(e) => {
-            if (e.ctrlKey || e.metaKey) {
-              e.preventDefault();
-              if (e.deltaY < 0) zoomIn();
-              else zoomOut();
-            }
-          }}
-        >
-          {imgError ? (
-            <div className="display-error">{t('display.imageLoadError')}</div>
-          ) : (
-            <img
-              className="display-image"
-              src={imageSrc ?? undefined}
-              alt={basenameOf(active.path)}
-              draggable={false}
-              style={{
-                transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-                cursor: dragRef.current ? 'grabbing' : 'grab',
-              }}
-              onError={() => setImgError(true)}
-              onMouseDown={(e) => {
-                if (e.button !== 0) return;
-                dragRef.current = { startX: e.clientX - pan.x, startY: e.clientY - pan.y, panX: pan.x, panY: pan.y };
-                e.preventDefault();
-              }}
-              onMouseMove={(e) => {
-                if (!dragRef.current) return;
-                setPan({ x: e.clientX - dragRef.current.startX, y: e.clientY - dragRef.current.startY });
-              }}
-              onMouseUp={() => (dragRef.current = null)}
-              onMouseLeave={() => (dragRef.current = null)}
-              onDoubleClick={resetView}
-            />
-          )}
-        </div>
-      );
     }
 
     if (active.kind === 'html') {
@@ -475,13 +470,6 @@ export function FileDisplayModal() {
               {t('display.autoRefreshing')}
             </span>
           )}
-          {active.kind === 'image' && loadState === 'ok' && !imgError && (
-            <span className="display-zoom-group">
-              <button className="icon-btn" title={t('display.zoomOut')} onClick={zoomOut}><Icon name="zoom-out" size={15} /></button>
-              <button className="icon-btn" title={t('display.resetView')} onClick={resetView}>{Math.round(zoom * 100)}%</button>
-              <button className="icon-btn" title={t('display.zoomIn')} onClick={zoomIn}><Icon name="zoom-in" size={15} /></button>
-            </span>
-          )}
           {active.kind === 'text' && !MD_EXTS.has(ext) && loadState === 'ok' && (
             <button
               className={`icon-btn ${textWrap ? 'active' : ''}`}
@@ -557,7 +545,7 @@ export function parseStoredDisplayRef(json: string | null): DisplayFileRef | nul
   if (!json) return null;
   try {
     const obj = JSON.parse(json) as Partial<DisplayFileRef>;
-    if (!obj || typeof obj.path !== 'string' || !['text', 'image', 'html'].includes(obj.kind ?? '')) return null;
+    if (!obj || typeof obj.path !== 'string' || !['text', 'html'].includes(obj.kind ?? '')) return null;
     return {
       path: obj.path,
       kind: obj.kind as DisplayFileRef['kind'],
