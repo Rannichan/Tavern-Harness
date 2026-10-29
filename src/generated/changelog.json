@@ -1,7 +1,83 @@
 {
-  "latest": "0.1.29",
+  "latest": "0.1.30",
   "repo": "https://github.com/Rannichan/Tavern-Harness",
   "entries": [
+    {
+      "version": "0.1.30",
+      "date": "2026-10-29",
+      "breaking": false,
+      "compare": "v0.1.29...v0.1.30",
+      "groups": {
+        "zh-CN": [
+          {
+            "kind": "added",
+            "items": [
+              "技能列表默认提供一个「记忆」技能（可编辑、可删除，也能装备给任意角色）：它把玩家的称呼与偏好、人物关系、重要事件等关键信息写入本地长期记忆文件，跨会话保留；条数超限时自动遗忘最久未触发的一条，记忆发生变化时还能自动弹出记忆看板"
+            ]
+          },
+          {
+            "kind": "changed",
+            "items": [
+              "内置世界书「酒馆经营手册（精华版）」改为只读，并在每次启动时同步为随版本更新的内置内容；编辑、重置按钮和知识库、Markdown 开关都不再可用。此前手动改过的内容会被内置版本覆盖",
+              "文件展示窗口会记住画中画的位置和大小，HTML 预览的缩放比例也会按文件保存，重新打开预览或重启应用后自动恢复",
+              "图片文件不再按文本读取并尝试预览，打开时会明确提示「不支持这种类型的文件」，不再出现乱码或损坏的图片",
+              "移动端的「导出游戏」按钮从「更多」菜单移到会话标题栏，与主题切换并排；桌面端按钮顺序也调整为「重置 / 删除 / 导出 / 更多」",
+              "侧边栏搜索会等到停止输入 250 毫秒后再执行，并改为一次性扫描消息，连续打字时列表不再卡顿",
+              "打开文件管理器时不再重复向本地文件服务发送探测请求，文件列表显示更快",
+              "站点图标换成更高分辨率的版本，在高分屏和书签栏中更清晰"
+            ]
+          },
+          {
+            "kind": "fixed",
+            "items": [
+              "删除技能后，角色身上残留的启用记录会一并清除，不会再保留一个已不存在的技能名",
+              "测试提供方连接后，接口地址不会再被自动改写成代理地址；模型重名检查也只比较启用中的模型，停用的模型不再误报冲突",
+              "沙箱脚本改为在执行前校验整条管道：重定向写错时不会再让前面的命令先执行并产生副作用；`2>` 和 `2>>` 可以用在管道的任意一段，重定向文件也会完整写完再返回"
+            ]
+          },
+          {
+            "kind": "internal",
+            "items": [
+              "酒馆手册补充约定：HTML 技能应先初始化数据与页面文件"
+            ]
+          }
+        ],
+        "en": [
+          {
+            "kind": "added",
+            "items": [
+              "The skill list now ships with a ready-made **Memory** skill (editable, deletable, and equippable on any character). It saves key facts — how the player likes to be addressed, relationships, important events — to a local long-term memory file that persists across sessions, automatically forgets the least recently used entry when the list is full, and can pop up a memory dashboard whenever something is written"
+            ]
+          },
+          {
+            "kind": "changed",
+            "items": [
+              "The built-in **Tavern Management Handbook (Essentials)** lorebook is now read-only and is synced to the latest built-in content on every launch; the edit and reset buttons, the knowledge base, and the Markdown toggle are no longer available. Any previous manual edits to it will be overwritten by the built-in version",
+              "The file display window now remembers its picture-in-picture position and size, and HTML preview zoom is saved per file, so both are restored after reopening the preview or restarting the app",
+              "Image files are no longer read as text and previewed; opening one now shows a clear \"This file type is not supported\" message instead of garbled or broken output",
+              "On mobile, **Export gameplay** moved out of the **More** menu into the session header next to the theme toggle; on desktop the button order is now reset / delete / export / more",
+              "Sidebar search now waits until you stop typing for 250 ms and scans messages in a single pass, so the list no longer stutters while typing",
+              "Opening the file manager no longer sends a duplicate probe request to the local file service, so file listings appear faster",
+              "The site icon now uses a higher-resolution image that looks sharper on high-DPI screens and in bookmarks"
+            ]
+          },
+          {
+            "kind": "fixed",
+            "items": [
+              "Deleting a skill now also clears its stale entry from every character that had it enabled, instead of leaving a reference to a skill that no longer exists",
+              "Testing a provider no longer rewrites the API base URL into a proxy URL; duplicate-model checks now only consider enabled models, so disabled models no longer trigger false conflicts",
+              "Sandbox scripts now validate the whole pipeline before running: a malformed redirect can no longer let earlier commands run and cause side effects, `2>` and `2>>` work on any pipeline segment, and redirect files are fully flushed before the result is returned"
+            ]
+          },
+          {
+            "kind": "internal",
+            "items": [
+              "The tavern handbook now states that HTML skills should initialize their data and page files first"
+            ]
+          }
+        ]
+      }
+    },
     {
       "version": "0.1.29",
       "date": "2026-10-28",
