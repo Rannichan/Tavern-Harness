@@ -196,6 +196,24 @@
   gap: 8px;
   margin-bottom: 8px;
 }
+.speech-player {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+  max-width: 100%;
+}
+.speech-player audio {
+  width: min(320px, 100%);
+  height: 36px;
+}
+.speech-caption, .speech-pending {
+  color: var(--text-muted);
+  font-size: var(--font-size-body-sm);
+}
+.speech-pending {
+  margin-top: 8px;
+}
 .attach-card {
   display: inline-flex;
   align-items: center;

@@ -1,14 +1,16 @@
-import { memo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { memo, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useStore } from '../store/store';
 import { db, DEFAULT_GENERATION_SETTINGS } from '../db/database';
 import { type ThemeMode } from '../theme/theme';
-import { type ApiProvider, type AppLanguage, type ReasoningEffort, enabledModelIds, modelAliases } from '../types/models';
+import { type ApiProvider, type AppLanguage, type AppSettings, type ReasoningEffort, enabledModelIds, modelAliases } from '../types/models';
 import { Icon, Modal } from './shared';
 import { DeleteConfirmDialog } from './DeleteConfirmDialog';
-import { isNetworkLikeError, toProxyUrl } from '../core/proxy';
+import { isNetworkLikeError } from '../core/proxy';
+import { fetchModelsSmart, splitProviderModels } from '../core/providerModels';
 import { useT } from '../core/i18n';
 import { APP_VERSION, useHasUnseenVersion } from '../core/version';
 import { VersionHistoryModal } from './VersionHistoryModal';
+import { BAILIAN_TOKEN_PLAN_SPEECH_MODEL, BAILIAN_TOKEN_PLAN_SPEECH_VOICE, createBailianTokenPlanProvider, isBailianTokenPlanUrl } from '../core/bailianTokenPlan';
 
 // ============================================================
 // 设置视图（模型服务 / 超参数 / 主题）
@@ -113,6 +115,7 @@ export const SettingsView = memo(function SettingsView() {
 
         {/* 模型服务 Provider（置顶） */}
         <ProviderManager providers={providers} onChanged={refreshProviders} />
+        <SpeechSettings settings={settings} providers={providers} />
 
         <div className="set-section">
           <h3>{t('settings.toolExecution')}</h3>
@@ -369,68 +372,11 @@ export const SettingsView = memo(function SettingsView() {
 
 // ---------------- Providers ----------------
 
-interface ModelsResult {
-  models: string[];
-  viaProxy: boolean;
-}
-
-/** 依次尝试常见 models 端点，返回第一个成功的模型列表。
- *  若直连请求被 CORS 拦截，自动回退到开发服务器同源代理（若可用）。 */
-async function fetchModelsSmart(baseUrl: string, apiKey: string): Promise<ModelsResult> {
-  const base = baseUrl.replace(/\/+$/, '');
-  const candidates = [`${base}/models`, `${base}/v1/models`];
-
-  // 收集“网络层失败”的次数：若直连失败且存在可用的代理 URL → 自动重试代理
-  const proxyUrl = toProxyUrl(baseUrl);
-
-  let lastErr: Error | null = null;
-  const tryFetch = async (url: string): Promise<string[]> => {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 7000);
-    try {
-      const resp = await fetch(url, {
-        headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
-        signal: ctrl.signal,
-      });
-      if (!resp.ok) {
-        throw new Error(`HTTP ${resp.status}`);
-      }
-      const json = (await resp.json()) as { data?: Array<{ id: string }> };
-      const models = (json.data ?? []).map((m: { id: string }) => m.id).sort();
-      if (models.length === 0) throw new Error('empty-model-list');
-      return models;
-    } finally {
-      clearTimeout(timer);
-    }
-  };
-
-  // 第 1 轮：直连
-  for (const url of candidates) {
-    try {
-      return { models: await tryFetch(url), viaProxy: false };
-    } catch (e) {
-      lastErr = e as Error;
-    }
-  }
-
-  // 第 2 轮：CORS/网络失败 → 代理回退
-  if (proxyUrl && isNetworkLikeError(lastErr)) {
-    const proxiedCandidates = [`${proxyUrl}/models`, `${proxyUrl}/v1/models`];
-    for (const url of proxiedCandidates) {
-      try {
-        const models = await tryFetch(url);
-        return { models, viaProxy: !!proxyUrl };
-      } catch (e) {
-        lastErr = e as Error;
-      }
-    }
-  }
-
-  throw lastErr ?? new Error('unknown-error');
-}
-
 function ProviderManager({ providers, onChanged }: { providers: ApiProvider[]; onChanged: () => void }) {
   const addToast = useStore((s) => s.addToast);
+  const settings = useStore((s) => s.settings);
+  const modelsList = useStore((s) => s.modelsList);
+  const selectModel = useStore((s) => s.selectModel);
   const t = useT();
   const [editing, setEditing] = useState<ApiProvider | null>(null);
   const [pendingDelete, setPendingDelete] = useState<ApiProvider | null>(null);
@@ -483,9 +429,32 @@ function ProviderManager({ providers, onChanged }: { providers: ApiProvider[]; o
             </div>
           );
         })}
-        <button className="btn" style={{ alignSelf: 'flex-start' }} onClick={() => setEditing({ name: '', baseUrl: '', apiKey: '', isEnabled: true, cachedModelsCsv: '', modelAliasesJson: '{}', createdAt: Date.now() })}>
-          <Icon name="plus" size={13} /> {t('settings.addProvider')}
-        </button>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <button className="btn" onClick={() => setEditing({ name: '', baseUrl: '', apiKey: '', isEnabled: true, cachedModelsCsv: '', modelAliasesJson: '{}', createdAt: Date.now() })}>
+            <Icon name="plus" size={13} /> {t('settings.addProvider')}
+          </button>
+          <button className="btn" onClick={() => setEditing(createBailianTokenPlanProvider())}>
+            <Icon name="plus" size={13} /> {t('settings.addTokenPlan')}
+          </button>
+        </div>
+        {modelsList.length > 0 && (
+          <div className="field">
+            <label htmlFor="default-text-model">{t('settings.defaultTextModel')}</label>
+            <select
+              id="default-text-model"
+              className="select"
+              value={modelsList.some((option) => option.providerId === settings?.defaultProviderId && option.modelId === settings?.defaultModel)
+                ? JSON.stringify([settings?.defaultProviderId, settings?.defaultModel]) : ''}
+              onChange={(event) => {
+                const selected = modelsList.find((option) => JSON.stringify([option.providerId, option.modelId]) === event.target.value);
+                if (selected) void selectModel(selected);
+              }}
+            >
+              {!modelsList.some((option) => option.providerId === settings?.defaultProviderId && option.modelId === settings?.defaultModel) && <option value="">{t('chat.chooseModel')}</option>}
+              {modelsList.map((option) => <option key={`${option.providerId}:${option.modelId}`} value={JSON.stringify([option.providerId, option.modelId])}>{option.label}</option>)}
+            </select>
+          </div>
+        )}
       </div>
 
       {editing && (
@@ -523,6 +492,100 @@ function ProviderManager({ providers, onChanged }: { providers: ApiProvider[]; o
   );
 }
 
+function SpeechSettings({ settings, providers }: { settings: AppSettings; providers: ApiProvider[] }) {
+  const t = useT();
+  const setSettings = useStore((state) => state.setSettings);
+  const addToast = useStore((state) => state.addToast);
+  const [enabled, setEnabled] = useState(settings.speechEnabled === true);
+  const [providerId, setProviderId] = useState<number | null>(settings.speechProviderId ?? null);
+  const [model, setModel] = useState(settings.speechModel ?? '');
+  const [voice, setVoice] = useState(settings.speechVoice ?? '');
+  const [autoPlay, setAutoPlay] = useState(settings.speechAutoPlay !== false);
+  const [saving, setSaving] = useState(false);
+  const availableProviders = providers.filter((provider) => provider.id != null && provider.isEnabled && provider.baseUrl.trim());
+  const selectedProvider = availableProviders.find((provider) => provider.id === providerId);
+
+  const selectProvider = (provider: ApiProvider | undefined) => {
+    setProviderId(provider?.id ?? null);
+    const isTokenPlan = !!provider && isBailianTokenPlanUrl(provider.baseUrl);
+    const firstModel = provider?.cachedSpeechModelsCsv?.split(',').map((item) => item.trim()).find(Boolean);
+    setModel(firstModel || (isTokenPlan ? BAILIAN_TOKEN_PLAN_SPEECH_MODEL : ''));
+    setVoice(isTokenPlan ? BAILIAN_TOKEN_PLAN_SPEECH_VOICE : 'alloy');
+  };
+
+  useEffect(() => {
+    if (providerId == null && availableProviders.length > 0) selectProvider(availableProviders[0]);
+  }, [providers, providerId]);
+
+  const modelSuggestions = (selectedProvider?.cachedSpeechModelsCsv ?? '').split(',').map((item) => item.trim()).filter(Boolean);
+  const tokenPlan = !!selectedProvider && isBailianTokenPlanUrl(selectedProvider.baseUrl);
+  const voiceSuggestions = tokenPlan
+    ? [BAILIAN_TOKEN_PLAN_SPEECH_VOICE, 'longanlufeng']
+    : ['alloy', 'nova', 'onyx'];
+  const valid = !enabled || (!!selectedProvider && !!model.trim() && !!voice.trim()
+    && (!tokenPlan || !!selectedProvider.apiKey.trim()));
+
+  return (
+    <div className="set-section">
+      <h3>{t('settings.speechTitle')}</h3>
+      <div className="set-row settings-tool-row">
+        <div>
+          <div className="s-label" id="speech-enabled-label">{t('settings.speechEnabled')}</div>
+          <div className="s-desc" id="speech-enabled-desc">{t('settings.speechEnabledDesc')}</div>
+        </div>
+        <label className="switch">
+          <input type="checkbox" aria-labelledby="speech-enabled-label" aria-describedby="speech-enabled-desc" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} />
+          <span className="switch-slider" />
+        </label>
+      </div>
+      {availableProviders.length === 0 && <p className="s-desc">{t('settings.speechNoProvider')}</p>}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div className="field">
+          <label htmlFor="speech-provider">{t('settings.speechProvider')}</label>
+          <select id="speech-provider" className="select" value={providerId ?? ''} onChange={(event) => selectProvider(availableProviders.find((provider) => provider.id === Number(event.target.value)))}>
+            <option value="">{t('settings.speechChooseProvider')}</option>
+            {availableProviders.map((provider) => <option key={provider.id} value={provider.id}>{provider.name}</option>)}
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor="speech-model">{t('settings.speechModel')}</label>
+          <input id="speech-model" className="input mono" list="speech-model-suggestions" value={model} onChange={(event) => setModel(event.target.value)} placeholder={t('settings.speechModelPh')} />
+          <datalist id="speech-model-suggestions">{modelSuggestions.map((item) => <option key={item} value={item} />)}</datalist>
+        </div>
+        <div className="field">
+          <label htmlFor="speech-voice">{t('settings.speechVoice')}</label>
+          <input id="speech-voice" className="input mono" list="speech-voice-suggestions" value={voice} onChange={(event) => setVoice(event.target.value)} placeholder={t('settings.speechVoicePh')} />
+          <datalist id="speech-voice-suggestions">{voiceSuggestions.map((item) => <option key={item} value={item} />)}</datalist>
+          {tokenPlan && <a className="typo-body-sm" href="https://help.aliyun.com/zh/model-studio/qwen-audio-tts-voice-list" target="_blank" rel="noreferrer">{t('settings.speechVoiceList')}</a>}
+        </div>
+        <div className="set-row settings-tool-row">
+          <div className="s-label" id="speech-autoplay-label">{t('settings.speechAutoPlay')}</div>
+          <label className="switch">
+            <input type="checkbox" aria-labelledby="speech-autoplay-label" checked={autoPlay} onChange={(event) => setAutoPlay(event.target.checked)} />
+            <span className="switch-slider" />
+          </label>
+        </div>
+        <button
+          className="btn"
+          style={{ alignSelf: 'flex-start' }}
+          disabled={!valid || saving}
+          onClick={async () => {
+            setSaving(true);
+            try {
+              await setSettings({ speechEnabled: enabled, speechProviderId: providerId, speechModel: model.trim(), speechVoice: voice.trim(), speechAutoPlay: autoPlay });
+              addToast(t('toast.speechSettingsSaved'));
+            } catch (error) {
+              addToast(t('toast.speechSettingsFailed', { msg: (error as Error).message || String(error) }), 'error');
+            } finally {
+              setSaving(false);
+            }
+          }}
+        >{t('common.save')}</button>
+      </div>
+    </div>
+  );
+}
+
 function ProviderForm({ initial, onSave }: { initial: ApiProvider; onSave: (p: ApiProvider) => void }) {
   const providers = useStore((s) => s.providers);
   const addToast = useStore((s) => s.addToast);
@@ -531,21 +594,55 @@ function ProviderForm({ initial, onSave }: { initial: ApiProvider; onSave: (p: A
   const [baseUrl, setBaseUrl] = useState(initial.baseUrl);
   const [apiKey, setApiKey] = useState(initial.apiKey);
   const [models, setModels] = useState(() => initial.cachedModelsCsv.split(',').map((model) => model.trim()).filter(Boolean));
+  const [speechModels, setSpeechModels] = useState(() => (initial.cachedSpeechModelsCsv ?? '').split(',').map((model) => model.trim()).filter(Boolean));
   const [aliases, setAliases] = useState(() => modelAliases(initial));
   const [enabledModels, setEnabledModels] = useState(() => enabledModelIds(initial));
   const [testing, setTesting] = useState(false);
+  const [newModel, setNewModel] = useState('');
+  const isTokenPlan = isBailianTokenPlanUrl(baseUrl);
+  const newModelId = newModel.trim();
+  const canAddModel = !!newModelId && !/[,\s]/.test(newModelId);
+
+  const addModel = () => {
+    if (!canAddModel) return;
+    const classified = splitProviderModels([newModelId]);
+    if (classified.speech.length > 0) {
+      setSpeechModels((current) => current.includes(newModelId) ? current : [...current, newModelId]);
+      setNewModel('');
+      return;
+    }
+    if (classified.text.length === 0) return;
+    setModels((current) => current.includes(newModelId) ? current : [...current, newModelId]);
+    setEnabledModels((current) => new Set([...current, newModelId]));
+    setAliases((current) => current[newModelId] ? current : { ...current, [newModelId]: `Token Plan · ${newModelId}` });
+    setNewModel('');
+  };
 
   const testConnection = async () => {
     if (!baseUrl.trim()) return;
     setTesting(true);
     try {
-      const { models: fetchedModels, viaProxy } = await fetchModelsSmart(baseUrl.trim(), apiKey);
-      const updatedAliases = Object.fromEntries(Object.entries(aliases).filter(([model]) => fetchedModels.includes(model)));
-      const updatedEnabledModels = new Set(fetchedModels.filter((model) => !models.includes(model) || enabledModels.has(model)));
-      setModels(fetchedModels);
-      setAliases(updatedAliases);
-      setEnabledModels(updatedEnabledModels);
-      addToast(t('toast.providerOk', { n: fetchedModels.length, via: viaProxy ? t('toast.providerViaProxy') : '' }));
+      const { models: fetchedModels, viaProxy } = await fetchModelsSmart(baseUrl.trim(), isTokenPlan ? apiKey.trim() : apiKey);
+      const fetched = splitProviderModels(fetchedModels);
+      if (isTokenPlan) {
+        // Keep explicitly configured models even when the catalogue omits them.
+        setModels((current) => [...new Set([...current, ...fetched.text])]);
+        setSpeechModels((current) => [...new Set([...current, ...fetched.speech])]);
+        setAliases((current) => {
+          const next = { ...current };
+          for (const model of fetched.text) if (!Object.hasOwn(next, model)) next[model] = `Token Plan · ${model}`;
+          return next;
+        });
+        addToast(t('toast.tokenPlanOk', { n: fetched.text.length, speech: fetched.speech.length, via: viaProxy ? t('toast.providerViaProxy') : '' }));
+      } else {
+        const updatedAliases = Object.fromEntries(Object.entries(aliases).filter(([model]) => fetched.text.includes(model)));
+        const updatedEnabledModels = new Set(fetched.text.filter((model) => !models.includes(model) || enabledModels.has(model)));
+        setModels(fetched.text);
+        setSpeechModels(fetched.speech);
+        setAliases(updatedAliases);
+        setEnabledModels(updatedEnabledModels);
+        addToast(t('toast.providerOk', { n: fetched.text.length, via: viaProxy ? t('toast.providerViaProxy') : '' }));
+      }
     } catch (e) {
       const msg = (e as Error).message;
       addToast(t('toast.providerFail', { msg, hint: isNetworkLikeError(e) ? t('toast.providerFailCors') : '' }), 'error');
@@ -557,6 +654,13 @@ function ProviderForm({ initial, onSave }: { initial: ApiProvider; onSave: (p: A
   return (
     <>
       <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {isTokenPlan && (
+          <div className="typo-body-sm text-muted">
+            {t('settings.tokenPlanHint')}{' '}
+            <a href="https://help.aliyun.com/zh/model-studio/token-plan-personal-quick-start" target="_blank" rel="noreferrer">{t('settings.tokenPlanGuide')}</a>
+          </div>
+        )}
+        {speechModels.length > 0 && <div className="typo-body-sm text-muted">{t('settings.speechDiscovered', { models: speechModels.join(', ') })}</div>}
         <div className="field">
           <label>{t('settings.providerName')}</label>
           <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('settings.providerNamePh')} />
@@ -567,7 +671,7 @@ function ProviderForm({ initial, onSave }: { initial: ApiProvider; onSave: (p: A
         </div>
         <div className="field">
           <label>{t('settings.apiKey')}</label>
-          <input className="input mono" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder={t('settings.apiKeyPh')} />
+          <input className="input mono" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder={isTokenPlan ? 'sk-sp-...' : t('settings.apiKeyPh')} />
         </div>
         {models.length > 0 && (
           <div className="field">
@@ -601,16 +705,34 @@ function ProviderForm({ initial, onSave }: { initial: ApiProvider; onSave: (p: A
             </div>
           </div>
         )}
+        {isTokenPlan && (
+          <div className="field">
+            <label>{t('settings.tokenPlanAddModel')}</label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                className="input mono"
+                style={{ minWidth: 0, flex: 1 }}
+                value={newModel}
+                onChange={(event) => setNewModel(event.target.value)}
+                onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addModel(); } }}
+                placeholder={t('settings.tokenPlanModelPh')}
+                aria-label={t('settings.tokenPlanAddModel')}
+              />
+              <button className="btn" type="button" disabled={!canAddModel} onClick={addModel}>{t('settings.tokenPlanAdd')}</button>
+            </div>
+            <span className="typo-body-sm text-muted">{t('settings.tokenPlanModelsHint')}{' '}<a href="https://help.aliyun.com/zh/model-studio/token-plan-personal-overview" target="_blank" rel="noreferrer">{t('settings.tokenPlanModelList')}</a></span>
+          </div>
+        )}
       </div>
       <div className="modal-foot">
         <button className="btn" onClick={() => {}} style={{ visibility: 'hidden' }}>{t('common.cancel')}</button>
-        <button className="btn" disabled={!baseUrl.trim() || testing} onClick={testConnection}>
+        <button className="btn" disabled={!baseUrl.trim() || (isTokenPlan && !apiKey.trim()) || testing} onClick={testConnection}>
           {testing && <span className="spinner" style={{ width: 11, height: 11 }} />}
-          {testing ? t('settings.testing') : t('settings.test')}
+          {testing ? t('settings.testing') : isTokenPlan ? t('settings.fetchTokenPlanModels') : t('settings.test')}
         </button>
         <button
           className="btn btn-primary"
-          disabled={!name.trim() || !baseUrl.trim()}
+          disabled={!name.trim() || !baseUrl.trim() || (isTokenPlan && (!apiKey.trim() || enabledModels.size === 0))}
           onClick={() => {
             const modelNames = models
               .filter((model) => enabledModels.has(model))
@@ -635,8 +757,9 @@ function ProviderForm({ initial, onSave }: { initial: ApiProvider; onSave: (p: A
               ...initial,
               name: name.trim(),
               baseUrl: baseUrl.trim(),
-              apiKey,
+              apiKey: isTokenPlan ? apiKey.trim() : apiKey,
               cachedModelsCsv: models.join(','),
+              cachedSpeechModelsCsv: speechModels.join(','),
               modelAliasesJson: JSON.stringify(Object.fromEntries(Object.entries(aliases).filter(([, alias]) => alias.trim()))),
               enabledModelIdsJson: JSON.stringify([...enabledModels]),
             });

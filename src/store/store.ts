@@ -63,6 +63,7 @@ import { estimateTokensFromChars, accumulateStats, preloadCareerStats, sessionPr
 import { seedOpeningGreeting } from '../core/openingGreeting';
 import { ACHIEVEMENTS, type AchievementDef } from '../core/achievements';
 import { npcFingerprint, sameRows, toolFingerprint, worldBookFingerprint } from '../core/rowFingerprint';
+import { chooseDialogueForSpeech, synthesizeSpeech, type SpeechEndpoint } from '../core/speech';
 
 // ============================================================
 // Store（对应 MainViewModel）
@@ -123,6 +124,8 @@ interface AppState {
   activeView: ActiveView;
 
   streaming: StreamingState;
+  speechPendingMessageIds: Record<number, true>;
+  speechAutoPlayMessageId: number | null;
   /** 正在生成或生成结束后尚未进入查看的会话 */
   activitySessionIds: Record<number, true>;
   pendingConfirmation: ToolConfirmationRequest | null;
@@ -203,6 +206,19 @@ interface AppState {
 
 let toastSeq = 0;
 let initLock: Promise<void> | null = null;
+interface SpeechJob { sessionId: number; controller: AbortController; done?: Promise<void> }
+const speechJobs = new Map<number, SpeechJob>();
+
+function cancelSpeechJobs(sessionId?: number): Promise<void> {
+  const pending: Promise<void>[] = [];
+  for (const [messageId, job] of speechJobs) {
+    if (sessionId != null && job.sessionId !== sessionId) continue;
+    job.controller.abort();
+    speechJobs.delete(messageId);
+    if (job.done) pending.push(job.done);
+  }
+  return Promise.allSettled(pending).then(() => undefined);
+}
 const STARTUP_TIMEOUT_MS = 12_000;
 
 function withStartupTimeout<T>(work: Promise<T>): Promise<T> {
@@ -326,6 +342,8 @@ export const useStore = create<AppState>((set, get) => ({
   modelsList: [],
 
   streaming: { sessionId: null, abort: null },
+  speechPendingMessageIds: {},
+  speechAutoPlayMessageId: null,
   activitySessionIds: {},
   pendingConfirmation: null,
   activeDisplay: null,
@@ -423,6 +441,8 @@ export const useStore = create<AppState>((set, get) => ({
   setSettings: async (partial) => {
     const current = get().settings;
     if (!current) return;
+    if ((['speechEnabled', 'speechProviderId', 'speechModel', 'speechVoice'] as const)
+      .some((key) => partial[key] !== undefined && partial[key] !== current[key])) await cancelSpeechJobs();
     const next = { ...current, ...partial };
     const { language, themeMode, ...sharedChanges } = partial;
     if (language !== undefined || themeMode !== undefined) {
@@ -454,6 +474,7 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   resetTavern: async () => {
+    await cancelSpeechJobs();
     const streaming = get().streaming;
     if (streaming.abort) {
       groupLoopStopped = true;
@@ -475,11 +496,11 @@ export const useStore = create<AppState>((set, get) => ({
   setActiveSession: (id) => {
     set((state) => {
       if (id == null || !state.activitySessionIds[id]) {
-        return { activeSessionId: id, activeView: 'chat' };
+        return { activeSessionId: id, activeView: 'chat', speechAutoPlayMessageId: state.activeSessionId === id ? state.speechAutoPlayMessageId : null };
       }
       const activitySessionIds = { ...state.activitySessionIds };
       delete activitySessionIds[id];
-      return { activeSessionId: id, activeView: 'chat', activitySessionIds };
+      return { activeSessionId: id, activeView: 'chat', activitySessionIds, speechAutoPlayMessageId: state.activeSessionId === id ? state.speechAutoPlayMessageId : null };
     });
     if (id != null) {
       const state = get();
@@ -498,7 +519,7 @@ export const useStore = create<AppState>((set, get) => ({
   setActiveView: (v) => set((state) => {
     const sessionId = state.activeSessionId;
     if (v !== 'chat' || sessionId == null || !state.activitySessionIds[sessionId]) {
-      return { activeView: v };
+      return { activeView: v, ...(v !== 'chat' ? { speechAutoPlayMessageId: null } : {}) };
     }
     const activitySessionIds = { ...state.activitySessionIds };
     delete activitySessionIds[sessionId];
@@ -540,6 +561,7 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   refreshProviders: async () => {
+    await cancelSpeechJobs();
     const providers = await db.providers.toArray();
     set({ providers });
     // 同步聚合模型列表
@@ -592,18 +614,20 @@ export const useStore = create<AppState>((set, get) => ({
       // 叠加内存中的流式字段（content / thinkingContent / toolCallsJson），避免文本回跳。
       // 这样 DB 里已落库的 raw 字段（生成完成后才写入）不会被内存中的旧草稿对象覆盖，
       // —— 否则右键「查看原始日志」要等刷新页面（streaming 清空后从 DB 重载）才会出现。
-      const loadedMessages = s.streaming.sessionId === sessionId
-        ? messages.map((message) => {
-            const current = s.messages[sessionId]?.find((c) => c.id === message.id);
-            if (!current) return message;
-            return {
-              ...message,
-              content: current.content,
-              thinkingContent: current.thinkingContent,
-              toolCallsJson: current.toolCallsJson,
-            };
-          })
-        : messages;
+      const loadedMessages = messages.map((message) => {
+        const current = s.messages[sessionId]?.find((candidate) => candidate.id === message.id);
+        if (!current) return message;
+        // A background speech job may finish after this database read began.
+        const speechAudio = message.speechAudio ?? (message.content === current.content ? current.speechAudio : undefined);
+        if (s.streaming.sessionId !== sessionId) return speechAudio ? { ...message, speechAudio } : message;
+        return {
+          ...message,
+          content: current.content,
+          thinkingContent: current.thinkingContent,
+          toolCallsJson: current.toolCallsJson,
+          ...(speechAudio ? { speechAudio } : {}),
+        };
+      });
       return {
         messages: { ...s.messages, [sessionId]: loadedMessages },
         contextCompressions: { ...s.contextCompressions, [sessionId]: compressions },
@@ -717,6 +741,7 @@ export const useStore = create<AppState>((set, get) => ({
     const session = await db.sessions.get(sessionId);
     if (!session) return;
     if (get().streaming.sessionId != null) return;
+    await cancelSpeechJobs(sessionId);
 
     // ---- 生成前快照：完整保留删除前的消息与队列状态，生成失败时整体回退 ----
     const snapshotMessages = await db.messages.where('sessionId').equals(sessionId).sortBy('timestamp');
@@ -789,6 +814,7 @@ export const useStore = create<AppState>((set, get) => ({
 
   editMessage: async (messageId, newContent, sessionId, newAttachments?: string[], newAttachmentNames?: string[]) => {
     if (get().streaming.sessionId != null) return;
+    await cancelSpeechJobs(sessionId);
     const message = await db.messages.get(messageId);
     if (!message) return;
     const originalSession = await db.sessions.get(sessionId);
@@ -816,7 +842,7 @@ export const useStore = create<AppState>((set, get) => ({
     const attachmentInfos = (newAttachments != null ? newAttachments : message.attachments).map((_, i) => ({
       displayName: (newAttachmentNames?.[i]?.trim()) || message.attachmentInfos?.[i]?.displayName || translate('common.attachment'),
     }));
-    await db.messages.update(messageId, { content: newContent, attachments, attachmentInfos });
+    await db.messages.update(messageId, { content: newContent, attachments, attachmentInfos, ...(newContent !== message.content ? { speechAudio: null } : {}) });
     await get().loadMessages(sessionId);
 
     const restoreFailedUserEdit = async (result: TurnResult): Promise<void> => {
@@ -904,6 +930,7 @@ export const useStore = create<AppState>((set, get) => ({
 
   saveMessageOnly: async (messageId, newContent, sessionId, newAttachments?: string[], newAttachmentNames?: string[]) => {
     if (get().streaming.sessionId != null) return;
+    await cancelSpeechJobs(sessionId);
     const message = await db.messages.get(messageId);
     if (!message) return;
     const attachments = newAttachments ?? message.attachments;
@@ -912,7 +939,7 @@ export const useStore = create<AppState>((set, get) => ({
     }));
     // 仅修改本条消息内容，不删除任何后续消息、不触发重新生成
     await deleteContextCompressionsFrom(sessionId, message.timestamp);
-    await db.messages.update(messageId, { content: newContent, attachments, attachmentInfos });
+    await db.messages.update(messageId, { content: newContent, attachments, attachmentInfos, ...(newContent !== message.content ? { speechAudio: null } : {}) });
     await get().loadMessages(sessionId);
     await get().refreshSessions();
   },
@@ -920,12 +947,14 @@ export const useStore = create<AppState>((set, get) => ({
   stopStreaming: () => {
     const abort = get().streaming.abort;
     if (abort) {
+      if (get().streaming.sessionId != null) void cancelSpeechJobs(get().streaming.sessionId!);
       groupLoopStopped = true;
       abort.abort();
     }
   },
 
   deleteSession: async (id) => {
+    await cancelSpeechJobs(id);
     invalidateContextCompressionJob(id);
     const session = await db.transaction(
       'rw',
@@ -1124,6 +1153,7 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   resetSessionConversation: async (sessionId) => {
+    await cancelSpeechJobs(sessionId);
     const session = await db.sessions.get(sessionId);
     if (!session) return;
     invalidateContextCompressionJob(sessionId);
@@ -1221,6 +1251,84 @@ export const useStore = create<AppState>((set, get) => ({
 // ============================================================
 
 const confirmationDeferreds = new Map<ToolConfirmationRequest, { resolve: (v: boolean) => void }>();
+
+function scheduleSpeechForMessage(
+  sessionId: number,
+  messageId: number,
+  reply: string,
+  context: NetworkMessage[],
+  textEndpoint: SpeechEndpoint,
+): void {
+  const state = useStore.getState();
+  const settings = state.settings;
+  if (settings?.speechEnabled !== true || settings.speechProviderId == null) return;
+  const provider = state.providers.find((item) => item.id === settings.speechProviderId && item.isEnabled);
+  const model = settings.speechModel?.trim() ?? '';
+  const voice = settings.speechVoice?.trim() ?? '';
+  if (!provider?.baseUrl.trim() || !model || !voice) return;
+
+  const controller = new AbortController();
+  const job: SpeechJob = { sessionId, controller };
+  speechJobs.get(messageId)?.controller.abort();
+  speechJobs.set(messageId, job);
+  let timedOut = false;
+  const timer = setTimeout(() => { timedOut = true; controller.abort(); }, 120_000);
+  const speechEndpoint: SpeechEndpoint = { baseUrl: provider.baseUrl, apiKey: provider.apiKey, model };
+  const stillConfigured = () => {
+    const latest = useStore.getState();
+    const currentProvider = latest.providers.find((item) => item.id === provider.id && item.isEnabled);
+    return !controller.signal.aborted
+      && latest.settings?.speechEnabled === true
+      && latest.settings.speechProviderId === provider.id
+      && latest.settings.speechModel?.trim() === model
+      && latest.settings.speechVoice?.trim() === voice
+      && currentProvider?.baseUrl === provider.baseUrl
+      && currentProvider?.apiKey === provider.apiKey;
+  };
+
+  job.done = (async () => {
+    try {
+      const text = await chooseDialogueForSpeech(textEndpoint, context, reply, controller.signal);
+      if (!text || !stillConfigured()) return;
+      const message = await db.messages.get(messageId);
+      if (!message || message.sessionId !== sessionId || message.content !== reply || !stillConfigured()) return;
+      useStore.setState((current) => ({ speechPendingMessageIds: { ...current.speechPendingMessageIds, [messageId]: true } }));
+      const speechAudio = await synthesizeSpeech(speechEndpoint, voice, text, controller.signal);
+      if (!stillConfigured()) return;
+      const latestMessage = await db.messages.get(messageId);
+      if (!latestMessage || latestMessage.sessionId !== sessionId || latestMessage.content !== reply || !stillConfigured()) return;
+      if (!await db.messages.update(messageId, { speechAudio }) || !stillConfigured()) return;
+      useStore.setState((current) => {
+        const loaded = current.messages[sessionId];
+        if (!loaded?.some((item) => item.id === messageId && item.content === reply)) return {};
+        const shouldPlay = current.settings?.speechAutoPlay !== false
+          && current.activeView === 'chat' && current.activeSessionId === sessionId;
+        return {
+          messages: { ...current.messages, [sessionId]: loaded.map((item) => item.id === messageId ? { ...item, speechAudio } : item) },
+          speechAutoPlayMessageId: shouldPlay ? messageId : current.speechAutoPlayMessageId,
+        };
+      });
+    } catch (error) {
+      if (!controller.signal.aborted || timedOut) {
+        let message = timedOut ? translate('tool.timeout') : (error instanceof Error ? error.message : String(error));
+        for (const key of [provider.apiKey, textEndpoint.apiKey]) if (key) message = message.replaceAll(key, '[redacted]');
+        useStore.getState().addToast(translate('toast.speechGenerationFailed', { msg: message }), 'error');
+      }
+    } finally {
+      clearTimeout(timer);
+      const active = speechJobs.get(messageId);
+      if (active === job) speechJobs.delete(messageId);
+      if (!active || active === job) {
+        useStore.setState((current) => {
+          if (!current.speechPendingMessageIds[messageId]) return {};
+          const speechPendingMessageIds = { ...current.speechPendingMessageIds };
+          delete speechPendingMessageIds[messageId];
+          return { speechPendingMessageIds };
+        });
+      }
+    }
+  })();
+}
 
 function isEnabledProviderModel(provider: ApiProvider, modelId: string): boolean {
   return provider.isEnabled &&
@@ -2328,6 +2436,10 @@ async function performAssistantTurn(
       lastMessage: preview || '…',
       ...contextTokens,
     });
+
+    if (normalizedContent && persistedToolCalls.length === 0 && performanceGuidanceCalls.length === 0 && !abortController.signal.aborted) {
+      scheduleSpeechForMessage(sessionId, draftId, normalizedContent, nmessages, { baseUrl, apiKey, model });
+    }
 
     if (persistedToolCalls.length === 0 && performanceGuidanceCalls.length === 0 && session.mode !== 'GROUP') {
       scheduleContextCompression(sessionId, settings, baseUrl, apiKey, model);

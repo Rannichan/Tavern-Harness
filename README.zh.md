@@ -77,8 +77,19 @@ npm run dev      # 开发服务器默认端口 5173，被占用时自动顺延
 启动后到「**设置 → 模型服务 Provider**」：
 
 1. **添加 Provider**：名称 + Base URL + API Key —— 支持任意 OpenAI 兼容 `chat/completions` 接口（OpenAI / DeepSeek / Qwen / SiliconFlow / Ollama / LM Studio / 自建 vLLM 均可）
-2. **测试连接**：自动拉取模型列表。若目标服务未开 CORS 头，会自动经内置同源代理转发（仅限内网 / 局域网地址），成功后 Base URL 自动改写为代理形式保存
+2. **测试连接**：自动拉取模型列表。若浏览器无法直连，会尝试通过内置同源代理转发；配置中保留原始 Base URL。
 3. **选模型**：聊天页顶部点击模型名即可，回到对话开聊！
+
+### 使用百炼 Token Plan 个人版
+
+1. 在[百炼 Token Plan 个人版控制台](https://help.aliyun.com/zh/model-studio/token-plan-personal-quick-start)订阅并生成个人版专属 API Key（以 `sk-sp-` 开头）。它与百炼按量计费或 Coding Plan 的 Key 不通用。
+2. 在「设置 → 模型服务 Provider」点击「添加百炼 Token Plan 个人版」，填入自己的 Key，点击「拉取模型」。文本与语音模型分开显示；启用需要的文本模型后保存，并在设置中选择默认文本模型。如果列表接口不可用，仍可使用预设或参照[官方模型列表](https://help.aliyun.com/zh/model-studio/token-plan-personal-overview)手动添加。
+3. 如需配音，在「关键对话语音」开启自动配音，选择 Provider、语音模型与音色，再保存。百炼个人版默认使用 `qwen-audio-3.0-tts-plus` 和 `longanlingxin`；也可配置支持 `/audio/speech` 的 OpenAI 兼容服务。
+4. 开始对话后，当前文本模型会额外判断每条回复是否有适合配音的关键台词，只有选中的原文片段才会调用语音模型。判断和合成可能消耗额度。生成的音频随消息保存在本地，可重播；自动播放取决于浏览器是否允许。
+
+Key 保存在运行 Tavern Harness 的主机上，同一实例的浏览器共享；对话及待配音台词会发送至相应模型服务。个人版的使用范围、内容使用和支持模型以[官方说明](https://help.aliyun.com/zh/model-studio/token-plan-personal-overview)为准。百炼配音使用 [Token Plan 原生语音接口](https://help.aliyun.com/zh/model-studio/token-plan-speech-synthesis)，不包含独立计费的 Harness 附加权益。
+
+如果使用 OpenAI 官方语音服务，请注意 `tts-1`、`tts-1-hd` 和 `gpt-4o-mini-tts` 已计划于 2027 年 1 月 6 日停用；此项目的兼容接入使用 `/audio/speech`，尚未实现 Realtime API。具体以 [OpenAI 官方文档](https://developers.openai.com/api/docs/guides/text-to-speech)为准。
 
 ### 导入游戏并开始
 
