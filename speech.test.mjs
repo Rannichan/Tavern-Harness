@@ -94,11 +94,11 @@ test('Token Plan synthesis downloads and stores audio instead of the expiring UR
   }
 });
 
-test('proxy path preserves signed download query and does not retry synthesis', async () => {
+test('upgrades signed Alibaba HTTP audio URLs to HTTPS and retries only the download via proxy', async () => {
   const originalFetch = globalThis.fetch;
   const originalWindow = globalThis.window;
   const calls = [];
-  const audioUrl = 'https://example.oss-cn-beijing.aliyuncs.com/clip.mp3?Expires=123&Signature=a%2Bb';
+  const audioUrl = 'http://dashscope-result-bj.oss-cn-beijing.aliyuncs.com/clip.mp3?Expires=123&Signature=a%2Bb%2F%3D';
   try {
     globalThis.window = { location: { origin: 'http://localhost:5173' } };
     globalThis.fetch = async (url, options) => {
@@ -109,8 +109,10 @@ test('proxy path preserves signed download query and does not retry synthesis', 
     };
     const clip = await synthesizeSpeech(tokenEndpoint, 'longanlingxin', '你好');
     assert.equal(calls[0].url, 'http://localhost:5173/api/https/token-plan.cn-beijing.maas.aliyuncs.com/api/v1/services/audio/tts/SpeechSynthesizer');
-    assert.equal(calls[1].url, audioUrl);
-    assert.equal(calls[2].url, 'http://localhost:5173/api/https/example.oss-cn-beijing.aliyuncs.com/clip.mp3?Expires=123&Signature=a%2Bb');
+    assert.equal(calls[1].url, 'https://dashscope-result-bj.oss-cn-beijing.aliyuncs.com/clip.mp3?Expires=123&Signature=a%2Bb%2F%3D');
+    assert.equal(calls[2].url, 'http://localhost:5173/api/https/dashscope-result-bj.oss-cn-beijing.aliyuncs.com/clip.mp3?Expires=123&Signature=a%2Bb%2F%3D');
+    assert.equal(calls[1].options.headers, undefined);
+    assert.equal(calls[2].options.headers, undefined);
     assert.equal(calls.filter((call) => call.options.method === 'POST').length, 1);
     assert.equal(clip.dataUrl, 'data:audio/mpeg;base64,Kg==');
   } finally {
@@ -144,8 +146,16 @@ test('rejects invalid download URLs, HTTP errors, oversized audio, and interrupt
     await assert.rejects(synthesizeSpeech(tokenEndpoint, 'voice', 'text'), /HTTP 401/);
     assert.equal(calls, 1);
 
-    globalThis.fetch = async () => Response.json({ output: { audio: { url: 'http://127.0.0.1/private' } } });
-    await assert.rejects(synthesizeSpeech(tokenEndpoint, 'voice', 'text'), /Invalid speech audio URL/);
+    for (const url of [
+      'http://127.0.0.1/private',
+      'http://dashscope-result-bj.oss-cn-beijing.aliyuncs.com.evil.example/clip.mp3',
+      'http://user:password@dashscope-result-bj.oss-cn-beijing.aliyuncs.com/clip.mp3',
+      'ftp://dashscope-result-bj.oss-cn-beijing.aliyuncs.com/clip.mp3',
+      'not a URL',
+    ]) {
+      globalThis.fetch = async () => Response.json({ output: { audio: { url } } });
+      await assert.rejects(synthesizeSpeech(tokenEndpoint, 'voice', 'text'), /Invalid speech audio URL/);
+    }
 
     globalThis.fetch = async () => new Response('audio', { headers: { 'content-type': 'audio/mpeg', 'content-length': String(5 * 1024 * 1024) } });
     await assert.rejects(synthesizeSpeech({ baseUrl: 'https://example.com/v1', apiKey: '', model: 'tts-1' }, 'alloy', 'text'), /too large/);

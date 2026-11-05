@@ -113,10 +113,23 @@ async function requestWithTimeout(url: string, init: RequestInit, signal?: Abort
 }
 
 async function fetchAudioDownload(url: string, signal?: AbortSignal): Promise<PendingResponse> {
-  const parsed = new URL(url);
-  if (parsed.protocol !== 'https:' || parsed.username || parsed.password) throw new Error('Invalid speech audio URL');
-  const proxy = proxyRequestUrl(url);
-  const candidates = proxy ? [url, proxy] : [url];
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error('Invalid speech audio URL');
+  }
+  if (parsed.username || parsed.password) throw new Error('Invalid speech audio URL');
+  // Bailian may return HTTP OSS links. OSS signatures do not depend on the
+  // protocol, so upgrade its standard endpoint to HTTPS before downloading.
+  if (parsed.protocol === 'http:' && !parsed.port
+    && /^(?:[a-z0-9][a-z0-9-]*\.)?oss-[a-z0-9-]+\.aliyuncs\.com$/i.test(parsed.hostname)) {
+    parsed.protocol = 'https:';
+  }
+  if (parsed.protocol !== 'https:') throw new Error('Invalid speech audio URL');
+  const downloadUrl = parsed.href;
+  const proxy = proxyRequestUrl(downloadUrl);
+  const candidates = proxy ? [downloadUrl, proxy] : [downloadUrl];
   let lastError: unknown;
   for (const candidate of candidates) {
     try {
