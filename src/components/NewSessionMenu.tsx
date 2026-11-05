@@ -51,6 +51,7 @@ export function NewSessionMenu({ onClose, editingSession }: { onClose: () => voi
   const [worldBookId, setWorldBookId] = useState<number | null>(editingSession?.worldBookId ?? null);
   const [turnOrderMode, setTurnOrderMode] = useState<'PRESET' | 'RANDOM'>(editingSession?.turnOrderMode ?? 'PRESET');
   const [mentionOnlyMode, setMentionOnlyMode] = useState(editingSession?.mentionOnlyMode === true);
+  const [performanceGuidance, setPerformanceGuidance] = useState(editingSession?.performanceGuidance ?? '');
   const [enableGreeting, setEnableGreeting] = useState(editingSession?.enableGreeting !== false);
   const [saving, setSaving] = useState(false);
   const selectedNpcIds = participantOrder.filter((id) => id !== -1);
@@ -68,6 +69,7 @@ export function NewSessionMenu({ onClose, editingSession }: { onClose: () => voi
         setWorldBookId(editingSession.worldBookId ?? null);
         setTurnOrderMode(editingSession.turnOrderMode);
         setMentionOnlyMode(editingSession.mentionOnlyMode === true);
+        setPerformanceGuidance(editingSession.performanceGuidance ?? '');
         setEnableGreeting(editingSession.enableGreeting !== false);
         setParticipantOrder(participants.map((p) => p.participantId));
       }
@@ -95,6 +97,7 @@ export function NewSessionMenu({ onClose, editingSession }: { onClose: () => voi
           turnOrderMode,
           participantOrder,
           mentionOnlyMode,
+          performanceGuidance,
           enableGreeting,
         });
         addToast(t('toast.sessionUpdated'));
@@ -110,6 +113,7 @@ export function NewSessionMenu({ onClose, editingSession }: { onClose: () => voi
           turnOrderMode,
           participantOrder,
           mentionOnlyMode,
+          performanceGuidance,
           enableGreeting,
         })
         : await createSession('GROUP', {
@@ -120,6 +124,7 @@ export function NewSessionMenu({ onClose, editingSession }: { onClose: () => voi
           turnOrderMode,
           participantOrder,
           mentionOnlyMode,
+          performanceGuidance,
           enableGreeting,
         });
       await useStore.getState().refreshSessions();
@@ -275,6 +280,20 @@ export function NewSessionMenu({ onClose, editingSession }: { onClose: () => voi
             ))}
           </select>
         </div>
+
+        {isEditing && (
+          <div className="field">
+            <label>{t('newSession.performanceGuidance')}</label>
+            <textarea
+              className="textarea"
+              rows={4}
+              value={performanceGuidance}
+              onChange={(e) => setPerformanceGuidance(e.target.value)}
+              placeholder={t('newSession.performanceGuidancePlaceholder')}
+            />
+            <span className="field-hint">{t('newSession.performanceGuidanceHint')}</span>
+          </div>
+        )}
       </div>
       <div className="modal-foot">
         <button className="btn" onClick={onClose}>{t('common.cancel')}</button>

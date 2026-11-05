@@ -5,7 +5,11 @@ import type {
 } from '../types/models';
 import { sanitizeHistoryContentForModel } from './openai';
 import { translate } from './i18n';
-import { NEW_TOPIC_MARKER } from './toolDefinitions';
+import {
+  NEW_TOPIC_MARKER,
+  PERFORMANCE_GUIDANCE_PENDING_MARKER,
+  PERFORMANCE_GUIDANCE_TOOL_NAME,
+} from './toolDefinitions';
 
 // ============================================================
 // 提示词组装 — 与 MainViewModel.buildNpcSystemPrompt 等一致
@@ -79,6 +83,14 @@ export function buildNetworkMessagesForSession(p: {
   const participantMap = new Map(participants.map((pp) => [pp.participantId, pp]));
   const isGroup = session?.mode === 'GROUP';
   const omittedToolCallIds = new Set<string>();
+  const declaredToolCallIds = new Set<string>();
+  for (const message of messages) {
+    if (message.role !== 'assistant') continue;
+    for (const toolCall of parseToolCalls(message.toolCallsJson)) {
+      if (toolCall.function.name === PERFORMANCE_GUIDANCE_TOOL_NAME) omittedToolCallIds.add(toolCall.id);
+      else declaredToolCallIds.add(toolCall.id);
+    }
+  }
   if (isGroup) {
     for (const m of messages) {
       if (m.role !== 'assistant' || m.speakerParticipantId === activeSpeakerParticipantId) continue;
@@ -88,7 +100,7 @@ export function buildNetworkMessagesForSession(p: {
 
   for (const m of messages) {
     if (m.role === 'tool') {
-      if (m.toolCallId != null && omittedToolCallIds.has(m.toolCallId)) continue;
+      if (m.toolCallId == null || !declaredToolCallIds.has(m.toolCallId) || omittedToolCallIds.has(m.toolCallId)) continue;
       result.push({
         role: 'tool',
         content: m.content,
@@ -97,13 +109,17 @@ export function buildNetworkMessagesForSession(p: {
       continue;
     }
     if (m.role === 'system') {
-      result.push({ role: 'system', content: m.content });
+      if (m.content !== PERFORMANCE_GUIDANCE_PENDING_MARKER) {
+        result.push({ role: 'system', content: m.content });
+      }
       continue;
     }
 
     const speakerIsActive =
       m.speakerParticipantId != null && m.speakerParticipantId === activeSpeakerParticipantId;
-    const toolCalls = parseToolCalls(m.toolCallsJson);
+    const toolCalls = parseToolCalls(m.toolCallsJson).filter(
+      (toolCall) => toolCall.function.name !== PERFORMANCE_GUIDANCE_TOOL_NAME,
+    );
     if (m.role === 'assistant' && toolCalls.length > 0) {
       if (!isGroup || speakerIsActive) {
         result.push({

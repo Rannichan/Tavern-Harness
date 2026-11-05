@@ -55,6 +55,8 @@ export interface AppSettings {
   isToolCallsEnabled: boolean;
   /** 自动批准工具执行确认（YOLO）；默认关闭。 */
   yoloMode: boolean;
+  /** 为所有对话请求启用“演出指导”工具；默认关闭。 */
+  nsfwMode: boolean;
   /** 隐藏对话中的思考与工具调用，仅保留消息正文；默认关闭。 */
   pureMode: boolean;
   statsResetTime: number | null;
@@ -140,6 +142,10 @@ export interface ChatSession {
   enableGreeting?: boolean;
   /** 群聊仅 @ 模式：玩家必须点名角色，角色未点名时自动把话题交还给玩家。 */
   mentionOnlyMode?: boolean;
+  /** 本会话的演出指导文本；空值使用系统默认文本。 */
+  performanceGuidance?: string;
+  /** /nsfw 已触发，下一条普通用户消息需要注入演出指导。 */
+  pendingPerformanceGuidance?: boolean;
   turnOrderMode: TurnOrderMode;
   /**
    * 会话专属沙箱工作目录名（含当前酒馆实例标识和会话 id）。
@@ -329,7 +335,7 @@ export interface ChatCompletionRequest {
   model: string;
   messages: NetworkMessage[];
   tools?: ChatCompletionTool[];
-  tool_choice?: string;
+  tool_choice?: string | { type: 'function'; function: { name: string } };
   temperature: number;
   top_p?: number;
   max_tokens?: number;

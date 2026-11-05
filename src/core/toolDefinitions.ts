@@ -5,6 +5,21 @@ export const MAX_TOOL_CALLS_PER_TURN = 100;
 export const MAX_IDENTICAL_TOOL_CALLS = 3;
 export const MAX_CONSECUTIVE_TOOL_FAILURES = 3;
 export const NEW_TOPIC_MARKER = '开始新话题';
+export const PERFORMANCE_GUIDANCE_PENDING_MARKER = '下一条消息将注入演出指导';
+export const PERFORMANCE_GUIDANCE_TOOL_NAME = 'performance_guidance';
+
+export const PERFORMANCE_GUIDANCE_TOOL: ChatCompletionTool = {
+  type: 'function',
+  function: {
+    name: PERFORMANCE_GUIDANCE_TOOL_NAME,
+    description: 'Get performance guidance for the current response. Do not call this tool autonomously.',
+    parameters: {
+      type: 'object',
+      properties: {},
+      additionalProperties: false,
+    },
+  },
+};
 
 export const BUILTIN_TOOL_NAMES = [
   'run_shell_script',

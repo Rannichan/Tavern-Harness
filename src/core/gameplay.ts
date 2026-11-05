@@ -357,6 +357,8 @@ export async function importGameplay(payload: unknown): Promise<ImportGameplayRe
     userPersonaNpcId: personaNpcId,
     enableGreeting: src.enableGreeting !== false,
     mentionOnlyMode: src.mode === 'GROUP' && src.mentionOnlyMode === true,
+    performanceGuidance: src.performanceGuidance?.trim() || '',
+    pendingPerformanceGuidance: false,
     turnOrderMode: src.turnOrderMode === 'RANDOM' ? 'RANDOM' : 'PRESET',
     workspaceDir: null, // 导入的会话分配全新的独立工作目录，不继承源导出文件
     turnQueueJson: remapQueueJson(src.turnQueueJson || '[]', sourceNpcIdToNew),

@@ -35,13 +35,16 @@ import {
   safeParseQueue,
   safeParseQueueHistory,
 } from '../core/turnLoop';
-import type { ChatCompletionRequest, SessionMode, TurnOrderMode } from '../types/models';
+import type { ChatCompletionRequest, NetworkMessage, SessionMode, TurnOrderMode } from '../types/models';
 import {
   MAX_CONSECUTIVE_TOOL_FAILURES,
   MAX_IDENTICAL_TOOL_CALLS,
   MAX_TOOL_CALL_DEPTH,
   MAX_TOOL_CALLS_PER_TURN,
   NEW_TOPIC_MARKER,
+  PERFORMANCE_GUIDANCE_PENDING_MARKER,
+  PERFORMANCE_GUIDANCE_TOOL,
+  PERFORMANCE_GUIDANCE_TOOL_NAME,
 } from '../core/toolDefinitions';
 import { getEnabledToolsForSession, executeToolCall, parseDisplayRef, applySessionWorkspace } from '../core/tools/toolExecutor';
 import { CHARACTER_BOOK_TOOL, hasUsableCharacterBook, injectCharacterBookToolContext, mergeCharacterBooks } from '../core/characterBook';
@@ -170,6 +173,7 @@ interface AppState {
     participantOrder?: number[];
     enableGreeting?: boolean;
     mentionOnlyMode?: boolean;
+    performanceGuidance?: string;
   }) => Promise<void>;
   resetSessionConversation: (sessionId: number) => Promise<void>;
   resolveConfirmation: (approved: boolean) => void;
@@ -624,6 +628,12 @@ export const useStore = create<AppState>((set, get) => ({
       get().addToast(translate('toast.busy'), 'error');
       return;
     }
+    const nsfwEnabled = get().settings?.nsfwMode === true;
+    if (!nsfwEnabled && attachments.length === 0 && text.trim() === '/nsfw') {
+      get().addToast(translate('toast.nsfwDisabled'), 'error');
+      return;
+    }
+
     if (session.mode === 'GROUP' && session.mentionOnlyMode) {
       const participants = await db.participants.where('sessionId').equals(sessionId).toArray();
       if (mentionedParticipantIds(text, participants, -1).length === 0) {
@@ -633,7 +643,7 @@ export const useStore = create<AppState>((set, get) => ({
     }
 
     // 魔法命令（有附件时不生效）
-    const cmd = parseMagicCommand(text, attachments.length > 0);
+    const cmd = parseMagicCommand(text, attachments.length > 0, session.mode, nsfwEnabled);
     if (cmd) {
       await handleMagicCommand(session, cmd.text);
       await get().refreshSessions();
@@ -669,7 +679,12 @@ export const useStore = create<AppState>((set, get) => ({
       rawResponseBody: null,
     };
     await db.messages.add(userMsg);
-    await db.sessions.update(sessionId, { updatedAt: Date.now(), lastMessage: sessionPreviewText(text) });
+    const forcePerformanceGuidance = nsfwEnabled && session.pendingPerformanceGuidance === true;
+    await db.sessions.update(sessionId, {
+      updatedAt: Date.now(),
+      lastMessage: sessionPreviewText(text),
+      ...(session.pendingPerformanceGuidance ? { pendingPerformanceGuidance: false } : {}),
+    });
     await get().loadMessages(sessionId);
     await get().refreshSessions();
 
@@ -688,11 +703,11 @@ export const useStore = create<AppState>((set, get) => ({
       // 边界时 queue 为全新完整顺序 → persistQueue 会把它追加进循环历史
       await persistQueue(sessionId, next, loopIndex, loopStarted);
       await get().refreshLiveQueue(sessionId);
-      await continueGroupConversation(sessionId);
+      await continueGroupConversation(sessionId, forcePerformanceGuidance);
       return;
     }
 
-    await runConversationLoop(session);
+    await runConversationLoop(session, forcePerformanceGuidance);
   },
 
   regenerateMessage: async (messageId) => {
@@ -824,6 +839,10 @@ export const useStore = create<AppState>((set, get) => ({
 
     const session = await db.sessions.get(sessionId);
     if (!session) return;
+    const forcePerformanceGuidance =
+      message.role === 'user' &&
+      get().settings?.nsfwMode === true &&
+      hasPerformanceGuidanceMarkerForUser(messages, message);
     if (session.mode === 'GROUP' && message.role === 'assistant') {
       // 群聊中编辑的是 NPC 的发言 → 重新生成该发言者的回复，
       // 并把该发言人重新置顶队列（联动发言队列：它还没轮完一轮时优先补发）。
@@ -872,13 +891,13 @@ export const useStore = create<AppState>((set, get) => ({
         turnQueueHistoryJson: queueHistoryJson(history.slice(0, targetLoop + 1)),
       });
       await get().refreshLiveQueue(sessionId);
-      const result = await continueGroupConversation(sessionId);
+      const result = await continueGroupConversation(sessionId, forcePerformanceGuidance);
       await restoreFailedUserEdit(result);
       await get().refreshSessions();
       return;
     }
 
-    const result = await runConversationLoop(session);
+    const result = await runConversationLoop(session, forcePerformanceGuidance);
     await restoreFailedUserEdit(result);
     await get().refreshSessions();
   },
@@ -1090,6 +1109,7 @@ export const useStore = create<AppState>((set, get) => ({
         userPersonaNpcId: opts.userPersonaNpcId ?? null,
         enableGreeting: opts.enableGreeting !== false,
         mentionOnlyMode: opts.mentionOnlyMode === true && finalNpcIds.length > 1,
+        performanceGuidance: opts.performanceGuidance?.trim() || '',
         turnOrderMode,
         ...(queueSettingsChanged ? {
           turnQueueJson: queueJson(queue),
@@ -1238,6 +1258,7 @@ export async function createSession(
     participantOrder?: number[];
     enableGreeting?: boolean;
     mentionOnlyMode?: boolean;
+    performanceGuidance?: string;
   }
 ): Promise<number> {
  let title = opts?.title;
@@ -1267,6 +1288,8 @@ export async function createSession(
    userPersonaNpcId: opts?.userPersonaNpcId ?? null,
    enableGreeting: opts?.enableGreeting !== false,
    mentionOnlyMode: opts?.mentionOnlyMode === true && mode === 'GROUP',
+   performanceGuidance: opts?.performanceGuidance?.trim() || '',
+   pendingPerformanceGuidance: false,
    turnOrderMode,
    workspaceDir: null,
    turnQueueJson: '[]',
@@ -1484,6 +1507,37 @@ async function handleMagicCommand(session: ChatSession, cmd: string): Promise<vo
     await db.messages.add(marker);
     await db.sessions.update(session.id!, { updatedAt: Date.now(), lastMessage: NEW_TOPIC_MARKER });
     await useStore.getState().loadMessages(session.id!);
+  } else if (cmd === '/nsfw') {
+    const marker: ChatMessage = {
+      sessionId: session.id!,
+      role: 'system',
+      speakerParticipantId: null,
+      speakerName: null,
+      content: PERFORMANCE_GUIDANCE_PENDING_MARKER,
+      toolCallsJson: '[]',
+      toolCallId: null,
+      thinkingContent: null,
+      loopIndex: session.mode === 'GROUP' ? currentLoopIndexOf(session) : null,
+      timestamp: Date.now(),
+      latencyMs: null,
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      tokensPerSec: null,
+      modelUsed: null,
+      attachments: [],
+      attachmentInfos: [],
+      displayRef: null,
+      rawRequestBody: null,
+      rawResponseBody: null,
+    };
+    await db.messages.add(marker);
+    await db.sessions.update(session.id!, {
+      pendingPerformanceGuidance: true,
+      updatedAt: marker.timestamp,
+      lastMessage: PERFORMANCE_GUIDANCE_PENDING_MARKER,
+    });
+    await useStore.getState().loadMessages(session.id!);
   } else if (cmd === '/pass') {
     // 魔法指令 /pass：将玩家移出队列，不修改任何对话历史
     if (session.mode === 'GROUP') {
@@ -1506,19 +1560,30 @@ async function handleMagicCommand(session: ChatSession, cmd: string): Promise<vo
   }
 }
 
+function hasPerformanceGuidanceMarkerForUser(messages: ChatMessage[], userMessage: ChatMessage): boolean {
+  const earlier = messages
+    .filter((message) => message.timestamp < userMessage.timestamp || (message.timestamp === userMessage.timestamp && message.id! < userMessage.id!))
+    .reverse();
+  const previousUserIndex = earlier.findIndex((message) => message.role === 'user');
+  const relevant = previousUserIndex < 0 ? earlier : earlier.slice(0, previousUserIndex);
+  return relevant.some(
+    (message) => message.role === 'system' && message.content === PERFORMANCE_GUIDANCE_PENDING_MARKER,
+  );
+}
+
 /** 对话主循环：NPC / STANDARD 直接回复；GROUP 依队列轮转。
  * 返回该轮生成结果（供「重新生成」失败回退判断）。 */
-async function runConversationLoop(session: ChatSession): Promise<TurnResult> {
+async function runConversationLoop(session: ChatSession, forcePerformanceGuidance = false): Promise<TurnResult> {
   if (session.mode === 'STANDARD') {
-    return streamAssistantTurn(session, null, null);
+    return streamAssistantTurn(session, null, null, undefined, null, forcePerformanceGuidance);
   } else if (session.mode === 'NPC') {
     const npc = session.associatedId ? await db.npcs.get(session.associatedId) : null;
     if (npc) {
-      return streamAssistantTurn(session, npc, session.associatedId);
+      return streamAssistantTurn(session, npc, session.associatedId, undefined, null, forcePerformanceGuidance);
     }
     return 'failed';
   } else if (session.mode === 'GROUP') {
-    return continueGroupConversation(session.id!);
+    return continueGroupConversation(session.id!, forcePerformanceGuidance);
   }
   return 'ok';
 }
@@ -1834,10 +1899,11 @@ async function streamAssistantTurn(
   participantId: number | null = null,
   participant?: ChatParticipant,
   turnLoopIndex: number | null = null,
+  forcePerformanceGuidance = false,
 ): Promise<TurnResult> {
   const sessionId = session.id!;
   try {
-    return await performAssistantTurn(session, npc, participantId, participant, turnLoopIndex);
+    return await performAssistantTurn(session, npc, participantId, participant, turnLoopIndex, forcePerformanceGuidance);
   } catch (error) {
     console.error('Assistant turn failed unexpectedly', error);
     useStore.getState().addToast(
@@ -1856,6 +1922,7 @@ async function performAssistantTurn(
   participantId: number | null = null,
   participant?: ChatParticipant,
   turnLoopIndex: number | null = null,
+  forcePerformanceGuidance = false,
 ): Promise<TurnResult> {
   const settings = useStore.getState().settings;
   if (!settings) return 'failed';
@@ -1890,6 +1957,9 @@ async function performAssistantTurn(
   let identicalToolCallCount = 0;
   let limitDeclined = false;
   let toolCancelled = false;
+  let ephemeralPerformanceGuidance: NetworkMessage[] = forcePerformanceGuidance
+    ? performanceGuidanceMessages(session)
+    : [];
   const resetToolBudgets = () => {
     depth = 0;
     toolCallCount = 0;
@@ -1981,15 +2051,22 @@ async function performAssistantTurn(
     const requestMessagesWithCharacterBook = knowledgeEnabled
       ? injectCharacterBookToolContext(nmessages, knowledgeBook)
       : nmessages;
+    const requestMessagesWithGuidance = ephemeralPerformanceGuidance.length > 0
+      ? [...requestMessagesWithCharacterBook, ...ephemeralPerformanceGuidance]
+      : requestMessagesWithCharacterBook;
 
     // 工具
     const tools = (await getEnabledToolsForSession(sessionId, activeParticipantId ?? null))
-      .filter((tool) => tool.function.name !== CHARACTER_BOOK_TOOL.function.name);
+      .filter((tool) =>
+        tool.function.name !== CHARACTER_BOOK_TOOL.function.name &&
+        tool.function.name !== PERFORMANCE_GUIDANCE_TOOL_NAME
+      );
     if (knowledgeEnabled) tools.push(CHARACTER_BOOK_TOOL);
+    if (useStore.getState().settings?.nsfwMode === true) tools.push(PERFORMANCE_GUIDANCE_TOOL);
 
     const request = buildChatRequest({
       model,
-      messages: requestMessagesWithCharacterBook,
+      messages: requestMessagesWithGuidance,
       tools: tools.length > 0 ? tools : undefined,
       temperature: settings.temperature,
       topP: settings.topP,
@@ -2177,11 +2254,18 @@ async function performAssistantTurn(
       ...tc,
       id: tc.id || `call-${Date.now()}-${i}`,
     }));
+    const performanceGuidanceCalls = finalToolCalls.filter(
+      (toolCall) => toolCall.name === PERFORMANCE_GUIDANCE_TOOL_NAME,
+    );
+    const persistedToolCalls = finalToolCalls.filter(
+      (toolCall) => toolCall.name !== PERFORMANCE_GUIDANCE_TOOL_NAME,
+    );
     const normalizedContent = trimEdgeNewlines(content);
     const isEmptyAssistantReply =
       !normalizedContent &&
       !thinking.trim() &&
-      finalToolCalls.length === 0;
+      persistedToolCalls.length === 0 &&
+      performanceGuidanceCalls.length === 0;
     if (isEmptyAssistantReply) {
       // 服务端正常结束但未产生内容时不能重试，否则不可用/错误配置的模型会
       // 无限创建空草稿并让界面持续自动跟随。结束本回合并明确提示用户。
@@ -2191,13 +2275,25 @@ async function performAssistantTurn(
       finishSessionActivity(sessionId);
       return 'failed';
     }
+    if (
+      performanceGuidanceCalls.length > 0 &&
+      persistedToolCalls.length === 0 &&
+      !normalizedContent &&
+      !thinking.trim()
+    ) {
+      ephemeralPerformanceGuidance = performanceGuidanceMessages(session, performanceGuidanceCalls);
+      await db.messages.delete(draftId);
+      await useStore.getState().loadMessages(sessionId);
+      depth++;
+      continue;
+    }
     produced = true;
 
     await db.messages.update(draftId, {
       content: normalizedContent,
       thinkingContent: thinking || null,
       toolCallsJson: JSON.stringify(
-        finalToolCalls.map((tc) => ({ id: tc.id, name: tc.name, argumentsJson: tc.argumentsJson, contentOffset: tc.contentOffset }))
+        persistedToolCalls.map((tc) => ({ id: tc.id, name: tc.name, argumentsJson: tc.argumentsJson, contentOffset: tc.contentOffset }))
       ),
       latencyMs: errorMsg ? null : latencyMs,
       promptTokens,
@@ -2233,7 +2329,7 @@ async function performAssistantTurn(
       ...contextTokens,
     });
 
-    if (finalToolCalls.length === 0 && session.mode !== 'GROUP') {
+    if (persistedToolCalls.length === 0 && performanceGuidanceCalls.length === 0 && session.mode !== 'GROUP') {
       scheduleContextCompression(sessionId, settings, baseUrl, apiKey, model);
     }
 
@@ -2242,8 +2338,11 @@ async function performAssistantTurn(
     }
 
     // ---- 工具调用处理（默认开启） ----
-    if (finalToolCalls.length > 0) {
-      for (const tc of finalToolCalls) {
+    if (performanceGuidanceCalls.length > 0) {
+      ephemeralPerformanceGuidance = performanceGuidanceMessages(session, performanceGuidanceCalls);
+    }
+    if (persistedToolCalls.length > 0) {
+      for (const tc of persistedToolCalls) {
         let result: string;
         const signature = toolCallSignature(tc.name, tc.argumentsJson);
         const nextIdenticalCount = signature === lastToolCallSignature ? identicalToolCallCount + 1 : 1;
@@ -2380,6 +2479,11 @@ async function performAssistantTurn(
       continue;
     }
 
+    if (performanceGuidanceCalls.length > 0) {
+      depth++;
+      continue;
+    }
+
     break; // 无工具调用则结束
   }
 
@@ -2389,6 +2493,31 @@ async function performAssistantTurn(
   // 用户主动停止 → 保留部分内容（不回退）；未产出任何回复 → 视为失败
   if (stopped || abortController.signal.aborted) return 'stopped';
   return produced ? 'ok' : 'failed';
+}
+
+function performanceGuidanceMessages(
+  session: ChatSession,
+  toolCalls: Array<{ id: string; argumentsJson: string }> = [{
+    id: `performance-guidance-${Date.now()}`,
+    argumentsJson: '{}',
+  }],
+): NetworkMessage[] {
+  return toolCalls.flatMap((toolCall) => [
+    {
+      role: 'assistant' as const,
+      content: null,
+      tool_calls: [{
+        id: toolCall.id,
+        type: 'function' as const,
+        function: { name: PERFORMANCE_GUIDANCE_TOOL_NAME, arguments: toolCall.argumentsJson || '{}' },
+      }],
+    },
+    {
+      role: 'tool' as const,
+      tool_call_id: toolCall.id,
+      content: session.performanceGuidance?.trim() || translate('tool.performanceGuidanceDefault'),
+    },
+  ]);
 }
 
 function finishSessionActivity(sessionId: number) {
@@ -2508,7 +2637,7 @@ function assistantRoundDelta(
 
 /** 群聊主循环：持续从队列取发言者。
  * 返回整段循环的结果：任一回合成败决定整体结果（供「重新生成」失败回退判断）。 */
-async function continueGroupConversation(sessionId: number): Promise<TurnResult> {
+async function continueGroupConversation(sessionId: number, forcePerformanceGuidance = false): Promise<TurnResult> {
   groupLoopStopped = false;
   let guard = 0;
   let failed = false;
@@ -2547,7 +2676,8 @@ async function continueGroupConversation(sessionId: number): Promise<TurnResult>
       continue;
     }
     // 先不推进队列：让流式发言期间队列首位 = 正在发言的角色（面板实时高亮）
-    const turnResult = await streamAssistantTurn(session, npc, nextId, next, loopIndex);
+    const turnResult = await streamAssistantTurn(session, npc, nextId, next, loopIndex, forcePerformanceGuidance);
+    forcePerformanceGuidance = false;
     if (turnResult === 'failed') {
       failed = true;
       break;

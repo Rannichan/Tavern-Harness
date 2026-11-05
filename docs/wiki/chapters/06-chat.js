@@ -25,7 +25,7 @@ window.WIKI.chapters.push({
     <ul class="plain">
       <li><code>Enter</code> 发送 · <code>Shift+Enter</code> 换行。</li>
       <li>附件：点击 / 粘贴（剪贴板图片）/ 多选，支持图片与视频，随消息一起发送。</li>
-      <li>魔法命令：<code>/new</code> 开始新话题（截断上下文）；群聊另有 <code>/pass</code> 跳过本轮发言（不修改历史）。群聊还支持 <code>@角色名</code> 点名，输入自动补全。</li>
+      <li>魔法命令：<code>/new</code> 开始新话题（截断上下文）；群聊另有 <code>/pass</code> 跳过本轮发言（不修改历史）；开启设置页的 NSFW 模式后，<code>/nsfw</code> 会让下一条普通用户消息注入一轮“演出指导”工具调用；关闭时该命令不会显示或生效。演出指导文本可在“编辑对话”中配置，留空时使用默认文本。输入框只提示并补全当前会话支持的命令。群聊还支持 <code>@角色名</code> 点名，输入自动补全。</li>
       <li>流式生成时发送键变为<b>停止生成</b>；中断后已生成部分自动落库。</li>
     </ul>
 

@@ -6,7 +6,8 @@ import { Avatar, Icon, Markdown, Collapse, Modal, AttachCard } from './shared';
 import { FileDisplayViewButton, parseStoredDisplayRef } from './FileDisplayModal';
 import { formatMetrics } from '../core/stats';
 import { saveTextFile } from '../core/fileDownload';
-import { effectiveDisplayQueue, speakerLabel, suggestMagicCommands } from '../core/turnLoop';
+import { effectiveDisplayQueue, speakerLabel, suggestMagicCommands, supportedMagicCommandTexts } from '../core/turnLoop';
+import { PERFORMANCE_GUIDANCE_PENDING_MARKER } from '../core/toolDefinitions';
 import { onChatScroll, onQueueScroll, onQueueScrollIntent, registerChatEl, registerQueueEl, scrollChatTo, scrollQueueToLoop } from '../core/linkedScroll';
 import { useT, translate } from '../core/i18n';
 import { escapeRegExp, prettyJson, trimEdgeNewlines } from '../core/strings';
@@ -29,7 +30,12 @@ function displayUserPersonaPlaceholder(content: string, userPersonaName: string 
   return userPersonaName ? content.replace(/\{\{\s*user\s*\}\}/gi, userPersonaName) : content;
 }
 
-function renderComposerRichNodes(text: string, names: string[]): ReactNode[] {
+function renderComposerRichNodes(
+  text: string,
+  names: string[],
+  mode?: ChatSession['mode'],
+  nsfwEnabled = true,
+): ReactNode[] {
   if (!text) return [];
   const mentionRe =
     names.length > 0
@@ -41,10 +47,10 @@ function renderComposerRichNodes(text: string, names: string[]): ReactNode[] {
       hits.push({ start: m.index ?? 0, end: (m.index ?? 0) + m[0].length, cls: 'mention mention-live' });
     }
   }
-  // 行首魔法指令前缀（/new /pass 及它们的前缀）也用高亮颜色
+  // 行首魔法指令及其前缀也用高亮颜色
   const cmdMatch = /^(\/[A-Za-z]*)/.exec(text);
   const cmdTok = cmdMatch ? cmdMatch[1] : '';
-  if (cmdTok && suggestMagicCommands(cmdTok).length > 0) {
+  if (cmdTok && suggestMagicCommands(cmdTok, mode, nsfwEnabled).length > 0) {
     hits.push({ start: 0, end: cmdTok.length, cls: 'cmd-live' });
   }
   if (hits.length === 0) return [];
@@ -434,7 +440,11 @@ function MessageBubble({
   const longPressProps = useMessageLongPress(msg, session);
   // System 消息（/new 标记）
   if (msg.role === 'system') {
-    const content = msg.content === '开始新话题' ? t('chat.newTopicMarker') : msg.content;
+    const content = msg.content === '开始新话题'
+      ? t('chat.newTopicMarker')
+      : msg.content === PERFORMANCE_GUIDANCE_PENDING_MARKER
+        ? t('chat.nsfwPendingMarker')
+        : msg.content;
     return (
       <div className="sys-banner fade-up" data-loop={loopIndex ?? undefined}>⟐ {content}</div>
     );
@@ -798,10 +808,14 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
   const providers = useStore((s) => s.providers);
   const defaultModel = useStore((s) => s.settings?.defaultModel?.trim() || '');
   const defaultProviderId = useStore((s) => s.settings?.defaultProviderId ?? null);
+  const nsfwEnabled = useStore((s) => s.settings?.nsfwMode === true);
   const modelLabelRef = useRef<HTMLSpanElement>(null);
   const [isModelLabelTruncated, setIsModelLabelTruncated] = useState(false);
   const displayedModelName = defaultModel ? displayModelName(providers, defaultModel, defaultProviderId) : t('chat.chooseModel');
   const composerPlaceholder = session?.mode === 'GROUP' ? t('chat.phGroup') : t('chat.phSingle');
+  const magicCommandHint = session
+    ? t('chat.hintMagicCommands', { commands: supportedMagicCommandTexts(session.mode, nsfwEnabled).join(' · ') })
+    : '';
 
   useLayoutEffect(() => {
     const label = modelLabelRef.current;
@@ -855,8 +869,8 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
     return groupMembers.filter((n) => !q || n.toLowerCase().includes(q));
   }, [showMention, mentionQuery, groupMembers, session?.mode]);
   const composerRichNodes = useMemo(
-    () => renderComposerRichNodes(text, session?.mode === 'GROUP' ? groupMembers : []),
-    [session?.mode, text, groupMembers]
+    () => renderComposerRichNodes(text, session?.mode === 'GROUP' ? groupMembers : [], session?.mode, nsfwEnabled),
+    [session?.mode, text, groupMembers, nsfwEnabled]
   );
   const [activeMentionIdx, setActiveMentionIdx] = useState(0);
   const cmdRef = useRef<HTMLDivElement>(null);
@@ -955,7 +969,10 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
   }, [activeCmdIdx, showCmd]);
 
   // 输入区 / 魔法指令自动补全候选 + 键盘选中项（列表缩短时自动收敛）
-  const cmdCandidates = useMemo(() => suggestMagicCommands(text), [text]);
+  const cmdCandidates = useMemo(
+    () => suggestMagicCommands(text, session?.mode, nsfwEnabled),
+    [text, session?.mode, nsfwEnabled],
+  );
   const cmdIdx = Math.min(activeCmdIdx, Math.max(0, cmdCandidates.length - 1));
 
   const applyCommand = (cmd: string) => {
@@ -1173,7 +1190,7 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
       </div>
       <div className="composer-hint">
         <span>{t('chat.hintSend')}</span>
-        <span className="composer-hint-right">{t('chat.hintMagic')}{session?.mode === 'GROUP' ? t('chat.hintMention') : ''}</span>
+        <span className="composer-hint-right">{magicCommandHint}{session?.mode === 'GROUP' ? t('chat.hintMention') : ''}</span>
       </div>
     </div>
   );

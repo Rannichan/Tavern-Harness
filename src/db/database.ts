@@ -683,6 +683,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   isThinkingModeEnabled: true,
   isToolCallsEnabled: true,
   yoloMode: false,
+  nsfwMode: false,
   pureMode: false,
   statsResetTime: null,
 };
@@ -729,6 +730,9 @@ export async function initDatabase(): Promise<void> {
     }
     if (settings && settings.yoloMode === undefined) {
       await db.settings.update(1, { yoloMode: false });
+    }
+    if (settings && settings.nsfwMode === undefined) {
+      await db.settings.update(1, { nsfwMode: false });
     }
     if (settings && settings.pureMode === undefined) {
       await db.settings.update(1, { pureMode: false });

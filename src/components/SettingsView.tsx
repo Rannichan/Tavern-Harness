@@ -134,6 +134,22 @@ export const SettingsView = memo(function SettingsView() {
           </div>
           <div className="set-row settings-tool-row">
             <div>
+              <div className="s-label" id="nsfw-mode-label">{t('settings.nsfwMode')}</div>
+              <div className="s-desc" id="nsfw-mode-desc">{t('settings.nsfwModeDesc')}</div>
+            </div>
+            <label className="switch">
+              <input
+                type="checkbox"
+                aria-labelledby="nsfw-mode-label"
+                aria-describedby="nsfw-mode-desc"
+                checked={settings.nsfwMode === true}
+                onChange={(e) => setSettings({ nsfwMode: e.target.checked })}
+              />
+              <span className="switch-slider" />
+            </label>
+          </div>
+          <div className="set-row settings-tool-row">
+            <div>
               <div className="s-label" id="pure-mode-label">{t('settings.pureMode')}</div>
               <div className="s-desc" id="pure-mode-desc">{t('settings.pureModeDesc')}</div>
             </div>

@@ -3,7 +3,7 @@ import { translate } from './i18n';
 import { escapeRegExp } from './strings';
 
 // ============================================================
-// 魔数命令（与 App 一致：/new 与 /pass）
+// 魔法命令
 // ============================================================
 
 interface MagicCommand {
@@ -11,27 +11,46 @@ interface MagicCommand {
   description: string;
 }
 
+export interface ParsedMagicCommand {
+  text: string;
+}
+
 const MAGIC_COMMANDS: MagicCommand[] = [
   { text: '/new', description: '' },
   { text: '/pass', description: '' },
+  { text: '/nsfw', description: '' },
 ];
+
+export function supportedMagicCommandTexts(mode: ChatSession['mode'], nsfwEnabled = true): string[] {
+  const commands = mode === 'GROUP' ? ['/new', '/pass'] : ['/new'];
+  return nsfwEnabled ? [...commands, '/nsfw'] : commands;
+}
 
 /** 获取命令描述（每次读取当前语言） */
 function commandDescription(text: string): string {
-  return text === '/new' ? translate('chat.cmdNew') : translate('chat.cmdPass');
+  if (text === '/new') return translate('chat.cmdNew');
+  if (text === '/pass') return translate('chat.cmdPass');
+  return translate('chat.cmdNsfw');
 }
 
-/** 精确匹配 /new 或 /pass（有附件时不生效） */
-export function parseMagicCommand(text: string, hasAttachments: boolean): { text: string } | null {
+/** 精确匹配当前会话支持的魔法命令（有附件时不生效）。 */
+export function parseMagicCommand(
+  text: string,
+  hasAttachments: boolean,
+  mode?: ChatSession['mode'],
+  nsfwEnabled = true,
+): ParsedMagicCommand | null {
   if (hasAttachments) return null;
   const trimmed = text.trim();
-  const cmd = MAGIC_COMMANDS.find((c) => c.text === trimmed);
+  const supported = mode ? supportedMagicCommandTexts(mode, nsfwEnabled) : MAGIC_COMMANDS.map((command) => command.text);
+  const cmd = MAGIC_COMMANDS.find((candidate) => candidate.text === trimmed && supported.includes(candidate.text));
   return cmd ? { text: cmd.text } : null;
 }
 
-export function suggestMagicCommands(input: string): MagicCommand[] {
+export function suggestMagicCommands(input: string, mode?: ChatSession['mode'], nsfwEnabled = true): MagicCommand[] {
   if (!input.startsWith('/') || input.includes('\n')) return [];
-  return MAGIC_COMMANDS.filter((c) => c.text.startsWith(input)).map((c) => ({
+  const supported = mode ? supportedMagicCommandTexts(mode, nsfwEnabled) : MAGIC_COMMANDS.map((command) => command.text);
+  return MAGIC_COMMANDS.filter((c) => supported.includes(c.text) && c.text.startsWith(input)).map((c) => ({
     text: c.text,
     description: commandDescription(c.text),
   }));

@@ -7,8 +7,12 @@ import type {
   McpTool,
   ToolConfirmationRequest,
 } from '../../types/models';
-import { BUILTIN_TOOL_NAMES } from '../toolDefinitions';
+import {
+  BUILTIN_TOOL_NAMES,
+  PERFORMANCE_GUIDANCE_TOOL_NAME,
+} from '../toolDefinitions';
 import { unlockAchievement } from '../achievements';
+import { translate } from '../i18n';
 import { rollDice } from './builtinTools';
 import {
   createSessionWorkspaceDir,
@@ -25,7 +29,8 @@ import {
 
 type ToolRoute = 'NATIVE' | 'STANDARD' | 'BLOCKED';
 
-function routeFor(tool: McpTool | null): ToolRoute {
+function routeFor(tool: McpTool | null, toolName: string): ToolRoute {
+  if (toolName === PERFORMANCE_GUIDANCE_TOOL_NAME) return 'NATIVE';
   // 生成式技能（非内置）永远不可进入原生路由，即使重用内置名字
   if (tool && !tool.isBuiltIn) return 'STANDARD';
   if (tool && (BUILTIN_TOOL_NAMES as readonly string[]).includes(tool.name)) return 'NATIVE';
@@ -52,7 +57,7 @@ export async function executeToolCall(
 ): Promise<string> {
   const tool = await db.tools.where('name').equals(toolName).first();
   const mcpTool = tool ?? null;
-  const route = routeFor(mcpTool);
+  const route = routeFor(mcpTool, toolName);
 
   let args: Record<string, unknown> = {};
   try {
@@ -115,6 +120,10 @@ async function runNativeTool(
   ctx: ToolExecutionContext
 ): Promise<string> {
   switch (toolName) {
+    case PERFORMANCE_GUIDANCE_TOOL_NAME: {
+      const session = await db.sessions.get(ctx.sessionId);
+      return session?.performanceGuidance?.trim() || translate('tool.performanceGuidanceDefault');
+    }
     case 'roll_dice': {
       const expr = String(args.expression ?? '');
       if (!expr) return 'ERROR: Missing expression';
