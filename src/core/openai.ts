@@ -7,6 +7,7 @@ import type {
 import { fallbackToolCallId } from './turnLoop';
 import { isNetworkLikeError, toProxyUrl } from './proxy';
 import { translate } from './i18n';
+import { isBailianTokenPlanUrl } from './bailianTokenPlan';
 
 /**
  * 仅限制首次连接：手机通过局域网打开应用时，Provider 若只在内网 / 本机可达，
@@ -461,12 +462,45 @@ request.frequency_penalty = Math.round(p.frequencyPenalty * 100) / 100;
   const thinkingEnabled = p.isThinkingModeEnabled && effort !== 'off';
   const modelKey = p.model.toLowerCase();
   const urlKey = p.baseUrl.toLowerCase();
+  const isTokenPlan = isBailianTokenPlanUrl(p.baseUrl);
   // DeepSeek 官方接口（含经本地代理转发的官方地址）使用新的 thinking/reasoning_effort 字段；
   // 其他 OpenAI 兼容供应商仍沿用 enable_thinking，避免影响 SiliconFlow 等托管的 DeepSeek。
   const isDeepSeek = /deepseek\.com/.test(urlKey)
     || /^deepseek-(?:flash|v4-pro)(?:$|[-/:])/.test(modelKey);
   const supportsThinking = /deepseek|qwen|qwq|r1|siliconflow|dashscope|ollama|vllm/.test(modelKey + ' ' + urlKey);
-  if (isDeepSeek) {
+  if (isTokenPlan) {
+    // Model Studio uses top-level fields, which differ from DeepSeek's own
+    // API and from the chat_template_kwargs used by self-hosted Qwen.
+    const isQwen = /^qwen/.test(modelKey);
+    const isBailianDeepSeek = /^deepseek-/.test(modelKey);
+    const isGlm = /^glm-/.test(modelKey);
+    const isGlm53 = /^glm-5\.3(?:$|[-/])/.test(modelKey);
+    if (isQwen || isBailianDeepSeek || (isGlm && !isGlm53)) {
+      request.enable_thinking = thinkingEnabled;
+    }
+    // History is intentionally sent without old thinking by this app.
+    if (/^qwen3\.[678]/.test(modelKey)) request.preserve_thinking = false;
+    if (/^glm-5\.[23](?:$|[-/])/.test(modelKey)) request.clear_thinking = true;
+    if (thinkingEnabled && effort !== 'auto') {
+      if (isBailianDeepSeek || isGlm53) {
+        const noLow = /^deepseek-v4-pro$/.test(modelKey);
+        request.reasoning_effort = effort === 'xhigh' ? 'max' : effort === 'medium' || noLow ? 'high' : 'low';
+      } else if (/^qwen3\.8/.test(modelKey) || isGlm) {
+        request.reasoning_effort = effort;
+      }
+    }
+    if (isBailianDeepSeek) {
+      // These parameters are not supported by Model Studio's DeepSeek V4.
+      delete request.top_k;
+      delete request.repetition_penalty;
+      delete request.presence_penalty;
+      delete request.frequency_penalty;
+    }
+    if (isGlm53) {
+      delete request.top_k;
+      delete request.repetition_penalty;
+    }
+  } else if (isDeepSeek) {
     request.thinking = { type: thinkingEnabled ? 'enabled' : 'disabled' };
     if (thinkingEnabled) {
       // auto 不传，使用服务端默认值 high；off 已由 thinking.type=disabled 表达。
@@ -481,13 +515,13 @@ request.frequency_penalty = Math.round(p.frequencyPenalty * 100) / 100;
       request.enable_thinking = thinkingEnabled;
     }
   }
-  if (!isDeepSeek && /qwen/.test(modelKey)) {
+  if (!isTokenPlan && !isDeepSeek && /qwen/.test(modelKey)) {
     request.chat_template_kwargs = { enable_thinking: thinkingEnabled, preserve_thinking: true };
   }
   // DeepSeek 思考模式要求所有回传的 assistant 消息携带 reasoning_content（含
   // 历史工具调用与知识库注入的合成工具调用）；没有原始思考内容时补空字符串。
   // 参考：https://api-docs.deepseek.com/guides/thinking_mode
-  if (thinkingEnabled && isDeepSeek) {
+  if (!isTokenPlan && thinkingEnabled && isDeepSeek) {
     request.messages = request.messages.map((message) =>
       message.role === 'assistant' && message.reasoning_content === undefined
         ? { ...message, reasoning_content: '' }
@@ -498,6 +532,7 @@ request.frequency_penalty = Math.round(p.frequencyPenalty * 100) / 100;
   if (p.tools && p.tools.length > 0) {
     request.tools = p.tools;
     request.tool_choice = 'auto';
+    if (isTokenPlan && p.streaming && /^glm-5\.2(?:$|[-/])/.test(modelKey)) request.tool_stream = true;
   }
 
   return request;

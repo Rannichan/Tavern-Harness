@@ -87,6 +87,54 @@ function attachmentName(a: string): string {
   return attach;
 }
 
+let playingSpeech: HTMLAudioElement | null = null;
+
+function SpeechPlayer({ msg }: { msg: ChatMessage }) {
+  const t = useT();
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const pending = useStore((state) => msg.id != null && state.speechPendingMessageIds[msg.id] === true);
+  const autoPlay = useStore((state) => msg.id != null && state.speechAutoPlayMessageId === msg.id);
+  const speech = msg.speechAudio;
+  const safeAudio = typeof speech?.dataUrl === 'string' && /^data:audio\/[a-z0-9.+-]+;base64,/i.test(speech.dataUrl);
+
+  useEffect(() => {
+    if (!autoPlay || !safeAudio || !audioRef.current) return;
+    try { void audioRef.current.play().catch(() => {}); } catch { /* Playback may require a user gesture. */ }
+    useStore.setState((state) => state.speechAutoPlayMessageId === msg.id ? { speechAutoPlayMessageId: null } : {});
+  }, [autoPlay, safeAudio, msg.id]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    return () => {
+      if (audio && playingSpeech === audio) {
+        audio.pause();
+        playingSpeech = null;
+      }
+    };
+  }, [speech?.dataUrl]);
+
+  if (!safeAudio || !speech) return pending ? <div className="speech-pending">{t('chat.speechGenerating')}</div> : null;
+  return (
+    <div className="speech-player">
+      <div className="speech-caption">{t('chat.speechCaption', { text: speech.text })}</div>
+      <audio
+        ref={audioRef}
+        controls
+        preload="none"
+        src={speech.dataUrl}
+        aria-label={t('chat.speechPlayback')}
+        onPlay={(event) => {
+          const audio = event.currentTarget;
+          if (playingSpeech && playingSpeech !== audio) playingSpeech.pause();
+          playingSpeech = audio;
+        }}
+        onPause={(event) => { if (playingSpeech === event.currentTarget) playingSpeech = null; }}
+        onEnded={(event) => { if (playingSpeech === event.currentTarget) playingSpeech = null; }}
+      />
+    </div>
+  );
+}
+
 // ============================================================
 // 聊天内容区
 // ============================================================
@@ -566,6 +614,7 @@ function MessageBubble({
             <div className="bubble-text">
               {displayContent ? <Markdown text={displayContent} mentionNames={mentionNames} /> : streaming && <span className="stream-cursor" />}
             </div>
+            <SpeechPlayer msg={msg} />
           </div>
         )}
         {msg.interrupted && !streaming && (

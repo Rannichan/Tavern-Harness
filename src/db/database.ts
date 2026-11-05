@@ -685,6 +685,11 @@ export const DEFAULT_SETTINGS: AppSettings = {
   yoloMode: false,
   nsfwMode: false,
   pureMode: false,
+  speechEnabled: false,
+  speechProviderId: null,
+  speechModel: '',
+  speechVoice: '',
+  speechAutoPlay: true,
   statsResetTime: null,
 };
 

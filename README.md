@@ -76,8 +76,19 @@ npm run dev      # Defaults to port 5173 and automatically tries the next port i
 After starting the app, open **Settings → Model Service Provider**:
 
 1. **Add a provider**: enter a name, Base URL, and API Key. Any OpenAI-compatible `chat/completions` API is supported, including OpenAI, DeepSeek, Qwen, SiliconFlow, Ollama, LM Studio, and self-hosted vLLM.
-2. **Test the connection**: the app fetches the model list automatically. If the target service does not expose CORS headers, requests are forwarded through the built-in same-origin proxy for private-network or LAN addresses. On success, the Base URL is rewritten to its proxy form and saved.
+2. **Test the connection**: the app fetches the model list. If the browser cannot connect directly, it tries the built-in same-origin proxy; the original Base URL remains in the settings.
 3. **Select a model**: click the model name at the top of the chat page, then return to the conversation and start chatting.
+
+### Use Bailian Token Plan Personal
+
+1. Subscribe and create a personal Token Plan API key (starting with `sk-sp-`) using the [Bailian quick start](https://help.aliyun.com/zh/model-studio/token-plan-personal-quick-start). Pay-as-you-go and Coding Plan keys are separate.
+2. Under **Settings → Model Providers**, choose **Add Bailian Token Plan Personal**, enter your key, and select **Fetch models**. Text and speech models are listed separately. Enable the text models you want, save, and choose a default text model. If the model-list endpoint is unavailable, use the presets or add IDs from the [official model list](https://help.aliyun.com/zh/model-studio/token-plan-personal-overview).
+3. To use voice, turn on **Key dialogue voices**, choose a provider, speech model and voice, then save. The Bailian preset uses `qwen-audio-3.0-tts-plus` and `longanlingxin` by default. OpenAI-compatible `/audio/speech` services can also be configured.
+4. During chat, the current text model makes an additional decision about whether a reply contains a key line worth voicing; only an exact excerpt is sent for synthesis. Both calls may consume credits. Audio is stored locally with the message for replay; automatic playback depends on browser permissions.
+
+The key is stored on the Tavern Harness host and shared by browsers using the same instance; conversations and selected lines are sent to their configured model services. See the [official terms and model list](https://help.aliyun.com/zh/model-studio/token-plan-personal-overview) for permitted use and data handling. Bailian voice uses the [Token Plan speech API](https://help.aliyun.com/zh/model-studio/token-plan-speech-synthesis), not the separately billed Harness benefits.
+
+For OpenAI's own service, `tts-1`, `tts-1-hd`, and `gpt-4o-mini-tts` are scheduled to shut down on January 6, 2027. This integration uses `/audio/speech` and does not yet implement the Realtime API; see the [official OpenAI documentation](https://developers.openai.com/api/docs/guides/text-to-speech).
 
 ### Import a Gameplay and Start Playing
 

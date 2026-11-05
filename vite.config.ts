@@ -71,52 +71,50 @@ function lanAddressPlugin(): Plugin {
  * /api/<host>/ 之后的路径（含 query）原样转发到目标服务。
  */
 function corsProxyPlugin(): Plugin {
-  return {
-    name: 'cors-proxy',
-    configureServer(server) {
-      server.middlewares.use((req: IncomingMessage, res: ServerResponse, next) => {
-        const url = req.url || '';
-        const m = /^\/api\/([^/]+)(\/[^?]*)?(\?.*)?$/.exec(url);
-        if (!m) return next();
+  const registerMiddleware = (server: ViteDevServer | PreviewServer) => {
+    server.middlewares.use((req: IncomingMessage, res: ServerResponse, next) => {
+      const url = req.url || '';
+      const m = /^\/api\/([^/]+)(\/[^?]*)?(\?.*)?$/.exec(url);
+      if (!m) return next();
 
-        const rawHost = m[1]; // e.g. 192.168.50.175:8788 or https
-        const path = (m[2] || '') + (m[3] || '');
-        const isHttps = rawHost === 'https';
-        const host = isHttps ? (m[2] || '').split('/')[1] : rawHost;
-        const forwardedPath = isHttps
-          ? `/${(m[2] || '').split('/').slice(2).join('/')}${m[3] || ''}`
-          : path;
-        const [hostname, portStr] = host.split(':');
-        const port = portStr ? parseInt(portStr, 10) : isHttps ? 443 : 80;
+      const rawHost = m[1]; // e.g. 192.168.50.175:8788 or https
+      const path = (m[2] || '') + (m[3] || '');
+      const isHttps = rawHost === 'https';
+      const host = isHttps ? (m[2] || '').split('/')[1] : rawHost;
+      const forwardedPath = isHttps
+        ? `/${(m[2] || '').split('/').slice(2).join('/')}${m[3] || ''}`
+        : path;
+      const [hostname, portStr] = host.split(':');
+      const port = portStr ? parseInt(portStr, 10) : isHttps ? 443 : 80;
 
-        const mod = isHttps ? https : http;
-        const forwardedHeaders: Record<string, string | string[] | undefined> = {
-          ...(req.headers as Record<string, string | string[] | undefined>),
-          host: host,
-        };
+      const mod = isHttps ? https : http;
+      const forwardedHeaders: Record<string, string | string[] | undefined> = {
+        ...(req.headers as Record<string, string | string[] | undefined>),
+        host: host,
+      };
 
-        const proxyReq = mod.request(
-          {
-            protocol: isHttps ? 'https:' : 'http:',
-            hostname,
-            port,
-            path: forwardedPath,
-            method: req.method,
-            headers: forwardedHeaders,
-          },
-          (proxyRes) => {
-            res.writeHead(proxyRes.statusCode || 502, proxyRes.headers);
-            proxyRes.pipe(res);
-          }
-        );
-        proxyReq.on('error', (e: Error) => {
-          res.writeHead(502, { 'Content-Type': 'text/plain' });
-          res.end(`proxy error: ${e.message}`);
-        });
-        req.pipe(proxyReq);
+      const proxyReq = mod.request(
+        {
+          protocol: isHttps ? 'https:' : 'http:',
+          hostname,
+          port,
+          path: forwardedPath,
+          method: req.method,
+          headers: forwardedHeaders,
+        },
+        (proxyRes) => {
+          res.writeHead(proxyRes.statusCode || 502, proxyRes.headers);
+          proxyRes.pipe(res);
+        }
+      );
+      proxyReq.on('error', (e: Error) => {
+        res.writeHead(502, { 'Content-Type': 'text/plain' });
+        res.end(`proxy error: ${e.message}`);
       });
-    },
+      req.pipe(proxyReq);
+    });
   };
+  return { name: 'cors-proxy', configureServer: registerMiddleware, configurePreviewServer: registerMiddleware };
 }
 
 /**

@@ -59,6 +59,12 @@ export interface AppSettings {
   nsfwMode: boolean;
   /** 隐藏对话中的思考与工具调用，仅保留消息正文；默认关闭。 */
   pureMode: boolean;
+  /** 由当前文本模型判断是否为关键台词生成语音；默认关闭。 */
+  speechEnabled?: boolean;
+  speechProviderId?: number | null;
+  speechModel?: string;
+  speechVoice?: string;
+  speechAutoPlay?: boolean;
   statsResetTime: number | null;
 }
 
@@ -69,6 +75,8 @@ export interface ApiProvider {
   apiKey: string;
   isEnabled: boolean;
   cachedModelsCsv: string;
+  /** 通过模型列表发现的语音合成模型，与聊天模型分开保存。 */
+  cachedSpeechModelsCsv?: string;
   /** JSON object mapping API model IDs to user-facing aliases. */
   modelAliasesJson?: string;
   /** JSON array of model IDs enabled for use. Missing values keep legacy models enabled. */
@@ -190,6 +198,14 @@ export interface ChatAttachmentInfo {
   displayName: string;
 }
 
+export interface SpeechAudio {
+  text: string;
+  model: string;
+  voice: string;
+  /** 生成后立即下载到本地主机，避免服务端临时链接失效。 */
+  dataUrl: string;
+}
+
 export interface ChatMessage {
   id?: number;
   sessionId: number;
@@ -219,6 +235,8 @@ export interface ChatMessage {
   /** dataUrl 或 URL 的附件列表 */
   attachments: string[];
   attachmentInfos: ChatAttachmentInfo[];
+  /** 可重播的关键台词音频，不作为附件发回文本模型。 */
+  speechAudio?: SpeechAudio | null;
   /**
    * 展示类工具（file_display）的结果锚点：JSON 字符串化的 DisplayFileRef。
    * 工具结果消息携带它，UI 据此渲染「查看」按钮并提供弹窗回看。
@@ -342,6 +360,9 @@ export interface ChatCompletionRequest {
   stream: boolean;
   stream_options?: { include_usage: boolean };
   enable_thinking?: boolean;
+  preserve_thinking?: boolean;
+  clear_thinking?: boolean;
+  tool_stream?: boolean;
   /** DeepSeek 新版 OpenAI 兼容接口的思考开关。 */
   thinking?: { type: 'enabled' | 'disabled' };
   reasoning_effort?: string;
