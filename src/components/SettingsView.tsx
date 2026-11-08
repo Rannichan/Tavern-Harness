@@ -434,6 +434,7 @@ function ProviderManager({ providers, onChanged }: { providers: ApiProvider[]; o
   const t = useT();
   const [editing, setEditing] = useState<ApiProvider | null>(null);
   const [pendingDelete, setPendingDelete] = useState<ApiProvider | null>(null);
+  const orderedProviders = [...providers].sort((a, b) => b.createdAt - a.createdAt);
 
   const toggleEnabled = async (p: ApiProvider) => {
     await db.providers.update(p.id!, { isEnabled: !p.isEnabled });
@@ -449,10 +450,18 @@ function ProviderManager({ providers, onChanged }: { providers: ApiProvider[]; o
 
   return (
     <div className="set-section">
-      <h3>{t('settings.providerTitle')}</h3>
+      <div className="settings-section-head">
+        <h3>{t('settings.providerTitle')}</h3>
+        <button
+          className="btn btn-sm settings-gen-reset"
+          onClick={() => setEditing({ name: '', baseUrl: '', apiKey: '', isEnabled: true, cachedModelsCsv: '', modelAliasesJson: '{}', createdAt: Date.now() })}
+        >
+          <Icon name="plus" size={13} /> {t('settings.addProvider')}
+        </button>
+      </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {providers.length === 0 && <div className="typo-body-sm text-muted">{t('settings.noProvider')}</div>}
-        {providers.map((p) => {
+        {orderedProviders.map((p) => {
           const aliases = modelAliases(p);
           const enabledModels = enabledModelIds(p);
           const visibleModels = p.cachedModelsCsv.split(',').map((model) => model.trim()).filter((model) => enabledModels.has(model));
@@ -483,9 +492,6 @@ function ProviderManager({ providers, onChanged }: { providers: ApiProvider[]; o
             </div>
           );
         })}
-        <button className="btn" style={{ alignSelf: 'flex-start' }} onClick={() => setEditing({ name: '', baseUrl: '', apiKey: '', isEnabled: true, cachedModelsCsv: '', modelAliasesJson: '{}', createdAt: Date.now() })}>
-          <Icon name="plus" size={13} /> {t('settings.addProvider')}
-        </button>
       </div>
 
       {editing && (
