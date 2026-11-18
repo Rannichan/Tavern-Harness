@@ -15,6 +15,8 @@ import { VersionHistoryModal } from './VersionHistoryModal';
 // 设置视图（模型服务 / 超参数 / 主题）
 // ============================================================
 
+type SettingsTab = 'api' | 'model' | 'general';
+
 export const SettingsView = memo(function SettingsView() {
   const settings = useStore((s) => s.settings);
   const setSettings = useStore((s) => s.setSettings);
@@ -24,6 +26,7 @@ export const SettingsView = memo(function SettingsView() {
   const refreshProviders = useStore((s) => s.refreshProviders);
   const voiceProviders = useStore((s) => s.voiceProviders);
   const refreshVoiceProviders = useStore((s) => s.refreshVoiceProviders);
+  const [tab, setTab] = useState<SettingsTab>('api');
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
@@ -107,18 +110,32 @@ export const SettingsView = memo(function SettingsView() {
     addToast(t('toast.genParamsReset'));
   };
   return (
-    <div className="view-page">
+    <div className="view-page settings-page">
       <div className="view-col">
         <div>
           <h2 className="view-title">{t('settings.title')}</h2>
           <p className="view-sub">{t('settings.sub')}</p>
         </div>
 
-        {/* 模型服务 Provider（置顶） */}
-        <ProviderManager providers={providers} onChanged={refreshProviders} />
-        <VoiceProviderManager providers={voiceProviders} onChanged={refreshVoiceProviders} />
+        <div className="side-nav" data-hscroll role="tablist" aria-label={t('settings.title')}>
+          <button type="button" role="tab" aria-selected={tab === 'api'} className={`nav-chip ${tab === 'api' ? 'active' : ''}`} onClick={() => setTab('api')}>
+            {t('settings.tabApi')}
+          </button>
+          <button type="button" role="tab" aria-selected={tab === 'model'} className={`nav-chip ${tab === 'model' ? 'active' : ''}`} onClick={() => setTab('model')}>
+            {t('settings.tabModel')}
+          </button>
+          <button type="button" role="tab" aria-selected={tab === 'general'} className={`nav-chip ${tab === 'general' ? 'active' : ''}`} onClick={() => setTab('general')}>
+            {t('settings.tabGeneral')}
+          </button>
+        </div>
 
-        <div className="set-section">
+        <div className="settings-tab-panel" data-active={tab === 'api' ? 'true' : 'false'} role="tabpanel">
+          <ProviderManager providers={providers} onChanged={refreshProviders} />
+          <VoiceProviderManager providers={voiceProviders} onChanged={refreshVoiceProviders} />
+        </div>
+
+        <div className="settings-tab-panel" data-active={tab === 'model' ? 'true' : 'false'} role="tabpanel">
+          <div className="set-section">
           <h3>{t('settings.toolExecution')}</h3>
           <div className="set-row settings-tool-row">
             <div>
@@ -278,9 +295,10 @@ export const SettingsView = memo(function SettingsView() {
               </tr>
             </tbody>
           </table>
+          </div>
         </div>
 
-        <div className="set-grid">
+        <div className="settings-tab-panel" data-active={tab === 'general' ? 'true' : 'false'} role="tabpanel">
           {/* 界面语言 */}
           <div className="set-section">
             <h3>{t('settings.language')}</h3>
@@ -311,7 +329,6 @@ export const SettingsView = memo(function SettingsView() {
               <option value="dark">{t('settings.dark')}</option>
             </select>
           </div>
-        </div>
 
         <div className="set-section settings-about-section">
           <div>
@@ -335,6 +352,7 @@ export const SettingsView = memo(function SettingsView() {
           <button className="btn btn-danger settings-reset-button" onClick={() => setShowResetConfirm(true)}>
             <Icon name="refresh" size={14} /> {t('settings.resetBtn')}
           </button>
+        </div>
         </div>
       </div>
 

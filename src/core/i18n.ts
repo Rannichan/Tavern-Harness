@@ -203,6 +203,9 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
     // ---- 设置 ----
     'settings.title': '设置',
     'settings.sub': '模型 API 配置、超参数与主题',
+    'settings.tabApi': 'API 配置',
+    'settings.tabModel': '模型参数',
+    'settings.tabGeneral': '通用设置',
     'settings.toolExecution': '🛠️ 工具执行',
     'settings.pureMode': '纯净模式',
     'settings.pureModeDesc': '仅影响前端展示：隐藏对话中的思考和工具调用；没有正文的消息会一并隐藏，不影响实际思考和工具调用。',
@@ -774,6 +777,9 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
 
     'settings.title': '設定',
     'settings.sub': '模型 API 設定、超參數與主題',
+    'settings.tabApi': 'API 設定',
+    'settings.tabModel': '模型參數',
+    'settings.tabGeneral': '通用設定',
     'settings.toolExecution': '🛠️ 工具執行',
     'settings.pureMode': '純淨模式',
     'settings.pureModeDesc': '僅影響前端顯示：隱藏對話中的思考和工具呼叫；沒有正文的訊息會一併隱藏，不影響實際思考和工具呼叫。',
@@ -1336,6 +1342,9 @@ const MESSAGES: Record<LangKey, Record<string, string>> = {
 
     'settings.title': 'Settings',
     'settings.sub': 'Model API config, hyperparameters and theme',
+    'settings.tabApi': 'API Configuration',
+    'settings.tabModel': 'Model parameters',
+    'settings.tabGeneral': 'General',
     'settings.toolExecution': '🛠️ Tool execution',
     'settings.pureMode': 'Pure mode',
     'settings.pureModeDesc': 'Front-end display only: hide reasoning and tool calls in chats; messages without body content are hidden too. Actual reasoning and tool calls still run.',

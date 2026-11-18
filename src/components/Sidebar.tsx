@@ -325,12 +325,12 @@ export function Sidebar() {
           <button className={`nav-chip ${activeView === 'characters' ? 'active' : ''}`} onClick={() => { setActiveView('characters'); setMobileOpen(false); }}>
             <Icon name="users" size={15} /> <span>{t('nav.characters')}</span>
           </button>
-          <button className={`nav-chip ${activeView === 'stats' ? 'active' : ''}`} onClick={() => { setActiveView('stats'); setMobileOpen(false); }}>
-            <Icon name="trophy" size={15} /> <span>{t('nav.achievements')}</span>
-          </button>
           <button className={`nav-chip ${activeView === 'settings' ? 'active' : ''}`} onClick={() => { setActiveView('settings'); setMobileOpen(false); }}>
             <Icon name="settings" size={15} /> <span>{t('nav.settings')}</span>
             {hasUnseenVersion && <span className="unseen-dot" title={t('changelog.unseen')} />}
+          </button>
+          <button className={`nav-chip ${activeView === 'stats' ? 'active' : ''}`} onClick={() => { setActiveView('stats'); setMobileOpen(false); }}>
+            <Icon name="trophy" size={15} /> <span>{t('nav.achievements')}</span>
           </button>
         </nav>
       </div>
@@ -369,12 +369,12 @@ export function Sidebar() {
           <button className={`nav-chip ${activeView === 'characters' ? 'active' : ''}`} onClick={() => setActiveView('characters')}>
             <Icon name="users" size={13} /> {t('nav.characters')}
           </button>
-          <button className={`nav-chip ${activeView === 'stats' ? 'active' : ''}`} onClick={() => setActiveView('stats')}>
-            <Icon name="trophy" size={13} /> {t('nav.achievements')}
-          </button>
           <button className={`nav-chip ${activeView === 'settings' ? 'active' : ''}`} onClick={() => setActiveView('settings')}>
             <Icon name="settings" size={13} /> {t('nav.settings')}
             {hasUnseenVersion && <span className="unseen-dot" title={t('changelog.unseen')} />}
+          </button>
+          <button className={`nav-chip ${activeView === 'stats' ? 'active' : ''}`} onClick={() => setActiveView('stats')}>
+            <Icon name="trophy" size={13} /> {t('nav.achievements')}
           </button>
         </div>
       </div>

@@ -312,7 +312,8 @@
   overflow-y: auto;
   padding: 22px 28px;
 }
-.workshop-page {
+.workshop-page,
+.settings-page {
   /* Safari 尚未稳定支持 scrollbar-gutter；始终保留纵向滚动条槽，
      防止切换内容高度不同的 Tab 时居中的标题和导航横向跳动。 */
   overflow-y: scroll;
@@ -637,10 +638,13 @@
 }
 
 /* ---------- 设置分组 ---------- */
-.set-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+.settings-tab-panel {
+  display: flex;
+  flex-direction: column;
   gap: 16px;
+}
+.settings-tab-panel[data-active='false'] {
+  display: none;
 }
 .set-section {
   border: 1px solid var(--border);
@@ -1478,7 +1482,8 @@
     padding: 16px 12px;
   }
 
-  .workshop-page {
+  .workshop-page,
+  .settings-page {
     scrollbar-gutter: auto;
   }
 
