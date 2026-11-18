@@ -912,13 +912,10 @@
   padding: 2px 8px;
   border-radius: 999px;
 }
-.p-status.voice {
+.p-status.voice,
+.p-status.text {
   color: var(--text-accent);
   background: var(--primary-soft);
-}
-.p-status.text {
-  color: var(--text-thinking);
-  background: color-mix(in srgb, var(--think) 12%, transparent);
 }
 
 .provider-card.disabled {
