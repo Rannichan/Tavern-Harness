@@ -1,6 +1,6 @@
 /* ============================================================
    Tavern Harness — 全局样式（酒馆主题）
-   设计语言：暖色木质 + 渐变色玻璃 + 微妙纹理
+   设计语言：暖色木质 + 纯色悬浮卡片 + 清晰层级
    ============================================================ */
 
 :root {
@@ -208,20 +208,39 @@ body {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.03 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
-::-webkit-scrollbar {
-  width: 9px;
-  height: 9px;
+/* 原生滚动条完全隐藏：改用 autoHideScrollbars.ts 绘制的悬浮细条，
+   既不占布局宽度，也能在静止后自动淡出。 */
+* {
+  scrollbar-width: none;
 }
-::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 8px;
-  border: 2px solid transparent;
-  background-clip: content-box;
+*::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
-::-webkit-scrollbar-thumb:hover {
-  background: var(--text-faint);
-  border: 2px solid transparent;
-  background-clip: content-box;
+.th-scrollbar-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 9500;
+  overflow: hidden;
+  pointer-events: none;
+}
+.th-scrollbar-thumb {
+  position: absolute;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-muted) 62%, transparent);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  will-change: top, left, width, height;
+}
+.th-scrollbar-thumb.is-visible {
+  opacity: 1;
+}
+.th-scrollbar-thumb--v {
+  width: 6px;
+}
+.th-scrollbar-thumb--h {
+  height: 6px;
 }
 
 button {
@@ -369,8 +388,10 @@ html.wechat-android .model-option-name {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: var(--sidebar-w, 356px) 1fr;
+  grid-template-columns: var(--sidebar-w, 356px) minmax(0, 1fr);
+  gap: 14px;
   height: 100dvh;
+  padding: 14px;
 }
 
 /* ---------- 侧边栏 ---------- */
@@ -383,31 +404,48 @@ html.wechat-android .model-option-name {
      会把整个侧边栏撑高、把底部搜索框挤出屏幕；必须显式允许收缩 */
   min-height: 0;
   overflow: hidden;
-  border-right: 1px solid var(--border);
-  /* 侧边栏保持不透明：透出背景噪点会让会话列表文字对比变弱，
-     纯 surface 底色更干净、文字更清晰。 */
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
   background: var(--surface);
+  box-shadow: var(--shadow-shell);
 }
-/* 拖拽手柄 */
+/* 拖拽手柄：固定定位在两张卡片之间的 14px 间隙中央。
+   之所以用 fixed，是因为 .sidebar 有 overflow: hidden，绝对定位的
+   手柄会被圆角裁掉；fixed 相对视口定位还能避开裁剪。 */
 .sidebar-resizer {
-  position: absolute;
-  top: 0;
-  right: -4px;
-  width: 8px;
-  height: 100%;
+  position: fixed;
+  top: 14px;
+  left: calc(var(--sidebar-w, 356px) + 16px);
+  width: 10px;
+  height: calc(100dvh - 28px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: col-resize;
+  touch-action: none;
   z-index: 30;
-  transition: background 0.15s;
 }
-.sidebar-resizer:hover {
-  background: color-mix(in srgb, var(--primary) 30%, transparent);
+/* 小竖条本体：默认低调，悬停 / 拖拽时点亮并略微伸长 */
+.sidebar-resizer::before {
+  content: '';
+  width: 4px;
+  height: 56px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-faint) 55%, transparent);
+  transition: background 0.18s ease, width 0.18s ease, height 0.18s ease;
+}
+.sidebar-resizer:hover::before {
+  background: var(--primary);
+  height: 76px;
+}
+body.resizing .sidebar-resizer::before {
+  width: 5px;
+  height: 76px;
+  background: var(--primary);
 }
 body.resizing {
   cursor: col-resize;
   user-select: none;
-}
-body.resizing .sidebar-resizer {
-  background: color-mix(in srgb, var(--primary) 45%, transparent);
 }
 .sidebar-head {
   padding: 14px 14px 10px;
@@ -460,7 +498,7 @@ body.resizing .sidebar-resizer {
   width: 38px;
   height: 38px;
   border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, var(--grad-from), var(--grad-to) 88%);
+  background: var(--grad-from);
   display: grid;
   place-items: center;
   color: #fff;
@@ -1012,12 +1050,13 @@ body.resizing .sidebar-resizer {
 }
 .select {
   appearance: none;
+  /* 自绘箭头：距右边框留出约 14px，避免按钮贴在边框上 */
   background-image: linear-gradient(45deg, transparent 50%, var(--text-dim) 50%),
     linear-gradient(135deg, var(--text-dim) 50%, transparent 50%);
-  background-position: calc(100% - 16px) 55%, calc(100% - 11px) 55%;
+  background-position: calc(100% - 20px) 55%, calc(100% - 15px) 55%;
   background-size: 5px 5px;
   background-repeat: no-repeat;
-  padding-right: 28px;
+  padding-right: 32px;
   cursor: pointer;
 }
 .check {
@@ -1059,11 +1098,14 @@ body.resizing .sidebar-resizer {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  height: 100dvh;
+  min-height: 0;
+  height: 100%;
   position: relative;
-  /* 与侧边栏一致：实色底，不再叠 backdrop-filter。半透明磨砂在这里
-     实际看不出差别，反而多一层合成开销。 */
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
   background: var(--surface);
+  box-shadow: var(--shadow-shell);
 }
 
 /* 右侧所有 Tab 共用同一块主区域实色底。 */
@@ -1290,8 +1332,11 @@ body.resizing .sidebar-resizer {
 .dash-hero::before {
   content: '';
   position: absolute;
-  inset: -40% -20%;
-  background: radial-gradient(ellipse at 50% -20%, color-mix(in srgb, var(--glow) 42%, transparent), transparent 65%);
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 4px;
+  background: var(--primary);
   pointer-events: none;
 }
 .dash-hero h1 {
@@ -1310,7 +1355,7 @@ body.resizing .sidebar-resizer {
   white-space: pre-line;
   line-height: 1.7;
 }
-/* 欢迎语中的强调句：衬线 + 琥珀渐变 + 微放大，克制而醒目 */
+/* 欢迎语中的强调句：衬线 + 品牌色 + 微放大，克制而醒目 */
 .dash-hero-accent {
   display: block;
   margin-top: 6px;
@@ -1319,17 +1364,6 @@ body.resizing .sidebar-resizer {
   font-weight: var(--font-weight-semibold);
   letter-spacing: 0.3px;
   color: var(--text-accent);
-  background: linear-gradient(
-    100deg,
-    color-mix(in srgb, var(--primary) 88%, #fff) 0%,
-    var(--primary) 42%,
-    color-mix(in srgb, var(--primary) 70%, #ffd9a8) 100%
-  );
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  color: var(--text-accent);
-  filter: drop-shadow(0 1px 0 color-mix(in srgb, var(--bg) 40%, transparent));
 }
 .dash-hero .actions {
   position: relative;
@@ -1475,7 +1509,7 @@ body.resizing .sidebar-resizer {
   flex: 1;
   max-width: 120px;
   height: 1px;
-  background: linear-gradient(to right, var(--border), transparent);
+  background: var(--border);
 }
 
 /* ---------- 彩色首字母（低饱和度暖色调，与暖核桃木夜风格统一） ---------- */
@@ -1571,7 +1605,7 @@ body.resizing .sidebar-resizer {
   place-items: center;
   font-size: calc(var(--font-size-display) * 2);
   border-radius: 50%;
-  background: linear-gradient(160deg, #ffe9a8, #f5c24d 55%, #d99a2b);
+  background: #f5c24d;
   box-shadow:
     0 0 0 6px rgba(255, 233, 168, 0.25),
     0 0 0 12px rgba(255, 233, 168, 0.12),
@@ -1587,7 +1621,7 @@ body.resizing .sidebar-resizer {
   position: absolute;
   inset: -34px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 210, 110, 0.55), transparent 62%);
+  background: rgba(255, 210, 110, 0.22);
   animation: trophyGlow 2.2s ease-in-out infinite;
 }
 @keyframes trophyIn {
@@ -1776,6 +1810,7 @@ hr.sep {
     left: 0;
     right: 0;
     display: block;
+    padding: 0;
     /* 默认等于布局视口；键盘收起、Edge 底部工具栏尚未归位时，
        mobileViewport.ts 会写入 --app-height 先按最终高度排版。 */
     height: var(--app-height, 100%);
@@ -1786,6 +1821,9 @@ hr.sep {
     height: calc(100% - var(--mobile-topbar-h) - env(safe-area-inset-top));
     min-height: 0;
     margin-top: calc(var(--mobile-topbar-h) + env(safe-area-inset-top));
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
   }
 
   .chat-main-row {
@@ -1918,6 +1956,8 @@ hr.sep {
     height: calc(var(--app-height, 100%) - var(--mobile-topbar-h) - env(safe-area-inset-top));
     transform: translateX(-105%);
     transition: transform 0.2s ease;
+    border-left: 0;
+    border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
     box-shadow: var(--shadow-lg);
   }
 

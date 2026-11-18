@@ -130,6 +130,7 @@ export function applyTheme(mode: ThemeMode): void {
 
     '--shadow': is('0 1px 2px rgba(60,40,10,0.05), 0 4px 16px rgba(60,40,10,0.10)', '0 2px 10px rgba(0,0,0,0.35), 0 8px 30px rgba(0,0,0,0.45)'),
     '--shadow-lg': is('0 2px 4px rgba(60,40,10,0.06), 0 16px 44px rgba(60,40,10,0.16)', '0 8px 24px rgba(0,0,0,0.5), 0 24px 70px rgba(0,0,0,0.65)'),
+    '--shadow-shell': is('0 1px 3px rgba(60,40,10,0.10), 0 3px 7px -2px rgba(60,40,10,0.14)', '0 1px 3px rgba(0,0,0,0.38), 0 3px 7px -2px rgba(0,0,0,0.48)'),
   };
 
   Object.entries(vars).forEach(([k, v]) => root.style.setProperty(k, v));

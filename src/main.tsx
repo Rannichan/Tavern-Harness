@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import App from './App';
 import { applyThemeFromCache } from './theme/theme';
 import { enableHorizontalWheel } from './core/horizontalWheel';
+import { installAutoHideScrollbars } from './core/autoHideScrollbars';
 import { initMobileViewport } from './core/mobileViewport';
 import { installWeChatTouchSelectionGuard } from './core/wechatTouch';
 import './theme/global.css';
@@ -16,6 +17,8 @@ try {
   installWeChatTouchSelectionGuard();
   // 全局：支持 .side-nav 等横向滚动容器响应鼠标滚轮（垂直 → 水平）
   enableHorizontalWheel();
+  // 全局：原生滚动条隐藏，改为滚动时出现的悬浮细条
+  installAutoHideScrollbars();
 } catch (error) {
   // 非核心的浏览器增强失败不能阻止应用及其初始化错误界面出现。
   console.error('Failed to configure Tavern Harness browser enhancements', error);

@@ -314,10 +314,9 @@
 }
 .workshop-page,
 .settings-page {
-  /* Safari 尚未稳定支持 scrollbar-gutter；始终保留纵向滚动条槽，
-     防止切换内容高度不同的 Tab 时居中的标题和导航横向跳动。 */
+  /* 始终保留纵向滚动能力：原生滚动条已被隐藏（见 global.css），
+     不会占用宽度，因此内容高度变化时标题也不会横向跳动。 */
   overflow-y: scroll;
-  scrollbar-gutter: stable;
 }
 .view-col {
   max-width: 900px;
@@ -654,8 +653,7 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  box-shadow: var(--shadow);
-  transition: border-color 0.32s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: border-color 0.32s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .set-section:hover {
   border-color: color-mix(in srgb, var(--primary) 24%, transparent);
@@ -731,12 +729,6 @@
   opacity: 1;
   border-color: color-mix(in srgb, var(--primary) 45%, transparent);
   background: color-mix(in srgb, var(--primary-soft) 55%, var(--surface));
-  box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--primary) 14%, transparent),
-    inset 0 0 12px color-mix(in srgb, var(--glow) 22%, transparent),
-    0 0 0 1px color-mix(in srgb, var(--primary) 22%, transparent),
-    0 0 8px color-mix(in srgb, var(--glow) 40%, transparent),
-    0 0 16px color-mix(in srgb, var(--glow) 18%, transparent);
 }
 .ach-card-head {
   display: flex;
@@ -1482,11 +1474,6 @@
     padding: 16px 12px;
   }
 
-  .workshop-page,
-  .settings-page {
-    scrollbar-gutter: auto;
-  }
-
   .view-col {
     gap: 14px;
   }
@@ -1782,9 +1769,7 @@
   overflow: hidden;
   display: grid;
   place-items: center;
-  background:
-    radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--border) 55%, transparent) 1px, transparent 0) 0 0 / 22px 22px,
-    var(--surface-2);
+  background: var(--surface-2);
   user-select: none;
   touch-action: none;
 }
