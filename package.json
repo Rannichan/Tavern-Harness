@@ -1,6 +1,6 @@
 {
   "name": "tavern-harness",
-  "version": "0.1.32",
+  "version": "0.1.33",
   "description": "Tavern Harness — 酒馆模式下的本地 AI Agent 助手（MyAgent-Android 的 Web 复刻）",
   "private": false,
   "type": "module",
@@ -15,6 +15,7 @@
     "vite.config.ts",
     "sandbox-server.mjs",
     "persistence-server.mjs",
+    "voice-server.mjs",
     "tsconfig.json",
     "README.md",
     "CHANGELOG.md"
@@ -41,6 +42,8 @@
     "changelog:build": "node scripts/changelog.mjs build",
     "changelog:check": "node scripts/changelog.mjs check",
     "changelog:check:release": "node scripts/changelog.mjs check --release",
+    "check:package": "node scripts/check-package-files.mjs",
+    "prepack": "npm run check:package",
     "prepublishOnly": "npm run build && npm run changelog:check:release"
   },
   "dependencies": {

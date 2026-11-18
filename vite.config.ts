@@ -17,6 +17,40 @@ const projectRoot = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(join(projectRoot, 'package.json'), 'utf8')) as { version: string };
 
 /**
+ * 子进程统一登记：持久化服务、沙箱服务共用同一个进程退出监听。
+ * 以前每次 spawn 都 process.once('exit', ...)，子进程反复拉起时监听器只增不减，
+ * 累计 11 个就会触发 MaxListenersExceededWarning（持久化服务启动失败时尤其明显）。
+ */
+interface ChildProcessRegistry {
+  children: Set<ChildProcess>;
+  exitHookInstalled: boolean;
+}
+
+const globalWithChildRegistry = globalThis as typeof globalThis & {
+  __tavernChildRegistry?: ChildProcessRegistry;
+};
+const childRegistry = (globalWithChildRegistry.__tavernChildRegistry ??= {
+  children: new Set<ChildProcess>(),
+  exitHookInstalled: false,
+});
+
+function trackChildProcess(child: ChildProcess): void {
+  childRegistry.children.add(child);
+  child.once('exit', () => childRegistry.children.delete(child));
+  if (childRegistry.exitHookInstalled) return;
+  childRegistry.exitHookInstalled = true;
+  process.once('exit', () => {
+    for (const tracked of childRegistry.children) {
+      try {
+        tracked.kill();
+      } catch {
+        /* ignore */
+      }
+    }
+  });
+}
+
+/**
  * 浏览器同源校验：Origin 必须存在且与请求的 Host 一致；`Sec-Fetch-Site` 若存在
  * 必须是 same-origin（部分手机浏览器访问局域网地址时不发 fetch metadata，
  * 所以不能强制要求这个头）。
@@ -188,9 +222,15 @@ function persistenceProxyPlugin(): Plugin {
         childPort = port;
         const child = spawn(process.execPath, [persistenceScript, String(port)], {
           cwd: projectRoot,
-          stdio: 'ignore',
+          // stdout 交给服务自己保持安静；stderr 透传，启动失败时能在终端直接看到原因
+          stdio: ['ignore', 'ignore', 'inherit'],
           windowsHide: true,
-          env: { ...process.env, PERSISTENCE_SERVICE_TOKEN: serviceToken },
+          env: {
+            ...process.env,
+            PERSISTENCE_SERVICE_TOKEN: serviceToken,
+            // node:sqlite 在 Node 22 会打印 ExperimentalWarning；这是预期用法，不需要打扰用户
+            NODE_NO_WARNINGS: '1',
+          },
         });
         persistenceChild = child;
         child.on('exit', () => {
@@ -199,7 +239,7 @@ function persistenceProxyPlugin(): Plugin {
             childPort = null;
           }
         });
-        process.once('exit', () => child.kill());
+        trackChildProcess(child);
         for (let attempt = 0; attempt < 30; attempt++) {
           await new Promise((resolve) => setTimeout(resolve, 100));
           if (await serviceReady(port)) return port;
@@ -433,7 +473,8 @@ function sandboxProxyPlugin(): Plugin {
         childPort = availablePort;
         const child = spawn(process.execPath, [SANDBOX_SCRIPT, String(availablePort)], {
           cwd: projectRoot,
-          stdio: 'ignore',
+          // stdout 保持安静；stderr 透传，方便定位沙箱服务启动失败
+          stdio: ['ignore', 'ignore', 'inherit'],
           windowsHide: true,
           env: {
             ...process.env,
@@ -448,13 +489,7 @@ function sandboxProxyPlugin(): Plugin {
           childPort = null;
         });
         child.unref();
-        process.once('exit', () => {
-          try {
-            child.kill();
-          } catch {
-            /* ignore */
-          }
-        });
+        trackChildProcess(child);
       }
       if (!sandboxChild) return null;
       // 3) 等待就绪（最多 3s）

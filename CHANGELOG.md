@@ -3,6 +3,32 @@
 > 本文件由 `scripts/changelog.mjs` 从 `changelog/v*.md` 生成，请勿手动编辑。
 > 版本对比链接见文末；源文件位于仓库 `changelog/` 目录。
 
+## [0.1.33] - 2026-11-18
+
+### 中文
+
+#### 修复
+
+- 修复 0.1.32 的 npm 包遗漏 `voice-server.mjs`、导致本地持久化服务无法启动、对话数据无法加载与保存的问题
+- 持久化与沙箱子进程反复拉起时不再重复注册进程退出监听，消除启动时的 `MaxListenersExceededWarning`
+- 子进程的错误输出会显示在终端，本地服务启动失败时不再静默
+
+#### 内部
+
+- 新增发布内容校验：`npm pack` / `npm publish` 前会检查 `files` 白名单是否覆盖所有运行时相对导入
+
+### English
+
+#### Fixed
+
+- Fixed the 0.1.32 npm package missing `voice-server.mjs`, which prevented the local persistence service from starting and blocked loading or saving conversations
+- Stopped re-registering process exit listeners whenever the persistence or sandbox child process is relaunched, removing the startup `MaxListenersExceededWarning`
+- Child-process errors now appear in the terminal instead of failing silently
+
+#### Internal
+
+- Added a publish-content check that verifies the `files` allowlist covers every runtime relative import before `npm pack` / `npm publish`
+
 ## [0.1.32] - 2026-11-18
 
 ### 中文
@@ -956,6 +982,7 @@
 - Vite + React + Zustand + Dexie stack with browser-side local persistence
 
 <!-- 链接定义 -->
+[0.1.33]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.32...v0.1.33
 [0.1.32]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.31...v0.1.32
 [0.1.31]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.30...v0.1.31
 [0.1.30]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.29...v0.1.30
