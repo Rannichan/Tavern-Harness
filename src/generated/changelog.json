@@ -1,7 +1,67 @@
 {
-  "latest": "0.1.31",
+  "latest": "0.1.32",
   "repo": "https://github.com/Rannichan/Tavern-Harness",
   "entries": [
+    {
+      "version": "0.1.32",
+      "date": "2026-11-18",
+      "breaking": false,
+      "compare": "v0.1.31...v0.1.32",
+      "groups": {
+        "zh-CN": [
+          {
+            "kind": "added",
+            "items": [
+              "语音服务供应商：设置页新增「🔊 语音服务供应商」分区，支持 DeepSeek（海星 · 女声、暗潮 · 男声）与百炼 Token Plan（龙安灵心、龙安陆风）。填写 API Key 即可保存，保存前还能在表单里试听音色；可以添加多个供应商，并随时启用、停用、编辑或删除",
+              "朗读助手消息：在助手消息的「更多」菜单中选择「朗读消息」，就会用默认音色朗读这条回复",
+              "自动朗读：对话标题栏新增朗读开关，开启后每条助手回复生成完毕会自动朗读，关闭后恢复静音",
+              "默认音色：在「语音服务供应商」下方选择默认的供应商与音色，手动朗读和自动朗读都会使用它；没有配置时会提示先选择"
+            ]
+          },
+          {
+            "kind": "changed",
+            "items": [
+              "设置页的供应商列表改为按添加时间倒序排列，新添加的供应商显示在最上方；「添加供应商」按钮移到分区标题右侧，列表为空时也始终可见",
+              "文本供应商与语音供应商的卡片分别显示「文本」「语音」标签，并统一了两类标签的配色，一眼就能区分服务类型",
+              "文本与语音供应商的 API Key 输入框都增加了显示 / 隐藏按钮，方便核对已填写的密钥",
+              "语音合成请求由本地持久化服务代理转发，API Key 只保存在本地数据库，不会直接出现在发往第三方的浏览器请求里"
+            ]
+          },
+          {
+            "kind": "internal",
+            "items": [
+              "新增 `voice-server.mjs`，对百炼返回的音频地址做 HTTPS 与域名校验；补充语音、持久化与供应商相关的测试"
+            ]
+          }
+        ],
+        "en": [
+          {
+            "kind": "added",
+            "items": [
+              "**Voice service providers**: Settings now has a **🔊 Voice Service Providers** section supporting DeepSeek (Stella · female, Tide · male) and Bailian Token Plan (Longan Lingxin, Longan Lufeng). Enter an API key to save a provider, and preview each voice right in the form before saving. You can add several providers and enable, disable, edit, or delete them at any time",
+              "**Read message aloud**: choose **Read message aloud** from an assistant message's More menu to hear that reply in the default voice",
+              "**Automatic reading**: the conversation header has a new reading toggle. When it is on, every completed assistant reply is read aloud automatically; turn it off to go silent",
+              "**Default voice**: pick the default provider and voice below the voice providers section; both manual and automatic reading use it. If nothing is configured, the app prompts you to choose one first"
+            ]
+          },
+          {
+            "kind": "changed",
+            "items": [
+              "The provider list in Settings is now sorted newest first, so freshly added providers appear at the top; the **Add provider** button moved next to the section heading and is always visible, even when the list is empty",
+              "Text and voice provider cards now carry **Text** and **Voice** tags with a unified color scheme, making the service type obvious at a glance",
+              "API key fields for both text and voice providers gained a show/hide button so you can check what you entered",
+              "Voice synthesis requests are proxied through the local persistence service, so the API key stays in the local database and never appears in browser requests to third parties"
+            ]
+          },
+          {
+            "kind": "internal",
+            "items": [
+              "Added `voice-server.mjs` to validate Bailian audio URLs against HTTPS and an allowlisted domain pattern, plus tests for voice, persistence, and provider behavior"
+            ]
+          }
+        ]
+      }
+    },
     {
       "version": "0.1.31",
       "date": "2026-11-05",
