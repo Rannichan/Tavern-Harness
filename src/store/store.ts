@@ -4,6 +4,7 @@ import {
   type ApiProvider,
   type AppSettings,
   type ProviderModelOption,
+  type VoiceProvider,
   enabledModelIds,
   modelAliases,
   ChatMessage,
@@ -63,6 +64,7 @@ import { estimateTokensFromChars, accumulateStats, preloadCareerStats, sessionPr
 import { seedOpeningGreeting } from '../core/openingGreeting';
 import { ACHIEVEMENTS, type AchievementDef } from '../core/achievements';
 import { npcFingerprint, sameRows, toolFingerprint, worldBookFingerprint } from '../core/rowFingerprint';
+import { activeVoiceProvider, speakText } from '../core/voice';
 
 // ============================================================
 // Store（对应 MainViewModel）
@@ -108,6 +110,7 @@ interface AppState {
   readOnly: boolean;
   settings: AppSettings | null;
   providers: ApiProvider[];
+  voiceProviders: VoiceProvider[];
   npcs: NpcCharacter[];
   sessions: ChatSession[];
   worldBooks: WorldBook[];
@@ -187,6 +190,8 @@ interface AppState {
   refreshWorldBooks: () => Promise<void>;
   refreshTools: () => Promise<void>;
   refreshProviders: () => Promise<void>;
+  refreshVoiceProviders: () => Promise<void>;
+  speakMessage: (text: string) => Promise<void>;
   refreshAchievements: () => Promise<void>;
   loadMessages: (sessionId: number) => Promise<void>;
   /** 重新加载当前活动会话的参与者（语言切换后刷新内置角色显示名） */
@@ -228,6 +233,7 @@ async function initializeDeferredData(readOnly: boolean): Promise<void> {
     }
     await Promise.all([
       useStore.getState().refreshProviders(),
+      useStore.getState().refreshVoiceProviders(),
       useStore.getState().refreshAchievements(),
       preloadCareerStats(),
     ]);
@@ -311,6 +317,7 @@ export const useStore = create<AppState>((set, get) => ({
   readOnly: false,
   settings: null,
   providers: [],
+  voiceProviders: [],
   npcs: [],
   sessions: [],
   worldBooks: [],
@@ -354,6 +361,7 @@ export const useStore = create<AppState>((set, get) => ({
         const settings = { ...serverSettings, ...browserPreferences };
         setLanguage(settings.language);
         const providers = snapshot.collections.providers.map((record) => record.value);
+        const voiceProviders = (snapshot.collections.voiceProviders ?? []).map((record) => record.value);
         const npcs = sortNpcs(snapshot.collections.npcs.map((record) => record.value));
         const sessions = sortSessionsPinnedFirst(snapshot.collections.sessions.map((record) => record.value));
         const worldBooks = sortWorldBooks(snapshot.collections.worldBooks.map((record) => record.value));
@@ -370,6 +378,7 @@ export const useStore = create<AppState>((set, get) => ({
           readOnly,
           settings,
           providers,
+          voiceProviders,
           modelsList: aggregateEnabledProviderModels(providers),
           npcs,
           sessions,
@@ -537,6 +546,26 @@ export const useStore = create<AppState>((set, get) => ({
     });
     const stats = (await db.careerStats.get(1)) ?? { id: 1, inputTokens: 0, outputTokens: 0, totalRounds: 0 };
     set({ careerTotalTokens: stats.inputTokens + stats.outputTokens });
+  },
+
+  refreshVoiceProviders: async () => {
+    set({ voiceProviders: await db.voiceProviders.toArray() });
+  },
+
+  speakMessage: async (text) => {
+    const state = get();
+    const settings = state.settings;
+    if (!settings) return;
+    const provider = activeVoiceProvider(state.voiceProviders, settings.activeVoiceProviderId, settings.activeVoiceId);
+    if (!provider || !settings.activeVoiceId) {
+      state.addToast(translate('toast.voiceNotConfigured'), 'error');
+      return;
+    }
+    try {
+      await speakText(provider.id!, settings.activeVoiceId, text);
+    } catch (error) {
+      state.addToast(translate('toast.voiceFailed', { msg: error instanceof Error ? error.message : String(error) }), 'error');
+    }
   },
 
   refreshProviders: async () => {
@@ -2304,6 +2333,9 @@ async function performAssistantTurn(
       rawResponseBody: rawLines.join('\n'),
     });
     await useStore.getState().loadMessages(sessionId);
+    if (normalizedContent && useStore.getState().settings?.autoVoiceEnabled === true) {
+      void useStore.getState().speakMessage(normalizedContent);
+    }
 
     // 生涯统计：1 个回复回合 = 1 轮对话（ReAct 多层只计一次）；
     // 群聊中 NPC 发言会把该轮计入对应角色的 careerNpcStats（最活跃角色统计）

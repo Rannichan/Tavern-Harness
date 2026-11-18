@@ -418,10 +418,14 @@ const ICONS: Record<string, React.ReactNode> = {
   'pip-exit': <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m14 14 5-5M15 9h4v4" /></>,
   'text-wrap': <><path d="M4 6h13a4 4 0 0 1 0 8H9" /><path d="m12 11-3 3 3 3M4 18h3" /></>,
   eye: <><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" /></>,
+  'eye-off': <><path d="m3 3 18 18" /><path d="M10.6 5.2A11.8 11.8 0 0 1 12 5c6.5 0 10 7 10 7a17.7 17.7 0 0 1-2.1 3.1M6.6 6.6C3.7 8.4 2 12 2 12s3.5 7 10 7a10.7 10.7 0 0 0 4.1-.8" /><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" /></>,
+  speaker: <><path d="M11 5 6 9H2v6h4l5 4V5z" /><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13" /></>,
+  'speaker-off': <><path d="M11 5 6 9H2v6h4l5 4V5z" /><path d="m16 9 5 5M21 9l-5 5" /></>,
   sun: <><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" /></>,
   moon: <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />,
   folder: <><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></>,
   copy: <><rect x="8" y="8" width="13" height="13" rx="2" /><path d="M5 16V6a2 2 0 0 1 2-2h10" /></>,
+  play: <><path d="M6 4l14 8-14 8z" /></>,
 };
 
 export function Icon({ name, size = 15 }: { name: string; size?: number }) {

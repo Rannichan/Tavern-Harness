@@ -321,6 +321,7 @@ function SessionHeader({
   const deleteSession = useStore((s) => s.deleteSession);
   const resetSessionConversation = useStore((s) => s.resetSessionConversation);
   const themeMode = useStore((s) => s.settings?.themeMode ?? 'system');
+  const autoVoiceEnabled = useStore((s) => s.settings?.autoVoiceEnabled ?? false);
   const setSettings = useStore((s) => s.setSettings);
   const t = useT();
   const [showEdit, setShowEdit] = useState(false);
@@ -401,6 +402,16 @@ function SessionHeader({
           onClick={() => setShowMobileActions(!showMobileActions)}
         >
           <Icon name="more" size={18} />
+        </button>
+        <button
+          className={`btn-ghost icon-tooltip chat-voice-toggle${autoVoiceEnabled ? ' active' : ''}`}
+          type="button"
+          title={t(autoVoiceEnabled ? 'header.disableAutoVoice' : 'header.enableAutoVoice')}
+          aria-label={t(autoVoiceEnabled ? 'header.disableAutoVoice' : 'header.enableAutoVoice')}
+          aria-pressed={autoVoiceEnabled}
+          onClick={() => void setSettings({ autoVoiceEnabled: !autoVoiceEnabled })}
+        >
+          <Icon name={autoVoiceEnabled ? 'speaker' : 'speaker-off'} size={17} />
         </button>
         <button
           className="btn-ghost icon-tooltip chat-theme-toggle"

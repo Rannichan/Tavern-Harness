@@ -2,6 +2,7 @@ import Dexie, { type Table } from 'dexie';
 import type {
   ApiProvider,
   AppSettings,
+  VoiceProvider,
   AchievementUnlock,
   CareerNpcStat,
   CareerStatsTotal,
@@ -245,7 +246,7 @@ export class TavernDB extends Dexie {
 }
 
 const COLLECTIONS = [
-  'settings', 'providers', 'npcs', 'sessions', 'participants', 'messages',
+  'settings', 'providers', 'voiceProviders', 'npcs', 'sessions', 'participants', 'messages',
   'contextCompressions', 'tools', 'worldBooks', 'careerStats', 'careerNpcStats', 'achievementUnlocks',
 ] as const;
 
@@ -352,6 +353,7 @@ type StartupSnapshot = {
   collections: {
     settings: Array<{ value: AppSettings }>;
     providers: Array<{ value: ApiProvider }>;
+    voiceProviders: Array<{ value: VoiceProvider }>;
     npcs: Array<{ value: NpcCharacter }>;
     sessions: Array<{ value: ChatSession }>;
     worldBooks: Array<{ value: WorldBook }>;
@@ -371,9 +373,10 @@ export async function loadStartupSnapshot(): Promise<StartupSnapshot> {
     if (!(error instanceof Error) || !error.message.includes('Unknown persistence endpoint: /startup/snapshot')) throw error;
     await initDatabase();
     const readOnly = await isWriteLocked();
-    const [settings, providers, npcs, sessions, worldBooks, tools, achievementUnlocks] = await Promise.all([
+    const [settings, providers, voiceProviders, npcs, sessions, worldBooks, tools, achievementUnlocks] = await Promise.all([
       db.settings.toArray(),
       db.providers.toArray(),
+      db.voiceProviders.toArray(),
       db.npcs.toArray(),
       db.sessions.toArray(),
       db.worldBooks.toArray(),
@@ -385,6 +388,7 @@ export async function loadStartupSnapshot(): Promise<StartupSnapshot> {
       collections: {
         settings: settings.map((value) => ({ value })),
         providers: providers.map((value) => ({ value })),
+        voiceProviders: voiceProviders.map((value) => ({ value })),
         npcs: npcs.map((value) => ({ value })),
         sessions: sessions.map((value) => ({ value })),
         worldBooks: worldBooks.map((value) => ({ value })),
@@ -522,7 +526,7 @@ class RemoteTable<T extends object> {
   async add(value: T): Promise<number> {
     await requireWriteLock();
     const record = { ...value } as T & { id?: number };
-    if (['providers', 'npcs', 'sessions', 'messages', 'contextCompressions', 'tools', 'worldBooks', 'achievementUnlocks'].includes(this.collection) && record.id == null) {
+    if (['providers', 'voiceProviders', 'npcs', 'sessions', 'messages', 'contextCompressions', 'tools', 'worldBooks', 'achievementUnlocks'].includes(this.collection) && record.id == null) {
       const result = await persistenceRequest<{ id: number }>('/records/allocate-id', { collection: this.collection });
       record.id = result.id;
     }
@@ -568,6 +572,7 @@ class RemoteTable<T extends object> {
 class RemoteTavernDB {
   settings = new RemoteTable<AppSettings>('settings');
   providers = new RemoteTable<ApiProvider>('providers');
+  voiceProviders = new RemoteTable<VoiceProvider>('voiceProviders');
   npcs = new RemoteTable<NpcCharacter>('npcs');
   sessions = new RemoteTable<ChatSession>('sessions');
   participants = new RemoteTable<ChatParticipant>('participants');
@@ -593,7 +598,7 @@ class RemoteTavernDB {
     return (args.at(-1) as () => Promise<T>)();
   }
   async delete(): Promise<void> {
-    for (const table of [this.settings, this.providers, this.npcs, this.sessions, this.participants, this.messages, this.contextCompressions, this.tools, this.worldBooks, this.careerStats, this.careerNpcStats, this.achievementUnlocks]) await table.clear();
+    for (const table of [this.settings, this.providers, this.voiceProviders, this.npcs, this.sessions, this.participants, this.messages, this.contextCompressions, this.tools, this.worldBooks, this.careerStats, this.careerNpcStats, this.achievementUnlocks]) await table.clear();
   }
   close(): void {
     if (lockHeartbeat != null && typeof window !== 'undefined') {
@@ -685,6 +690,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   yoloMode: false,
   nsfwMode: false,
   pureMode: false,
+  autoVoiceEnabled: false,
+  activeVoiceProviderId: null,
+  activeVoiceId: null,
   statsResetTime: null,
 };
 

@@ -2,7 +2,8 @@ import { memo, useRef, useState, type PointerEvent as ReactPointerEvent } from '
 import { useStore } from '../store/store';
 import { db, DEFAULT_GENERATION_SETTINGS } from '../db/database';
 import { type ThemeMode } from '../theme/theme';
-import { type ApiProvider, type AppLanguage, type ReasoningEffort, enabledModelIds, modelAliases } from '../types/models';
+import { type ApiProvider, type AppLanguage, type ReasoningEffort, type VoiceProvider, type VoiceProviderKind, type VoiceId, enabledModelIds, modelAliases } from '../types/models';
+import { VOICE_PROVIDER_OPTIONS, previewVoice } from '../core/voice';
 import { Icon, Modal } from './shared';
 import { DeleteConfirmDialog } from './DeleteConfirmDialog';
 import { isNetworkLikeError, toProxyUrl } from '../core/proxy';
@@ -21,6 +22,8 @@ export const SettingsView = memo(function SettingsView() {
   const resetTavern = useStore((s) => s.resetTavern);
   const providers = useStore((s) => s.providers);
   const refreshProviders = useStore((s) => s.refreshProviders);
+  const voiceProviders = useStore((s) => s.voiceProviders);
+  const refreshVoiceProviders = useStore((s) => s.refreshVoiceProviders);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
@@ -113,6 +116,7 @@ export const SettingsView = memo(function SettingsView() {
 
         {/* 模型服务 Provider（置顶） */}
         <ProviderManager providers={providers} onChanged={refreshProviders} />
+        <VoiceProviderManager providers={voiceProviders} onChanged={refreshVoiceProviders} />
 
         <div className="set-section">
           <h3>{t('settings.toolExecution')}</h3>
@@ -429,6 +433,158 @@ async function fetchModelsSmart(baseUrl: string, apiKey: string): Promise<Models
   throw lastErr ?? new Error('unknown-error');
 }
 
+function ApiKeyField({ value, onChange, required = false }: { value: string; onChange: (value: string) => void; required?: boolean }) {
+  const t = useT();
+  const [visible, setVisible] = useState(false);
+
+  return (
+    <div className="field">
+      <label>{t('settings.apiKey')}</label>
+      <div className="password-input-wrap">
+        <input
+          className="input mono"
+          type={visible ? 'text' : 'password'}
+          required={required}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={t('settings.apiKeyPh')}
+        />
+        <button
+          type="button"
+          className="password-visibility-btn"
+          onClick={() => setVisible((current) => !current)}
+          aria-label={t(visible ? 'settings.hideApiKey' : 'settings.showApiKey')}
+          title={t(visible ? 'settings.hideApiKey' : 'settings.showApiKey')}
+        >
+          <Icon name={visible ? 'eye-off' : 'eye'} size={16} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function VoiceProviderManager({ providers, onChanged }: { providers: VoiceProvider[]; onChanged: () => void }) {
+  const settings = useStore((s) => s.settings)!;
+  const setSettings = useStore((s) => s.setSettings);
+  const addToast = useStore((s) => s.addToast);
+  const t = useT();
+  const [editing, setEditing] = useState<VoiceProvider | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<VoiceProvider | null>(null);
+
+  const providerName = (kind: VoiceProviderKind) => t(`settings.voiceProviderKind.${kind}`);
+  const voiceLabel = (voiceId: VoiceId) => t(`settings.voiceLabel.${voiceId}`);
+
+  const saveProvider = async (provider: VoiceProvider) => {
+    if (provider.id != null) await db.voiceProviders.update(provider.id, provider);
+    else await db.voiceProviders.add(provider);
+    setEditing(null);
+    await onChanged();
+    addToast(t(provider.id != null ? 'toast.voiceProviderUpdated' : 'toast.voiceProviderAdded'));
+  };
+
+  return (
+    <div className="set-section">
+      <div className="settings-section-head">
+        <h3>{t('settings.voiceProviderTitle')}</h3>
+        <button className="btn btn-sm settings-gen-reset" onClick={() => setEditing({ kind: 'deepseek', apiKey: '', isEnabled: true, createdAt: Date.now() })}>
+          <Icon name="plus" size={13} /> {t('settings.addProvider')}
+        </button>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {providers.length === 0 && <div className="typo-body-sm text-muted">{t('settings.noVoiceProvider')}</div>}
+        {[...providers].sort((a, b) => b.createdAt - a.createdAt).map((provider) => {
+          const options = VOICE_PROVIDER_OPTIONS[provider.kind];
+          return (
+            <div key={provider.id} className={`provider-card ${provider.isEnabled ? '' : 'disabled'}`}>
+              <div className="p-head">
+                <label className="switch" title={provider.isEnabled ? t('settings.disable') : t('settings.enable')}>
+                  <input type="checkbox" checked={provider.isEnabled} onChange={async () => { await db.voiceProviders.update(provider.id!, { isEnabled: !provider.isEnabled }); await onChanged(); }} />
+                  <span className="switch-slider" />
+                </label>
+                <span className="p-name">{providerName(provider.kind)}</span>
+                <span className="p-status voice">{t('settings.voiceServiceTag')}</span>
+                <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+                  <button className="btn btn-sm" onClick={() => setEditing(provider)}>{t('common.edit')}</button>
+                  <button className="btn btn-sm btn-danger" onClick={() => setPendingDelete(provider)}><Icon name="trash" size={12} /></button>
+                </div>
+              </div>
+              <div className="provider-inline-detail"><b>{t('settings.voices')}:</b> {options.voices.map((voice) => voiceLabel(voice.id)).join(', ')}</div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="voice-default-card">
+        <div>
+          <div className="s-label">{t('settings.defaultVoice')}</div>
+          <div className="s-desc">{t('settings.defaultVoiceDesc')}</div>
+        </div>
+        <select
+          className="select voice-default-select"
+          value={settings.activeVoiceProviderId != null && settings.activeVoiceId ? `${settings.activeVoiceProviderId}:${settings.activeVoiceId}` : ''}
+          onChange={(event) => {
+            const [providerId, voiceId] = event.target.value.split(':');
+            void setSettings(event.target.value
+              ? { activeVoiceProviderId: Number(providerId), activeVoiceId: voiceId as VoiceId }
+              : { activeVoiceProviderId: null, activeVoiceId: null });
+          }}
+        >
+          <option value="">{t('settings.noDefaultVoice')}</option>
+          {providers.filter((provider) => provider.isEnabled).flatMap((provider) => VOICE_PROVIDER_OPTIONS[provider.kind].voices.map((voice) => (
+            <option key={`${provider.id}:${voice.id}`} value={`${provider.id}:${voice.id}`}>
+              {providerName(provider.kind)} · {voiceLabel(voice.id)}
+            </option>
+          )))}
+        </select>
+      </div>
+      {editing && <Modal onClose={() => setEditing(null)}>
+        <div className="modal-head">
+          <span className="typo-dialog-title">{editing.id != null ? t('settings.editVoiceProvider') : t('settings.addVoiceProvider')}</span>
+          <button className="icon-btn" onClick={() => setEditing(null)}><Icon name="x" /></button>
+        </div>
+        <VoiceProviderForm initial={editing} onSave={saveProvider} />
+      </Modal>}
+      {pendingDelete && <DeleteConfirmDialog title={t('settings.deleteVoiceProvider')} itemName={providerName(pendingDelete.kind)} onCancel={() => setPendingDelete(null)} onConfirm={async () => {
+        await db.voiceProviders.delete(pendingDelete.id!);
+        if (settings.activeVoiceProviderId === pendingDelete.id) await setSettings({ activeVoiceProviderId: null, activeVoiceId: null });
+        setPendingDelete(null);
+        await onChanged();
+      }} />}
+    </div>
+  );
+}
+
+function VoiceProviderForm({ initial, onSave }: { initial: VoiceProvider; onSave: (provider: VoiceProvider) => void }) {
+  const addToast = useStore((s) => s.addToast);
+  const t = useT();
+  const [kind, setKind] = useState<VoiceProviderKind>(initial.kind);
+  const [apiKey, setApiKey] = useState(initial.apiKey);
+  const [previewingVoiceId, setPreviewingVoiceId] = useState<VoiceId | null>(null);
+  const voices = VOICE_PROVIDER_OPTIONS[kind].voices;
+
+  const preview = async (voiceId: VoiceId) => {
+    setPreviewingVoiceId(voiceId);
+    try {
+      await previewVoice(kind, apiKey, voiceId, t('settings.voicePreviewText'));
+      addToast(t('toast.voicePreviewPlaying'));
+    } catch (error) {
+      addToast(t('toast.voiceFailed', { msg: error instanceof Error ? error.message : String(error) }), 'error');
+    } finally {
+      setPreviewingVoiceId(null);
+    }
+  };
+
+  return <>
+    <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div className="field"><label>{t('settings.voiceProvider')}</label><select className="select" value={kind} disabled={initial.id != null} onChange={(event) => setKind(event.target.value as VoiceProviderKind)}><option value="deepseek">{t('settings.voiceProviderKind.deepseek')}</option><option value="bailian">{t('settings.voiceProviderKind.bailian')}</option></select></div>
+      <ApiKeyField value={apiKey} onChange={setApiKey} required />
+      <div className="field"><label>{t('settings.voices')}</label><div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{voices.map((voice) => <div key={voice.id} className="provider-voice-option"><span><b>{voice.id}</b><br /><span className="text-muted">{t(`settings.voiceLabel.${voice.id}`)}</span></span><button type="button" className="icon-btn provider-voice-preview" disabled={!apiKey.trim() || previewingVoiceId != null} title={t('settings.previewVoice')} aria-label={`${t('settings.previewVoice')}: ${t(`settings.voiceLabel.${voice.id}`)}`} onClick={() => void preview(voice.id)}>{previewingVoiceId === voice.id ? <span className="spinner" /> : <Icon name="speaker" size={17} />}</button></div>)}</div></div>
+    </div>
+    <div className="modal-foot">
+      <button className="btn btn-primary" disabled={!apiKey.trim()} onClick={() => onSave({ ...initial, kind, apiKey: apiKey.trim(), isEnabled: true })}>{t('common.save')}</button>
+    </div>
+  </>;
+}
+
 function ProviderManager({ providers, onChanged }: { providers: ApiProvider[]; onChanged: () => void }) {
   const addToast = useStore((s) => s.addToast);
   const t = useT();
@@ -475,7 +631,7 @@ function ProviderManager({ providers, onChanged }: { providers: ApiProvider[]; o
                   <span className="switch-slider" />
                 </label>
                 <span className="p-name">{p.name}</span>
-                <span className={`p-status ${p.isEnabled ? 'on' : 'off'}`}>{p.isEnabled ? t('settings.enable') : t('settings.disable')}</span>
+                <span className="p-status text">{t('settings.textServiceTag')}</span>
                 <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
                   <button className="btn btn-sm" onClick={() => setEditing(p)}>{t('common.edit')}</button>
                   <button className="btn btn-sm btn-danger" onClick={() => setPendingDelete(p)}><Icon name="trash" size={12} /></button>
@@ -571,10 +727,7 @@ function ProviderForm({ initial, onSave }: { initial: ApiProvider; onSave: (p: A
           <label>{t('settings.baseUrl')}</label>
           <input className="input mono" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder={t('settings.baseUrlPh')} />
         </div>
-        <div className="field">
-          <label>{t('settings.apiKey')}</label>
-          <input className="input mono" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder={t('settings.apiKeyPh')} />
-        </div>
+        <ApiKeyField value={apiKey} onChange={setApiKey} />
         {models.length > 0 && (
           <div className="field">
             <label>{t('settings.models')}</label>

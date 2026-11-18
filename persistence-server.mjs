@@ -9,6 +9,7 @@ import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { normalizeBailianAudioUrl } from './voice-server.mjs';
 
 const PORT = Number(process.argv[2] || process.env.PERSISTENCE_PORT || 17892);
 // 记录读写（图片/附件）走大上限；锁和健康检查的请求体很小，单独收紧。
@@ -194,7 +195,7 @@ const listRecordsByJsonField = database.prepare(`
 const listStartupRecords = database.prepare(`
   SELECT collection, record_key, value_json, updated_at
   FROM app_records
-  WHERE collection IN ('settings', 'providers', 'npcs', 'sessions', 'worldBooks', 'tools', 'achievementUnlocks')
+  WHERE collection IN ('settings', 'providers', 'voiceProviders', 'npcs', 'sessions', 'worldBooks', 'tools', 'achievementUnlocks')
   ORDER BY collection, record_key
 `);
 const deleteRecord = database.prepare('DELETE FROM app_records WHERE collection = ? AND record_key = ?');
@@ -288,6 +289,7 @@ const server = createServer(async (req, res) => {
       const collections = {
         settings: [],
         providers: [],
+        voiceProviders: [],
         npcs: [],
         sessions: [],
         worldBooks: [],
@@ -302,6 +304,87 @@ const server = createServer(async (req, res) => {
         });
       }
       json(res, 200, { ok: true, lock: lockState(clientId), collections });
+      return;
+    }
+    if (pathname === '/voice/synthesize' || pathname === '/voice/preview') {
+      const voiceId = typeof body.voiceId === 'string' ? body.voiceId : '';
+      const text = typeof body.text === 'string' ? body.text.trim() : '';
+      let kind;
+      let apiKey;
+      if (pathname === '/voice/preview') {
+        kind = body.kind;
+        apiKey = typeof body.apiKey === 'string' ? body.apiKey.trim() : '';
+      } else {
+        const providerId = Number(body.providerId);
+        if (!Number.isInteger(providerId) || providerId <= 0) {
+          json(res, 400, { ok: false, message: 'Invalid voice synthesis request' });
+          return;
+        }
+        const record = getRecord.get('voiceProviders', String(providerId));
+        if (!record) {
+          json(res, 404, { ok: false, message: 'Voice provider not found' });
+          return;
+        }
+        const provider = JSON.parse(record.value_json);
+        if (!provider.isEnabled) {
+          json(res, 400, { ok: false, message: 'Voice provider or voice is unavailable' });
+          return;
+        }
+        kind = provider.kind;
+        apiKey = typeof provider.apiKey === 'string' ? provider.apiKey.trim() : '';
+      }
+      const allowedVoices = kind === 'deepseek'
+        ? new Set(['stella', 'tide'])
+        : kind === 'bailian'
+          ? new Set(['longanlingxin', 'longanlufeng'])
+          : null;
+      if (!allowedVoices || !apiKey || !allowedVoices.has(voiceId) || !text || text.length > 10_000) {
+        json(res, 400, { ok: false, message: 'Voice provider or voice is unavailable' });
+        return;
+      }
+      const endpoint = kind === 'deepseek'
+        ? 'https://api.deepseek.com/v1/tools/tts'
+        : 'https://token-plan.cn-beijing.maas.aliyuncs.com/api/v1/services/audio/tts/SpeechSynthesizer';
+      const requestBody = kind === 'deepseek'
+        ? { text, voice_id: voiceId, format: 'wav', filter_markdown: true }
+        : { model: 'qwen-audio-3.0-tts-plus', input: { text, voice: voiceId, format: 'mp3', sample_rate: 22050 } };
+      const upstream = await fetch(endpoint, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
+        signal: AbortSignal.timeout(120_000),
+      });
+      if (!upstream.ok) {
+        const payload = await upstream.json().catch(() => null);
+        upstream.body?.cancel();
+        const upstreamMessage = payload?.message ?? payload?.error?.message ?? payload?.code;
+        json(res, upstream.status, { ok: false, message: upstreamMessage ? `Voice service error: ${upstreamMessage}` : `Voice service returned HTTP ${upstream.status}` });
+        return;
+      }
+      let audioResponse = upstream;
+      if (kind === 'bailian') {
+        const payload = await upstream.json();
+        const rawAudioUrl = payload?.output?.audio?.url;
+        const audioUrl = normalizeBailianAudioUrl(rawAudioUrl);
+        if (!audioUrl) {
+          const upstreamMessage = payload?.message ?? payload?.error?.message ?? payload?.code;
+          json(res, 502, { ok: false, message: upstreamMessage ? `Bailian synthesis failed: ${upstreamMessage}` : 'Bailian did not return a valid audio URL' });
+          return;
+        }
+        audioResponse = await fetch(audioUrl, { signal: AbortSignal.timeout(120_000) });
+        if (!audioResponse.ok) {
+          audioResponse.body?.cancel();
+          json(res, 502, { ok: false, message: `Unable to download generated audio (HTTP ${audioResponse.status})` });
+          return;
+        }
+      }
+      const audio = Buffer.from(await audioResponse.arrayBuffer());
+      res.writeHead(200, {
+        'Content-Type': audioResponse.headers.get('content-type') || (kind === 'deepseek' ? 'audio/wav' : 'audio/mpeg'),
+        'Content-Length': String(audio.length),
+        'Cache-Control': 'no-store',
+      });
+      res.end(audio);
       return;
     }
     if (!pathname.startsWith('/records/')) {

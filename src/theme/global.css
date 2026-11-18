@@ -1970,7 +1970,7 @@ hr.sep {
     gap: 0;
   }
 
-  .chat-actions .icon-tooltip:not(.chat-actions-more, .chat-actions-export, .chat-theme-toggle) {
+  .chat-actions .icon-tooltip:not(.chat-actions-more, .chat-actions-export, .chat-voice-toggle, .chat-theme-toggle) {
     display: none;
   }
 
@@ -1983,8 +1983,12 @@ hr.sep {
     order: 2;
   }
 
-  .chat-actions .chat-theme-toggle {
+  .chat-actions .chat-voice-toggle {
     order: 3;
+  }
+
+  .chat-actions .chat-theme-toggle {
+    order: 4;
   }
 
   .chat-actions .icon-tooltip {

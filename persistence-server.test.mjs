@@ -89,9 +89,15 @@ try {
   assert.equal(snapshot.body.lock.writable, true);
   assert.deepEqual(snapshot.body.collections.settings.map((record) => record.value), [{ themeMode: 'system' }]);
   assert.deepEqual(snapshot.body.collections.providers.map((record) => record.value), [{ id: 1, name: 'Primary provider' }]);
+  assert.deepEqual(snapshot.body.collections.voiceProviders, []);
   assert.deepEqual(snapshot.body.collections.npcs.map((record) => record.value), [{ id: 1, name: 'Keeper' }]);
   assert.equal(snapshot.body.collections.sessions.length, 2);
   assert.deepEqual(snapshot.body.collections.sessions.map((record) => record.value.id), [1, undefined]);
+  assert.equal((await request('/voice/synthesize', { providerId: 99, voiceId: 'stella', text: 'hello' })).status, 404);
+  assert.equal((await request('/voice/synthesize', { providerId: 0, voiceId: 'stella', text: 'hello' })).status, 400);
+  assert.equal((await request('/voice/preview', { kind: 'unknown', apiKey: 'secret', voiceId: 'stella', text: 'hello' })).status, 400);
+  assert.equal((await request('/voice/preview', { kind: 'deepseek', apiKey: 'secret', voiceId: 'longanlingxin', text: 'hello' })).status, 400);
+  assert.equal((await request('/voice/preview', { kind: 'bailian', apiKey: '', voiceId: 'longanlingxin', text: 'hello' })).status, 400);
   const list = await request('/records/list', { collection: 'settings' });
   assert.equal(list.body.records.length, 1);
   const compressedList = await fetch(`http://127.0.0.1:${port}/records/list`, {

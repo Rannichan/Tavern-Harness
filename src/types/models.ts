@@ -59,7 +59,24 @@ export interface AppSettings {
   nsfwMode: boolean;
   /** 隐藏对话中的思考与工具调用，仅保留消息正文；默认关闭。 */
   pureMode: boolean;
+  /** 新生成的助手回复自动朗读；默认关闭。 */
+  autoVoiceEnabled: boolean;
+  /** 当前启用的语音 Provider。 */
+  activeVoiceProviderId: number | null;
+  /** 当前旁白音色。 */
+  activeVoiceId: VoiceId | null;
   statsResetTime: number | null;
+}
+
+export type VoiceProviderKind = 'deepseek' | 'bailian';
+export type VoiceId = 'stella' | 'tide' | 'longanlingxin' | 'longanlufeng';
+
+export interface VoiceProvider {
+  id?: number;
+  kind: VoiceProviderKind;
+  apiKey: string;
+  isEnabled: boolean;
+  createdAt: number;
 }
 
 export interface ApiProvider {

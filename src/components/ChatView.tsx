@@ -1321,6 +1321,7 @@ export function MessageMenu() {
   const t = useT();
   const regenerateMessage = useStore((s) => s.regenerateMessage);
   const forkSession = useStore((s) => s.forkSession);
+  const speakMessage = useStore((s) => s.speakMessage);
   const addToast = useStore((s) => s.addToast);
   const messages = useStore((s) => s.messages);
   const npcs = useStore((s) => s.npcs);
@@ -1415,6 +1416,13 @@ export function MessageMenu() {
         });
       },
     });
+    if (msg.role === 'assistant') {
+      actions.push({
+        label: t('chat.readMsg'),
+        icon: 'speaker',
+        onClick: () => { void speakMessage(msg.content); },
+      });
+    }
   }
   if (msg.role === 'user' || msg.role === 'assistant') {
     actions.push({

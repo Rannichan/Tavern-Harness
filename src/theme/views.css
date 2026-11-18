@@ -912,13 +912,13 @@
   padding: 2px 8px;
   border-radius: 999px;
 }
-.p-status.on {
-  color: var(--text-success);
-  background: var(--success-soft);
+.p-status.voice {
+  color: var(--text-accent);
+  background: var(--primary-soft);
 }
-.p-status.off {
-  color: var(--text-muted);
-  background: var(--surface-2);
+.p-status.text {
+  color: var(--text-thinking);
+  background: color-mix(in srgb, var(--think) 12%, transparent);
 }
 
 .provider-card.disabled {
@@ -926,6 +926,89 @@
 }
 .provider-card.disabled .p-name {
   color: var(--text-muted);
+}
+.provider-voice-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+.provider-voice-option:hover {
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
+}
+.provider-voice-preview {
+  flex: 0 0 auto;
+}
+.voice-default-card {
+  margin-top: 12px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.voice-default-card .s-label {
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-secondary);
+}
+.voice-default-card .s-desc {
+  margin-top: 3px;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+.voice-default-select {
+  width: 280px;
+  max-width: 48vw;
+}
+@media (max-width: 640px) {
+  .voice-default-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .voice-default-select {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+  }
+}
+.password-input-wrap {
+  position: relative;
+}
+.password-input-wrap .input {
+  width: 100%;
+  padding-right: 42px;
+}
+.password-visibility-btn {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  transform: translateY(-50%);
+  border: 0;
+  border-radius: 7px;
+  color: var(--text-muted);
+  background: transparent;
+  cursor: pointer;
+}
+.password-visibility-btn:hover {
+  color: var(--text-accent);
+  background: var(--primary-soft);
+}
+.password-visibility-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
 }
 
 /* ---------- 开关 Switch ---------- */
