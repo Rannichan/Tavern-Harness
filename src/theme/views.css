@@ -680,6 +680,64 @@
 .settings-gen-reset {
   flex-shrink: 0;
 }
+.theme-palette-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.theme-palette-option {
+  --palette-main: #d9a673;
+  --palette-soft: #f3e7d5;
+  --palette-deep: #9a5b17;
+  appearance: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  padding: 9px;
+  display: grid;
+  gap: 7px;
+  font: inherit;
+  font-size: var(--font-size-body-sm);
+  cursor: pointer;
+  transition: border-color 0.2s ease, transform 0.2s ease, background 0.2s ease;
+}
+.theme-palette-option:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--palette-main) 65%, var(--border));
+}
+.theme-palette-option.active {
+  color: var(--text-primary);
+  border-color: var(--palette-main);
+  background: color-mix(in srgb, var(--palette-main) 12%, var(--surface));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--palette-main) 18%, transparent);
+}
+.theme-palette-jade { --palette-main: #55a982; --palette-soft: #eef1ef; --palette-deep: #59635e; }
+.theme-palette-rose { --palette-main: #c97088; --palette-soft: #ebd9de; --palette-deep: #9b405a; }
+.theme-palette-indigo { --palette-main: #7889d5; --palette-soft: #dcdff0; --palette-deep: #4d5fa8; }
+.theme-palette-preview {
+  height: 30px;
+  border-radius: 7px;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  border: 1px solid color-mix(in srgb, var(--palette-deep) 20%, transparent);
+}
+.theme-palette-preview i:nth-child(1) { background: var(--palette-soft); }
+.theme-palette-preview i:nth-child(2) { background: var(--palette-main); }
+.theme-palette-preview i:nth-child(3) { background: var(--palette-deep); }
+.theme-mode-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 240px);
+  align-items: center;
+  gap: 12px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-body-sm);
+}
+@media (max-width: 620px) {
+  .theme-palette-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .theme-mode-row { grid-template-columns: 1fr; }
+}
 .settings-reset-section {
   flex-direction: row;
   align-items: center;

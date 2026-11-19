@@ -50,7 +50,7 @@ import {
 import { getEnabledToolsForSession, executeToolCall, parseDisplayRef, applySessionWorkspace } from '../core/tools/toolExecutor';
 import { CHARACTER_BOOK_TOOL, hasUsableCharacterBook, injectCharacterBookToolContext, mergeCharacterBooks } from '../core/characterBook';
 import { createSessionWorkspaceDir, ensureSessionWorkspaceDir, deleteSessionWorkspace, isCurrentInstanceWorkspaceDir } from '../core/tools/generatedSkillExecutor';
-import { applyTheme as applyThemeManual, cacheThemeMode, watchSystemTheme } from '../theme/theme';
+import { applyTheme as applyThemeManual, cacheTheme, watchSystemTheme } from '../theme/theme';
 import { setLanguage, translate } from '../core/i18n';
 import { hasBrowserUiPreferences, readBrowserUiPreferences, saveBrowserUiPreferences } from '../core/browserPreferences';
 import { trimEdgeNewlines } from '../core/strings';
@@ -356,8 +356,8 @@ export const useStore = create<AppState>((set, get) => ({
         const browserPreferences = hasBrowserUiPreferences()
           ? readBrowserUiPreferences()
           : readOnly
-            ? { language: serverSettings.language, themeMode: serverSettings.themeMode }
-            : saveBrowserUiPreferences({ language: serverSettings.language, themeMode: serverSettings.themeMode });
+            ? { language: serverSettings.language, themeMode: serverSettings.themeMode, themePalette: serverSettings.themePalette ?? 'amber' }
+            : saveBrowserUiPreferences({ language: serverSettings.language, themeMode: serverSettings.themeMode, themePalette: serverSettings.themePalette ?? 'amber' });
         const settings = { ...serverSettings, ...browserPreferences };
         setLanguage(settings.language);
         const providers = snapshot.collections.providers.map((record) => record.value);
@@ -389,12 +389,12 @@ export const useStore = create<AppState>((set, get) => ({
           activeView: 'chat',
         });
         coreLoaded = true;
-        cacheThemeMode(settings.themeMode);
-        applyThemeManual(settings.themeMode);
+        cacheTheme(settings.themeMode, settings.themePalette);
+        applyThemeManual(settings.themeMode, settings.themePalette);
         // 跟随系统模式下，系统切换深浅色时自动重新应用主题
         watchSystemTheme(() => {
           const s = useStore.getState().settings;
-          if (s) applyThemeManual(s.themeMode);
+          if (s) applyThemeManual(s.themeMode, s.themePalette);
         });
         // 非首屏工作不得阻塞可用界面；完成后再用数据库中的最新值刷新。
         void initializeDeferredData(readOnly);
@@ -433,15 +433,16 @@ export const useStore = create<AppState>((set, get) => ({
     const current = get().settings;
     if (!current) return;
     const next = { ...current, ...partial };
-    const { language, themeMode, ...sharedChanges } = partial;
-    if (language !== undefined || themeMode !== undefined) {
+    const { language, themeMode, themePalette, ...sharedChanges } = partial;
+    if (language !== undefined || themeMode !== undefined || themePalette !== undefined) {
       saveBrowserUiPreferences({
         language: language !== undefined ? language : current.language,
         themeMode: themeMode ?? current.themeMode,
+        themePalette: themePalette ?? current.themePalette,
       });
     }
     if (Object.keys(sharedChanges).length > 0) {
-      await db.settings.put({ ...next, language: null, themeMode: 'system' });
+      await db.settings.put({ ...next, language: null, themeMode: 'system', themePalette: 'amber' });
     }
     set({ settings: next });
     const pending = get().pendingConfirmation;
@@ -458,8 +459,8 @@ export const useStore = create<AppState>((set, get) => ({
       await get().refreshSessions();
       await get().refreshParticipants();
     }
-    cacheThemeMode(next.themeMode);
-    applyThemeManual(next.themeMode);
+    cacheTheme(next.themeMode, next.themePalette);
+    applyThemeManual(next.themeMode, next.themePalette);
   },
 
   resetTavern: async () => {
@@ -608,7 +609,7 @@ export const useStore = create<AppState>((set, get) => ({
     const provider = await db.providers.get(option.providerId);
     if (!provider || !isEnabledProviderModel(provider, option.modelId)) return;
     const next = { ...current, defaultModel: option.modelId, defaultProviderId: option.providerId };
-    await db.settings.put({ ...next, language: null, themeMode: 'system' });
+    await db.settings.put({ ...next, language: null, themeMode: 'system', themePalette: 'amber' });
     set({ settings: next });
   },
 

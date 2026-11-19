@@ -688,6 +688,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   defaultModel: '',
   defaultProviderId: null,
   themeMode: 'system',
+  themePalette: 'amber',
   language: null,
   ...DEFAULT_GENERATION_SETTINGS,
   seed: -1,

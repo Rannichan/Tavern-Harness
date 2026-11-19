@@ -1,7 +1,7 @@
 import { memo, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useStore } from '../store/store';
 import { db, DEFAULT_GENERATION_SETTINGS } from '../db/database';
-import { type ThemeMode } from '../theme/theme';
+import { type ThemeMode, type ThemePaletteId } from '../theme/theme';
 import { type ApiProvider, type AppLanguage, type ReasoningEffort, type VoiceProvider, type VoiceProviderKind, type VoiceId, enabledModelIds, modelAliases } from '../types/models';
 import { VOICE_PROVIDER_OPTIONS, previewVoice } from '../core/voice';
 import { Icon, Modal } from './shared';
@@ -318,16 +318,36 @@ export const SettingsView = memo(function SettingsView() {
           {/* 主题 */}
           <div className="set-section">
             <h3>{t('settings.theme')}</h3>
-            <select
-              className="select"
-              aria-label={t('settings.appearance')}
-              value={settings.themeMode}
-              onChange={(e) => setSettings({ themeMode: e.target.value as ThemeMode })}
-            >
-              <option value="system">{t('settings.system')}</option>
-              <option value="light">{t('settings.light')}</option>
-              <option value="dark">{t('settings.dark')}</option>
-            </select>
+            <div className="theme-palette-grid" role="radiogroup" aria-label={t('settings.colorPalette')}>
+              {(['amber', 'jade', 'rose', 'indigo'] as ThemePaletteId[]).map((palette) => (
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={settings.themePalette === palette}
+                  className={`theme-palette-option theme-palette-${palette}${settings.themePalette === palette ? ' active' : ''}`}
+                  onClick={() => setSettings({ themePalette: palette })}
+                  key={palette}
+                >
+                  <span className="theme-palette-preview" aria-hidden="true">
+                    <i /><i /><i />
+                  </span>
+                  <span>{t(`settings.palette.${palette}`)}</span>
+                </button>
+              ))}
+            </div>
+            <label className="theme-mode-row">
+              <span>{t('settings.appearance')}</span>
+              <select
+                className="select"
+                aria-label={t('settings.appearance')}
+                value={settings.themeMode}
+                onChange={(e) => setSettings({ themeMode: e.target.value as ThemeMode })}
+              >
+                <option value="system">{t('settings.system')}</option>
+                <option value="light">{t('settings.light')}</option>
+                <option value="dark">{t('settings.dark')}</option>
+              </select>
+            </label>
           </div>
 
         <div className="set-section settings-about-section">

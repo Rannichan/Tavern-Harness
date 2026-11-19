@@ -1,15 +1,17 @@
-import type { AppLanguage, ThemeModeId } from '../types/models';
+import type { AppLanguage, ThemeModeId, ThemePaletteId } from '../types/models';
 
 const BROWSER_UI_PREFERENCES_KEY = 'th-browser-ui-preferences';
 
 export interface BrowserUiPreferences {
   language: AppLanguage;
   themeMode: ThemeModeId;
+  themePalette: ThemePaletteId;
 }
 
 const DEFAULT_BROWSER_UI_PREFERENCES: BrowserUiPreferences = {
   language: null,
   themeMode: 'system',
+  themePalette: 'amber',
 };
 
 export function hasBrowserUiPreferences(): boolean {
@@ -28,6 +30,9 @@ export function readBrowserUiPreferences(): BrowserUiPreferences {
     return {
       language: value.language === 'zh-CN' || value.language === 'zh-TW' || value.language === 'en' ? value.language : null,
       themeMode: value.themeMode === 'light' || value.themeMode === 'dark' || value.themeMode === 'system' ? value.themeMode : 'system',
+      themePalette: value.themePalette === 'jade' || value.themePalette === 'rose' || value.themePalette === 'indigo'
+        ? value.themePalette
+        : 'amber',
     };
   } catch {
     return DEFAULT_BROWSER_UI_PREFERENCES;

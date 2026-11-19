@@ -7,6 +7,7 @@ export type ParticipantKind = 'PLAYER' | 'NPC';
 export type TurnOrderMode = 'PRESET' | 'RANDOM';
 export type Role = 'system' | 'user' | 'assistant' | 'tool';
 export type ThemeModeId = 'system' | 'light' | 'dark';
+export type ThemePaletteId = 'amber' | 'jade' | 'rose' | 'indigo';
 export type ReasoningEffort = 'auto' | 'off' | 'low' | 'medium' | 'xhigh';
 export type ContextCompressionThreshold = 'off' | number;
 /** 界面语言：null = 跟随浏览器语言 */
@@ -36,6 +37,7 @@ export interface AppSettings {
   defaultModel: string;
   defaultProviderId: number | null;
   themeMode: ThemeModeId;
+  themePalette: ThemePaletteId;
   /** 界面语言；null = 跟随浏览器语言 */
   language: AppLanguage;
   temperature: number;
