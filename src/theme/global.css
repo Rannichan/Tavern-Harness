@@ -1117,6 +1117,7 @@ body.resizing {
   flex: 1;
   min-width: 0;
   min-height: 0;
+  position: relative;
 }
 .view-slot[data-active='false'] {
   display: none;
@@ -1158,13 +1159,30 @@ body.resizing {
 
 /* ---------- 聊天头部 ---------- */
 .chat-header {
+  position: absolute;
+  inset: var(--chat-header-offset, 12px) var(--chat-header-offset, 12px) auto;
   display: flex;
   align-items: center;
   gap: 12px;
+  min-height: var(--chat-header-h, 65px);
   padding: 12px 22px;
-  border-bottom: 1px solid var(--border);
-  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--surface) 38%, transparent);
+  -webkit-backdrop-filter: blur(22px) saturate(160%);
+  backdrop-filter: blur(22px) saturate(160%);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 18%);
+  overflow: visible;
   z-index: 5;
+}
+
+.chat-header-group {
+  right: calc(210px + var(--chat-header-offset, 12px));
+}
+
+/* 消息滚动层从悬浮卡片背后穿过，内容初始位置仍避开标题栏。 */
+.view-slot > .chat-main-row .chat-scroll {
+  padding-top: calc(20px + var(--chat-header-h, 65px) + var(--chat-header-offset, 12px));
 }
 .avatar {
   width: 40px;
@@ -1974,9 +1992,16 @@ hr.sep {
   }
 
   .chat-header {
-    min-height: 60px;
+    --chat-header-h: 60px;
+    --chat-header-offset: 8px;
+    min-height: var(--chat-header-h);
     padding: 8px 12px;
+    border-radius: var(--radius);
     gap: 8px;
+  }
+
+  .chat-header-group {
+    right: var(--chat-header-offset);
   }
 
   .chat-header .tinfo {
@@ -2079,8 +2104,8 @@ hr.sep {
     background: var(--danger-soft);
   }
 
-  .chat-scroll {
-    padding-top: 14px;
+  .view-slot > .chat-main-row .chat-scroll {
+    padding-top: calc(14px + var(--chat-header-h, 60px) + var(--chat-header-offset, 8px));
   }
 
   .chat-col {

@@ -988,7 +988,7 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
   };
 
   return (
-    <div className="composer">
+    <div className={`composer${session?.mode === 'GROUP' ? ' composer-group' : ''}`}>
       {attachments.length > 0 && (
         <div className="attach-preview">
           {attachments.map((a, i) => (

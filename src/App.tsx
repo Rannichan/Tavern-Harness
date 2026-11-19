@@ -367,7 +367,7 @@ function SessionHeader({
   }, [showMobileActions]);
 
   return (
-    <div className="chat-header">
+    <div className={`chat-header${session.mode === 'GROUP' ? ' chat-header-group' : ''}`}>
       <SessionVisual mode={session.mode} npcName={npcRef?.name ?? undefined} hue={npcRef?.avatarColorOrdinal ?? 0} imageUrl={npcRef?.avatarDataUrl} members={session.mode === 'GROUP' ? groupMemberAvatars : undefined} size="lg" />
       <div className="tinfo">
         <div className="ttitle">{session.title}</div>
