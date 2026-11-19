@@ -46,6 +46,8 @@ let scenarios = 0;
 const records = new Map();
 const recordSequences = new Map();
 let persistenceWriter = null;
+let startupFailuresRemaining = 3;
+let startupAttempts = 0;
 
 function jsonResponse(body) {
   return new Response(JSON.stringify(body), { headers: { 'Content-Type': 'application/json' } });
@@ -110,6 +112,13 @@ try {
         return jsonResponse({ ok: true, lock: { writable: true, held: true } });
       }
       if (path === '/startup/snapshot') {
+        startupAttempts++;
+        if (startupFailuresRemaining-- > 0) {
+          return new Response(JSON.stringify({ ok: false, message: 'Persistence server not running' }), {
+            status: 503,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
         if (!persistenceWriter) persistenceWriter = clientId;
         const collections = { settings: [], providers: [], npcs: [], sessions: [], worldBooks: [], tools: [], achievementUnlocks: [] };
         for (const [recordKey, value] of records) {
@@ -210,6 +219,7 @@ try {
   scenarios++;
 
   await useStore.getState().init();
+  assert.equal(startupAttempts, 4, 'Startup must tolerate a persistence service that is still recovering');
   const providerId = await db.providers.add({
     name: 'Test provider', baseUrl: 'https://model.test/v1/', apiKey: '',
     isEnabled: true, cachedModelsCsv: 'test-model', createdAt: Date.now(),

@@ -284,10 +284,16 @@ let hasWriteLock = false;
 let lockHeartbeat: number | null = null;
 
 const PERSISTENCE_REQUEST_TIMEOUT_MS = 8_000;
-const PERSISTENCE_STARTUP_RETRY_DELAY_MS = 250;
+const PERSISTENCE_RETRY_DELAY_MS = 250;
+const DEFAULT_PERSISTENCE_ATTEMPTS = 2;
+const STARTUP_PERSISTENCE_ATTEMPTS = 4;
 
-async function persistenceRequest<T>(path: string, body: Record<string, unknown> = {}): Promise<T> {
-  for (let attempt = 0; attempt < 2; attempt++) {
+async function persistenceRequest<T>(
+  path: string,
+  body: Record<string, unknown> = {},
+  maxAttempts = DEFAULT_PERSISTENCE_ATTEMPTS,
+): Promise<T> {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const controller = new AbortController();
     const timeout = globalThis.setTimeout(() => controller.abort(), PERSISTENCE_REQUEST_TIMEOUT_MS);
     let response: Response;
@@ -299,8 +305,8 @@ async function persistenceRequest<T>(path: string, body: Record<string, unknown>
         signal: controller.signal,
       });
     } catch (error) {
-      if (attempt === 0) {
-        await new Promise((resolve) => globalThis.setTimeout(resolve, PERSISTENCE_STARTUP_RETRY_DELAY_MS));
+      if (attempt + 1 < maxAttempts) {
+        await new Promise((resolve) => globalThis.setTimeout(resolve, PERSISTENCE_RETRY_DELAY_MS));
         continue;
       }
       if (error instanceof DOMException && error.name === 'AbortError') {
@@ -316,8 +322,10 @@ async function persistenceRequest<T>(path: string, body: Record<string, unknown>
     } catch {
       throw new Error(`Persistence service returned an invalid response (${response.status})`);
     }
-    if (response.status === 503 && payload.message === 'Persistence server not running' && attempt === 0) {
-      await new Promise((resolve) => globalThis.setTimeout(resolve, PERSISTENCE_STARTUP_RETRY_DELAY_MS));
+    const serviceRecovering = response.status === 502
+      || (response.status === 503 && payload.message === 'Persistence server not running');
+    if (serviceRecovering && attempt + 1 < maxAttempts) {
+      await new Promise((resolve) => globalThis.setTimeout(resolve, PERSISTENCE_RETRY_DELAY_MS));
       continue;
     }
     if (!response.ok || payload.ok === false) {
@@ -366,7 +374,7 @@ type StartupSnapshot = {
 export async function loadStartupSnapshot(): Promise<StartupSnapshot> {
   let snapshot: StartupSnapshot;
   try {
-    snapshot = await persistenceRequest<StartupSnapshot>('/startup/snapshot');
+    snapshot = await persistenceRequest<StartupSnapshot>('/startup/snapshot', {}, STARTUP_PERSISTENCE_ATTEMPTS);
   } catch (error) {
     // 热更新期间旧服务进程可能还未注册快照路由。临时降级到旧的逐表读取，
     // 让页面可用；Vite 会在 persistence-server.mjs 变更后重启该进程。
