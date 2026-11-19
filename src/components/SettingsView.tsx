@@ -1,4 +1,4 @@
-import { memo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { memo, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useStore } from '../store/store';
 import { db, DEFAULT_GENERATION_SETTINGS } from '../db/database';
 import { type ThemeMode } from '../theme/theme';
@@ -481,6 +481,29 @@ function ApiKeyField({ value, onChange, required = false }: { value: string; onC
   );
 }
 
+function ScrollingProviderName({ name }: { name: string }) {
+  const containerRef = useRef<HTMLSpanElement>(null);
+  const textRef = useRef<HTMLSpanElement>(null);
+  const [overflowing, setOverflowing] = useState(false);
+
+  useEffect(() => {
+    const updateOverflow = () => {
+      setOverflowing((textRef.current?.scrollWidth ?? 0) > (containerRef.current?.clientWidth ?? 0));
+    };
+    updateOverflow();
+    const observer = new ResizeObserver(updateOverflow);
+    if (containerRef.current) observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, [name]);
+
+  return (
+    <span ref={containerRef} className={`p-name card-name-scroll${overflowing ? ' is-overflowing' : ''}`}>
+      <span ref={textRef} className="card-name-scroll-text">{name}</span>
+      {overflowing && <span className="card-name-scroll-text card-name-scroll-copy" aria-hidden="true">{name}</span>}
+    </span>
+  );
+}
+
 function VoiceProviderManager({ providers, onChanged }: { providers: VoiceProvider[]; onChanged: () => void }) {
   const settings = useStore((s) => s.settings)!;
   const setSettings = useStore((s) => s.setSettings);
@@ -519,7 +542,7 @@ function VoiceProviderManager({ providers, onChanged }: { providers: VoiceProvid
                   <input type="checkbox" checked={provider.isEnabled} onChange={async () => { await db.voiceProviders.update(provider.id!, { isEnabled: !provider.isEnabled }); await onChanged(); }} />
                   <span className="switch-slider" />
                 </label>
-                <span className="p-name">{providerName(provider.kind)}</span>
+                <ScrollingProviderName name={providerName(provider.kind)} />
                 <span className="p-status voice">{t('settings.voiceServiceTag')}</span>
                 <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
                   <button className="btn btn-sm" onClick={() => setEditing(provider)}>{t('common.edit')}</button>
@@ -648,7 +671,7 @@ function ProviderManager({ providers, onChanged }: { providers: ApiProvider[]; o
                   <input type="checkbox" checked={p.isEnabled} onChange={() => toggleEnabled(p)} />
                   <span className="switch-slider" />
                 </label>
-                <span className="p-name">{p.name}</span>
+                <ScrollingProviderName name={p.name} />
                 <span className="p-status text">{t('settings.textServiceTag')}</span>
                 <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
                   <button className="btn btn-sm" onClick={() => setEditing(p)}>{t('common.edit')}</button>

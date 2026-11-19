@@ -811,10 +811,11 @@
 .character-book-icon { font-size: var(--font-size-title-sm); }
 .tool-type-icon { font-size: var(--font-size-title-md); }
 .provider-inline-detail {
-  max-height: 60px;
-  overflow: auto;
+  overflow: hidden;
   font-size: var(--font-size-body-sm);
   color: var(--text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .stats-reset-card h3 {
@@ -892,9 +893,16 @@
   gap: 10px;
 }
 .provider-card .p-name {
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
+  white-space: nowrap;
   font-weight: var(--font-weight-bold);
   font-family: var(--font-family-display);
   font-size: var(--font-size-title-sm);
+}
+.provider-card .p-name .card-name-scroll-text {
+  white-space: nowrap;
 }
 .provider-card .p-url {
   font-size: var(--font-size-sm);
