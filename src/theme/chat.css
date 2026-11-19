@@ -66,7 +66,8 @@
   border-top-left-radius: 4px;
   padding: 11px 15px;
   font-size: var(--font-size-body);
-  box-shadow: var(--shadow);
+  /* 与侧边栏、主功能区卡片使用同一套收敛阴影，消息间距可避免阴影叠加。 */
+  box-shadow: var(--shadow-shell);
   min-width: 0;
   max-width: 100%;
   word-break: break-word;
@@ -105,9 +106,7 @@
   box-shadow:
     inset 0 0 0 1px color-mix(in srgb, var(--primary) 10%, transparent),
     inset 0 0 8px color-mix(in srgb, var(--glow) 16%, transparent),
-    0 0 0 1px color-mix(in srgb, var(--primary) 20%, transparent),
-    0 0 8px color-mix(in srgb, var(--glow) 34%, transparent),
-    0 0 16px color-mix(in srgb, var(--glow) 12%, transparent);
+    var(--shadow-shell);
 }
 .stream-cursor {
   display: inline-block;
@@ -229,21 +228,20 @@
   margin: 2px 0;
 }
 .tool-card {
-  border: 1px solid color-mix(in srgb, var(--border) 30%, transparent);
+  border: none;
   border-radius: 8px;
-  /* 淡中性底（和思考卡同一种“浅色块”语言，只是不偏紫）：
-     覆盖在实色主区域上，视觉上就是一块很浅的暖灰，不是透视 */
+  /* 工具调用只用无边框色块表达状态，避免与消息气泡形成嵌套描边。 */
   background: color-mix(in srgb, var(--text) 6%, transparent);
   overflow: hidden;
 }
 .tool-card.executing {
-  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
 }
 .tool-card.has-result {
-  border-color: color-mix(in srgb, var(--success) 30%, transparent);
+  background: color-mix(in srgb, var(--success) 8%, transparent);
 }
 .tool-card.has-error {
-  border-color: color-mix(in srgb, var(--danger) 30%, transparent);
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
 }
 .tool-card-head {
   display: flex;
@@ -315,7 +313,7 @@
   align-items: flex-start;
   gap: 6px;
   padding: 6px 12px 7px;
-  border-top: 1px solid var(--border-soft);
+  border-top: none;
   font-family: var(--font-family-mono);
   font-size: var(--font-size-md);
   font-weight: var(--font-weight-semibold);
@@ -374,10 +372,10 @@
 
 /* ---------- 折叠面板（thinking / 工具结果） ---------- */
 .collp {
-  border: 1px solid color-mix(in srgb, var(--think) 30%, transparent);
+  border: none;
   border-radius: 8px;
-  /* 5% 的淡紫底：结构和工具卡完全一致，只靠颜色区分 */
-  background: color-mix(in srgb, var(--think) 5%, transparent);
+  /* 思考卡与工具卡统一为无边框色块，只靠语义色区分。 */
+  background: color-mix(in srgb, var(--think) 7%, transparent);
   overflow: hidden;
   margin: 2px 0;
 }
@@ -434,9 +432,9 @@
   line-height: 1.6;
   color: var(--text-secondary);
 }
-/* 思考展开区跟随卡片淡紫，避免米色代码底卡在紫色描边里 */
+/* 思考展开前后保持同一背景色。 */
 .collp-think .collp-content {
-  background: color-mix(in srgb, var(--think) 7%, transparent);
+  background: transparent;
 }
 .collp-preview {
   padding: 5px 12px 8px;
