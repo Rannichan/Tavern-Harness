@@ -93,7 +93,7 @@ export function Sidebar() {
     const saved = parseFloat(localStorage.getItem('tav-sidebar-w') || '0');
     return saved >= SIDEBAR_MIN && saved <= SIDEBAR_MAX ? saved : 356;
   });
-  const dragRef = useRef<{ startX: number; startW: number } | null>(null);
+  const dragRef = useRef<{ pointerId: number; startX: number; startW: number } | null>(null);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -122,24 +122,13 @@ export function Sidebar() {
     };
   }, []);
 
-  useEffect(() => {
-    const onMove = (e: MouseEvent) => {
-      const d = dragRef.current;
-      if (!d) return;
-      const w = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, d.startW + (e.clientX - d.startX)));
-      setSidebarW(w);
-    };
-    const onUp = () => {
-      dragRef.current = null;
-      document.body.classList.remove('resizing');
-    };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-    return () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-    };
-  }, []);
+  useEffect(() => () => document.body.classList.remove('resizing'), []);
+
+  const finishResize = (pointerId: number) => {
+    if (dragRef.current?.pointerId !== pointerId) return;
+    dragRef.current = null;
+    document.body.classList.remove('resizing');
+  };
 
   useEffect(() => {
     const isMobile = () => window.matchMedia('(max-width: 680px)').matches;
@@ -546,10 +535,20 @@ export function Sidebar() {
       <div
         className="sidebar-resizer"
         title={t('nav.resize')}
-        onMouseDown={(e) => {
-          dragRef.current = { startX: e.clientX, startW: sidebarW };
+        onPointerDown={(event) => {
+          if (!event.isPrimary || event.button !== 0) return;
+          event.currentTarget.setPointerCapture(event.pointerId);
+          dragRef.current = { pointerId: event.pointerId, startX: event.clientX, startW: sidebarW };
           document.body.classList.add('resizing');
         }}
+        onPointerMove={(event) => {
+          const drag = dragRef.current;
+          if (!drag || drag.pointerId !== event.pointerId) return;
+          const width = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, drag.startW + event.clientX - drag.startX));
+          setSidebarW(width);
+        }}
+        onPointerUp={(event) => finishResize(event.pointerId)}
+        onPointerCancel={(event) => finishResize(event.pointerId)}
       />
       </aside>
     </>
