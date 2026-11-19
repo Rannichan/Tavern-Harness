@@ -108,7 +108,7 @@ export const CharactersView = memo(function CharactersView({ active = true }: { 
           <h2 className="view-title">{t('workshop.title')}</h2>
           <p className="view-sub">{t('workshop.sub')}</p>
         </div>
-        <div className="side-nav" data-hscroll>
+        <div className="side-nav view-tabs" data-hscroll>
           <button className={`nav-chip ${tab === 'characters' ? 'active' : ''}`} onClick={() => selectTab('characters')}>
             {t('workshop.tabCharacters')}
           </button>

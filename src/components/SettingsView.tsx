@@ -117,7 +117,7 @@ export const SettingsView = memo(function SettingsView() {
           <p className="view-sub">{t('settings.sub')}</p>
         </div>
 
-        <div className="side-nav" data-hscroll role="tablist" aria-label={t('settings.title')}>
+        <div className="side-nav view-tabs" data-hscroll role="tablist" aria-label={t('settings.title')}>
           <button type="button" role="tab" aria-selected={tab === 'api'} className={`nav-chip ${tab === 'api' ? 'active' : ''}`} onClick={() => setTab('api')}>
             {t('settings.tabApi')}
           </button>

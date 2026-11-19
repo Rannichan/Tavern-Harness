@@ -344,6 +344,10 @@
   font-size: var(--font-size-label);
   margin: 2px 0 0;
 }
+.side-nav.view-tabs {
+  margin: -14px;
+  padding: 14px;
+}
 
 /* ---------- 卡片多列瀑布流（角色） ---------- */
 .char-grid {
