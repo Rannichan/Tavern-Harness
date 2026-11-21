@@ -3,6 +3,52 @@
 > 本文件由 `scripts/changelog.mjs` 从 `changelog/v*.md` 生成，请勿手动编辑。
 > 版本对比链接见文末；源文件位于仓库 `changelog/` 目录。
 
+## [0.2.3] - 2026-11-21
+
+### 中文
+
+#### 新增
+
+- 开启 NSFW 模式后，发送按钮支持「长按蓄力」：按住约 0.9 秒蓄满，松开时自动先注入一轮破甲指令再发送当前消息；蓄满和触发时有振动与按钮动画，按住后拖动一小段距离即可取消
+
+#### 改进
+
+- 设置页与注入提示中的相关文案由「演出指导」改为「破甲指令」，默认指令文本也换成更明确的表述
+- 模型选择列表改为半透明玻璃质感，手机上紧贴输入框上方弹出，不再作为固定面板盖住输入框
+- 关闭「自动语音」时会立即停止正在播放的语音
+
+#### 修复
+
+- 修复连续触发朗读时多段语音重叠播放的问题；新的朗读会先中止上一段仍在请求或播放的音频
+- 修复连续点击「重置对话」的确认按钮会重复重置会话的问题；重置期间按钮禁用并显示加载状态，同一会话的重置请求也会合并
+
+#### 内部
+
+- 语音播放增加请求中止与播放代次校验，并补充重叠播放的测试
+- 会话重置在 store 层按会话去重，消息与上下文压缩记录改用同一事务删除
+
+### English
+
+#### Added
+
+- With NSFW mode on, the send button now supports hold-to-charge: hold for about 0.9 seconds, then release to inject one round of armor-breaking instruction before sending the current message. Charging and release trigger vibration and button animation, and dragging away cancels the charge
+
+#### Changed
+
+- Settings and the injected-message marker now say "armor-breaking instruction" instead of "performance guidance", with a clearer default instruction text
+- The model picker now has a translucent glass look and opens directly above the composer on phones instead of covering it as a fixed bottom sheet
+- Turning off Auto Voice now immediately stops any voice that is currently playing
+
+#### Fixed
+
+- Fixed overlapping voice playback when speech is triggered repeatedly; a new playback now aborts the previous request or audio first
+- Fixed confirming Reset Conversation twice triggering duplicate resets; the button is disabled with a loading state during the reset, and concurrent resets for the same conversation are merged
+
+#### Internal
+
+- Voice playback now tracks an aborted request and a playback generation, with tests for overlapping playback
+- Conversation resets are deduplicated per session in the store, and messages plus context compressions are deleted in one transaction
+
 ## [0.2.2] - 2026-11-21
 
 ### 中文
@@ -1095,6 +1141,7 @@
 - Vite + React + Zustand + Dexie stack with browser-side local persistence
 
 <!-- 链接定义 -->
+[0.2.3]: https://github.com/Rannichan/Tavern-Harness/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/Rannichan/Tavern-Harness/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/Rannichan/Tavern-Harness/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.33...v0.2.0
