@@ -35,30 +35,57 @@ export function activeVoiceProvider(
 
 let currentAudio: HTMLAudioElement | null = null;
 let currentObjectUrl: string | null = null;
+let currentRequestController: AbortController | null = null;
+let playbackGeneration = 0;
+
+export function stopVoicePlayback(): void {
+  playbackGeneration += 1;
+  currentRequestController?.abort();
+  currentRequestController = null;
+  currentAudio?.pause();
+  currentAudio = null;
+  if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl);
+  currentObjectUrl = null;
+}
 
 async function playVoiceRequest(path: string, body: Record<string, unknown>): Promise<void> {
-  currentAudio?.pause();
-  if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl);
+  stopVoicePlayback();
+  const generation = playbackGeneration;
+  const controller = new AbortController();
+  currentRequestController = controller;
 
-  const response = await fetch(path, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!response.ok) {
-    const payload = await response.json().catch(() => null) as { message?: string } | null;
-    throw new Error(payload?.message || `语音合成失败（HTTP ${response.status}）`);
+  try {
+    const response = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    if (generation !== playbackGeneration) return;
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null) as { message?: string } | null;
+      throw new Error(payload?.message || `语音合成失败（HTTP ${response.status}）`);
+    }
+    const blob = await response.blob();
+    if (generation !== playbackGeneration) return;
+    if (!blob.size) throw new Error('语音服务返回了空音频');
+
+    const objectUrl = URL.createObjectURL(blob);
+    const audio = new Audio(objectUrl);
+    currentObjectUrl = objectUrl;
+    currentAudio = audio;
+    audio.addEventListener('ended', () => {
+      URL.revokeObjectURL(objectUrl);
+      if (currentObjectUrl === objectUrl) currentObjectUrl = null;
+      if (currentAudio === audio) currentAudio = null;
+    }, { once: true });
+    await audio.play();
+  } catch (error) {
+    if (controller.signal.aborted || generation !== playbackGeneration) return;
+    throw error;
+  } finally {
+    if (currentRequestController === controller) currentRequestController = null;
   }
-  const blob = await response.blob();
-  if (!blob.size) throw new Error('语音服务返回了空音频');
-  currentObjectUrl = URL.createObjectURL(blob);
-  currentAudio = new Audio(currentObjectUrl);
-  currentAudio.addEventListener('ended', () => {
-    if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl);
-    currentObjectUrl = null;
-    currentAudio = null;
-  }, { once: true });
-  await currentAudio.play();
 }
 
 export async function speakText(providerId: number, voiceId: VoiceId, text: string): Promise<void> {

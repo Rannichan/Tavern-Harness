@@ -65,7 +65,7 @@ import { estimateTokensFromChars, accumulateStats, preloadCareerStats, sessionPr
 import { seedOpeningGreeting } from '../core/openingGreeting';
 import { ACHIEVEMENTS, type AchievementDef } from '../core/achievements';
 import { npcFingerprint, sameRows, toolFingerprint, worldBookFingerprint } from '../core/rowFingerprint';
-import { activeVoiceProvider, speakText } from '../core/voice';
+import { activeVoiceProvider, speakText, stopVoicePlayback } from '../core/voice';
 
 // ============================================================
 // Store（对应 MainViewModel）
@@ -438,6 +438,7 @@ export const useStore = create<AppState>((set, get) => ({
   setSettings: async (partial) => {
     const current = get().settings;
     if (!current) return;
+    if (current.autoVoiceEnabled && partial.autoVoiceEnabled === false) stopVoicePlayback();
     const next = { ...current, ...partial };
     const { language, themeMode, themePalette, ...sharedChanges } = partial;
     if (language !== undefined || themeMode !== undefined || themePalette !== undefined) {
