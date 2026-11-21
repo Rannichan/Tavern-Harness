@@ -776,6 +776,9 @@ export const useStore = create<AppState>((set, get) => ({
     // 以目标消息的时间戳为切断点：删除它及之后的所有消息（通常为其附属 tool 结果），
     // 随后重新生成该条回复（重新生成 = 旧回复连同后续内容一起被新回复替换）
     const messages = snapshotMessages;
+    const forcePerformanceGuidance =
+      get().settings?.nsfwMode === true &&
+      hasPerformanceGuidanceMarkerForReply(messages, message);
     const toDelete = messages.filter((m) => m.timestamp >= message.timestamp);
     await deleteContextCompressionsFrom(sessionId, message.timestamp);
     await db.messages.bulkDelete(toDelete.map((m) => m.id!));
@@ -791,8 +794,11 @@ export const useStore = create<AppState>((set, get) => ({
       contextTokensLoopIndex: null,
     });
 
+    // 重新生成始终读取当前会话配置，因此即使原回复生成后修改过破甲指令，
+    // 本次临时注入也使用点击重新生成时的最新文本。
+    const regenerationSession = (await db.sessions.get(sessionId)) ?? session;
     let result: TurnResult;
-    if (session.mode === 'GROUP') {
+    if (regenerationSession.mode === 'GROUP') {
       // 群聊：把被重生成 assistant 的发言人重新置顶（联动发言队列）。
       // 若该条发言是当前循环某位成员（未知 speakerParticipantId，如收尾回复），
       // 无法映射到具体成员，则直接按当前队列继续。
@@ -802,9 +808,9 @@ export const useStore = create<AppState>((set, get) => ({
             .filter((p) => p.participantId === message.speakerParticipantId)
             .first()) ?? null
         : null;
-      result = await continueRegeneratedGroupLoop(session, message, participant);
+      result = await continueRegeneratedGroupLoop(regenerationSession, message, participant, forcePerformanceGuidance);
     } else {
-      result = await runConversationLoop(session);
+      result = await runConversationLoop(regenerationSession, forcePerformanceGuidance);
     }
 
     if (result === 'failed') {
@@ -1619,15 +1625,25 @@ async function handleMagicCommand(session: ChatSession, cmd: string): Promise<vo
   }
 }
 
+function isBeforeMessage(candidate: ChatMessage, target: ChatMessage): boolean {
+  return candidate.timestamp < target.timestamp ||
+    (candidate.timestamp === target.timestamp && candidate.id! < target.id!);
+}
+
 function hasPerformanceGuidanceMarkerForUser(messages: ChatMessage[], userMessage: ChatMessage): boolean {
-  const earlier = messages
-    .filter((message) => message.timestamp < userMessage.timestamp || (message.timestamp === userMessage.timestamp && message.id! < userMessage.id!))
-    .reverse();
+  const earlier = messages.filter((message) => isBeforeMessage(message, userMessage)).reverse();
   const previousUserIndex = earlier.findIndex((message) => message.role === 'user');
   const relevant = previousUserIndex < 0 ? earlier : earlier.slice(0, previousUserIndex);
   return relevant.some(
     (message) => message.role === 'system' && message.content === PERFORMANCE_GUIDANCE_PENDING_MARKER,
   );
+}
+
+function hasPerformanceGuidanceMarkerForReply(messages: ChatMessage[], reply: ChatMessage): boolean {
+  const sourceUser = messages
+    .filter((message) => message.role === 'user' && isBeforeMessage(message, reply))
+    .at(-1);
+  return sourceUser != null && hasPerformanceGuidanceMarkerForUser(messages, sourceUser);
 }
 
 /** 对话主循环：NPC / STANDARD 直接回复；GROUP 依队列轮转。
@@ -2796,7 +2812,8 @@ async function continueGroupConversation(sessionId: number, forcePerformanceGuid
 async function continueRegeneratedGroupLoop(
   session: ChatSession,
   editedMessage: ChatMessage,
-  editedSpeaker: ChatParticipant | null
+  editedSpeaker: ChatParticipant | null,
+  forcePerformanceGuidance = false,
 ): Promise<TurnResult> {
   const sessionId = session.id!;
   const participants = await db.participants.where('sessionId').equals(sessionId).toArray();
@@ -2804,14 +2821,14 @@ async function continueRegeneratedGroupLoop(
   if (speakerParticipantId == null) {
     // 发言者不可映射 → 仅刷新队列并照常续跑
     await refreshQueueAndSave(sessionId);
-    return continueGroupConversation(sessionId);
+    return continueGroupConversation(sessionId, forcePerformanceGuidance);
   }
   const { queue, loopIndex, loopStarted } = refreshQueue(session, participants);
   // 编辑后：该角色“重讲一遍” → 置顶队列，联动发言队列面板与下一轮顺序
   const nextQueue = requeueSpeaker(queue, speakerParticipantId);
   await persistQueue(sessionId, nextQueue, loopIndex, loopStarted);
   await useStore.getState().refreshLiveQueue(sessionId);
-  return continueGroupConversation(sessionId);
+  return continueGroupConversation(sessionId, forcePerformanceGuidance);
 }
 
 /** 工具确认在 YOLO 模式下自动批准；执行限额仍挂起等待用户应答。 */
