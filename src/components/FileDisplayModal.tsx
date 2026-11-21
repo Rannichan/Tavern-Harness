@@ -152,11 +152,19 @@ export function FileDisplayModal() {
   const [loadState, setLoadState] = useState<'loading' | 'ok' | 'error'>('loading');
   const [htmlZoom, setHtmlZoom] = useState(1);
   const [imageZoom, setImageZoom] = useState(1);
+  const [imageLoadVersion, setImageLoadVersion] = useState(0);
+  const [imageLayout, setImageLayout] = useState<{
+    width: number;
+    height: number;
+    overflowX: boolean;
+    overflowY: boolean;
+  } | null>(null);
   const [htmlPreviewVersion, setHtmlPreviewVersion] = useState(0);
   const [textWrap, setTextWrap] = useState(true);
   const [isPictureInPicture, setIsPictureInPicture] = useState(true);
   const [pipRect, setPipRect] = useState<PipRect>(createPipRect);
   const contentRef = useRef<string | null>(null);
+  const imageViewportRef = useRef<HTMLDivElement | null>(null);
   const wasDisplayOpenRef = useRef(false);
   const pipGestureRef = useRef<
     | { type: 'move'; pointerX: number; pointerY: number; startX: number; startY: number }
@@ -197,7 +205,49 @@ export function FileDisplayModal() {
     }
     setHtmlZoom(active.kind === 'html' ? restorePreviewZoom('html', active.path, 1) : 1);
     setImageZoom(active.kind === 'image' ? restorePreviewZoom('image', active.path, 1) : 1);
+    setImageLoadVersion(0);
+    setImageLayout(null);
   }, [active]);
+
+  useLayoutEffect(() => {
+    if (!active || active.kind !== 'image' || loadState !== 'ok' || !workspaceDir) return;
+    const viewport = imageViewportRef.current;
+    const image = viewport?.querySelector('img');
+    if (!viewport || !image || !image.complete) return;
+
+    const updateImageViewport = () => {
+      const naturalWidth = image.naturalWidth;
+      const naturalHeight = image.naturalHeight;
+      if (!naturalWidth || !naturalHeight) return;
+
+      const fitScale = Math.min(1, viewport.clientWidth / naturalWidth, viewport.clientHeight / naturalHeight);
+      const width = naturalWidth * fitScale * imageZoom;
+      const height = naturalHeight * fitScale * imageZoom;
+      const nextLayout = {
+        width,
+        height,
+        overflowX: width > viewport.clientWidth,
+        overflowY: height > viewport.clientHeight,
+      };
+      setImageLayout((current) => current
+        && current.width === nextLayout.width
+        && current.height === nextLayout.height
+        && current.overflowX === nextLayout.overflowX
+        && current.overflowY === nextLayout.overflowY
+        ? current
+        : nextLayout);
+      requestAnimationFrame(() => {
+        viewport.scrollLeft = Math.max(0, (width - viewport.clientWidth) / 2);
+        viewport.scrollTop = Math.max(0, (height - viewport.clientHeight) / 2);
+      });
+    };
+
+    updateImageViewport();
+    const resizeObserver = new ResizeObserver(updateImageViewport);
+    resizeObserver.observe(viewport);
+    resizeObserver.observe(image);
+    return () => resizeObserver.disconnect();
+  }, [active, imageLoadVersion, imageZoom, isPictureInPicture, loadState, workspaceDir]);
 
   useEffect(() => {
     if (!active || active.kind === 'unsupported' || !isPictureInPicture) return;
@@ -407,13 +457,28 @@ export function FileDisplayModal() {
       if (!workspaceDir) return <div className="display-error">{t('display.fileError', { path: active.path })}</div>;
       return (
         <div className="display-image-wrap">
-          <div className="display-image-viewport">
-            <img
-              className="display-image"
-              src={previewUrl(active.path, workspaceDir)}
-              alt={title}
-              style={{ transform: `scale(${imageZoom})` }}
-            />
+          <div
+            ref={imageViewportRef}
+            className="display-image-viewport"
+            style={{
+              overflowX: imageLayout?.overflowX ? 'auto' : 'hidden',
+              overflowY: imageLayout?.overflowY ? 'auto' : 'hidden',
+            }}
+          >
+            <div
+              className="display-image-scroll-area"
+              style={imageLayout ? { width: imageLayout.width, height: imageLayout.height } : undefined}
+            >
+              <img
+                className="display-image"
+                src={previewUrl(active.path, workspaceDir)}
+                alt={title}
+                style={imageLayout
+                  ? { width: imageLayout.width, height: imageLayout.height, visibility: 'visible' }
+                  : { visibility: 'hidden' }}
+                onLoad={() => setImageLoadVersion((version) => version + 1)}
+              />
+            </div>
           </div>
           <div className="display-html-note display-image-note">
             <span />

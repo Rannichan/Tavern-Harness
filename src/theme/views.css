@@ -1843,20 +1843,19 @@
 .display-image-viewport {
   flex: 1;
   min-height: 0;
-  overflow: auto;
-  display: grid;
-  place-items: center;
+  overflow: hidden;
   background: var(--surface);
   user-select: none;
 }
+.display-image-scroll-area {
+  min-width: 100%;
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+}
 .display-image {
   display: block;
-  max-width: 100%;
-  max-height: 100%;
   object-fit: contain;
-  transform-origin: center;
-  transition: transform 0.12s ease-out;
-  will-change: transform;
   cursor: default;
 }
 
