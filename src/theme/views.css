@@ -973,6 +973,8 @@
   word-break: break-all;
 }
 .p-status {
+  flex-shrink: 0;
+  white-space: nowrap;
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-bold);
   padding: 2px 8px;

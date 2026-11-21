@@ -490,6 +490,10 @@ function ApiKeyField({ value, onChange, required = false }: { value: string; onC
           value={value}
           onChange={(event) => onChange(event.target.value)}
           placeholder={t('settings.apiKeyPh')}
+          autoComplete="new-password"
+          spellCheck={false}
+          data-1p-ignore
+          data-lpignore="true"
         />
         <button
           type="button"
