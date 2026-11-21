@@ -110,6 +110,10 @@ Each room supports up to **six characters** and provides a turn-order board for 
 
 Use **@mentions** and **skip** to create natural multi-character scenes—whether observing from above or role-playing as part of the group.
 
+### 🔥 Charged Armor-Breaking (NSFW Mode)
+
+With **NSFW mode** enabled in Settings, the send button supports **hold-to-charge**: once fully charged, the message you send carries the armor-breaking effect.
+
 ### 🎁 Share Your Game with Friends
 
 Compatible with the **Tavern ecosystem**, including one-click PNG character-card imports.
