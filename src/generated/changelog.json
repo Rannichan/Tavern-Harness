@@ -1,7 +1,77 @@
 {
-  "latest": "0.2.0",
+  "latest": "0.2.1",
   "repo": "https://github.com/Rannichan/Tavern-Harness",
   "entries": [
+    {
+      "version": "0.2.1",
+      "date": "2026-11-21",
+      "breaking": false,
+      "compare": "v0.2.0...v0.2.1",
+      "groups": {
+        "zh-CN": [
+          {
+            "kind": "added",
+            "items": [
+              "新增内置「生成图片」技能：在设置中添加「百炼 Token Plan」生图供应商并选定默认模型（qwen-image-3.0-pro / qwen-image-2.0-pro / qwen-image-2.0 / wan2.7-image / wan2.7-image-pro）后，角色即可按提示词生成图片，图片保存到工作区 `images/` 目录并自动打开预览",
+              "角色创建与更新技能支持 `avatar_path`：酒馆助手可以从工作区的 PNG / JPEG / WebP / BMP / AVIF 图片生成或清空角色头像，保存前会校验图片真实格式并压缩到存储上限",
+              "对话中的图片附件改为缩略图卡片，点击即可放大查看"
+            ]
+          },
+          {
+            "kind": "changed",
+            "items": [
+              "生成的图片文件名改为根据提示词或指定文件名生成的可读名称，并自动追加时间戳与正确的扩展名，不再是一串 `generated-数字`"
+            ]
+          },
+          {
+            "kind": "fixed",
+            "items": [
+              "修复图片预览弹窗缩放后无法平移、大图看不全的问题；图片现在按窗口自适应缩放，超出窗口时可在横向与纵向滚动，并保持居中",
+              "修复输入框内边距在不同屏幕宽度下不一致的问题"
+            ]
+          },
+          {
+            "kind": "internal",
+            "items": [
+              "新增 `imageGeneration`、`imageFilename` 模块，并为生成图片文件名补充测试",
+              "持久化服务新增 `/image/generate` 端点，代理百炼 Token Plan 生图请求并下载结果；数据库升级至 v14，新增 `imageProviders` 表",
+              "沙箱服务新增二进制文件写入端点（上限 8MB），图片预览与 base64 写入端点纳入同源代理"
+            ]
+          }
+        ],
+        "en": [
+          {
+            "kind": "added",
+            "items": [
+              "Built-in Generate Image skill: after adding a Bailian Token Plan image provider in Settings and choosing a default model (qwen-image-3.0-pro, qwen-image-2.0-pro, qwen-image-2.0, wan2.7-image, wan2.7-image-pro), characters can generate images from prompts; images are saved to the workspace `images/` folder and opened in a preview automatically",
+              "Character create/update skills accept `avatar_path`: the Tavern Keeper can set or clear a character avatar from a PNG, JPEG, WebP, BMP, or AVIF file in the workspace, with real format validation and compression before saving",
+              "Image attachments in conversations are now thumbnail cards that open a larger preview on click"
+            ]
+          },
+          {
+            "kind": "changed",
+            "items": [
+              "Generated images now get readable file names derived from the prompt or a requested filename, with a timestamp and the correct extension, instead of `generated-<number>`"
+            ]
+          },
+          {
+            "kind": "fixed",
+            "items": [
+              "Fixed the image preview being impossible to pan after zooming; images now fit the window, scroll horizontally and vertically when larger, and stay centered",
+              "Fixed inconsistent composer padding across screen widths"
+            ]
+          },
+          {
+            "kind": "internal",
+            "items": [
+              "Added the `imageGeneration` and `imageFilename` modules, with tests for generated image filenames",
+              "The persistence service gained an `/image/generate` endpoint that proxies Bailian Token Plan requests and downloads the result; the database moved to v14 with a new `imageProviders` table",
+              "The sandbox service gained a binary file-write endpoint (8MB limit), and the preview/base64 write endpoints are covered by the same-origin proxy"
+            ]
+          }
+        ]
+      }
+    },
     {
       "version": "0.2.0",
       "date": "2026-11-20",
