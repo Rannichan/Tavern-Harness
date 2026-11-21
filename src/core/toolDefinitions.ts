@@ -172,7 +172,7 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
   ),
   fn(
     'generate_image',
-    'Generate an image from a text prompt with the configured image service. Returns a visible image in the conversation. If the service is not configured or generation fails, the tool returns an explicit error.',
+    'Generate an image from a text prompt with the configured image service.',
     {
       type: 'object',
       properties: {
