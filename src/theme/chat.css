@@ -634,7 +634,11 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  box-shadow: var(--shadow-lg);
+  border-color: color-mix(in srgb, var(--border) 58%, transparent);
+  background: color-mix(in srgb, var(--surface) 38%, transparent);
+  -webkit-backdrop-filter: blur(22px) saturate(160%);
+  backdrop-filter: blur(22px) saturate(160%);
+  box-shadow: 0 -6px 20px rgb(0 0 0 / 18%);
 }
 .model-popover-head {
   display: flex;
@@ -1397,10 +1401,9 @@
   }
 
   .model-popover {
-    position: fixed;
-    right: 12px;
-    bottom: max(12px, env(safe-area-inset-bottom));
-    left: 12px;
+    right: 0;
+    bottom: calc(100% + 8px);
+    left: 0;
     width: auto;
     max-height: min(60dvh, 420px);
   }

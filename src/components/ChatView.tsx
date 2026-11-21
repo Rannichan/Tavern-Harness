@@ -1021,6 +1021,9 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
           ))}
         </div>
       )}
+      {showModels && (
+        <ModelPickerPanel onClose={() => setShowModels(false)} />
+      )}
       <div className="composer-box">
         {/* 模型选择器：输入框左侧，弹出列表（非弹窗） */}
         <div className="composer-model">
@@ -1040,9 +1043,6 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
             </span>
             <span className="composer-model-caret" aria-hidden="true" />
           </button>
-          {showModels && (
-            <ModelPickerPanel onClose={() => setShowModels(false)} />
-          )}
         </div>
         <button
           className="icon-btn composer-attach"
@@ -1208,7 +1208,7 @@ function ModelPickerPanel({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
-      if (e.target instanceof Element && e.target.closest('.composer-model')) return;
+      if (e.target instanceof Element && e.target.closest('.composer-model, .model-popover')) return;
       onClose();
     };
     const onEsc = (e: KeyboardEvent) => {
