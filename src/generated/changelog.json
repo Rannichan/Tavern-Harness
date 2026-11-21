@@ -1,7 +1,33 @@
 {
-  "latest": "0.2.1",
+  "latest": "0.2.2",
   "repo": "https://github.com/Rannichan/Tavern-Harness",
   "entries": [
+    {
+      "version": "0.2.2",
+      "date": "2026-11-21",
+      "breaking": false,
+      "compare": "v0.2.1...v0.2.2",
+      "groups": {
+        "zh-CN": [
+          {
+            "kind": "fixed",
+            "items": [
+              "设置页的 API Key 输入框不再被浏览器或密码管理器自动填入已保存的账号密码",
+              "服务商卡片上的「文本服务 / 语音服务」状态标签不再折行，服务商名称再长也能保持单行显示"
+            ]
+          }
+        ],
+        "en": [
+          {
+            "kind": "fixed",
+            "items": [
+              "The API Key field in Settings is no longer autofilled with saved credentials by browsers or password managers",
+              "The \"Text / Voice\" status tag on provider cards no longer wraps, so it stays on one line even with long provider names"
+            ]
+          }
+        ]
+      }
+    },
     {
       "version": "0.2.1",
       "date": "2026-11-21",

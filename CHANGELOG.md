@@ -3,6 +3,22 @@
 > 本文件由 `scripts/changelog.mjs` 从 `changelog/v*.md` 生成，请勿手动编辑。
 > 版本对比链接见文末；源文件位于仓库 `changelog/` 目录。
 
+## [0.2.2] - 2026-11-21
+
+### 中文
+
+#### 修复
+
+- 设置页的 API Key 输入框不再被浏览器或密码管理器自动填入已保存的账号密码
+- 服务商卡片上的「文本服务 / 语音服务」状态标签不再折行，服务商名称再长也能保持单行显示
+
+### English
+
+#### Fixed
+
+- The API Key field in Settings is no longer autofilled with saved credentials by browsers or password managers
+- The "Text / Voice" status tag on provider cards no longer wraps, so it stays on one line even with long provider names
+
 ## [0.2.1] - 2026-11-21
 
 ### 中文
@@ -1079,6 +1095,7 @@
 - Vite + React + Zustand + Dexie stack with browser-side local persistence
 
 <!-- 链接定义 -->
+[0.2.2]: https://github.com/Rannichan/Tavern-Harness/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/Rannichan/Tavern-Harness/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.33...v0.2.0
 [0.1.33]: https://github.com/Rannichan/Tavern-Harness/compare/v0.1.32...v0.1.33
