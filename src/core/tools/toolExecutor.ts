@@ -13,6 +13,7 @@ import {
 } from '../toolDefinitions';
 import { unlockAchievement } from '../achievements';
 import { generateImage } from '../imageGeneration';
+import { buildGeneratedImagePath } from '../imageFilename';
 import { AVATAR_STORAGE_SIZE, shrinkAvatarDataUrl } from '../avatarThumbnail';
 import { translate } from '../i18n';
 import { rollDice } from './builtinTools';
@@ -366,6 +367,7 @@ export function parseImageResult(result: string): ImageResultPayload | null {
 
 async function handleGenerateImage(args: Record<string, unknown>, ctx: ToolExecutionContext): Promise<string> {
   const prompt = String(args.prompt ?? '').trim();
+  const filename = String(args.filename ?? '').trim();
   const size = String(args.size ?? '1024*1024').trim();
   if (!prompt) return 'ERROR: Missing image prompt';
   const settings = await db.settings.get(1);
@@ -378,7 +380,7 @@ async function handleGenerateImage(args: Record<string, unknown>, ctx: ToolExecu
     const generated = await generateImage(providerId, prompt, model, size);
     const extension = generated.mimeType.split('/')[1]?.replace('jpeg', 'jpg') || 'png';
     const workspaceDir = await applySessionWorkspace(ctx.sessionId, ctx.npcId);
-    const name = `images/generated-${Date.now()}.${extension}`;
+    const name = buildGeneratedImagePath(filename, prompt, extension);
     const base64 = generated.dataUrl.slice(generated.dataUrl.indexOf(',') + 1);
     await writeWorkspaceFileBase64For(name, base64, workspaceDir);
     return `${IMAGE_RESULT_PREFIX}${name}\nOK: Image generated successfully. Path: ${name}`;

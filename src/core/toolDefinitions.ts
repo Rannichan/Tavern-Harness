@@ -177,6 +177,11 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
       type: 'object',
       properties: {
         prompt: { type: 'string', minLength: 1, maxLength: 10000, description: 'Detailed image description.' },
+        filename: {
+          type: 'string',
+          maxLength: 64,
+          description: 'Optional readable file name without a directory. Keep it short and descriptive; the extension and a uniqueness suffix are added automatically.',
+        },
         size: { type: 'string', pattern: '^\\d{2,5}\\*\\d{2,5}$', default: '1024*1024', description: 'Image size, for example 1024*1024.' },
       },
       required: ['prompt'],
