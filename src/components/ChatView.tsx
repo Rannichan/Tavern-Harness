@@ -1,4 +1,4 @@
-import { Fragment, lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type UIEvent } from 'react';
+import { Fragment, lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode, type UIEvent } from 'react';
 import { useStore } from '../store/store';
 import { db } from '../db/database';
 import { type ChatMessage, type ChatParticipant, type ChatSession, type ContextCompression, type ToolCallRecord, displayModelName } from '../types/models';
@@ -6,7 +6,7 @@ import { Avatar, Icon, Markdown, Collapse, Modal, AttachCard } from './shared';
 import { FileDisplayViewButton, parseStoredDisplayRef } from './FileDisplayModal';
 import { formatMetrics } from '../core/stats';
 import { saveTextFile } from '../core/fileDownload';
-import { effectiveDisplayQueue, speakerLabel, suggestMagicCommands, supportedMagicCommandTexts } from '../core/turnLoop';
+import { effectiveDisplayQueue, parseMagicCommand, speakerLabel, suggestMagicCommands, supportedMagicCommandTexts } from '../core/turnLoop';
 import { PERFORMANCE_GUIDANCE_PENDING_MARKER } from '../core/toolDefinitions';
 import { onChatScroll, onQueueScroll, onQueueScrollIntent, registerChatEl, registerQueueEl, scrollChatTo, scrollQueueToLoop } from '../core/linkedScroll';
 import { useT, translate } from '../core/i18n';
@@ -800,7 +800,12 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [typing, setTyping] = useState(false);
   const [showModels, setShowModels] = useState(false);
+  const [sendChargeState, setSendChargeState] = useState<'idle' | 'charging' | 'charged' | 'impact'>('idle');
   const fileRef = useRef<HTMLInputElement>(null);
+  const sendChargeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sendChargedRef = useRef(false);
+  const suppressSendClickRef = useRef(false);
+  const sendPointerStartRef = useRef<{ x: number; y: number } | null>(null);
   const sendMessage = useStore((s) => s.sendMessage);
   const addToast = useStore((s) => s.addToast);
   const streaming = useStore((s) => s.streaming.sessionId != null);
@@ -830,8 +835,11 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
   }, [displayedModelName]);
 
   const canSend = text.trim().length > 0 || attachments.length > 0;
+  const inputIsMagicCommand = session
+    ? parseMagicCommand(text, attachments.length > 0, session.mode, nsfwEnabled) != null
+    : false;
 
-  const doSend = () => {
+  const doSend = (withNsfw = false) => {
     if (!canSend || typing) return;
     if (streaming) return;
     const sendingText = text.trim();
@@ -841,11 +849,15 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
     setShowCmd(false);
     setShowMention(false);
     setTyping(true);
-    sendMessage(
-      sendingText,
-      sendingAttachments.map((a) => a.dataUrl),
-      sendingAttachments.map((a) => a.name)
-    ).catch((error: unknown) => {
+    const send = async () => {
+      if (withNsfw) await sendMessage('/nsfw');
+      await sendMessage(
+        sendingText,
+        sendingAttachments.map((a) => a.dataUrl),
+        sendingAttachments.map((a) => a.name)
+      );
+    };
+    send().catch((error: unknown) => {
       // 发送链路本身也可能失败（例如另一个浏览器持有了写锁）：不能静默丢掉
       // 用户输入，恢复草稿并提示原因。
       console.error('Failed to send message', error);
@@ -855,6 +867,61 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
       setTyping(false);
     });
   };
+
+  const cancelSendCharge = () => {
+    if (sendPointerStartRef.current) suppressSendClickRef.current = true;
+    if (sendChargeTimerRef.current) clearTimeout(sendChargeTimerRef.current);
+    sendChargeTimerRef.current = null;
+    sendChargedRef.current = false;
+    sendPointerStartRef.current = null;
+    if (navigator.vibrate) navigator.vibrate(0);
+    setSendChargeState('idle');
+  };
+
+  const startSendCharge = (e: ReactPointerEvent<HTMLButtonElement>) => {
+    if (!nsfwEnabled || !canSend || typing || streaming || e.button !== 0) return;
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    sendChargedRef.current = false;
+    suppressSendClickRef.current = false;
+    sendPointerStartRef.current = { x: e.clientX, y: e.clientY };
+    setSendChargeState('charging');
+    sendChargeTimerRef.current = setTimeout(() => {
+      sendChargeTimerRef.current = null;
+      sendChargedRef.current = true;
+      suppressSendClickRef.current = true;
+      setSendChargeState('charged');
+      if (navigator.vibrate) navigator.vibrate([45, 35, 45, 35, 45, 35, 45, 35, 45, 35, 45]);
+    }, 900);
+  };
+
+  const moveSendCharge = (e: ReactPointerEvent<HTMLButtonElement>) => {
+    const start = sendPointerStartRef.current;
+    if (!start || Math.hypot(e.clientX - start.x, e.clientY - start.y) <= 12) return;
+    cancelSendCharge();
+  };
+
+  const releaseSendCharge = () => {
+    if (!sendPointerStartRef.current) return;
+    const wasCharged = sendChargedRef.current;
+    const shouldSendNsfw = wasCharged && !inputIsMagicCommand;
+    if (sendChargeTimerRef.current) clearTimeout(sendChargeTimerRef.current);
+    sendChargeTimerRef.current = null;
+    sendChargedRef.current = false;
+    sendPointerStartRef.current = null;
+    if (navigator.vibrate) navigator.vibrate(0);
+    if (!wasCharged) {
+      setSendChargeState('idle');
+      return;
+    }
+    setSendChargeState('impact');
+    doSend(shouldSendNsfw);
+    setTimeout(() => setSendChargeState('idle'), 420);
+  };
+
+  useEffect(() => () => {
+    if (sendChargeTimerRef.current) clearTimeout(sendChargeTimerRef.current);
+    if (navigator.vibrate) navigator.vibrate(0);
+  }, []);
 
   // 输入区 @ 自动补全（仅在群聊、且匹配到成员时展示；不支持 @自己）
   const sessionParticipants = useStore((s) => s.participants[sessionId] ?? []);
@@ -1185,7 +1252,27 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
             <Icon name="stop" size={15} />
           </button>
         ) : (
-          <button className="btn btn-primary btn-round" disabled={!canSend} onClick={doSend} title={t('chat.sendTip')}>
+          <button
+            className={`btn btn-primary btn-round send-charge${sendChargeState !== 'idle' ? ` ${sendChargeState}` : ''}`}
+            disabled={!canSend || typing}
+            onClick={() => {
+              if (suppressSendClickRef.current) {
+                suppressSendClickRef.current = false;
+                return;
+              }
+              doSend();
+            }}
+            onPointerDown={startSendCharge}
+            onPointerMove={moveSendCharge}
+            onPointerUp={releaseSendCharge}
+            onPointerCancel={cancelSendCharge}
+            onContextMenu={(e) => {
+              if (nsfwEnabled) e.preventDefault();
+            }}
+            title={nsfwEnabled ? t('chat.sendNsfwTip') : t('chat.sendTip')}
+            aria-label={nsfwEnabled ? t('chat.sendNsfwTip') : t('chat.sendTip')}
+          >
+            <span className="send-charge-ring" aria-hidden="true" />
             <Icon name="send" size={15} />
           </button>
         )}
