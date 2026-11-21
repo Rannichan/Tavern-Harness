@@ -3,6 +3,20 @@
 > 本文件由 `scripts/changelog.mjs` 从 `changelog/v*.md` 生成，请勿手动编辑。
 > 版本对比链接见文末；源文件位于仓库 `changelog/` 目录。
 
+## [0.2.4] - 2026-11-22
+
+### 中文
+
+#### 修复
+
+- 修复通过 `/nsfw` 或长按发送键注入破甲指令后，重新生成该回复时不再注入破甲指令的问题；现在重新生成会读取当前会话最新的破甲指令并临时注入
+
+### English
+
+#### Fixed
+
+- Fixed regenerating a reply that was sent with `/nsfw` or hold-to-charge losing the armor-breaking injection; regeneration now applies the latest armor-breaking instruction configured for the conversation
+
 ## [0.2.3] - 2026-11-21
 
 ### 中文
@@ -19,7 +33,6 @@
 
 #### 修复
 
-- 通过 `/nsfw` 或长按发送键注入破甲指令后，重新生成对应回复时会使用当前会话最新配置的破甲指令再次临时注入
 - 修复连续触发朗读时多段语音重叠播放的问题；新的朗读会先中止上一段仍在请求或播放的音频
 - 修复连续点击「重置对话」的确认按钮会重复重置会话的问题；重置期间按钮禁用并显示加载状态，同一会话的重置请求也会合并
 
@@ -42,7 +55,6 @@
 
 #### Fixed
 
-- Regenerating a reply originally sent with `/nsfw` or hold-to-charge now temporarily injects the latest armor-breaking instruction configured for the conversation
 - Fixed overlapping voice playback when speech is triggered repeatedly; a new playback now aborts the previous request or audio first
 - Fixed confirming Reset Conversation twice triggering duplicate resets; the button is disabled with a loading state during the reset, and concurrent resets for the same conversation are merged
 
@@ -1143,6 +1155,7 @@
 - Vite + React + Zustand + Dexie stack with browser-side local persistence
 
 <!-- 链接定义 -->
+[0.2.4]: https://github.com/Rannichan/Tavern-Harness/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/Rannichan/Tavern-Harness/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/Rannichan/Tavern-Harness/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/Rannichan/Tavern-Harness/compare/v0.2.0...v0.2.1
