@@ -13,12 +13,14 @@ import {
 } from '../toolDefinitions';
 import { unlockAchievement } from '../achievements';
 import { generateImage } from '../imageGeneration';
+import { AVATAR_STORAGE_SIZE, shrinkAvatarDataUrl } from '../avatarThumbnail';
 import { translate } from '../i18n';
 import { rollDice } from './builtinTools';
 import {
   createSessionWorkspaceDir,
   executeGeneratedSkill,
   normalizeWorkspaceDir,
+  readWorkspaceFileBase64,
   readWorkspaceFileText,
   truncateToolOutput,
   writeWorkspaceFileBase64For,
@@ -163,9 +165,9 @@ async function runNativeTool(
       return await handleDeleteSkill(args);
 
     case 'create_character':
-      return await handleCreateCharacter(args);
+      return await handleCreateCharacter(args, ctx);
     case 'update_character':
-      return await handleUpdateCharacter(args);
+      return await handleUpdateCharacter(args, ctx);
     case 'delete_character':
       return await handleDeleteCharacter(args);
 
@@ -551,7 +553,39 @@ async function handleDeleteSkill(args: Record<string, unknown>): Promise<string>
 
 // ---------- 角色 CRUD ----------
 
-async function handleCreateCharacter(args: Record<string, unknown>): Promise<string> {
+const AVATAR_EXTENSIONS = new Set(['avif', 'bmp', 'jpeg', 'jpg', 'png', 'webp']);
+
+function detectAvatarMime(base64: string): string | null {
+  let bytes: Uint8Array;
+  try {
+    const binary = atob(base64.slice(0, 64));
+    bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  } catch {
+    return null;
+  }
+  if (bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return 'image/png';
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'image/jpeg';
+  if (bytes.length >= 2 && bytes[0] === 0x42 && bytes[1] === 0x4d) return 'image/bmp';
+  const ascii = String.fromCharCode(...bytes);
+  if (ascii.startsWith('RIFF') && ascii.slice(8, 12) === 'WEBP') return 'image/webp';
+  if (ascii.slice(4, 12) === 'ftypavif' || ascii.slice(4, 12) === 'ftypavis') return 'image/avif';
+  return null;
+}
+
+async function loadWorkspaceAvatar(pathValue: unknown, ctx: ToolExecutionContext): Promise<string> {
+  const path = String(pathValue ?? '').replace(/\\/g, '/').trim();
+  if (!path) throw new Error('avatar_path must be a workspace-relative image path');
+  const extension = path.split('.').pop()?.toLowerCase() ?? '';
+  if (!AVATAR_EXTENSIONS.has(extension)) throw new Error('Avatar must be PNG, JPEG, WebP, BMP, or AVIF');
+  const workspaceDir = await applySessionWorkspace(ctx.sessionId, ctx.npcId);
+  const base64 = await readWorkspaceFileBase64(path, workspaceDir);
+  if (base64 === null) throw new Error(`Avatar file not found: ${path}`);
+  const mimeType = detectAvatarMime(base64);
+  if (!mimeType) throw new Error(`Avatar file is not a valid supported image: ${path}`);
+  return (await shrinkAvatarDataUrl(`data:${mimeType};base64,${base64}`, AVATAR_STORAGE_SIZE))!;
+}
+
+async function handleCreateCharacter(args: Record<string, unknown>, ctx: ToolExecutionContext): Promise<string> {
   const name = String(args.name ?? '').trim();
   const greeting = String(args.greeting ?? '');
   const prompt = String(args.prompt ?? '');
@@ -565,13 +599,21 @@ async function handleCreateCharacter(args: Record<string, unknown>): Promise<str
         .slice(0, 20)
         .map((g) => g.slice(0, 1000))
     : [];
+  let avatarDataUrl: string | null = null;
+  if (args.avatar_path != null) {
+    try {
+      avatarDataUrl = await loadWorkspaceAvatar(args.avatar_path, ctx);
+    } catch (e) {
+      return `ERROR: ${(e as Error).message}`;
+    }
+  }
   await db.npcs.add({
     name,
     prompt,
     greeting,
     alternateGreetings: alternates,
     avatarColorOrdinal: Math.floor(Math.random() * 6),
-    avatarDataUrl: null,
+    avatarDataUrl,
     enabledToolNames: [],
     isBuiltIn: false,
     createdAt: Date.now(),
@@ -580,7 +622,7 @@ async function handleCreateCharacter(args: Record<string, unknown>): Promise<str
   return `OK: Created character ${name}`;
 }
 
-async function handleUpdateCharacter(args: Record<string, unknown>): Promise<string> {
+async function handleUpdateCharacter(args: Record<string, unknown>, ctx: ToolExecutionContext): Promise<string> {
   const name = String(args.name ?? '');
   const npc = await db.npcs.where('name').equals(name).first();
   if (!npc) return `ERROR: Character ${name} does not exist`;
@@ -600,6 +642,17 @@ async function handleUpdateCharacter(args: Record<string, unknown>): Promise<str
       .map((g) => g.slice(0, 1000));
   }
   if (args.prompt != null) updates.prompt = String(args.prompt).slice(0, 4000);
+  if (Object.prototype.hasOwnProperty.call(args, 'avatar_path')) {
+    if (args.avatar_path == null) {
+      updates.avatarDataUrl = null;
+    } else {
+      try {
+        updates.avatarDataUrl = await loadWorkspaceAvatar(args.avatar_path, ctx);
+      } catch (e) {
+        return `ERROR: ${(e as Error).message}`;
+      }
+    }
+  }
   if (Array.isArray(args.enable_skills) || Array.isArray(args.disable_skills)) {
     const allTools = new Set((await db.tools.toArray()).map((t) => t.name));
     const enabled = new Set(npc.enabledToolNames);

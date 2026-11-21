@@ -488,6 +488,22 @@ export async function readWorkspaceFileText(path: string, workspaceDir: string):
   return diskFileRead(readablePath, workspaceDir);
 }
 
+/** 读取工作区二进制文件，供头像等受限资源使用。 */
+export async function readWorkspaceFileBase64(path: string, workspaceDir: string): Promise<string | null> {
+  const readablePath = normalizePath(path);
+  if (!readablePath) throw new Error('Invalid path');
+  await requireFileServer(workspaceDir);
+  const resp = await fetch('/api-v2/preview_read', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: readablePath, session: workspaceDir }),
+  });
+  const data = (await resp.json()) as { ok?: boolean; message?: string; content?: string };
+  if (resp.status === 404 || data.message === 'File not found') return null;
+  if (!resp.ok || !data.ok || typeof data.content !== 'string') throw new Error(data.message || `HTTP ${resp.status}`);
+  return data.content;
+}
+
 /**
  * 写入本地沙箱工作区。
  * 与 file_write 技能一致：仅允许工作区相对路径；普通会话的 public 软链只读。
