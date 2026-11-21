@@ -326,6 +326,7 @@ function SessionHeader({
   const t = useT();
   const [showEdit, setShowEdit] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [resettingSession, setResettingSession] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deletingSession, setDeletingSession] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
@@ -455,25 +456,32 @@ function SessionHeader({
       )}
 
       {confirmReset && (
-        <Modal onClose={() => setConfirmReset(false)} size="compact">
+        <Modal onClose={() => { if (!resettingSession) setConfirmReset(false); }} size="compact">
           <div className="modal-head">
             <span className="typo-dialog-title">{t('header.resetSessionTitle')}</span>
-            <button className="icon-btn" onClick={() => setConfirmReset(false)}><Icon name="x" /></button>
+            <button className="icon-btn" disabled={resettingSession} onClick={() => setConfirmReset(false)}><Icon name="x" /></button>
           </div>
           <div className="modal-body">
             {t('header.resetSessionConfirm', { title: session.title })}
           </div>
           <div className="modal-foot">
-            <button className="btn" onClick={() => setConfirmReset(false)}>{t('common.cancel')}</button>
+            <button className="btn" disabled={resettingSession} onClick={() => setConfirmReset(false)}>{t('common.cancel')}</button>
             <button
               className="btn btn-primary"
+              disabled={resettingSession}
               onClick={async () => {
-                await resetSessionConversation(session.id!);
-                setConfirmReset(false);
-                addToast(t('toast.sessionReset'));
+                if (resettingSession) return;
+                setResettingSession(true);
+                try {
+                  await resetSessionConversation(session.id!);
+                  setConfirmReset(false);
+                  addToast(t('toast.sessionReset'));
+                } finally {
+                  setResettingSession(false);
+                }
               }}
             >
-              <Icon name="refresh" size={13} /> {t('header.resetSessionAction')}
+              {resettingSession ? <span className="spinner spinner-on-primary" /> : <Icon name="refresh" size={13} />} {t('header.resetSessionAction')}
             </button>
           </div>
         </Modal>

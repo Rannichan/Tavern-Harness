@@ -252,6 +252,7 @@ const contextCompressionJobs = new Map<number, Promise<void>>();
 const contextCompressionControllers = new Map<number, AbortController>();
 const contextCompressionRevisions = new Map<number, number>();
 const queuedContextCompressionSessions = new Set<number>();
+const resetSessionJobs = new Map<number, Promise<void>>();
 
 function invalidateContextCompressionJob(sessionId: number): void {
   contextCompressionRevisions.set(sessionId, (contextCompressionRevisions.get(sessionId) ?? 0) + 1);
@@ -1164,39 +1165,56 @@ export const useStore = create<AppState>((set, get) => ({
     if (queueSettingsChanged) await get().refreshLiveQueue(sessionId);
   },
 
-  resetSessionConversation: async (sessionId) => {
-    const session = await db.sessions.get(sessionId);
-    if (!session) return;
-    invalidateContextCompressionJob(sessionId);
-    const participants = (await db.participants.where('sessionId').equals(sessionId).toArray()).sort((a, b) => a.seatOrder - b.seatOrder);
-    const queue = initializeTurnQueue(participants, session.turnOrderMode);
-    await db.messages.where('sessionId').equals(sessionId).delete();
-    await db.contextCompressions.where('sessionId').equals(sessionId).delete();
-    const greetingSpeakerId = pickGreetingSpeakerId(session.mode, session.associatedId, queue, session.enableGreeting !== false);
-    const lastMessage = await seedOpeningGreetingForSpeaker(sessionId, greetingSpeakerId);
-    const greeting = greetingSpeakerId != null
-      ? (await db.messages.where('sessionId').equals(sessionId).sortBy('timestamp')).at(-1)
-      : null;
-    const greetingMentions = greeting && greetingSpeakerId != null
-      ? mentionedParticipantIds(greeting.content, participants, greetingSpeakerId)
-      : [];
-    await db.sessions.update(sessionId, {
-      turnQueueJson: queueJson(session.mode === 'GROUP' && greetingSpeakerId != null
-        ? completeTurn(queue, greetingSpeakerId, greetingMentions.length > 0 ? greetingMentions : (session.mentionOnlyMode ? [-1] : []))
-        : queue),
-      turnQueueHistoryJson: queueHistoryJson([queue]),
-      loopIndex: 0,
-      lastMessage,
-      contextTokens: null,
-      contextTokensLoopIndex: null,
-      updatedAt: Date.now(),
+  resetSessionConversation: (sessionId) => {
+    const activeReset = resetSessionJobs.get(sessionId);
+    if (activeReset) return activeReset;
+
+    const resetJob = (async () => {
+      const session = await db.sessions.get(sessionId);
+      if (!session) return;
+      invalidateContextCompressionJob(sessionId);
+      const participants = (await db.participants.where('sessionId').equals(sessionId).toArray()).sort((a, b) => a.seatOrder - b.seatOrder);
+      const queue = initializeTurnQueue(participants, session.turnOrderMode);
+      await db.transaction('rw', db.messages, db.contextCompressions, async () => {
+        await Promise.all([
+          db.messages.where('sessionId').equals(sessionId).delete(),
+          db.contextCompressions.where('sessionId').equals(sessionId).delete(),
+        ]);
+      });
+      const greetingSpeakerId = pickGreetingSpeakerId(session.mode, session.associatedId, queue, session.enableGreeting !== false);
+      const lastMessage = await seedOpeningGreetingForSpeaker(sessionId, greetingSpeakerId);
+      const greeting = greetingSpeakerId != null
+        ? (await db.messages.where('sessionId').equals(sessionId).sortBy('timestamp')).at(-1)
+        : null;
+      const greetingMentions = greeting && greetingSpeakerId != null
+        ? mentionedParticipantIds(greeting.content, participants, greetingSpeakerId)
+        : [];
+      await db.sessions.update(sessionId, {
+        turnQueueJson: queueJson(session.mode === 'GROUP' && greetingSpeakerId != null
+          ? completeTurn(queue, greetingSpeakerId, greetingMentions.length > 0 ? greetingMentions : (session.mentionOnlyMode ? [-1] : []))
+          : queue),
+        turnQueueHistoryJson: queueHistoryJson([queue]),
+        loopIndex: 0,
+        lastMessage,
+        contextTokens: null,
+        contextTokensLoopIndex: null,
+        updatedAt: Date.now(),
+      });
+      await Promise.all([
+        get().loadMessages(sessionId),
+        get().refreshSessions(),
+        get().refreshLiveQueue(sessionId),
+      ]);
+      if (session.mode === 'GROUP' && greetingSpeakerId != null) {
+        void continueGroupConversation(sessionId);
+      }
+    })();
+
+    resetSessionJobs.set(sessionId, resetJob);
+    void resetJob.finally(() => {
+      if (resetSessionJobs.get(sessionId) === resetJob) resetSessionJobs.delete(sessionId);
     });
-    await get().loadMessages(sessionId);
-    await get().refreshSessions();
-    await get().refreshLiveQueue(sessionId);
-    if (session.mode === 'GROUP' && greetingSpeakerId != null) {
-      void continueGroupConversation(sessionId);
-    }
+    return resetJob;
   },
 
   resolveConfirmation: (approved) => {

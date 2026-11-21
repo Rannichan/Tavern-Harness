@@ -1786,6 +1786,10 @@ body.resizing {
   animation: spin 0.7s linear infinite;
   flex-shrink: 0;
 }
+.spinner-on-primary {
+  border-color: rgb(255 255 255 / 35%);
+  border-top-color: #fff;
+}
 
 .table {
   width: 100%;
