@@ -507,7 +507,7 @@
   bottom: 12px;
   left: 12px;
   z-index: 5;
-  padding: var(--attachment-preview-gap) 10px 8px;
+  padding: 10px 10px 8px;
   border: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
   border-radius: var(--radius);
   background: color-mix(in srgb, var(--surface) 38%, transparent);
@@ -1346,7 +1346,7 @@
     right: 8px;
     bottom: max(8px, env(safe-area-inset-bottom));
     left: 8px;
-    padding: var(--attachment-preview-gap) 6px 6px;
+    padding: 6px;
   }
 
   .composer-group {
