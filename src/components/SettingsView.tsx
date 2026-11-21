@@ -2,13 +2,14 @@ import { memo, useEffect, useRef, useState, type PointerEvent as ReactPointerEve
 import { useStore } from '../store/store';
 import { db, DEFAULT_GENERATION_SETTINGS } from '../db/database';
 import { type ThemeMode, type ThemePaletteId } from '../theme/theme';
-import { type ApiProvider, type AppLanguage, type ReasoningEffort, type VoiceProvider, type VoiceProviderKind, type VoiceId, enabledModelIds, modelAliases } from '../types/models';
+import { type ApiProvider, type AppLanguage, type ImageProvider, type ImageProviderKind, type ReasoningEffort, type VoiceProvider, type VoiceProviderKind, type VoiceId, enabledModelIds, modelAliases } from '../types/models';
 import { VOICE_PROVIDER_OPTIONS, previewVoice } from '../core/voice';
 import { Icon, Modal } from './shared';
 import { DeleteConfirmDialog } from './DeleteConfirmDialog';
 import { isNetworkLikeError, toProxyUrl } from '../core/proxy';
 import { useT } from '../core/i18n';
 import { APP_VERSION, useHasUnseenVersion } from '../core/version';
+import { IMAGE_MODELS } from '../core/imageGeneration';
 import { VersionHistoryModal } from './VersionHistoryModal';
 
 // ============================================================
@@ -26,6 +27,8 @@ export const SettingsView = memo(function SettingsView() {
   const refreshProviders = useStore((s) => s.refreshProviders);
   const voiceProviders = useStore((s) => s.voiceProviders);
   const refreshVoiceProviders = useStore((s) => s.refreshVoiceProviders);
+  const imageProviders = useStore((s) => s.imageProviders);
+  const refreshImageProviders = useStore((s) => s.refreshImageProviders);
   const [tab, setTab] = useState<SettingsTab>('api');
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetting, setResetting] = useState(false);
@@ -132,6 +135,7 @@ export const SettingsView = memo(function SettingsView() {
         <div className="settings-tab-panel" data-active={tab === 'api' ? 'true' : 'false'} role="tabpanel">
           <ProviderManager providers={providers} onChanged={refreshProviders} />
           <VoiceProviderManager providers={voiceProviders} onChanged={refreshVoiceProviders} />
+          <ImageProviderManager providers={imageProviders} onChanged={refreshImageProviders} />
         </div>
 
         <div className="settings-tab-panel" data-active={tab === 'model' ? 'true' : 'false'} role="tabpanel">
@@ -522,6 +526,113 @@ function ScrollingProviderName({ name }: { name: string }) {
       {overflowing && <span className="card-name-scroll-text card-name-scroll-copy" aria-hidden="true">{name}</span>}
     </span>
   );
+}
+
+function ImageProviderManager({ providers, onChanged }: { providers: ImageProvider[]; onChanged: () => void }) {
+  const settings = useStore((s) => s.settings)!;
+  const setSettings = useStore((s) => s.setSettings);
+  const addToast = useStore((s) => s.addToast);
+  const t = useT();
+  const [editing, setEditing] = useState<ImageProvider | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<ImageProvider | null>(null);
+  const providerName = (kind: ImageProviderKind) => t(`settings.imageProviderKind.${kind === 'bailian-token-plan' ? 'bailianTokenPlan' : kind}`);
+
+  const saveProvider = async (provider: ImageProvider) => {
+    if (provider.id != null) await db.imageProviders.update(provider.id, provider);
+    else await db.imageProviders.add(provider);
+    setEditing(null);
+    await onChanged();
+    addToast(t(provider.id != null ? 'toast.imageProviderUpdated' : 'toast.imageProviderAdded'));
+  };
+
+  return (
+    <div className="set-section">
+      <div className="settings-section-head">
+        <h3>{t('settings.imageProviderTitle')}</h3>
+        <button className="btn btn-sm settings-gen-reset" onClick={() => setEditing({ kind: 'bailian-token-plan', apiKey: '', isEnabled: true, createdAt: Date.now() })}>
+          <Icon name="plus" size={13} /> {t('settings.addProvider')}
+        </button>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {providers.length === 0 && <div className="typo-body-sm text-muted">{t('settings.noImageProvider')}</div>}
+        {[...providers].sort((a, b) => b.createdAt - a.createdAt).map((provider) => (
+          <div key={provider.id} className={`provider-card ${provider.isEnabled ? '' : 'disabled'}`}>
+            <div className="p-head">
+              <label className="switch" title={provider.isEnabled ? t('settings.disable') : t('settings.enable')}>
+                <input type="checkbox" checked={provider.isEnabled} onChange={async () => { await db.imageProviders.update(provider.id!, { isEnabled: !provider.isEnabled }); await onChanged(); }} />
+                <span className="switch-slider" />
+              </label>
+              <ScrollingProviderName name={providerName(provider.kind)} />
+              <span className="p-status voice">{t('settings.imageServiceTag')}</span>
+              <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+                <button className="btn btn-sm" onClick={() => setEditing(provider)}>{t('common.edit')}</button>
+                <button className="btn btn-sm btn-danger" onClick={() => setPendingDelete(provider)}><Icon name="trash" size={12} /></button>
+              </div>
+            </div>
+            <div className="provider-inline-detail"><b>{t('settings.models')}:</b> {IMAGE_MODELS.join(', ')}</div>
+          </div>
+        ))}
+      </div>
+      <div className="voice-default-card">
+        <div>
+          <div className="s-label">{t('settings.defaultImageModel')}</div>
+          <div className="s-desc">{t('settings.defaultImageModelDesc')}</div>
+        </div>
+        <select
+          className="select voice-default-select"
+          value={settings.activeImageProviderId != null && settings.defaultImageModel ? `${settings.activeImageProviderId}:${settings.defaultImageModel}` : ''}
+          onChange={(event) => {
+            const [providerId, model] = event.target.value.split(':');
+            void setSettings(event.target.value
+              ? { activeImageProviderId: Number(providerId), defaultImageModel: model }
+              : { activeImageProviderId: null });
+          }}
+        >
+          <option value="">{t('settings.noDefaultImageProvider')}</option>
+          {providers.filter((provider) => provider.isEnabled).flatMap((provider) => IMAGE_MODELS.map((model) => (
+            <option key={`${provider.id}:${model}`} value={`${provider.id}:${model}`}>{providerName(provider.kind)} · {model}</option>
+          )))}
+        </select>
+      </div>
+      {editing && <Modal onClose={() => setEditing(null)}>
+        <div className="modal-head">
+          <span className="typo-dialog-title">{editing.id != null ? t('settings.editImageProvider') : t('settings.addImageProvider')}</span>
+          <button className="icon-btn" onClick={() => setEditing(null)}><Icon name="x" /></button>
+        </div>
+        <ImageProviderForm initial={editing} onSave={saveProvider} />
+      </Modal>}
+      {pendingDelete && <DeleteConfirmDialog title={t('settings.deleteImageProvider')} itemName={providerName(pendingDelete.kind)} onCancel={() => setPendingDelete(null)} onConfirm={async () => {
+        await db.imageProviders.delete(pendingDelete.id!);
+        if (settings.activeImageProviderId === pendingDelete.id) await setSettings({ activeImageProviderId: null });
+        setPendingDelete(null);
+        await onChanged();
+      }} />}
+    </div>
+  );
+}
+
+function ImageProviderForm({ initial, onSave }: { initial: ImageProvider; onSave: (provider: ImageProvider) => void }) {
+  const t = useT();
+  const [kind, setKind] = useState<ImageProviderKind>(initial.kind);
+  const [apiKey, setApiKey] = useState(initial.apiKey);
+  return <>
+    <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div className="field">
+        <label>{t('settings.imageProvider')}</label>
+        <select className="select" value={kind} disabled={initial.id != null} onChange={(event) => setKind(event.target.value as ImageProviderKind)}>
+          <option value="bailian-token-plan">{t('settings.imageProviderKind.bailianTokenPlan')}</option>
+        </select>
+      </div>
+      <ApiKeyField value={apiKey} onChange={setApiKey} required />
+      <div className="field">
+        <label>{t('settings.models')}</label>
+        <div className="provider-inline-detail">{IMAGE_MODELS.join(', ')}</div>
+      </div>
+    </div>
+    <div className="modal-foot">
+      <button className="btn btn-primary" disabled={!apiKey.trim()} onClick={() => onSave({ ...initial, kind, apiKey: apiKey.trim(), isEnabled: true })}>{t('common.save')}</button>
+    </div>
+  </>;
 }
 
 function VoiceProviderManager({ providers, onChanged }: { providers: VoiceProvider[]; onChanged: () => void }) {

@@ -232,18 +232,37 @@ export const Avatar = memo(function Avatar({
 // 附件卡片：仅展示文件名（去掉图片/视频缩略图）
 // ============================================================
 
-export function AttachCard({ name, onRemove }: { name: string; onRemove?: () => void }) {
+export function AttachCard({ name, src, onRemove }: { name: string; src?: string; onRemove?: () => void }) {
   const t = useT();
+  const [previewing, setPreviewing] = useState(false);
+  const isImage = typeof src === 'string' && (src.startsWith('data:image/') || /\.(png|jpe?g|gif|webp|svg|bmp)(?:$|[?#])/i.test(src));
   return (
-    <div className="attach-card">
-      <span className="attach-card-icon">📎</span>
-      <span className="attach-card-name" title={name}>{name}</span>
-      {onRemove && (
-        <button className="attach-rm" onClick={onRemove} title={t('common.removeAttachment')}>
-          <Icon name="x" size={11} />
-        </button>
+    <>
+      <div className={`attach-card ${isImage ? 'attach-card-image' : ''}`}>
+        {isImage ? (
+          <button type="button" className="attach-thumb-button" onClick={() => setPreviewing(true)} aria-label={name}>
+            <img className="attach-thumb" src={src} alt={name} />
+          </button>
+        ) : <span className="attach-card-icon">📎</span>}
+        <span className="attach-card-name" title={name}>{name}</span>
+        {onRemove && (
+          <button className="attach-rm" onClick={onRemove} title={t('common.removeAttachment')}>
+            <Icon name="x" size={11} />
+          </button>
+        )}
+      </div>
+      {previewing && isImage && (
+        <Modal onClose={() => setPreviewing(false)} size="wide" className="image-preview-modal">
+          <div className="modal-head">
+            <span>{name}</span>
+            <button className="icon-btn" onClick={() => setPreviewing(false)} aria-label={t('common.close')}><Icon name="x" /></button>
+          </div>
+          <div className="image-preview-body" onClick={() => setPreviewing(false)}>
+            <img src={src} alt={name} />
+          </div>
+        </Modal>
       )}
-    </div>
+    </>
   );
 }
 

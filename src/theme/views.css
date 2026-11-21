@@ -1702,6 +1702,7 @@
   flex: 1;
   display: flex;
   flex-direction: column;
+  background: var(--surface);
 }
 .display-pip .display-modal-head {
   padding: 9px 10px;
@@ -1833,22 +1834,30 @@
 }
 
 /* 图片 */
+.display-image-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
 .display-image-viewport {
   flex: 1;
   min-height: 0;
-  overflow: hidden;
+  overflow: auto;
   display: grid;
   place-items: center;
-  background: var(--surface-2);
+  background: var(--surface);
   user-select: none;
-  touch-action: none;
 }
 .display-image {
-  max-width: none;
-  max-height: none;
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
+  transform-origin: center;
   transition: transform 0.12s ease-out;
   will-change: transform;
+  cursor: default;
 }
 
 /* HTML 沙箱 */
@@ -1974,15 +1983,24 @@
   align-items: center;
   gap: 5px;
 }
+.tool-card-result-line .display-view-btn,
+.tool-card-body .tool-result .display-view-btn {
+  min-height: 22px;
+  height: 22px;
+  padding: 0 7px;
+  gap: 3px;
+  border-radius: 6px;
+  font-size: var(--font-size-caption);
+  line-height: 1;
+  flex-shrink: 0;
+}
 .tool-card-result-line .display-view-btn {
-  margin-top: 0;
-  margin-left: 8px;
+  margin: 0 0 0 6px;
 }
 /* 展开态工具结果：查看按钮固定在结果行右侧、垂直居中 */
 .tool-card-body .tool-result .display-view-btn {
   margin-top: 0;
   margin-left: auto;
-  flex-shrink: 0;
 }
 
 /* ---------- 会话工作区文件管理器（只读） ---------- */

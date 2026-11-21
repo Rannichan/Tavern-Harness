@@ -195,7 +195,7 @@ const listRecordsByJsonField = database.prepare(`
 const listStartupRecords = database.prepare(`
   SELECT collection, record_key, value_json, updated_at
   FROM app_records
-  WHERE collection IN ('settings', 'providers', 'voiceProviders', 'npcs', 'sessions', 'worldBooks', 'tools', 'achievementUnlocks')
+  WHERE collection IN ('settings', 'providers', 'voiceProviders', 'imageProviders', 'npcs', 'sessions', 'worldBooks', 'tools', 'achievementUnlocks')
   ORDER BY collection, record_key
 `);
 const deleteRecord = database.prepare('DELETE FROM app_records WHERE collection = ? AND record_key = ?');
@@ -290,6 +290,7 @@ const server = createServer(async (req, res) => {
         settings: [],
         providers: [],
         voiceProviders: [],
+        imageProviders: [],
         npcs: [],
         sessions: [],
         worldBooks: [],
@@ -304,6 +305,64 @@ const server = createServer(async (req, res) => {
         });
       }
       json(res, 200, { ok: true, lock: lockState(clientId), collections });
+      return;
+    }
+    if (pathname === '/image/generate') {
+      const providerId = Number(body.providerId);
+      const prompt = typeof body.prompt === 'string' ? body.prompt.trim() : '';
+      const model = typeof body.model === 'string' ? body.model.trim() : '';
+      const size = typeof body.size === 'string' ? body.size.trim() : '1024*1024';
+      if (!Number.isInteger(providerId) || providerId <= 0 || !prompt || prompt.length > 10_000 || !model || !/^\d{2,5}\*\d{2,5}$/.test(size)) {
+        json(res, 400, { ok: false, message: 'Invalid image generation request' });
+        return;
+      }
+      const record = getRecord.get('imageProviders', String(providerId));
+      if (!record) {
+        json(res, 404, { ok: false, message: 'Image provider not found' });
+        return;
+      }
+      const provider = JSON.parse(record.value_json);
+      const apiKey = typeof provider.apiKey === 'string' ? provider.apiKey.trim() : '';
+      if (!provider.isEnabled || provider.kind !== 'bailian-token-plan' || !apiKey) {
+        json(res, 400, { ok: false, message: 'Image provider is unavailable' });
+        return;
+      }
+      const upstream = await fetch('https://token-plan.cn-beijing.maas.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model,
+          input: { messages: [{ role: 'user', content: [{ text: prompt }] }] },
+          parameters: { size },
+        }),
+        signal: AbortSignal.timeout(180_000),
+      });
+      const payload = await upstream.json().catch(() => null);
+      if (!upstream.ok) {
+        const upstreamMessage = payload?.message ?? payload?.error?.message ?? payload?.code;
+        json(res, upstream.status, { ok: false, message: upstreamMessage ? `Image service error: ${upstreamMessage}` : `Image service returned HTTP ${upstream.status}` });
+        return;
+      }
+      const imageUrl = payload?.output?.choices?.[0]?.message?.content?.[0]?.image;
+      if (typeof imageUrl !== 'string' || !/^https?:\/\//i.test(imageUrl)) {
+        json(res, 502, { ok: false, message: 'Image service did not return a valid image URL' });
+        return;
+      }
+      const imageResponse = await fetch(imageUrl, { signal: AbortSignal.timeout(120_000) });
+      if (!imageResponse.ok) {
+        imageResponse.body?.cancel();
+        json(res, 502, { ok: false, message: `Unable to download generated image (HTTP ${imageResponse.status})` });
+        return;
+      }
+      const image = Buffer.from(await imageResponse.arrayBuffer());
+      const mimeType = imageResponse.headers.get('content-type')?.split(';')[0] || 'image/png';
+      json(res, 200, {
+        ok: true,
+        dataUrl: `data:${mimeType};base64,${image.toString('base64')}`,
+        mimeType,
+        width: payload?.usage?.width ?? null,
+        height: payload?.usage?.height ?? null,
+      });
       return;
     }
     if (pathname === '/voice/synthesize' || pathname === '/voice/preview') {

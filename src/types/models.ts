@@ -21,7 +21,7 @@ export interface DisplayFileRef {
   /** 工作区相对路径（与 file_read / file_write 同一沙箱工作区） */
   path: string;
   /** 展示方式：text（按扩展名智能渲染）/ html / unsupported */
-  kind: 'text' | 'html' | 'unsupported';
+  kind: 'text' | 'html' | 'image' | 'unsupported';
   /** 展示标题（默认取文件名） */
   title?: string;
   /** 产生该展示的会话 id（回看时按其专属工作目录解析；null = 共享工作区） */
@@ -67,11 +67,24 @@ export interface AppSettings {
   activeVoiceProviderId: number | null;
   /** 当前旁白音色。 */
   activeVoiceId: VoiceId | null;
+  /** 当前启用的生图 Provider。 */
+  activeImageProviderId: number | null;
+  /** 默认生图模型。 */
+  defaultImageModel: string;
   statsResetTime: number | null;
 }
 
 export type VoiceProviderKind = 'deepseek' | 'bailian';
 export type VoiceId = 'stella' | 'tide' | 'longanlingxin' | 'longanlufeng';
+export type ImageProviderKind = 'bailian-token-plan';
+
+export interface ImageProvider {
+  id?: number;
+  kind: ImageProviderKind;
+  apiKey: string;
+  isEnabled: boolean;
+  createdAt: number;
+}
 
 export interface VoiceProvider {
   id?: number;

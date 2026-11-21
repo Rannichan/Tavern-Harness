@@ -2,6 +2,7 @@ import Dexie, { type Table } from 'dexie';
 import type {
   ApiProvider,
   AppSettings,
+  ImageProvider,
   VoiceProvider,
   AchievementUnlock,
   CareerNpcStat,
@@ -25,6 +26,8 @@ import BUILTIN_MEMORY_SKILL from '../assets/memory-skill.json';
 export class TavernDB extends Dexie {
   settings!: Table<AppSettings, number>;
   providers!: Table<ApiProvider, number>;
+  voiceProviders!: Table<VoiceProvider, number>;
+  imageProviders!: Table<ImageProvider, number>;
   npcs!: Table<NpcCharacter, number>;
   sessions!: Table<ChatSession, number>;
   participants!: Table<ChatParticipant, number>;
@@ -228,6 +231,23 @@ export class TavernDB extends Dexie {
       careerNpcStats: 'npcId',
       achievementUnlocks: '++id, achievementId, unlockedAt',
     });
+    // v14：新增生图服务供应商。
+    this.version(14).stores({
+      settings: 'id',
+      providers: '++id, name, isEnabled',
+      voiceProviders: '++id, kind, isEnabled',
+      imageProviders: '++id, kind, isEnabled',
+      npcs: '++id, name, isBuiltIn, isTavernKeeper',
+      sessions: '++id, mode, updatedAt, associatedId, pinned, workspaceDir',
+      participants: '[sessionId+participantId], sessionId, participantId',
+      messages: '++id, [sessionId+timestamp], sessionId, timestamp',
+      contextCompressions: '++id, sessionId, endMessageId, createdAt',
+      tools: '++id, name, isBuiltIn',
+      worldBooks: '++id, name, isBuiltIn',
+      careerStats: 'id',
+      careerNpcStats: 'npcId',
+      achievementUnlocks: '++id, achievementId, unlockedAt',
+    });
   }
 
   /** 打开数据库后立即执行：把 pinned 字段归一化为 0/1（旧记录为 undefined） */
@@ -246,7 +266,7 @@ export class TavernDB extends Dexie {
 }
 
 const COLLECTIONS = [
-  'settings', 'providers', 'voiceProviders', 'npcs', 'sessions', 'participants', 'messages',
+  'settings', 'providers', 'voiceProviders', 'imageProviders', 'npcs', 'sessions', 'participants', 'messages',
   'contextCompressions', 'tools', 'worldBooks', 'careerStats', 'careerNpcStats', 'achievementUnlocks',
 ] as const;
 
@@ -362,6 +382,7 @@ type StartupSnapshot = {
     settings: Array<{ value: AppSettings }>;
     providers: Array<{ value: ApiProvider }>;
     voiceProviders: Array<{ value: VoiceProvider }>;
+    imageProviders: Array<{ value: ImageProvider }>;
     npcs: Array<{ value: NpcCharacter }>;
     sessions: Array<{ value: ChatSession }>;
     worldBooks: Array<{ value: WorldBook }>;
@@ -381,10 +402,11 @@ export async function loadStartupSnapshot(): Promise<StartupSnapshot> {
     if (!(error instanceof Error) || !error.message.includes('Unknown persistence endpoint: /startup/snapshot')) throw error;
     await initDatabase();
     const readOnly = await isWriteLocked();
-    const [settings, providers, voiceProviders, npcs, sessions, worldBooks, tools, achievementUnlocks] = await Promise.all([
+    const [settings, providers, voiceProviders, imageProviders, npcs, sessions, worldBooks, tools, achievementUnlocks] = await Promise.all([
       db.settings.toArray(),
       db.providers.toArray(),
       db.voiceProviders.toArray(),
+      db.imageProviders.toArray(),
       db.npcs.toArray(),
       db.sessions.toArray(),
       db.worldBooks.toArray(),
@@ -397,6 +419,7 @@ export async function loadStartupSnapshot(): Promise<StartupSnapshot> {
         settings: settings.map((value) => ({ value })),
         providers: providers.map((value) => ({ value })),
         voiceProviders: voiceProviders.map((value) => ({ value })),
+        imageProviders: imageProviders.map((value) => ({ value })),
         npcs: npcs.map((value) => ({ value })),
         sessions: sessions.map((value) => ({ value })),
         worldBooks: worldBooks.map((value) => ({ value })),
@@ -534,7 +557,7 @@ class RemoteTable<T extends object> {
   async add(value: T): Promise<number> {
     await requireWriteLock();
     const record = { ...value } as T & { id?: number };
-    if (['providers', 'voiceProviders', 'npcs', 'sessions', 'messages', 'contextCompressions', 'tools', 'worldBooks', 'achievementUnlocks'].includes(this.collection) && record.id == null) {
+    if (['providers', 'voiceProviders', 'imageProviders', 'npcs', 'sessions', 'messages', 'contextCompressions', 'tools', 'worldBooks', 'achievementUnlocks'].includes(this.collection) && record.id == null) {
       const result = await persistenceRequest<{ id: number }>('/records/allocate-id', { collection: this.collection });
       record.id = result.id;
     }
@@ -581,6 +604,7 @@ class RemoteTavernDB {
   settings = new RemoteTable<AppSettings>('settings');
   providers = new RemoteTable<ApiProvider>('providers');
   voiceProviders = new RemoteTable<VoiceProvider>('voiceProviders');
+  imageProviders = new RemoteTable<ImageProvider>('imageProviders');
   npcs = new RemoteTable<NpcCharacter>('npcs');
   sessions = new RemoteTable<ChatSession>('sessions');
   participants = new RemoteTable<ChatParticipant>('participants');
@@ -606,7 +630,7 @@ class RemoteTavernDB {
     return (args.at(-1) as () => Promise<T>)();
   }
   async delete(): Promise<void> {
-    for (const table of [this.settings, this.providers, this.voiceProviders, this.npcs, this.sessions, this.participants, this.messages, this.contextCompressions, this.tools, this.worldBooks, this.careerStats, this.careerNpcStats, this.achievementUnlocks]) await table.clear();
+    for (const table of [this.settings, this.providers, this.voiceProviders, this.imageProviders, this.npcs, this.sessions, this.participants, this.messages, this.contextCompressions, this.tools, this.worldBooks, this.careerStats, this.careerNpcStats, this.achievementUnlocks]) await table.clear();
   }
   close(): void {
     if (lockHeartbeat != null && typeof window !== 'undefined') {
@@ -702,6 +726,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   autoVoiceEnabled: false,
   activeVoiceProviderId: null,
   activeVoiceId: null,
+  activeImageProviderId: null,
+  defaultImageModel: 'qwen-image-3.0-pro',
   statsResetTime: null,
 };
 
@@ -753,6 +779,12 @@ export async function initDatabase(): Promise<void> {
     }
     if (settings && settings.pureMode === undefined) {
       await db.settings.update(1, { pureMode: false });
+    }
+    if (settings && settings.activeImageProviderId === undefined) {
+      await db.settings.update(1, { activeImageProviderId: null });
+    }
+    if (settings && settings.defaultImageModel === undefined) {
+      await db.settings.update(1, { defaultImageModel: 'qwen-image-3.0-pro' });
     }
     if (settings && (settings.language !== null || settings.themeMode !== 'system')) {
       await db.settings.update(1, { language: null, themeMode: 'system' });

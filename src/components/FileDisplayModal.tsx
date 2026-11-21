@@ -33,7 +33,7 @@ const PIP_RECT_STORAGE_KEY = 'tav-file-display-pip-rect';
 const PREVIEW_ZOOMS_STORAGE_KEY = 'tav-file-display-preview-zooms';
 const PIP_REFRESH_INTERVAL = 1000;
 
-type PreviewZoomKind = 'html';
+type PreviewZoomKind = 'html' | 'image';
 
 interface PipRect {
   x: number;
@@ -151,6 +151,7 @@ export function FileDisplayModal() {
   const [workspaceDir, setWorkspaceDir] = useState<string | null>(null);
   const [loadState, setLoadState] = useState<'loading' | 'ok' | 'error'>('loading');
   const [htmlZoom, setHtmlZoom] = useState(1);
+  const [imageZoom, setImageZoom] = useState(1);
   const [htmlPreviewVersion, setHtmlPreviewVersion] = useState(0);
   const [textWrap, setTextWrap] = useState(true);
   const [isPictureInPicture, setIsPictureInPicture] = useState(true);
@@ -195,6 +196,7 @@ export function FileDisplayModal() {
       setIsPictureInPicture(opensInPictureInPicture);
     }
     setHtmlZoom(active.kind === 'html' ? restorePreviewZoom('html', active.path, 1) : 1);
+    setImageZoom(active.kind === 'image' ? restorePreviewZoom('image', active.path, 1) : 1);
   }, [active]);
 
   useEffect(() => {
@@ -374,6 +376,16 @@ export function FileDisplayModal() {
   const htmlZoomIn = () => updateHtmlZoom((z) => Math.min(2, +(z + 0.1).toFixed(1)));
   const htmlZoomOut = () => updateHtmlZoom((z) => Math.max(0.5, +(z - 0.1).toFixed(1)));
   const resetHtmlZoom = () => updateHtmlZoom(() => 1);
+  const updateImageZoom = (update: (zoom: number) => number) => {
+    setImageZoom((zoom) => {
+      const nextZoom = update(zoom);
+      persistPreviewZoom('image', active.path, nextZoom);
+      return nextZoom;
+    });
+  };
+  const imageZoomIn = () => updateImageZoom((z) => Math.min(3, +(z + 0.1).toFixed(1)));
+  const imageZoomOut = () => updateImageZoom((z) => Math.max(0.2, +(z - 0.1).toFixed(1)));
+  const resetImageZoom = () => updateImageZoom(() => 1);
 
   const renderBody = () => {
     if (active.kind === 'unsupported') {
@@ -389,6 +401,32 @@ export function FileDisplayModal() {
     }
     if (loadState === 'error' || content === null) {
       return <div className="display-error">{t('display.fileError', { path: active.path })}</div>;
+    }
+
+    if (active.kind === 'image') {
+      if (!workspaceDir) return <div className="display-error">{t('display.fileError', { path: active.path })}</div>;
+      return (
+        <div className="display-image-wrap">
+          <div className="display-image-viewport">
+            <img
+              className="display-image"
+              src={previewUrl(active.path, workspaceDir)}
+              alt={title}
+              style={{ transform: `scale(${imageZoom})` }}
+            />
+          </div>
+          <div className="display-html-note display-image-note">
+            <span />
+            {!isPictureInPicture && (
+              <span className="display-html-zoom-group">
+                <button className="icon-btn" title={t('display.htmlZoomOut')} onClick={imageZoomOut}><Icon name="zoom-out" size={15} /></button>
+                <button className="icon-btn" title={t('display.resetHtmlZoom')} onClick={resetImageZoom}>{Math.round(imageZoom * 100)}%</button>
+                <button className="icon-btn" title={t('display.htmlZoomIn')} onClick={imageZoomIn}><Icon name="zoom-in" size={15} /></button>
+              </span>
+            )}
+          </div>
+        </div>
+      );
     }
 
     if (active.kind === 'html') {
@@ -548,7 +586,7 @@ export function parseStoredDisplayRef(json: string | null): DisplayFileRef | nul
   if (!json) return null;
   try {
     const obj = JSON.parse(json) as Partial<DisplayFileRef>;
-    if (!obj || typeof obj.path !== 'string' || !['text', 'html', 'unsupported'].includes(obj.kind ?? '')) return null;
+    if (!obj || typeof obj.path !== 'string' || !['text', 'html', 'image', 'unsupported'].includes(obj.kind ?? '')) return null;
     return {
       path: obj.path,
       kind: obj.kind as DisplayFileRef['kind'],

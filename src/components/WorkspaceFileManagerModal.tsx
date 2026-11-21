@@ -19,10 +19,10 @@ function extOf(path: string): string {
 }
 
 /** 与 file_display 相同的「按扩展名推断展示方式」逻辑 */
-function kindFromPath(path: string): 'text' | 'html' | 'unsupported' {
+function kindFromPath(path: string): 'text' | 'html' | 'image' | 'unsupported' {
   const ext = extOf(path);
   if (/^(html?)$/i.test(ext)) return 'html';
-  if (/^(png|jpe?g|gif|webp|svg|bmp|ico)$/i.test(ext)) return 'unsupported';
+  if (/^(png|jpe?g|gif|webp|svg|bmp|ico)$/i.test(ext)) return 'image';
   return 'text';
 }
 

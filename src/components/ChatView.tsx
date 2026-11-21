@@ -559,7 +559,7 @@ function MessageBubble({
             {msg.attachments.length > 0 && (
               <div className="attachments">
                 {msg.attachments.map((a, i) => (
-                  <AttachCard key={i} name={msg.attachmentInfos?.[i]?.displayName || attachmentName(a)} />
+                  <AttachCard key={i} src={a} name={msg.attachmentInfos?.[i]?.displayName || attachmentName(a)} />
                 ))}
               </div>
             )}
@@ -656,6 +656,7 @@ function MessageEditorModal({
             {attachments.map((a, i) => (
               <AttachCard
                 key={i}
+                src={a.dataUrl}
                 name={a.name}
                 onRemove={() => setAttachments(attachments.filter((_, j) => j !== i))}
               />
@@ -718,7 +719,7 @@ function UserBubble({ msg, session, userPersonaName, loopIndex }: { msg: ChatMes
           {msg.attachments.length > 0 && (
             <div className="attachments">
               {msg.attachments.map((a, i) => (
-                <AttachCard key={i} name={msg.attachmentInfos?.[i]?.displayName || attachmentName(a)} />
+                <AttachCard key={i} src={a} name={msg.attachmentInfos?.[i]?.displayName || attachmentName(a)} />
               ))}
             </div>
           )}
@@ -994,6 +995,7 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
           {attachments.map((a, i) => (
             <AttachCard
               key={i}
+              src={a.dataUrl}
               name={a.name}
               onRemove={() => setAttachments(attachments.filter((_, j) => j !== i))}
             />

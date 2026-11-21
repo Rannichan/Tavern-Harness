@@ -5,6 +5,7 @@ import {
   type AppSettings,
   type ProviderModelOption,
   type VoiceProvider,
+  type ImageProvider,
   enabledModelIds,
   modelAliases,
   ChatMessage,
@@ -47,7 +48,7 @@ import {
   PERFORMANCE_GUIDANCE_TOOL,
   PERFORMANCE_GUIDANCE_TOOL_NAME,
 } from '../core/toolDefinitions';
-import { getEnabledToolsForSession, executeToolCall, parseDisplayRef, applySessionWorkspace } from '../core/tools/toolExecutor';
+import { getEnabledToolsForSession, executeToolCall, parseDisplayRef, parseImageResult, applySessionWorkspace } from '../core/tools/toolExecutor';
 import { CHARACTER_BOOK_TOOL, hasUsableCharacterBook, injectCharacterBookToolContext, mergeCharacterBooks } from '../core/characterBook';
 import { createSessionWorkspaceDir, ensureSessionWorkspaceDir, deleteSessionWorkspace, isCurrentInstanceWorkspaceDir } from '../core/tools/generatedSkillExecutor';
 import { applyTheme as applyThemeManual, cacheTheme, watchSystemTheme } from '../theme/theme';
@@ -91,7 +92,7 @@ export interface AchievementState {
 /** 展示类工具（file_display）当前打开的弹窗载荷 */
 export interface ActiveDisplay {
   path: string;
-  kind: 'text' | 'html' | 'unsupported';
+  kind: 'text' | 'html' | 'image' | 'unsupported';
   title?: string;
   /** 产生该展示的会话 id（读取文件时按其专属工作目录解析，null = 共享工作区） */
   sessionId: number | null;
@@ -111,6 +112,7 @@ interface AppState {
   settings: AppSettings | null;
   providers: ApiProvider[];
   voiceProviders: VoiceProvider[];
+  imageProviders: ImageProvider[];
   npcs: NpcCharacter[];
   sessions: ChatSession[];
   worldBooks: WorldBook[];
@@ -191,6 +193,7 @@ interface AppState {
   refreshTools: () => Promise<void>;
   refreshProviders: () => Promise<void>;
   refreshVoiceProviders: () => Promise<void>;
+  refreshImageProviders: () => Promise<void>;
   speakMessage: (text: string) => Promise<void>;
   refreshAchievements: () => Promise<void>;
   loadMessages: (sessionId: number) => Promise<void>;
@@ -318,6 +321,7 @@ export const useStore = create<AppState>((set, get) => ({
   settings: null,
   providers: [],
   voiceProviders: [],
+  imageProviders: [],
   npcs: [],
   sessions: [],
   worldBooks: [],
@@ -362,6 +366,7 @@ export const useStore = create<AppState>((set, get) => ({
         setLanguage(settings.language);
         const providers = snapshot.collections.providers.map((record) => record.value);
         const voiceProviders = (snapshot.collections.voiceProviders ?? []).map((record) => record.value);
+        const imageProviders = (snapshot.collections.imageProviders ?? []).map((record) => record.value);
         const npcs = sortNpcs(snapshot.collections.npcs.map((record) => record.value));
         const sessions = sortSessionsPinnedFirst(snapshot.collections.sessions.map((record) => record.value));
         const worldBooks = sortWorldBooks(snapshot.collections.worldBooks.map((record) => record.value));
@@ -379,6 +384,7 @@ export const useStore = create<AppState>((set, get) => ({
           settings,
           providers,
           voiceProviders,
+          imageProviders,
           modelsList: aggregateEnabledProviderModels(providers),
           npcs,
           sessions,
@@ -551,6 +557,10 @@ export const useStore = create<AppState>((set, get) => ({
 
   refreshVoiceProviders: async () => {
     set({ voiceProviders: await db.voiceProviders.toArray() });
+  },
+
+  refreshImageProviders: async () => {
+    set({ imageProviders: await db.imageProviders.toArray() });
   },
 
   speakMessage: async (text) => {
@@ -2435,12 +2445,14 @@ async function performAssistantTurn(
             await useStore.getState().refreshNpcs();
           }
         }
+        const imageResult = parseImageResult(result);
+        const storedResult = imageResult ? result.replace(/^IMAGE_RESULT: [^\n]*\n?/, '') : result;
         await db.messages.add({
           sessionId,
           role: 'tool',
           speakerParticipantId: null,
           speakerName: null,
-          content: result,
+          content: storedResult,
           toolCallsJson: '[]',
           toolCallId: tc.id,
           thinkingContent: null,
@@ -2454,13 +2466,15 @@ async function performAssistantTurn(
           modelUsed: null,
           attachments: [],
           attachmentInfos: [],
-          displayRef: displayRefForResult(result, sessionId),
+          displayRef: imageResult ? JSON.stringify({ path: imageResult.path, kind: 'image', title: imageResult.name, sessionId }) : displayRefForResult(result, sessionId),
           rawRequestBody: null,
           rawResponseBody: null,
         });
 
         // 展示工具与 JavaScript 的 $display：执行成功后自动打开展示弹窗
-        const displayPayload = parseDisplayRef(result);
+        const displayPayload = imageResult
+          ? { path: imageResult.path, kind: 'image' as const, title: imageResult.name }
+          : parseDisplayRef(result);
         if (displayPayload) {
           useStore.getState().setActiveDisplay({
             path: displayPayload.path,

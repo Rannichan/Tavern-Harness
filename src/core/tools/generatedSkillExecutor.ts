@@ -222,7 +222,7 @@ function createSandboxWorker(code: string): Worker {
 
 const DISPLAY_REF_PREFIX = 'DISPLAY_REF: ';
 
-type DisplayKind = 'text' | 'html' | 'unsupported';
+type DisplayKind = 'text' | 'html' | 'image' | 'unsupported';
 
 interface DisplayPayload {
   path: string;
@@ -350,7 +350,7 @@ async function handleBridgeCall(
       const kind: DisplayKind = /^(html?)$/.test(extension)
         ? 'html'
         : /^(png|jpe?g|gif|webp|svg|bmp|ico)$/.test(extension)
-          ? 'unsupported'
+          ? 'image'
           : 'text';
       const displayPayload: DisplayPayload = { path, kind, title };
       return { ok: true, result: `Displayed ${path} in a popup`, payload: displayPayload };
@@ -503,6 +503,19 @@ export async function writeWorkspaceFileTextFor(
   if (!normalizedPath) throw new Error('Invalid path');
   await requireFileServer(workspaceDir);
   return diskFileWrite(normalizedPath, content, append, workspaceDir);
+}
+
+export async function writeWorkspaceFileBase64For(path: string, base64: string, workspaceDir: string): Promise<void> {
+  const normalizedPath = normalizePath(path);
+  if (!normalizedPath) throw new Error('Invalid path');
+  await requireFileServer(workspaceDir);
+  const resp = await fetch('/api-v2/file_write_base64', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: normalizedPath, content: base64, session: workspaceDir }),
+  });
+  const data = (await resp.json()) as { ok?: boolean; message?: string };
+  if (!resp.ok || !data.ok) throw new Error(data.message || `HTTP ${resp.status}`);
 }
 
 /** 删除工作区中的文件或目录。 */

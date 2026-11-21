@@ -611,10 +611,10 @@ const server = createServer(async (req, res) => {
   }
 
   // ---- 真实文件工作区端点（file_read / file_write / file_delete / file_list） ----
-  if (req.url === '/file_read' || req.url === '/file_write' || req.url === '/file_delete' || req.url === '/file_list') {
+  if (req.url === '/file_read' || req.url === '/file_write' || req.url === '/file_write_base64' || req.url === '/file_delete' || req.url === '/file_list') {
     let body = '';
     for await (const chunk of req) body += chunk;
-    if (body.length > 512 * 1024) {
+    if (body.length > (req.url === '/file_write_base64' ? 12 * 1024 * 1024 : 512 * 1024)) {
       res.writeHead(413);
       res.end(JSON.stringify({ ok: false, message: 'body too large' }));
       return;
@@ -640,10 +640,11 @@ const server = createServer(async (req, res) => {
         const fp = resolve(base, rel);
         const text = await readFileAsync(fp);
         res.end(JSON.stringify({ ok: true, path: rel, content: text.slice(0, MAX_FILE_READ_CHARS) }));
-      } else if (req.url === '/file_write') {
+      } else if (req.url === '/file_write' || req.url === '/file_write_base64') {
         const rawPath = String(payload?.path ?? '').replace(/\\/g, '/').trim();
         if (!rawPath) throw new Error('Invalid path');
-        const mode = payload?.mode === 'append' ? 'append' : 'write';
+        const binary = req.url === '/file_write_base64';
+        const mode = binary ? 'write' : payload?.mode === 'append' ? 'append' : 'write';
         const content = String(payload?.content ?? '');
         ensureSessionBase(base);
         const rel = sanitizeWorkspaceRelativePath(rawPath);
@@ -655,16 +656,18 @@ const server = createServer(async (req, res) => {
         mkdirSync(dirname(fp), { recursive: true });
         assertInside(base, realpathSync(dirname(fp)));
         if (existsSync(fp)) assertInside(base, realpathSync(fp));
-        if (Buffer.byteLength(content, 'utf8') > MAX_FILE_WRITE_BYTES) {
-          throw new Error(`File exceeds the ${MAX_FILE_WRITE_BYTES / 1024}KB limit`);
+        const fileContent = binary ? Buffer.from(content, 'base64') : content;
+        const bytes = binary ? fileContent.length : Buffer.byteLength(content, 'utf8');
+        if (bytes > (binary ? 8 * 1024 * 1024 : MAX_FILE_WRITE_BYTES)) {
+          throw new Error(binary ? 'Binary file exceeds the 8MB limit' : `File exceeds the ${MAX_FILE_WRITE_BYTES / 1024}KB limit`);
         }
         if (mode === 'append') {
           const existing = existsSync(fp) ? await readFilePromise(fp, 'utf8') : '';
           await writeFilePromise(fp, existing + content, 'utf8');
         } else {
-          await writeFilePromise(fp, content, 'utf8');
+          await writeFilePromise(fp, fileContent, binary ? undefined : 'utf8');
         }
-        res.end(JSON.stringify({ ok: true, path: rel, mode, bytes: Buffer.byteLength(content, 'utf8') }));
+        res.end(JSON.stringify({ ok: true, path: rel, mode, bytes }));
       } else if (req.url === '/file_delete') {
         const rawPath = String(payload?.path ?? '').replace(/\\/g, '/').trim();
         if (!rawPath) throw new Error('Invalid path');

@@ -12,6 +12,7 @@ import {
   PERFORMANCE_GUIDANCE_TOOL_NAME,
 } from '../toolDefinitions';
 import { unlockAchievement } from '../achievements';
+import { generateImage } from '../imageGeneration';
 import { translate } from '../i18n';
 import { rollDice } from './builtinTools';
 import {
@@ -20,6 +21,7 @@ import {
   normalizeWorkspaceDir,
   readWorkspaceFileText,
   truncateToolOutput,
+  writeWorkspaceFileBase64For,
   writeWorkspaceFileTextFor,
 } from './generatedSkillExecutor';
 
@@ -149,6 +151,8 @@ async function runNativeTool(
 
     case 'file_display':
       return await handleFileDisplay(args, ctx);
+    case 'generate_image':
+      return await handleGenerateImage(args, ctx);
 
     case 'create_skill':
       return await handleCreateSkill(args);
@@ -295,7 +299,7 @@ const DISPLAY_REF_PREFIX = 'DISPLAY_REF: ';
 
 interface DisplayPayload {
   path: string;
-  kind: 'text' | 'html' | 'unsupported';
+  kind: 'text' | 'html' | 'image' | 'unsupported';
   title?: string;
 }
 
@@ -306,7 +310,7 @@ export function parseDisplayRef(result: string): DisplayPayload | null {
   const firstLine = result.slice(DISPLAY_REF_PREFIX.length).split('\n')[0]!;
   try {
     const obj = JSON.parse(firstLine) as DisplayPayload;
-    if (!obj || typeof obj.path !== 'string' || !['text', 'html', 'unsupported'].includes(obj.kind)) return null;
+    if (!obj || typeof obj.path !== 'string' || !['text', 'html', 'image', 'unsupported'].includes(obj.kind)) return null;
     return { path: obj.path, kind: obj.kind, title: typeof obj.title === 'string' ? obj.title : undefined };
   } catch {
     return null;
@@ -328,7 +332,7 @@ async function handleFileDisplay(args: Record<string, unknown>, ctx: ToolExecuti
     const kind: DisplayPayload['kind'] = /^(html?)$/i.test(extLower)
       ? 'html'
       : /^(png|jpe?g|gif|webp|svg|bmp|ico)$/i.test(extLower)
-        ? 'unsupported'
+        ? 'image'
         : 'text';
 
     const content = await readWorkspaceFileText(rawPath, workspaceDir);
@@ -341,6 +345,43 @@ async function handleFileDisplay(args: Record<string, unknown>, ctx: ToolExecuti
     return `${DISPLAY_REF_PREFIX}${JSON.stringify(payload)}\nOK: Displayed ${rawPath} in a popup (kind=${kind})`;
   } catch (e) {
     return `ERROR: ${(e as Error).message}`;
+  }
+}
+
+const IMAGE_RESULT_PREFIX = 'IMAGE_RESULT: ';
+
+export interface ImageResultPayload {
+  path: string;
+  name: string;
+}
+
+export function parseImageResult(result: string): ImageResultPayload | null {
+  if (!result.startsWith(IMAGE_RESULT_PREFIX)) return null;
+  const path = result.slice(IMAGE_RESULT_PREFIX.length).split('\n')[0]!.trim();
+  if (!path || path.startsWith('/') || path.split('/').some((part) => part === '..')) return null;
+  return { path, name: path.split('/').pop() || path };
+}
+
+async function handleGenerateImage(args: Record<string, unknown>, ctx: ToolExecutionContext): Promise<string> {
+  const prompt = String(args.prompt ?? '').trim();
+  const size = String(args.size ?? '1024*1024').trim();
+  if (!prompt) return 'ERROR: Missing image prompt';
+  const settings = await db.settings.get(1);
+  const providerId = settings?.activeImageProviderId ?? null;
+  const model = settings?.defaultImageModel?.trim() || '';
+  if (providerId == null || !model) return 'ERROR: Image generation is not configured. Configure an image provider and default image model in Settings.';
+  const provider = await db.imageProviders.get(providerId);
+  if (!provider?.isEnabled || !provider.apiKey.trim()) return 'ERROR: The configured image provider is disabled or unavailable.';
+  try {
+    const generated = await generateImage(providerId, prompt, model, size);
+    const extension = generated.mimeType.split('/')[1]?.replace('jpeg', 'jpg') || 'png';
+    const workspaceDir = await applySessionWorkspace(ctx.sessionId, ctx.npcId);
+    const name = `images/generated-${Date.now()}.${extension}`;
+    const base64 = generated.dataUrl.slice(generated.dataUrl.indexOf(',') + 1);
+    await writeWorkspaceFileBase64For(name, base64, workspaceDir);
+    return `${IMAGE_RESULT_PREFIX}${name}\nOK: Image generated successfully. Path: ${name}`;
+  } catch (error) {
+    return `ERROR: Image generation failed: ${error instanceof Error ? error.message : String(error)}`;
   }
 }
 

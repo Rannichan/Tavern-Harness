@@ -103,7 +103,7 @@ export function buildNetworkMessagesForSession(p: {
       if (m.toolCallId == null || !declaredToolCallIds.has(m.toolCallId) || omittedToolCallIds.has(m.toolCallId)) continue;
       result.push({
         role: 'tool',
-        content: m.content,
+        content: sanitizeToolResultForModel(m.content),
         tool_call_id: m.toolCallId ?? undefined,
       });
       continue;
@@ -209,6 +209,11 @@ function trimMessagesForNewTopic<T extends {
   }
 
   return [...keepSystems, ...(keepGreeting ? [keepGreeting] : []), ...after];
+}
+
+function sanitizeToolResultForModel(content: string): string {
+  if (!content.startsWith('IMAGE_RESULT: ')) return content;
+  return content.replace(/^IMAGE_RESULT: [^\n]*\n?/, '') || 'OK: Image generated and displayed to the user.';
 }
 
 /** 附件转 data URL content parts（base64 图片/视频） */

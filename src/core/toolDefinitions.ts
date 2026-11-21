@@ -28,6 +28,7 @@ export const BUILTIN_TOOL_NAMES = [
   'file_write',
   'file_edit',
   'file_display',
+  'generate_image',
   'create_skill',
   'update_skill',
   'delete_skill',
@@ -166,6 +167,19 @@ export const BUILTIN_TOOLS: ChatCompletionTool[] = [
         },
       },
       required: ['path'],
+      additionalProperties: false,
+    }
+  ),
+  fn(
+    'generate_image',
+    'Generate an image from a text prompt with the configured image service. Returns a visible image in the conversation. If the service is not configured or generation fails, the tool returns an explicit error.',
+    {
+      type: 'object',
+      properties: {
+        prompt: { type: 'string', minLength: 1, maxLength: 10000, description: 'Detailed image description.' },
+        size: { type: 'string', pattern: '^\\d{2,5}\\*\\d{2,5}$', default: '1024*1024', description: 'Image size, for example 1024*1024.' },
+      },
+      required: ['prompt'],
       additionalProperties: false,
     }
   ),
