@@ -32,6 +32,9 @@ export const Dashboard = memo(function Dashboard() {
             <a className="btn btn-primary" href="https://github.com/Rannichan/Tavern-Harness" target="_blank" rel="noreferrer">
               <span className="github-icon" aria-hidden="true" /> {t('dash.openGitHub')}
             </a>
+            <a className="btn" href="https://rannichan.github.io/Tavern-Harness/index.html" target="_blank" rel="noreferrer">
+              <Icon name="open-in-new" size={14} /> {t('dash.openIntro')}
+            </a>
             <a className="btn" href="https://rannichan.github.io/Tavern-Harness/wiki.html" target="_blank" rel="noreferrer">
               <Icon name="book" size={14} /> {t('dash.openWiki')}
             </a>
