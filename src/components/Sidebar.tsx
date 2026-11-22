@@ -74,6 +74,16 @@ export function Sidebar() {
   const [groupMembers, setGroupMembers] = useState<Record<number, NpcCharacter[]>>({});
   const sessionLongPressTarget = useRef<ChatSession | null>(null);
   const homeClickTimes = useRef<number[]>([]);
+
+  useEffect(() => {
+    const openForGuide = () => {
+      setActiveView('chat');
+      setMobileOpen(true);
+    };
+    window.addEventListener('th-opening-show-new-chat', openForGuide);
+    return () => window.removeEventListener('th-opening-show-new-chat', openForGuide);
+  }, [setActiveView]);
+
   const sessionLongPressProps = useTouchLongPress(
     (point) => {
       const session = sessionLongPressTarget.current;
@@ -314,7 +324,7 @@ export function Sidebar() {
           <button className={`nav-chip ${activeView === 'characters' ? 'active' : ''}`} onClick={() => { setActiveView('characters'); setMobileOpen(false); }}>
             <Icon name="users" size={15} /> <span>{t('nav.characters')}</span>
           </button>
-          <button className={`nav-chip ${activeView === 'settings' ? 'active' : ''}`} onClick={() => { setActiveView('settings'); setMobileOpen(false); }}>
+          <button data-opening-target="settings" className={`nav-chip ${activeView === 'settings' ? 'active' : ''}`} onClick={() => { setActiveView('settings'); setMobileOpen(false); }}>
             <Icon name="settings" size={15} /> <span>{t('nav.settings')}</span>
             {hasUnseenVersion && <span className="unseen-dot" title={t('changelog.unseen')} />}
           </button>
@@ -358,7 +368,7 @@ export function Sidebar() {
           <button className={`nav-chip ${activeView === 'characters' ? 'active' : ''}`} onClick={() => setActiveView('characters')}>
             <Icon name="users" size={13} /> {t('nav.characters')}
           </button>
-          <button className={`nav-chip ${activeView === 'settings' ? 'active' : ''}`} onClick={() => setActiveView('settings')}>
+          <button data-opening-target="settings" className={`nav-chip ${activeView === 'settings' ? 'active' : ''}`} onClick={() => setActiveView('settings')}>
             <Icon name="settings" size={13} /> {t('nav.settings')}
             {hasUnseenVersion && <span className="unseen-dot" title={t('changelog.unseen')} />}
           </button>
@@ -380,7 +390,7 @@ export function Sidebar() {
             >
               <Icon name="import" size={13} /> {t('nav.importGameplay')}
             </button>
-            <button className="session-new-btn" onClick={() => setShowNew(true)} title={t('nav.newChatTitle')}>
+            <button data-opening-target="new-chat" className="session-new-btn" onClick={() => setShowNew(true)} title={t('nav.newChatTitle')}>
               <Icon name="plus" size={13} /> {t('nav.newChat')}
             </button>
           </div>

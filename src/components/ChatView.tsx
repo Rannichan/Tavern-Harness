@@ -856,6 +856,7 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
         sendingAttachments.map((a) => a.dataUrl),
         sendingAttachments.map((a) => a.name)
       );
+      window.dispatchEvent(new CustomEvent('th-opening-message-sent'));
     };
     send().catch((error: unknown) => {
       // 发送链路本身也可能失败（例如另一个浏览器持有了写锁）：不能静默丢掉
@@ -917,6 +918,15 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
     doSend(shouldSendNsfw);
     setTimeout(() => setSendChargeState('idle'), 420);
   };
+
+  useEffect(() => {
+    const prefill = (event: Event) => {
+      const question = (event as CustomEvent<string>).detail;
+      if (question) setText(question);
+    };
+    window.addEventListener('th-opening-prefill', prefill);
+    return () => window.removeEventListener('th-opening-prefill', prefill);
+  }, []);
 
   useEffect(() => () => {
     if (sendChargeTimerRef.current) clearTimeout(sendChargeTimerRef.current);
@@ -1095,6 +1105,7 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
         {/* 模型选择器：输入框左侧，弹出列表（非弹窗） */}
         <div className="composer-model">
           <button
+            data-opening-target="model-button"
             className={`composer-model-btn ${showModels ? 'open' : ''}`}
             title={t('chat.selectModel')}
             aria-expanded={showModels}
@@ -1253,6 +1264,7 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
           </button>
         ) : (
           <button
+            data-opening-target="message-send"
             className={`btn btn-primary btn-round send-charge${sendChargeState !== 'idle' ? ` ${sendChargeState}` : ''}`}
             disabled={!canSend || typing}
             onClick={() => {
@@ -1331,9 +1343,13 @@ function ModelPickerPanel({ onClose }: { onClose: () => void }) {
         <div className="model-popover-list">
           {models.map((option) => {
             const active = option.providerId === selectedProviderId && option.modelId === selected;
+            const openingProviderValue = document.documentElement.getAttribute('data-opening-provider-id');
+            const openingProviderId = openingProviderValue == null ? null : Number(openingProviderValue);
+            const isOpeningModel = openingProviderId == null || openingProviderId === option.providerId;
             return (
               <button
                 key={`${option.providerId}:${option.modelId}`}
+                data-opening-target={isOpeningModel ? 'model-option' : undefined}
                 className={`model-option ${active ? 'active' : ''}`}
                 onClick={() => pick(option)}
               >

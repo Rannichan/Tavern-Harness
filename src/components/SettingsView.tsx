@@ -121,7 +121,7 @@ export const SettingsView = memo(function SettingsView() {
         </div>
 
         <div className="side-nav view-tabs" data-hscroll role="tablist" aria-label={t('settings.title')}>
-          <button type="button" role="tab" aria-selected={tab === 'api'} className={`nav-chip ${tab === 'api' ? 'active' : ''}`} onClick={() => setTab('api')}>
+          <button data-opening-target="api" type="button" role="tab" aria-selected={tab === 'api'} className={`nav-chip ${tab === 'api' ? 'active' : ''}`} onClick={() => setTab('api')}>
             {t('settings.tabApi')}
           </button>
           <button type="button" role="tab" aria-selected={tab === 'model'} className={`nav-chip ${tab === 'model' ? 'active' : ''}`} onClick={() => setTab('model')}>
@@ -475,7 +475,7 @@ async function fetchModelsSmart(baseUrl: string, apiKey: string): Promise<Models
   throw lastErr ?? new Error('unknown-error');
 }
 
-function ApiKeyField({ value, onChange, required = false }: { value: string; onChange: (value: string) => void; required?: boolean }) {
+function ApiKeyField({ value, onChange, required = false, openingTarget }: { value: string; onChange: (value: string) => void; required?: boolean; openingTarget?: string }) {
   const t = useT();
   const [visible, setVisible] = useState(false);
 
@@ -484,11 +484,18 @@ function ApiKeyField({ value, onChange, required = false }: { value: string; onC
       <label>{t('settings.apiKey')}</label>
       <div className="password-input-wrap">
         <input
+          data-opening-target={openingTarget}
           className="input mono"
           type={visible ? 'text' : 'password'}
           required={required}
           value={value}
           onChange={(event) => onChange(event.target.value)}
+          onBlur={() => {
+            if (openingTarget && value.trim()) window.dispatchEvent(new CustomEvent('th-opening-field-completed', { detail: openingTarget }));
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && openingTarget && value.trim()) window.dispatchEvent(new CustomEvent('th-opening-field-completed', { detail: openingTarget }));
+          }}
           placeholder={t('settings.apiKeyPh')}
           autoComplete="new-password"
           spellCheck={false}
@@ -761,7 +768,7 @@ function VoiceProviderForm({ initial, onSave }: { initial: VoiceProvider; onSave
   </>;
 }
 
-function ProviderManager({ providers, onChanged }: { providers: ApiProvider[]; onChanged: () => void }) {
+function ProviderManager({ providers, onChanged }: { providers: ApiProvider[]; onChanged: () => void | Promise<void> }) {
   const addToast = useStore((s) => s.addToast);
   const t = useT();
   const [editing, setEditing] = useState<ApiProvider | null>(null);
@@ -785,6 +792,7 @@ function ProviderManager({ providers, onChanged }: { providers: ApiProvider[]; o
       <div className="settings-section-head">
         <h3>{t('settings.providerTitle')}</h3>
         <button
+          data-opening-target="add-provider"
           className="btn btn-sm settings-gen-reset"
           onClick={() => setEditing({ name: '', baseUrl: '', apiKey: '', isEnabled: true, cachedModelsCsv: '', modelAliasesJson: '{}', createdAt: Date.now() })}
         >
@@ -835,15 +843,17 @@ function ProviderManager({ providers, onChanged }: { providers: ApiProvider[]; o
           <ProviderForm
             initial={editing}
             onSave={async (data) => {
+              let savedProviderId = editing.id;
               if (editing.id != null) {
                 await db.providers.update(editing.id, data);
                 addToast(t('toast.providerUpdated'));
               } else {
-                await db.providers.add(data);
+                savedProviderId = await db.providers.add(data);
                 addToast(t('toast.providerAdded'));
               }
               setEditing(null);
-              onChanged();
+              await onChanged();
+              window.dispatchEvent(new CustomEvent('th-opening-provider-saved', { detail: savedProviderId }));
             }}
           />
         </Modal>
@@ -884,6 +894,7 @@ function ProviderForm({ initial, onSave }: { initial: ApiProvider; onSave: (p: A
       setAliases(updatedAliases);
       setEnabledModels(updatedEnabledModels);
       addToast(t('toast.providerOk', { n: fetchedModels.length, via: viaProxy ? t('toast.providerViaProxy') : '' }));
+      window.dispatchEvent(new CustomEvent('th-opening-provider-tested'));
     } catch (e) {
       const msg = (e as Error).message;
       addToast(t('toast.providerFail', { msg, hint: isNetworkLikeError(e) ? t('toast.providerFailCors') : '' }), 'error');
@@ -897,13 +908,29 @@ function ProviderForm({ initial, onSave }: { initial: ApiProvider; onSave: (p: A
       <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div className="field">
           <label>{t('settings.providerName')}</label>
-          <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('settings.providerNamePh')} />
+          <input
+            data-opening-target="provider-name"
+            className="input"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onBlur={() => { if (name.trim()) window.dispatchEvent(new CustomEvent('th-opening-field-completed', { detail: 'provider-name' })); }}
+            onKeyDown={(e) => { if (e.key === 'Enter' && name.trim()) window.dispatchEvent(new CustomEvent('th-opening-field-completed', { detail: 'provider-name' })); }}
+            placeholder={t('settings.providerNamePh')}
+          />
         </div>
         <div className="field">
           <label>{t('settings.baseUrl')}</label>
-          <input className="input mono" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder={t('settings.baseUrlPh')} />
+          <input
+            data-opening-target="provider-base-url"
+            className="input mono"
+            value={baseUrl}
+            onChange={(e) => setBaseUrl(e.target.value)}
+            onBlur={() => { if (baseUrl.trim()) window.dispatchEvent(new CustomEvent('th-opening-field-completed', { detail: 'provider-base-url' })); }}
+            onKeyDown={(e) => { if (e.key === 'Enter' && baseUrl.trim()) window.dispatchEvent(new CustomEvent('th-opening-field-completed', { detail: 'provider-base-url' })); }}
+            placeholder={t('settings.baseUrlPh')}
+          />
         </div>
-        <ApiKeyField value={apiKey} onChange={setApiKey} />
+        <ApiKeyField value={apiKey} onChange={setApiKey} openingTarget="provider-api-key" />
         {models.length > 0 && (
           <div className="field">
             <label>{t('settings.models')}</label>
@@ -939,11 +966,12 @@ function ProviderForm({ initial, onSave }: { initial: ApiProvider; onSave: (p: A
       </div>
       <div className="modal-foot">
         <button className="btn" onClick={() => {}} style={{ visibility: 'hidden' }}>{t('common.cancel')}</button>
-        <button className="btn" disabled={!baseUrl.trim() || testing} onClick={testConnection}>
+        <button data-opening-target="provider-test" className="btn" disabled={!baseUrl.trim() || testing} onClick={testConnection}>
           {testing && <span className="spinner" style={{ width: 11, height: 11 }} />}
           {testing ? t('settings.testing') : t('settings.test')}
         </button>
         <button
+          data-opening-target="provider-save"
           className="btn btn-primary"
           disabled={!name.trim() || !baseUrl.trim()}
           onClick={() => {

@@ -130,6 +130,7 @@ export function NewSessionMenu({ onClose, editingSession }: { onClose: () => voi
       await useStore.getState().refreshSessions();
       useStore.getState().setActiveSession(sid);
       onClose();
+      window.dispatchEvent(new CustomEvent('th-opening-session-created'));
     } catch (error) {
       if (isEditing) addToast(t('toast.sessionSaveFailed', { msg: (error as Error).message }), 'error');
       else addToast(t('toast.genFailed', { msg: (error as Error).message }), 'error');
@@ -297,7 +298,7 @@ export function NewSessionMenu({ onClose, editingSession }: { onClose: () => voi
       </div>
       <div className="modal-foot">
         <button className="btn" onClick={onClose}>{t('common.cancel')}</button>
-        <button className="btn btn-primary" disabled={!canCreate || saving} onClick={create}>{isEditing ? t('common.save') : t('common.ok')}</button>
+        <button data-opening-target="create-chat" className="btn btn-primary" disabled={!canCreate || saving} onClick={create}>{isEditing ? t('common.save') : t('common.ok')}</button>
       </div>
     </Modal>
   );
@@ -358,6 +359,7 @@ function SlotPicker({ excluded, onPick }: { excluded: number[]; onPick: (npcId: 
   return (
     <div className="slot-picker">
       <button
+        data-opening-target="add-owner"
         className="npc-slot-add"
         title={t('newSession.addCharTip')}
         onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
@@ -367,7 +369,7 @@ function SlotPicker({ excluded, onPick }: { excluded: number[]; onPick: (npcId: 
       {open && (
         <div className="slot-picker-menu card">
           {available.map((n) => (
-            <button key={n.id} className="slot-picker-item" onClick={() => { onPick(n.id!); setOpen(false); }}>
+            <button key={n.id} data-opening-target={n.isTavernKeeper ? 'owner-option' : undefined} className="slot-picker-item" onClick={() => { onPick(n.id!); setOpen(false); }}>
               <Avatar name={n.name} colorOrdinal={n.avatarColorOrdinal} imageUrl={n.avatarDataUrl} size="xs" />
               <span>{n.name}</span>
             </button>

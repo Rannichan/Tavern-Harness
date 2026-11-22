@@ -109,6 +109,60 @@ body {
   line-height: var(--typography-body-line-height);
 }
 
+/* ---------- 首次进入引导 ---------- */
+.opening-guide {
+  position: fixed;
+  inset: 0;
+  z-index: 20000;
+  pointer-events: none;
+}
+
+.opening-guide-spotlight {
+  position: fixed;
+  border-radius: 12px;
+  box-shadow: 0 0 0 9999px rgb(17 12 8 / 72%), 0 0 0 3px var(--primary), 0 10px 34px rgb(0 0 0 / 35%);
+  transition: inset 180ms ease, width 180ms ease, height 180ms ease;
+  pointer-events: none;
+}
+
+.opening-guide-card {
+  position: fixed;
+  width: min(320px, calc(100vw - 24px));
+  padding: 18px;
+  border: 1px solid color-mix(in srgb, var(--primary) 55%, transparent);
+  border-radius: var(--radius);
+  background: var(--surface, #fffaf2);
+  color: var(--text-primary);
+  box-shadow: 0 18px 52px rgb(0 0 0 / 32%);
+  pointer-events: auto;
+}
+
+.opening-guide-progress {
+  color: var(--primary);
+  font: var(--font-weight-bold) var(--font-size-caption) / 1 var(--font-family-mono);
+  letter-spacing: .08em;
+}
+
+.opening-guide-card h2 {
+  margin: 10px 0 6px;
+  font: var(--typography-title-md-weight) var(--typography-title-md-size) / var(--typography-title-md-line-height) var(--typography-title-md-font);
+}
+
+.opening-guide-card p {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+.opening-guide-card button {
+  margin-top: 14px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
 /* ---------- 文字语义工具类 ---------- */
 .typo-body {
   font-family: var(--typography-body-font);
@@ -1392,6 +1446,77 @@ body.resizing {
 .dash-hero .actions > .btn {
   height: 40px;
 }
+/* ---------- 酒馆说明书 ---------- */
+.tavern-manual {
+  display: flex;
+  flex-direction: column;
+}
+
+.manual-chapter {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 16px 18px;
+  border: 1px solid color-mix(in srgb, var(--primary) 30%, var(--border));
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--primary) 5%, var(--surface));
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .18s ease, background-color .18s ease, transform .18s ease;
+}
+
+.manual-chapter:hover {
+  border-color: color-mix(in srgb, var(--primary) 68%, var(--border));
+  background: color-mix(in srgb, var(--primary) 9%, var(--surface));
+  transform: translateY(-1px);
+}
+
+.manual-chapter-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--primary) 15%, var(--surface));
+  color: var(--primary);
+}
+
+.manual-chapter-copy {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.manual-chapter-copy strong {
+  font-family: var(--font-family-display);
+  font-size: var(--font-size-title-sm);
+}
+
+.manual-chapter-copy > span {
+  color: var(--text-secondary);
+  font-size: var(--font-size-body-sm);
+}
+
+.manual-chapter-action {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  color: var(--primary);
+  font-weight: var(--font-weight-bold);
+}
+
+@media (max-width: 560px) {
+  .manual-chapter-action {
+    font-size: 0;
+  }
+}
+
 /* ---------- 与角色继续对话（最近会话列表） ---------- */
 .recent-list {
   display: flex;
