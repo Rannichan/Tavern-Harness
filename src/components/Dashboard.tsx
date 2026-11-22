@@ -1,7 +1,6 @@
-import { memo, useState } from 'react';
+import { memo } from 'react';
 import { createSession, useStore } from '../store/store';
 import { Avatar, Icon, MasonryGrid } from './shared';
-import { NewSessionMenu } from './NewSessionMenu';
 import { useT } from '../core/i18n';
 import { textPreview } from '../core/textPreview';
 import { restartOpeningGuide } from './OpeningGuide';
@@ -13,7 +12,6 @@ import { restartOpeningGuide } from './OpeningGuide';
 export const Dashboard = memo(function Dashboard() {
   const npcs = useStore((s) => s.npcs);
   const t = useT();
-  const [showNew, setShowNew] = useState(false);
 
   const startNpc = async (id: number) => {
     const sid = await createSession('NPC', { associatedId: id });
@@ -31,22 +29,11 @@ export const Dashboard = memo(function Dashboard() {
             <span className="dash-hero-accent">{t('dash.heroAccent')}</span>
           </p>
           <div className="actions">
-            <button className="btn btn-primary" onClick={() => setShowNew(true)}>
-              <Icon name="plus" size={14} /> {t('dash.newChat')}
-            </button>
-            <button
-              className="btn"
-              onClick={() => {
-                useStore.getState().setActiveView('characters');
-              }}
-            >
-              <Icon name="users" size={14} /> {t('dash.goCharacters')}
-            </button>
+            <a className="btn btn-primary" href="https://github.com/Rannichan/Tavern-Harness" target="_blank" rel="noreferrer">
+              <span className="github-icon" aria-hidden="true" /> {t('dash.openGitHub')}
+            </a>
             <a className="btn" href="https://rannichan.github.io/Tavern-Harness/wiki.html" target="_blank" rel="noreferrer">
               <Icon name="book" size={14} /> {t('dash.openWiki')}
-            </a>
-            <a className="btn" href="https://github.com/Rannichan/Tavern-Harness" target="_blank" rel="noreferrer">
-              <span className="github-icon" aria-hidden="true" /> {t('dash.openGitHub')}
             </a>
           </div>
         </div>
@@ -87,8 +74,6 @@ export const Dashboard = memo(function Dashboard() {
           </MasonryGrid>
         </div>
       </div>
-
-      {showNew && <NewSessionMenu onClose={() => setShowNew(false)} />}
     </div>
   );
 });
