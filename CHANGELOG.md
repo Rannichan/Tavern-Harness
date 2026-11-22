@@ -3,6 +3,56 @@
 > 本文件由 `scripts/changelog.mjs` 从 `changelog/v*.md` 生成，请勿手动编辑。
 > 版本对比链接见文末；源文件位于仓库 `changelog/` 目录。
 
+## [0.2.5] - 2026-11-23
+
+### 中文
+
+#### 新增
+
+- 新增首次进入的交互式新手引导：聚光灯依次指向「设置 → API 配置 → 添加供应商 → 填写名称 / Base URL / API Key → 测试连接 → 保存 → 新建对话 → 选择酒馆老板 → 选择模型 → 发送第一条消息」，并在最后自动填入一句开场提问；支持简体中文、繁体中文和英文，可随时跳过，跳过后不再自动出现
+- 仪表盘新增「酒馆说明书」区域，第一章可随时重新开始新手引导
+- 仪表盘顶部新增「打开介绍页」入口
+
+#### 改进
+
+- 仪表盘移除「与角色继续对话」列表，顶部操作精简为 GitHub、介绍页和 WIKI，页面更聚焦于角色卡片与新手引导
+- WIKI 入口文案缩短为「打开 WIKI」
+
+#### 修复
+
+- 修复窄屏下从侧边栏新建对话成功后，抽屉和遮罩仍盖在主区域上方、挡住后续操作的问题；现在创建成功会自动收起侧边栏，编辑已有会话不触发
+- 修复侧边栏、弹窗等滚动容器在收起、隐藏或播放切换动画后残留悬浮滚动条的问题；容器不可见时会立即清理滚动条浮层
+
+#### 内部
+
+- 滚动条模块新增 ResizeObserver、MutationObserver 以及过渡和动画监听，统一回收不可见容器的浮层
+- 新手引导通过事件与 `data-opening-target` 标记驱动，完成状态写入 localStorage
+- 移除仪表盘不再使用的会话预览、相对时间格式化代码及对应 i18n 文案
+
+### English
+
+#### Added
+
+- Added an interactive first-run guide: a spotlight walks through Settings → API Configuration → add a provider → enter name / Base URL / API key → test the connection → save → create a chat → pick the Tavern Keeper → choose a model → send the first message, with a starter question pre-filled at the end. Available in Simplified Chinese, Traditional Chinese, and English, skippable at any time, and it won't reappear once skipped
+- Added a Tavern Manual section on the dashboard; Chapter 1 restarts the guide at any time
+- Added an "Open introduction page" action to the dashboard hero
+
+#### Changed
+
+- Removed the "Continue character conversations" list from the dashboard and trimmed the hero actions to GitHub, the introduction page, and the WIKI, focusing the page on character cards and onboarding
+- Shortened the WIKI action label to "Open WIKI"
+
+#### Fixed
+
+- Fixed the sidebar drawer and overlay staying over the main area after creating a chat on narrow screens and blocking the next step; the drawer now closes after a successful create and stays open when editing an existing chat
+- Fixed stale floating scrollbars left behind when scroll containers collapse, hide, or run transition animations; overlay thumbs are now removed as soon as the container is not visible
+
+#### Internal
+
+- The scrollbar module now uses ResizeObserver, MutationObserver, and transition/animation listeners to reclaim overlays for hidden containers
+- The opening guide is driven by events and `data-opening-target` markers, with completion persisted in localStorage
+- Removed unused dashboard session-preview and relative-time formatting code and their i18n strings
+
 ## [0.2.4] - 2026-11-22
 
 ### 中文
@@ -1155,6 +1205,7 @@
 - Vite + React + Zustand + Dexie stack with browser-side local persistence
 
 <!-- 链接定义 -->
+[0.2.5]: https://github.com/Rannichan/Tavern-Harness/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/Rannichan/Tavern-Harness/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/Rannichan/Tavern-Harness/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/Rannichan/Tavern-Harness/compare/v0.2.1...v0.2.2
