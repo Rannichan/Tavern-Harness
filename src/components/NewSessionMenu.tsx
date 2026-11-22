@@ -37,7 +37,12 @@ const restrictToSortList: Modifier = ({ transform, activeNodeRect, containerNode
   return { ...transform, x, y };
 };
 
-export function NewSessionMenu({ onClose, editingSession }: { onClose: () => void; editingSession?: ChatSession | null }) {
+export function NewSessionMenu({ onClose, onCreated, editingSession }: {
+  onClose: () => void;
+  /** 新建成功后回调（编辑已有会话不触发）；用于窄屏收起侧边栏等页面级收尾。 */
+  onCreated?: () => void;
+  editingSession?: ChatSession | null;
+}) {
   const npcs = useStore((s) => s.npcs);
   const worldBooks = useStore((s) => s.worldBooks);
   const addToast = useStore((s) => s.addToast);
@@ -129,6 +134,7 @@ export function NewSessionMenu({ onClose, editingSession }: { onClose: () => voi
         });
       await useStore.getState().refreshSessions();
       useStore.getState().setActiveSession(sid);
+      onCreated?.();
       onClose();
       window.dispatchEvent(new CustomEvent('th-opening-session-created'));
     } catch (error) {

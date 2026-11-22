@@ -468,7 +468,7 @@ export function Sidebar() {
         )}
       </div>
 
-      {showNew && <NewSessionMenu onClose={() => setShowNew(false)} />}
+      {showNew && <NewSessionMenu onClose={() => setShowNew(false)} onCreated={() => setMobileOpen(false)} />}
       {editTarget && <NewSessionMenu editingSession={editTarget} onClose={() => setEditTarget(null)} />}
 
       {sessionMenu &&
