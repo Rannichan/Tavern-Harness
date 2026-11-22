@@ -120,7 +120,8 @@ body {
 .opening-guide-spotlight {
   position: fixed;
   border-radius: 12px;
-  box-shadow: 0 0 0 9999px rgb(17 12 8 / 72%), 0 0 0 3px var(--primary), 0 10px 34px rgb(0 0 0 / 35%);
+  /* 只做暗化挖孔，不加描边；挖孔本身即焦点高亮。 */
+  box-shadow: 0 0 0 9999px rgb(0 0 0 / 72%);
   transition: inset 180ms ease, width 180ms ease, height 180ms ease;
   pointer-events: none;
 }
@@ -155,12 +156,23 @@ body {
 }
 
 .opening-guide-card button {
-  margin-top: 14px;
-  padding: 0;
+  /* 内边距只扩大命中区域；负左外边距抵消它，使文字与上方段落左对齐 */
+  margin: 14px 0 0 -8px;
+  padding: 4px 8px;
   border: 0;
   background: transparent;
   color: var(--text-muted);
+  font-size: var(--font-size-label);
   cursor: pointer;
+  /* 反馈只做文字变色，无背景/位移 */
+  transition: color 0.16s ease;
+}
+.opening-guide-card button:hover {
+  color: var(--text-primary);
+}
+.opening-guide-card button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 /* ---------- 文字语义工具类 ---------- */
