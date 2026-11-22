@@ -1502,6 +1502,8 @@ body.resizing {
   min-width: 0;
   flex-direction: column;
   gap: 3px;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .manual-chapter-copy strong {
