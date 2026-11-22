@@ -302,6 +302,9 @@ body {
 .th-scrollbar-thumb.is-visible {
   opacity: 1;
 }
+.th-scrollbar-thumb:not(.is-visible):not(.is-suppressed) {
+  transition-duration: 0.12s;
+}
 .th-scrollbar-thumb.is-suppressed {
   opacity: 0;
   transition: none;

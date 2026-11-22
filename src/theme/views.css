@@ -107,10 +107,12 @@
 }
 .character-editor-body {
   overflow: hidden;
+  padding: 0;
 }
 .character-editor-tab-panel {
   display: none;
   min-height: 0;
+  padding: 16px 18px;
 }
 .character-editor-tab-panel.active {
   display: flex;
@@ -1584,9 +1586,10 @@
 
   .character-editor-tab-panel {
     position: absolute;
-    inset: 16px 14px;
+    inset: 0;
     display: flex;
     flex-direction: column;
+    padding: 16px 14px;
     opacity: 0;
     pointer-events: none;
     overflow: hidden;

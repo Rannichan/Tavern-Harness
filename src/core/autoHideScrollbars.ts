@@ -140,7 +140,7 @@ function hidePair(pair: ThumbPair, immediate = false): void {
   }
 }
 
-function deactivate(el: Element, remove = false): void {
+function deactivate(el: Element, remove = false, immediate = true): void {
   dirty.delete(el);
   active.delete(el);
   resizeObserver?.unobserve(el);
@@ -148,7 +148,7 @@ function deactivate(el: Element, remove = false): void {
   const pair = pairs.get(el);
   if (!pair) return;
   window.clearTimeout(pair.timer);
-  hidePair(pair, true);
+  hidePair(pair, immediate);
   if (remove) {
     pair.vertical?.remove();
     pair.horizontal?.remove();
@@ -229,6 +229,10 @@ function onScroll(event: Event): void {
   if (target === document) el = document.documentElement;
   else if (target instanceof Element) el = target;
   else return;
+
+  for (const activeEl of [...active]) {
+    if (activeEl !== el) deactivate(activeEl, false, false);
+  }
   dirty.add(el);
   if (frame === 0) frame = window.requestAnimationFrame(flush);
 }
