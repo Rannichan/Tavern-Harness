@@ -37,6 +37,9 @@ const dirty = new Set<Element>();
 const active = new Set<Element>();
 let layer: HTMLDivElement | null = null;
 let frame = 0;
+let reconcileFrame = 0;
+let installed = false;
+let resizeObserver: ResizeObserver | null = null;
 
 function getLayer(): HTMLDivElement {
   if (layer?.isConnected) return layer;
@@ -130,28 +133,81 @@ function positionHorizontal(node: HTMLDivElement, m: ScrollMetrics): boolean {
   return true;
 }
 
-function hidePair(pair: ThumbPair): void {
-  pair.vertical?.classList.remove('is-visible');
-  pair.horizontal?.classList.remove('is-visible');
+function hidePair(pair: ThumbPair, immediate = false): void {
+  for (const thumb of [pair.vertical, pair.horizontal]) {
+    thumb?.classList.toggle('is-suppressed', immediate);
+    thumb?.classList.remove('is-visible');
+  }
+}
+
+function deactivate(el: Element, remove = false): void {
+  dirty.delete(el);
+  active.delete(el);
+  resizeObserver?.unobserve(el);
+
+  const pair = pairs.get(el);
+  if (!pair) return;
+  window.clearTimeout(pair.timer);
+  hidePair(pair, true);
+  if (remove) {
+    pair.vertical?.remove();
+    pair.horizontal?.remove();
+    pairs.delete(el);
+  }
+}
+
+function isRenderable(el: Element): boolean {
+  if (el === document.documentElement) return true;
+  if (!(el instanceof HTMLElement) || !el.isConnected) return false;
+  const style = window.getComputedStyle(el);
+  return style.display !== 'none' && style.visibility !== 'hidden' && style.visibility !== 'collapse';
+}
+
+function reconcileActive(): void {
+  reconcileFrame = 0;
+  for (const el of [...active]) {
+    if (!isRenderable(el)) deactivate(el, !el.isConnected);
+    else dirty.add(el);
+  }
+  if (dirty.size > 0 && frame === 0) frame = window.requestAnimationFrame(flush);
+}
+
+function scheduleReconcile(): void {
+  if (reconcileFrame === 0) reconcileFrame = window.requestAnimationFrame(reconcileActive);
+}
+
+function hideForTransition(event: Event): void {
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+  for (const el of [...active]) {
+    if (el === target || target.contains(el)) deactivate(el);
+  }
 }
 
 function update(el: Element): void {
   const metrics = measure(el);
-  if (!metrics) return;
+  if (!metrics || !isRenderable(el)) {
+    deactivate(el, !el.isConnected);
+    return;
+  }
   const pair = getPair(el);
   const vertical = getThumb(pair, 'vertical');
   const horizontal = getThumb(pair, 'horizontal');
   const hasVertical = positionVertical(vertical, metrics);
   const hasHorizontal = positionHorizontal(horizontal, metrics);
 
+  vertical.classList.remove('is-suppressed');
+  horizontal.classList.remove('is-suppressed');
   vertical.classList.toggle('is-visible', hasVertical);
   horizontal.classList.toggle('is-visible', hasHorizontal);
   active.add(el);
+  resizeObserver?.observe(el);
 
   window.clearTimeout(pair.timer);
   pair.timer = window.setTimeout(() => {
     hidePair(pair);
     active.delete(el);
+    resizeObserver?.unobserve(el);
     // 容器已被移除时顺手回收浮层节点（WeakMap 无法清理 DOM 引用）。
     if (!el.isConnected) {
       pair.vertical?.remove();
@@ -178,14 +234,37 @@ function onScroll(event: Event): void {
 }
 
 export function installAutoHideScrollbars(): void {
-  if (typeof document === 'undefined') return;
+  if (typeof document === 'undefined' || installed) return;
+  installed = true;
+
   document.addEventListener('scroll', onScroll, { capture: true, passive: true });
-  // 视口尺寸变化后旧坐标会失效，先收起，等下一次滚动重新定位。
-  window.addEventListener('resize', () => {
-    for (const el of active) {
-      const pair = pairs.get(el);
-      if (pair) hidePair(pair);
+  document.addEventListener('transitionrun', hideForTransition, { capture: true, passive: true });
+  document.addEventListener('animationstart', hideForTransition, { capture: true, passive: true });
+
+  resizeObserver = new ResizeObserver(scheduleReconcile);
+  const mutationObserver = new MutationObserver((records) => {
+    const relevant = records.filter((record) => !layer?.contains(record.target));
+    if (relevant.length === 0) return;
+
+    for (const el of [...active]) {
+      if (!el.isConnected) {
+        deactivate(el, true);
+        continue;
+      }
+      if (relevant.some((record) => record.type === 'attributes' && record.target instanceof Element && record.target.contains(el))) {
+        deactivate(el);
+      }
     }
-    active.clear();
+    scheduleReconcile();
+  });
+  mutationObserver.observe(document.documentElement, {
+    subtree: true,
+    childList: true,
+    attributes: true,
+    attributeFilter: ['class', 'style', 'hidden', 'open'],
+  });
+
+  window.addEventListener('resize', () => {
+    for (const el of [...active]) deactivate(el);
   });
 }
