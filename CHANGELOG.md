@@ -9,8 +9,8 @@
 
 #### 新增
 
-- 新增首次进入的交互式新手引导：聚光灯依次指向「设置 → API 配置 → 添加供应商 → 填写名称 / Base URL / API Key → 测试连接 → 保存 → 新建对话 → 选择酒馆老板 → 选择模型 → 发送第一条消息」，并在最后自动填入一句开场提问；支持简体中文、繁体中文和英文，可随时跳过，跳过后不再自动出现
-- 仪表盘新增「酒馆说明书」区域，第一章可随时重新开始新手引导
+- 新增交互式新手引导：聚光灯依次指向「设置 → API 配置 → 添加供应商 → 填写名称 / Base URL / API Key → 测试连接 → 保存 → 新建对话 → 选择酒馆老板 → 选择模型 → 发送第一条消息」，并在最后自动填入一句开场提问；支持简体中文、繁体中文和英文，可随时跳过
+- 仪表盘新增「酒馆说明书」区域，必须从第一章入口开始新手引导
 - 仪表盘顶部新增「打开介绍页」入口
 
 #### 改进
@@ -26,15 +26,15 @@
 #### 内部
 
 - 滚动条模块新增 ResizeObserver、MutationObserver 以及过渡和动画监听，统一回收不可见容器的浮层
-- 新手引导通过事件与 `data-opening-target` 标记驱动，完成状态写入 localStorage
+- 新手引导通过开始页入口、事件与 `data-opening-target` 标记驱动，不再为新用户自动启动
 - 移除仪表盘不再使用的会话预览、相对时间格式化代码及对应 i18n 文案
 
 ### English
 
 #### Added
 
-- Added an interactive first-run guide: a spotlight walks through Settings → API Configuration → add a provider → enter name / Base URL / API key → test the connection → save → create a chat → pick the Tavern Keeper → choose a model → send the first message, with a starter question pre-filled at the end. Available in Simplified Chinese, Traditional Chinese, and English, skippable at any time, and it won't reappear once skipped
-- Added a Tavern Manual section on the dashboard; Chapter 1 restarts the guide at any time
+- Added an interactive guide: a spotlight walks through Settings → API Configuration → add a provider → enter name / Base URL / API key → test the connection → save → create a chat → pick the Tavern Keeper → choose a model → send the first message, with a starter question pre-filled at the end. Available in Simplified Chinese, Traditional Chinese, and English, and skippable at any time
+- Added a Tavern Manual section on the dashboard; the guide must be started from the Chapter 1 entry
 - Added an "Open introduction page" action to the dashboard hero
 
 #### Changed
@@ -50,7 +50,7 @@
 #### Internal
 
 - The scrollbar module now uses ResizeObserver, MutationObserver, and transition/animation listeners to reclaim overlays for hidden containers
-- The opening guide is driven by events and `data-opening-target` markers, with completion persisted in localStorage
+- The opening guide is driven by the dashboard entry, events, and `data-opening-target` markers, and no longer starts automatically for new users
 - Removed unused dashboard session-preview and relative-time formatting code and their i18n strings
 
 ## [0.2.4] - 2026-11-22

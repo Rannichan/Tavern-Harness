@@ -1,12 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
-import { useStore } from '../store/store';
 import { useT } from '../core/i18n';
 
-const STORAGE_KEY = 'th-opening-completed-v1';
 const RESTART_EVENT = 'th-opening-restart';
 
 export function restartOpeningGuide() {
-  localStorage.removeItem(STORAGE_KEY);
   window.dispatchEvent(new CustomEvent(RESTART_EVENT));
 }
 
@@ -45,7 +42,6 @@ const NEXT_ON_CLICK: Partial<Record<OpeningStep, OpeningStep>> = {
 
 export function OpeningGuide() {
   const t = useT();
-  const initStatus = useStore((state) => state.initStatus);
   const [step, setStep] = useState<OpeningStep | null>(null);
   const [rect, setRect] = useState<DOMRect | null>(null);
   const [savedProviderId, setSavedProviderId] = useState<number | null>(null);
@@ -58,18 +54,13 @@ export function OpeningGuide() {
   }, [savedProviderId]);
 
   useEffect(() => {
-    if (initStatus !== 'ready') return;
     const restartFromBeginning = () => {
       setSavedProviderId(null);
       setStep('settings');
     };
-    if (!localStorage.getItem(STORAGE_KEY)) {
-      const state = useStore.getState();
-      setStep(state.providers.length > 0 ? (state.sessions.length > 0 ? 'model-button' : 'new-chat') : 'settings');
-    }
     window.addEventListener(RESTART_EVENT, restartFromBeginning);
     return () => window.removeEventListener(RESTART_EVENT, restartFromBeginning);
-  }, [initStatus]);
+  }, []);
 
   useEffect(() => {
     if (!step) return;
@@ -97,13 +88,7 @@ export function OpeningGuide() {
       return 'new-chat';
     });
     const onCreated = () => setStep((current) => current === 'create-chat' ? 'model-button' : current);
-    const onSent = () => setStep((current) => {
-      if (current === 'message-send') {
-        localStorage.setItem(STORAGE_KEY, 'true');
-        return null;
-      }
-      return current;
-    });
+    const onSent = () => setStep((current) => current === 'message-send' ? null : current);
     document.addEventListener('click', onClick, true);
     window.addEventListener('th-opening-field-completed', onFieldCompleted);
     window.addEventListener('th-opening-provider-tested', onTested);
@@ -168,7 +153,6 @@ export function OpeningGuide() {
   const cardLeft = Math.min(Math.max(12, hole.left), window.innerWidth - 332);
 
   function finish() {
-    localStorage.setItem(STORAGE_KEY, 'true');
     setStep(null);
   }
 
