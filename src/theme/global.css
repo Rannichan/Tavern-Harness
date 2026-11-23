@@ -155,20 +155,43 @@ body {
   line-height: 1.55;
 }
 
-.opening-guide-card button {
-  /* 内边距只扩大命中区域；负左外边距抵消它，使文字与上方段落左对齐 */
-  margin: 14px 0 0 -8px;
-  padding: 4px 8px;
+.opening-guide-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.opening-guide-card .opening-guide-next {
+  min-width: 72px;
+  padding: 4px 12px;
+  border: 1px solid var(--primary);
+  border-radius: 8px;
+  background: var(--primary);
+  color: #fff;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-bold);
+  cursor: pointer;
+  box-shadow: 0 7px 18px color-mix(in srgb, var(--primary) 28%, transparent);
+  transition: filter .16s ease, transform .16s ease, box-shadow .16s ease;
+}
+.opening-guide-card .opening-guide-next:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+  box-shadow: 0 9px 22px color-mix(in srgb, var(--primary) 36%, transparent);
+}
+
+.opening-guide-card .opening-guide-skip {
+  padding: 5px 3px;
   border: 0;
   background: transparent;
-  color: var(--text-muted);
-  font-size: var(--font-size-label);
+  color: color-mix(in srgb, var(--text-muted) 72%, transparent);
+  font-size: var(--font-size-caption);
   cursor: pointer;
-  /* 反馈只做文字变色，无背景/位移 */
-  transition: color 0.16s ease;
+  transition: color .16s ease;
 }
-.opening-guide-card button:hover {
-  color: var(--text-primary);
+.opening-guide-card .opening-guide-skip:hover {
+  color: var(--text-muted);
 }
 .opening-guide-card button:focus-visible {
   outline: 2px solid var(--primary);
@@ -1469,6 +1492,12 @@ body.resizing {
 .tavern-manual {
   display: flex;
   flex-direction: column;
+}
+
+.manual-chapter-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .manual-chapter {

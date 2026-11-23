@@ -13,7 +13,7 @@ import { WorkspaceFileManagerModal } from './components/WorkspaceFileManagerModa
 import { Toasts } from './components/Toasts';
 import { AchievementModal, showAchievementUnlock } from './components/AchievementModal';
 import { GameplayExportModal, GameplayImportModal } from './components/GameplayDialogs';
-import { OpeningGuide } from './components/OpeningGuide';
+import { ManualChapterTwoGuide, OpeningGuide } from './components/OpeningGuide';
 import { Icon, SessionVisual, Modal } from './components/shared';
 import type { NpcCharacter } from './types/models';
 import { registerUnlockDispatcher } from './core/achievements';
@@ -227,6 +227,7 @@ export default function App() {
           <AchievementModal />
           <FileDisplayModal />
           <OpeningGuide />
+          <ManualChapterTwoGuide />
           {/* 游戏导出 / 导入的全局入口（会话右键菜单 / 侧边栏导入按钮共用） */}
       <GameplayEntryDialogs />
     </>

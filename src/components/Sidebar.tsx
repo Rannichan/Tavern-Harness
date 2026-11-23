@@ -321,7 +321,7 @@ export function Sidebar() {
           <button className={`nav-chip ${activeView === 'chat' ? 'active' : ''}`} onClick={() => { setActiveView('chat'); setMobileOpen(false); }}>
             <Icon name="send" size={15} /> <span>{t('nav.chat')}</span>
           </button>
-          <button className={`nav-chip ${activeView === 'characters' ? 'active' : ''}`} onClick={() => { setActiveView('characters'); setMobileOpen(false); }}>
+          <button data-manual-two-target="workshop" className={`nav-chip ${activeView === 'characters' ? 'active' : ''}`} onClick={() => { setActiveView('characters'); setMobileOpen(false); }}>
             <Icon name="users" size={15} /> <span>{t('nav.characters')}</span>
           </button>
           <button data-opening-target="settings" className={`nav-chip ${activeView === 'settings' ? 'active' : ''}`} onClick={() => { setActiveView('settings'); setMobileOpen(false); }}>
@@ -365,7 +365,7 @@ export function Sidebar() {
           <button className={`nav-chip ${activeView === 'chat' ? 'active' : ''}`} onClick={() => setActiveView('chat')}>
             <Icon name="send" size={13} /> {t('nav.chat')}
           </button>
-          <button className={`nav-chip ${activeView === 'characters' ? 'active' : ''}`} onClick={() => setActiveView('characters')}>
+          <button data-manual-two-target="workshop" className={`nav-chip ${activeView === 'characters' ? 'active' : ''}`} onClick={() => setActiveView('characters')}>
             <Icon name="users" size={13} /> {t('nav.characters')}
           </button>
           <button data-opening-target="settings" className={`nav-chip ${activeView === 'settings' ? 'active' : ''}`} onClick={() => setActiveView('settings')}>
@@ -390,7 +390,7 @@ export function Sidebar() {
             >
               <Icon name="import" size={13} /> {t('nav.importGameplay')}
             </button>
-            <button data-opening-target="new-chat" className="session-new-btn" onClick={() => setShowNew(true)} title={t('nav.newChatTitle')}>
+            <button data-opening-target="new-chat" data-manual-two-target="new-chat" className="session-new-btn" onClick={() => setShowNew(true)} title={t('nav.newChatTitle')}>
               <Icon name="plus" size={13} /> {t('nav.newChat')}
             </button>
           </div>

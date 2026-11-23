@@ -3,7 +3,7 @@ import { createSession, useStore } from '../store/store';
 import { Avatar, Icon, MasonryGrid } from './shared';
 import { useT } from '../core/i18n';
 import { textPreview } from '../core/textPreview';
-import { restartOpeningGuide } from './OpeningGuide';
+import { restartManualChapterTwo, restartOpeningGuide } from './OpeningGuide';
 
 // ============================================================
 // 仪表盘（无活动会话时的起始页）
@@ -43,14 +43,24 @@ export const Dashboard = memo(function Dashboard() {
 
         <section className="tavern-manual">
           <span className="section-title">{t('dash.manual')}</span>
-          <button className="manual-chapter" onClick={restartOpeningGuide}>
-            <span className="manual-chapter-icon"><Icon name="book" size={18} /></span>
-            <span className="manual-chapter-copy">
-              <strong>{t('dash.manualChapterOne')}</strong>
-              <span>{t('dash.manualChapterOneDesc')}</span>
-            </span>
-            <span className="manual-chapter-action">{t('dash.manualStart')} <Icon name="send" size={13} /></span>
-          </button>
+          <div className="manual-chapter-list">
+            <button className="manual-chapter" onClick={restartOpeningGuide}>
+              <span className="manual-chapter-icon"><Icon name="book" size={18} /></span>
+              <span className="manual-chapter-copy">
+                <strong>{t('dash.manualChapterOne')}</strong>
+                <span>{t('dash.manualChapterOneDesc')}</span>
+              </span>
+              <span className="manual-chapter-action">{t('dash.manualStart')} <Icon name="send" size={13} /></span>
+            </button>
+            <button className="manual-chapter" onClick={restartManualChapterTwo}>
+              <span className="manual-chapter-icon"><Icon name="users" size={18} /></span>
+              <span className="manual-chapter-copy">
+                <strong>{t('dash.manualChapterTwo')}</strong>
+                <span>{t('dash.manualChapterTwoDesc')}</span>
+              </span>
+              <span className="manual-chapter-action">{t('dash.manualStart')} <Icon name="send" size={13} /></span>
+            </button>
+          </div>
         </section>
 
         <div>

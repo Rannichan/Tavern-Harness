@@ -109,7 +109,7 @@ export const CharactersView = memo(function CharactersView({ active = true }: { 
           <p className="view-sub">{t('workshop.sub')}</p>
         </div>
         <div className="side-nav view-tabs" data-hscroll>
-          <button className={`nav-chip ${tab === 'characters' ? 'active' : ''}`} onClick={() => selectTab('characters')}>
+          <button data-manual-two-target="characters-tab" className={`nav-chip ${tab === 'characters' ? 'active' : ''}`} onClick={() => selectTab('characters')}>
             {t('workshop.tabCharacters')}
           </button>
           <button className={`nav-chip ${tab === 'worldbooks' ? 'active' : ''}`} onClick={() => selectTab('worldbooks')}>
@@ -184,10 +184,11 @@ function CharacterGrid({ npcs, onEdit, onImportPng }: { npcs: NpcCharacter[]; on
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <span className="group-label" style={{ margin: 0 }}>{t('workshop.charCount', { n: npcs.length })}</span>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn btn-sm" onClick={onImportPng} title={t('workshop.pngImportTip')}>
+          <button data-manual-two-target="png-import" className="btn btn-sm" onClick={onImportPng} title={t('workshop.pngImportTip')}>
             <img className="btn-logo-icon" src="/sillytavern-logo.png" alt="" /> {t('workshop.pngImport')}
           </button>
           <button
+            data-manual-two-target="new-character"
             className="btn btn-primary btn-sm"
             onClick={() =>
               onEdit(
@@ -343,7 +344,7 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
                   <span className="switch-slider" />
                 </label>
               </div>
-              <button className="icon-btn" onClick={onClose}><Icon name="x" /></button>
+              <button data-manual-two-target="close-character" className="icon-btn" onClick={onClose}><Icon name="x" /></button>
             </div>
           </div>
           <div className="modal-body character-editor-body">
@@ -351,7 +352,7 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
             <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
               <Avatar name={name || t('chat.speakerChar')} colorOrdinal={npc.avatarColorOrdinal} imageUrl={avatarDataUrl} size="sm" />
               <div style={{ display: 'flex', gap: 8 }}>
-                <label className="btn btn-sm" style={{ cursor: 'pointer', position: 'relative' }}>
+                <label data-manual-two-target="avatar" className="btn btn-sm" style={{ cursor: 'pointer', position: 'relative' }}>
                   {t('workshop.uploadAvatar')}
                   <input type="file" accept="image/*" hidden onChange={(e) => {
                     const f = e.target.files?.[0];
@@ -368,13 +369,13 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
                 {avatarDataUrl && <button className="btn btn-sm btn-ghost" onClick={() => setAvatarDataUrl(null)}>{t('common.clear')}</button>}
               </div>
             </div>
-            <div className="field">
+            <div data-manual-two-target="name" className="field">
               <label>{t('workshop.name')}</label>
               {npc.isBuiltIn
                 ? <div className="skill-detail-text">{name}</div>
                 : <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('workshop.charNamePh')} />}
             </div>
-            <div className="field prompt-field">
+            <div data-manual-two-target="prompt" className="field prompt-field">
               <label>{t('workshop.promptLabel')}</label>
               {!renderMarkdown ? (
                 <textarea className="textarea grow-textarea" value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder={t('workshop.promptPh')} />
@@ -384,7 +385,7 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
                 </div>
               )}
             </div>
-            <div className="field" style={{ flexShrink: 0 }}>
+            <div data-manual-two-target="greeting" className="field" style={{ flexShrink: 0 }}>
               <label>
                 {t('workshop.greetingLabel')}
                 <span> {t('workshop.greetingRandomHint')}</span>
@@ -415,13 +416,13 @@ function CharacterEditorModal({ npc, isNew, onClose, onSaved }: { npc: NpcCharac
                 </div>
               ))}
               {!renderMarkdown && (
-                <button className="btn btn-sm btn-ghost" style={{ alignSelf: 'flex-start' }} onClick={() => setGreetings((prev) => [...prev, ''])}>
+                <button data-manual-two-target="add-greeting" className="btn btn-sm btn-ghost" style={{ alignSelf: 'flex-start' }} onClick={() => setGreetings((prev) => [...prev, ''])}>
                   <Icon name="plus" size={12} /> {t('workshop.addAltGreeting')}
                 </button>
               )}
             </div>
             {/* 启用技能：从卡片移入编辑页 */}
-            <div className="field" style={{ flexShrink: 0 }}>
+            <div data-manual-two-target="skills" className="field" style={{ flexShrink: 0 }}>
               <label>{t('workshop.enableSkills', { a: enabledToolNames.filter((s) => tools.some((t) => t.name === s)).length, b: tools.length })}</label>
               {tools.length === 0 ? (
                 <div className="typo-label text-muted">{t('workshop.noSkills')}</div>
