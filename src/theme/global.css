@@ -138,14 +138,8 @@ body {
   pointer-events: auto;
 }
 
-.opening-guide-progress {
-  color: var(--primary);
-  font: var(--font-weight-bold) var(--font-size-caption) / 1 var(--font-family-mono);
-  letter-spacing: .08em;
-}
-
 .opening-guide-card h2 {
-  margin: 10px 0 6px;
+  margin: 0 0 6px;
   font: var(--typography-title-md-weight) var(--typography-title-md-size) / var(--typography-title-md-line-height) var(--typography-title-md-font);
 }
 

@@ -3,7 +3,7 @@ import { createSession, useStore } from '../store/store';
 import { Avatar, Icon, MasonryGrid } from './shared';
 import { useT } from '../core/i18n';
 import { textPreview } from '../core/textPreview';
-import { restartManualChapterTwo, restartOpeningGuide } from './OpeningGuide';
+import { restartManualChapterFour, restartManualChapterTwo, restartOpeningGuide } from './OpeningGuide';
 
 // ============================================================
 // 仪表盘（无活动会话时的起始页）
@@ -57,6 +57,14 @@ export const Dashboard = memo(function Dashboard() {
               <span className="manual-chapter-copy">
                 <strong>{t('dash.manualChapterTwo')}</strong>
                 <span>{t('dash.manualChapterTwoDesc')}</span>
+              </span>
+              <span className="manual-chapter-action">{t('dash.manualStart')} <Icon name="send" size={13} /></span>
+            </button>
+            <button className="manual-chapter" onClick={restartManualChapterFour}>
+              <span className="manual-chapter-icon"><Icon name="shield" size={18} /></span>
+              <span className="manual-chapter-copy">
+                <strong>{t('dash.manualChapterFour')}</strong>
+                <span>{t('dash.manualChapterFourDesc')}</span>
               </span>
               <span className="manual-chapter-action">{t('dash.manualStart')} <Icon name="send" size={13} /></span>
             </button>

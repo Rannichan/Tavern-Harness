@@ -81,7 +81,11 @@ export function Sidebar() {
       setMobileOpen(true);
     };
     window.addEventListener('th-opening-show-new-chat', openForGuide);
-    return () => window.removeEventListener('th-opening-show-new-chat', openForGuide);
+    window.addEventListener('th-manual-four-open-sidebar', openForGuide);
+    return () => {
+      window.removeEventListener('th-opening-show-new-chat', openForGuide);
+      window.removeEventListener('th-manual-four-open-sidebar', openForGuide);
+    };
   }, [setActiveView]);
 
   const sessionLongPressProps = useTouchLongPress(
@@ -300,6 +304,7 @@ export function Sidebar() {
     <>
       <div className="mobile-topbar">
         <button
+          data-manual-four-target="open-sidebar"
           className="mobile-nav-toggle"
           type="button"
           aria-label={mobileOpen ? t('common.close') : t('nav.sessions')}
@@ -324,7 +329,7 @@ export function Sidebar() {
           <button data-manual-two-target="workshop" className={`nav-chip ${activeView === 'characters' ? 'active' : ''}`} onClick={() => { setActiveView('characters'); setMobileOpen(false); }}>
             <Icon name="users" size={15} /> <span>{t('nav.characters')}</span>
           </button>
-          <button data-opening-target="settings" className={`nav-chip ${activeView === 'settings' ? 'active' : ''}`} onClick={() => { setActiveView('settings'); setMobileOpen(false); }}>
+          <button data-opening-target="settings" data-manual-four-target="settings" className={`nav-chip ${activeView === 'settings' ? 'active' : ''}`} onClick={() => { setActiveView('settings'); setMobileOpen(false); }}>
             <Icon name="settings" size={15} /> <span>{t('nav.settings')}</span>
             {hasUnseenVersion && <span className="unseen-dot" title={t('changelog.unseen')} />}
           </button>
@@ -368,7 +373,7 @@ export function Sidebar() {
           <button data-manual-two-target="workshop" className={`nav-chip ${activeView === 'characters' ? 'active' : ''}`} onClick={() => setActiveView('characters')}>
             <Icon name="users" size={13} /> {t('nav.characters')}
           </button>
-          <button data-opening-target="settings" className={`nav-chip ${activeView === 'settings' ? 'active' : ''}`} onClick={() => setActiveView('settings')}>
+          <button data-opening-target="settings" data-manual-four-target="settings" className={`nav-chip ${activeView === 'settings' ? 'active' : ''}`} onClick={() => setActiveView('settings')}>
             <Icon name="settings" size={13} /> {t('nav.settings')}
             {hasUnseenVersion && <span className="unseen-dot" title={t('changelog.unseen')} />}
           </button>
@@ -390,7 +395,7 @@ export function Sidebar() {
             >
               <Icon name="import" size={13} /> {t('nav.importGameplay')}
             </button>
-            <button data-opening-target="new-chat" data-manual-two-target="new-chat" className="session-new-btn" onClick={() => setShowNew(true)} title={t('nav.newChatTitle')}>
+            <button data-opening-target="new-chat" data-manual-two-target="new-chat" data-manual-four-target="new-chat" className="session-new-btn" onClick={() => setShowNew(true)} title={t('nav.newChatTitle')}>
               <Icon name="plus" size={13} /> {t('nav.newChat')}
             </button>
           </div>
@@ -405,6 +410,7 @@ export function Sidebar() {
               key={s.id}
               className={`session-item ${s.id === activeSessionId && activeView === 'chat' ? 'active' : ''}`}
               data-session-id={s.id}
+              data-manual-four-target="session"
               onClick={() => {
                 setActiveSession(s.id!);
                 setMobileOpen(false);

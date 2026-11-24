@@ -13,7 +13,7 @@ import { WorkspaceFileManagerModal } from './components/WorkspaceFileManagerModa
 import { Toasts } from './components/Toasts';
 import { AchievementModal, showAchievementUnlock } from './components/AchievementModal';
 import { GameplayExportModal, GameplayImportModal } from './components/GameplayDialogs';
-import { ManualChapterTwoGuide, OpeningGuide } from './components/OpeningGuide';
+import { ManualChapterFourGuide, ManualChapterTwoGuide, OpeningGuide } from './components/OpeningGuide';
 import { Icon, SessionVisual, Modal } from './components/shared';
 import type { NpcCharacter } from './types/models';
 import { registerUnlockDispatcher } from './core/achievements';
@@ -228,6 +228,7 @@ export default function App() {
           <FileDisplayModal />
           <OpeningGuide />
           <ManualChapterTwoGuide />
+          <ManualChapterFourGuide />
           {/* 游戏导出 / 导入的全局入口（会话右键菜单 / 侧边栏导入按钮共用） */}
       <GameplayEntryDialogs />
     </>
@@ -362,6 +363,7 @@ function SessionHeader({
   useEffect(() => {
     if (!showMobileActions) return;
     const closeOnOutsidePointerDown = (event: PointerEvent) => {
+      if (event.target instanceof Element && event.target.closest('.opening-guide-card')) return;
       if (!mobileActionsRef.current?.contains(event.target as Node)) {
         setShowMobileActions(false);
       }
@@ -369,6 +371,20 @@ function SessionHeader({
     document.addEventListener('pointerdown', closeOnOutsidePointerDown);
     return () => document.removeEventListener('pointerdown', closeOnOutsidePointerDown);
   }, [showMobileActions]);
+
+  useEffect(() => {
+    const openMobileActions = () => setShowMobileActions(true);
+    const openEditSession = () => {
+      setShowMobileActions(false);
+      setShowEdit(true);
+    };
+    window.addEventListener('th-manual-four-open-session-menu', openMobileActions);
+    window.addEventListener('th-manual-four-edit-session', openEditSession);
+    return () => {
+      window.removeEventListener('th-manual-four-open-session-menu', openMobileActions);
+      window.removeEventListener('th-manual-four-edit-session', openEditSession);
+    };
+  }, []);
 
   return (
     <div className={`chat-header${session.mode === 'GROUP' ? ' chat-header-group' : ''}`}>
@@ -385,7 +401,7 @@ function SessionHeader({
         <button className="btn-ghost icon-tooltip" title={t(usesPublicWorkspace ? 'header.workspaceRootHint' : 'header.workspaceHint')} onClick={() => setShowWorkspace(true)}>
           <Icon name="folder" size={17} />
         </button>
-        <button className="btn-ghost icon-tooltip" title={t('header.editSessionTip')} onClick={() => setShowEdit(true)}>
+        <button data-manual-four-target="edit-session" className="btn-ghost icon-tooltip" title={t('header.editSessionTip')} onClick={() => setShowEdit(true)}>
           <Icon name="pencil" size={17} />
         </button>
         <button className="btn-ghost icon-tooltip" title={t('header.resetSessionTip')} onClick={() => setConfirmReset(true)}>
@@ -403,6 +419,7 @@ function SessionHeader({
           title={t('header.moreActions')}
           aria-label={t('header.moreActions')}
           aria-expanded={showMobileActions}
+          data-manual-four-target="more-actions"
           onClick={() => setShowMobileActions(!showMobileActions)}
         >
           <Icon name="more" size={18} />
@@ -431,7 +448,7 @@ function SessionHeader({
             <button onClick={() => { setShowWorkspace(true); setShowMobileActions(false); }}>
               <Icon name="folder" size={15} /> {t('header.workspaceAction')}
             </button>
-            <button onClick={() => { setShowEdit(true); setShowMobileActions(false); }}>
+            <button data-manual-four-target="edit-session" onClick={() => { setShowEdit(true); setShowMobileActions(false); }}>
               <Icon name="pencil" size={15} /> {t('nav.editSession')}
             </button>
             <button onClick={() => { setConfirmReset(true); setShowMobileActions(false); }}>

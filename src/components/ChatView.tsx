@@ -839,7 +839,8 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
     ? parseMagicCommand(text, attachments.length > 0, session.mode, nsfwEnabled) != null
     : false;
 
-  const doSend = (withNsfw = false) => {
+  const doSend = (withNsfw = false, onSent?: () => void) => {
+    if (document.documentElement.hasAttribute('data-manual-four-require-charge') && !withNsfw) return;
     if (!canSend || typing) return;
     if (streaming) return;
     const sendingText = text.trim();
@@ -857,6 +858,7 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
         sendingAttachments.map((a) => a.name)
       );
       window.dispatchEvent(new CustomEvent('th-opening-message-sent'));
+      onSent?.();
     };
     send().catch((error: unknown) => {
       // 发送链路本身也可能失败（例如另一个浏览器持有了写锁）：不能静默丢掉
@@ -915,7 +917,9 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
       return;
     }
     setSendChargeState('impact');
-    doSend(shouldSendNsfw);
+    doSend(shouldSendNsfw, shouldSendNsfw
+      ? () => window.dispatchEvent(new CustomEvent('th-manual-four-charged-sent'))
+      : undefined);
     setTimeout(() => setSendChargeState('idle'), 420);
   };
 
@@ -1265,6 +1269,7 @@ export function ChatInput({ sessionId }: { sessionId: number }) {
         ) : (
           <button
             data-opening-target="message-send"
+            data-manual-four-target="charged-send"
             className={`btn btn-primary btn-round send-charge${sendChargeState !== 'idle' ? ` ${sendChargeState}` : ''}`}
             disabled={!canSend || typing}
             onClick={() => {

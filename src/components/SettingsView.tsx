@@ -124,7 +124,7 @@ export const SettingsView = memo(function SettingsView() {
           <button data-opening-target="api" type="button" role="tab" aria-selected={tab === 'api'} className={`nav-chip ${tab === 'api' ? 'active' : ''}`} onClick={() => setTab('api')}>
             {t('settings.tabApi')}
           </button>
-          <button type="button" role="tab" aria-selected={tab === 'model'} className={`nav-chip ${tab === 'model' ? 'active' : ''}`} onClick={() => setTab('model')}>
+          <button data-manual-four-target="model-tab" type="button" role="tab" aria-selected={tab === 'model'} className={`nav-chip ${tab === 'model' ? 'active' : ''}`} onClick={() => setTab('model')}>
             {t('settings.tabModel')}
           </button>
           <button type="button" role="tab" aria-selected={tab === 'general'} className={`nav-chip ${tab === 'general' ? 'active' : ''}`} onClick={() => setTab('general')}>
@@ -157,7 +157,7 @@ export const SettingsView = memo(function SettingsView() {
               <span className="switch-slider" />
             </label>
           </div>
-          <div className="set-row settings-tool-row">
+          <div className="set-row settings-tool-row" data-manual-four-target="nsfw-mode">
             <div>
               <div className="s-label" id="nsfw-mode-label">{t('settings.nsfwMode')}</div>
               <div className="s-desc" id="nsfw-mode-desc">{t('settings.nsfwModeDesc')}</div>
@@ -168,7 +168,10 @@ export const SettingsView = memo(function SettingsView() {
                 aria-labelledby="nsfw-mode-label"
                 aria-describedby="nsfw-mode-desc"
                 checked={settings.nsfwMode === true}
-                onChange={(e) => setSettings({ nsfwMode: e.target.checked })}
+                onChange={(e) => {
+                  setSettings({ nsfwMode: e.target.checked });
+                  if (e.target.checked) window.dispatchEvent(new CustomEvent('th-manual-four-nsfw-enabled'));
+                }}
               />
               <span className="switch-slider" />
             </label>

@@ -107,6 +107,7 @@ export function NewSessionMenu({ onClose, onCreated, editingSession }: {
         });
         addToast(t('toast.sessionUpdated'));
         onClose();
+        window.dispatchEvent(new CustomEvent('th-manual-four-session-saved'));
         return;
       }
       const sid = selectedNpcIds.length === 1
@@ -292,10 +293,15 @@ export function NewSessionMenu({ onClose, onCreated, editingSession }: {
           <div className="field">
             <label>{t('newSession.performanceGuidance')}</label>
             <textarea
+              data-manual-four-target="guidance"
               className="textarea"
               rows={4}
               value={performanceGuidance}
-              onChange={(e) => setPerformanceGuidance(e.target.value)}
+              onChange={(e) => {
+                if (!document.documentElement.hasAttribute('data-manual-four-guidance-readonly')) {
+                  setPerformanceGuidance(e.target.value);
+                }
+              }}
               placeholder={t('newSession.performanceGuidancePlaceholder')}
             />
             <span className="field-hint">{t('newSession.performanceGuidanceHint')}</span>
@@ -304,7 +310,7 @@ export function NewSessionMenu({ onClose, onCreated, editingSession }: {
       </div>
       <div className="modal-foot">
         <button className="btn" onClick={onClose}>{t('common.cancel')}</button>
-        <button data-opening-target="create-chat" className="btn btn-primary" disabled={!canCreate || saving} onClick={create}>{isEditing ? t('common.save') : t('common.ok')}</button>
+        <button data-opening-target="create-chat" data-manual-four-target={isEditing ? 'save' : 'create-session'} className="btn btn-primary" disabled={!canCreate || saving} onClick={create}>{isEditing ? t('common.save') : t('common.ok')}</button>
       </div>
     </Modal>
   );
