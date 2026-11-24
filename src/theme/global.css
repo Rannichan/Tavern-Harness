@@ -117,6 +117,14 @@ body {
   pointer-events: none;
 }
 
+.opening-guide-blocker {
+  position: fixed;
+  pointer-events: auto;
+  cursor: not-allowed;
+  touch-action: none;
+  overscroll-behavior: contain;
+}
+
 .opening-guide-spotlight {
   position: fixed;
   border-radius: 12px;
@@ -124,6 +132,18 @@ body {
   box-shadow: 0 0 0 9999px rgb(0 0 0 / 72%);
   transition: inset 180ms ease, width 180ms ease, height 180ms ease;
   pointer-events: none;
+}
+
+.opening-guide-target-shield {
+  position: fixed;
+  border-radius: 12px;
+  pointer-events: none;
+}
+
+.opening-guide-readonly .opening-guide-target-shield {
+  pointer-events: auto;
+  cursor: not-allowed;
+  touch-action: none;
 }
 
 .opening-guide-card {

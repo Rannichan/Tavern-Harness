@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 import { useT } from '../core/i18n';
 
 const RESTART_EVENT = 'th-opening-restart';
@@ -77,12 +78,119 @@ const CHAPTER_TWO_INFO_NEXT: Partial<Record<ChapterTwoStep, ChapterTwoStep>> = {
   'new-chat': undefined,
 };
 
-function clickVisibleTarget(attribute: 'data-opening-target' | 'data-manual-two-target' | 'data-manual-four-target', step: string) {
-  const target = [...document.querySelectorAll<HTMLElement>(`[${attribute}="${step}"]`)]
-    .find((candidate) => candidate.getClientRects().length > 0);
+type GuideTargetAttribute = 'data-opening-target' | 'data-manual-two-target' | 'data-manual-four-target';
+
+function getVisibleTarget(attribute: GuideTargetAttribute, step: string) {
+  return [...document.querySelectorAll<HTMLElement>(`[${attribute}="${step}"]`)]
+    .find((candidate) => candidate.getClientRects().length > 0) ?? null;
+}
+
+function clickVisibleTarget(attribute: GuideTargetAttribute, step: string) {
+  const target = getVisibleTarget(attribute, step);
   if (!target || target.hasAttribute('disabled')) return;
   target.click();
   target.focus();
+}
+
+function useGuideInteractionGuard(attribute: GuideTargetAttribute, step: string | null, interactive: boolean) {
+  useLayoutEffect(() => {
+    if (!step) return;
+    const previousFocus = document.activeElement;
+    const focusCard = () => document.querySelector<HTMLElement>('.opening-guide-card button:not(:disabled)')?.focus();
+    const allowed = (node: EventTarget | null) => node instanceof Element && (
+      Boolean(node.closest('.opening-guide-card'))
+      || (interactive && Boolean(getVisibleTarget(attribute, step)?.contains(node)))
+    );
+    const blockOutsideTarget = (event: Event) => {
+      if (allowed(event.target)) return false;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return true;
+    };
+    const blockKeyboard = (event: KeyboardEvent) => {
+      if (event.key === 'Tab') {
+        const target = interactive ? getVisibleTarget(attribute, step) : null;
+        const selector = 'button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), a[href], [tabindex], [contenteditable="true"]';
+        const candidates = [...document.querySelectorAll<HTMLElement>(selector)].filter((element) =>
+          element.tabIndex >= 0 && element.getClientRects().length > 0
+          && !element.closest('[inert]')
+          && (Boolean(element.closest('.opening-guide-card')) || Boolean(target?.contains(element))));
+        const index = candidates.indexOf(document.activeElement as HTMLElement);
+        const next = index < 0 ? (event.shiftKey ? candidates.length - 1 : 0)
+          : (index + (event.shiftKey ? -1 : 1) + candidates.length) % candidates.length;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        candidates[next]?.focus();
+        return;
+      }
+      if (blockOutsideTarget(event)) return;
+      // Escape must not dismiss the underlying dialog and invalidate the step.
+      if (event.key === 'Escape' || event.target instanceof Element && event.target.closest('.opening-guide-card')) {
+        event.stopImmediatePropagation();
+        if (event.key === 'Escape') event.preventDefault();
+      }
+    };
+    const onFocus = (event: FocusEvent) => {
+      if (!allowed(event.target)) {
+        event.stopImmediatePropagation();
+        focusCard();
+        if (document.activeElement === event.target && event.target instanceof HTMLElement) event.target.blur();
+      }
+    };
+    const events = ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click', 'dblclick', 'contextmenu', 'touchstart', 'touchend', 'beforeinput', 'paste', 'cut', 'drop', 'dragstart', 'wheel'];
+    for (const name of events) window.addEventListener(name, blockOutsideTarget, { capture: true, passive: false });
+    window.addEventListener('keydown', blockKeyboard, true);
+    window.addEventListener('keyup', blockOutsideTarget, true);
+    window.addEventListener('focusin', onFocus, true);
+    if (!allowed(document.activeElement)) focusCard();
+    return () => {
+      for (const name of events) window.removeEventListener(name, blockOutsideTarget, true);
+      window.removeEventListener('keydown', blockKeyboard, true);
+      window.removeEventListener('keyup', blockOutsideTarget, true);
+      window.removeEventListener('focusin', onFocus, true);
+      if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus();
+    };
+  }, [attribute, interactive, step]);
+}
+
+function getGuideHole(rect: DOMRect | null) {
+  if (!rect) return { left: window.innerWidth / 2, top: window.innerHeight / 2, width: 0, height: 0 };
+  const left = Math.max(6, Math.min(window.innerWidth - 6, rect.left - 7));
+  const top = Math.max(6, Math.min(window.innerHeight - 6, rect.top - 7));
+  return {
+    left,
+    top,
+    width: Math.max(0, Math.min(window.innerWidth - 6, rect.right + 7) - left),
+    height: Math.max(0, Math.min(window.innerHeight - 6, rect.bottom + 7) - top),
+  };
+}
+
+function GuideFrame({
+  hole,
+  cardTop,
+  cardLeft,
+  readonly,
+  children,
+}: {
+  hole: { left: number; top: number; width: number; height: number };
+  cardTop: number;
+  cardLeft: number;
+  readonly: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div className={`opening-guide${readonly ? ' opening-guide-readonly' : ''}`} role="dialog" aria-modal="true" aria-live="polite">
+      <div className="opening-guide-blocker" style={{ top: 0, left: 0, right: 0, height: hole.top }} />
+      <div className="opening-guide-blocker" style={{ top: hole.top + hole.height, left: 0, right: 0, bottom: 0 }} />
+      <div className="opening-guide-blocker" style={{ top: hole.top, left: 0, width: hole.left, height: hole.height }} />
+      <div className="opening-guide-blocker" style={{ top: hole.top, left: hole.left + hole.width, right: 0, height: hole.height }} />
+      <div className="opening-guide-spotlight" style={hole} />
+      <div className="opening-guide-target-shield" style={hole} />
+      <section className="opening-guide-card" style={{ top: cardTop, left: cardLeft }}>
+        {children}
+      </section>
+    </div>
+  );
 }
 
 export function OpeningGuide() {
@@ -91,6 +199,7 @@ export function OpeningGuide() {
   const [rect, setRect] = useState<DOMRect | null>(null);
   const [savedProviderId, setSavedProviderId] = useState<number | null>(null);
   const question = t('opening.question');
+  useGuideInteractionGuard('data-opening-target', step, true);
 
   useEffect(() => {
     if (savedProviderId == null) document.documentElement.removeAttribute('data-opening-provider-id');
@@ -134,14 +243,14 @@ export function OpeningGuide() {
     });
     const onCreated = () => setStep((current) => current === 'create-chat' ? 'model-button' : current);
     const onSent = () => setStep((current) => current === 'message-send' ? null : current);
-    document.addEventListener('click', onClick, true);
+    window.addEventListener('click', onClick, true);
     window.addEventListener('th-opening-field-completed', onFieldCompleted);
     window.addEventListener('th-opening-provider-tested', onTested);
     window.addEventListener('th-opening-provider-saved', onSaved);
     window.addEventListener('th-opening-session-created', onCreated);
     window.addEventListener('th-opening-message-sent', onSent);
     return () => {
-      document.removeEventListener('click', onClick, true);
+      window.removeEventListener('click', onClick, true);
       window.removeEventListener('th-opening-field-completed', onFieldCompleted);
       window.removeEventListener('th-opening-provider-tested', onTested);
       window.removeEventListener('th-opening-provider-saved', onSaved);
@@ -183,18 +292,12 @@ export function OpeningGuide() {
     };
   }, [step]);
 
-  if (!step || !rect) return null;
+  if (!step) return null;
 
-  const pad = 7;
-  const hole = {
-    left: Math.max(6, rect.left - pad),
-    top: Math.max(6, rect.top - pad),
-    width: Math.min(window.innerWidth - 12, rect.width + pad * 2),
-    height: Math.min(window.innerHeight - 12, rect.height + pad * 2),
-  };
+  const hole = getGuideHole(rect);
   const cardBelow = hole.top + hole.height + 16;
-  const cardTop = cardBelow + 190 < window.innerHeight ? cardBelow : Math.max(12, hole.top - 176);
-  const cardLeft = Math.min(Math.max(12, hole.left), window.innerWidth - 332);
+  const cardTop = rect && cardBelow + 190 < window.innerHeight ? cardBelow : Math.max(12, hole.top - 176);
+  const cardLeft = rect ? Math.max(12, Math.min(hole.left, window.innerWidth - 332)) : 12;
 
   function finish() {
     setStep(null);
@@ -212,17 +315,14 @@ export function OpeningGuide() {
   }
 
   return (
-    <div className="opening-guide" aria-live="polite">
-      <div className="opening-guide-spotlight" style={hole} />
-      <section className="opening-guide-card" style={{ top: cardTop, left: cardLeft }}>
+    <GuideFrame hole={hole} cardTop={cardTop} cardLeft={cardLeft} readonly={false}>
         <h2>{t(`opening.${step}.title`)}</h2>
         <p>{t(`opening.${step}.body`, { question })}</p>
         <div className="opening-guide-actions">
           <button className="opening-guide-next" type="button" onClick={next}>{t('manualTwo.next')}</button>
           <button className="opening-guide-skip" type="button" onClick={finish}>{t('opening.skip')}</button>
         </div>
-      </section>
-    </div>
+    </GuideFrame>
   );
 }
 
@@ -260,6 +360,7 @@ export function ManualChapterFourGuide() {
   const t = useT();
   const [step, setStep] = useState<ChapterFourStep | null>(null);
   const [rect, setRect] = useState<DOMRect | null>(null);
+  useGuideInteractionGuard('data-manual-four-target', step, step !== 'guidance');
 
   useEffect(() => {
     const restart = () => setStep('settings');
@@ -310,14 +411,14 @@ export function ManualChapterFourGuide() {
     };
     const onSaved = () => setStep((current) => current === 'save' ? 'charged-send' : current);
     const onChargedSent = () => setStep((current) => current === 'charged-send' ? null : current);
-    document.addEventListener('click', onClick, true);
+    window.addEventListener('click', onClick, true);
     document.addEventListener('change', onNsfwChange, true);
     window.addEventListener('th-manual-four-nsfw-enabled', onNsfwEnabled);
     window.addEventListener('th-opening-session-created', onCreated);
     window.addEventListener('th-manual-four-session-saved', onSaved);
     window.addEventListener('th-manual-four-charged-sent', onChargedSent);
     return () => {
-      document.removeEventListener('click', onClick, true);
+      window.removeEventListener('click', onClick, true);
       document.removeEventListener('change', onNsfwChange, true);
       window.removeEventListener('th-manual-four-nsfw-enabled', onNsfwEnabled);
       window.removeEventListener('th-opening-session-created', onCreated);
@@ -351,7 +452,7 @@ export function ManualChapterFourGuide() {
         if (element) {
           element.scrollIntoView({ block: 'nearest', inline: 'nearest' });
           setRect(element.getBoundingClientRect());
-        } else if (step !== 'edit-session') {
+        } else {
           setRect(null);
         }
       });
@@ -369,18 +470,12 @@ export function ManualChapterFourGuide() {
     };
   }, [step]);
 
-  if (!step || !rect) return null;
+  if (!step) return null;
 
-  const pad = 7;
-  const hole = {
-    left: Math.max(6, rect.left - pad),
-    top: Math.max(6, rect.top - pad),
-    width: Math.min(window.innerWidth - 12, rect.width + pad * 2),
-    height: Math.min(window.innerHeight - 12, rect.height + pad * 2),
-  };
+  const hole = getGuideHole(rect);
   const cardBelow = hole.top + hole.height + 16;
-  const cardTop = cardBelow + 190 < window.innerHeight ? cardBelow : Math.max(12, hole.top - 190);
-  const cardLeft = Math.min(Math.max(12, hole.left), window.innerWidth - 332);
+  const cardTop = rect && cardBelow + 190 < window.innerHeight ? cardBelow : Math.max(12, hole.top - 190);
+  const cardLeft = rect ? Math.max(12, Math.min(hole.left, window.innerWidth - 332)) : 12;
 
   function next() {
     if (!step) return;
@@ -408,9 +503,7 @@ export function ManualChapterFourGuide() {
   }
 
   return (
-    <div className="opening-guide" aria-live="polite">
-      <div className="opening-guide-spotlight" style={hole} />
-      <section className="opening-guide-card" style={{ top: cardTop, left: cardLeft }}>
+    <GuideFrame hole={hole} cardTop={cardTop} cardLeft={cardLeft} readonly={step === 'guidance'}>
         <h2>{t(`manualFour.${step}.title`)}</h2>
         <p>{t(step === 'nsfw-mode' && document.querySelector<HTMLInputElement>('[data-manual-four-target="nsfw-mode"] input[type="checkbox"]')?.checked
           ? 'manualFour.nsfw-mode-enabled.body'
@@ -421,8 +514,7 @@ export function ManualChapterFourGuide() {
           </button>
           <button className="opening-guide-skip" type="button" onClick={() => setStep(null)}>{t('opening.skip')}</button>
         </div>
-      </section>
-    </div>
+    </GuideFrame>
   );
 }
 
@@ -430,6 +522,9 @@ export function ManualChapterTwoGuide() {
   const t = useT();
   const [step, setStep] = useState<ChapterTwoStep | null>(null);
   const [rect, setRect] = useState<DOMRect | null>(null);
+  const infoNext = step ? CHAPTER_TWO_INFO_NEXT[step] : undefined;
+  const introductionOnly = step !== null && Object.hasOwn(CHAPTER_TWO_INFO_NEXT, step);
+  useGuideInteractionGuard('data-manual-two-target', step, !introductionOnly);
 
   useEffect(() => {
     const restart = () => setStep('workshop');
@@ -440,29 +535,14 @@ export function ManualChapterTwoGuide() {
   useEffect(() => {
     if (!step) return;
     const onClick = (event: MouseEvent) => {
-      const card = event.target instanceof Element ? event.target.closest('.opening-guide-card') : null;
-      if (card) return;
+      if (event.target instanceof Element && event.target.closest('.opening-guide-card')) return;
       const target = event.target instanceof Element ? event.target.closest(`[data-manual-two-target="${step}"]`) : null;
       const next = CHAPTER_TWO_NEXT_ON_CLICK[step];
-      if (!target || !next || target.hasAttribute('disabled') || target.getClientRects().length === 0) {
-        event.preventDefault();
-        event.stopPropagation();
-        return;
-      }
+      if (!target || !next || target.hasAttribute('disabled') || target.getClientRects().length === 0) return;
       window.setTimeout(() => setStep(next), 0);
     };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') return;
-      if (event.target instanceof Element && event.target.closest('.opening-guide-card')) return;
-      event.preventDefault();
-      event.stopPropagation();
-    };
-    document.addEventListener('click', onClick, true);
-    document.addEventListener('keydown', onKeyDown, true);
-    return () => {
-      document.removeEventListener('click', onClick, true);
-      document.removeEventListener('keydown', onKeyDown, true);
-    };
+    window.addEventListener('click', onClick, true);
+    return () => window.removeEventListener('click', onClick, true);
   }, [step]);
 
   useLayoutEffect(() => {
@@ -494,19 +574,12 @@ export function ManualChapterTwoGuide() {
     };
   }, [step]);
 
-  if (!step || !rect) return null;
+  if (!step) return null;
 
-  const pad = 7;
-  const hole = {
-    left: Math.max(6, rect.left - pad),
-    top: Math.max(6, rect.top - pad),
-    width: Math.min(window.innerWidth - 12, rect.width + pad * 2),
-    height: Math.min(window.innerHeight - 12, rect.height + pad * 2),
-  };
+  const hole = getGuideHole(rect);
   const cardBelow = hole.top + hole.height + 16;
-  const cardTop = cardBelow + 190 < window.innerHeight ? cardBelow : Math.max(12, hole.top - 190);
-  const cardLeft = Math.min(Math.max(12, hole.left), window.innerWidth - 332);
-  const infoNext = CHAPTER_TWO_INFO_NEXT[step];
+  const cardTop = rect && cardBelow + 190 < window.innerHeight ? cardBelow : Math.max(12, hole.top - 190);
+  const cardLeft = rect ? Math.max(12, Math.min(hole.left, window.innerWidth - 332)) : 12;
 
   function next() {
     if (!step) return;
@@ -522,9 +595,7 @@ export function ManualChapterTwoGuide() {
   }
 
   return (
-    <div className="opening-guide" aria-live="polite">
-      <div className="opening-guide-spotlight" style={hole} />
-      <section className="opening-guide-card" style={{ top: cardTop, left: cardLeft }}>
+    <GuideFrame hole={hole} cardTop={cardTop} cardLeft={cardLeft} readonly={introductionOnly}>
         <h2>{t(`manualTwo.${step}.title`)}</h2>
         <p>{t(`manualTwo.${step}.body`)}</p>
         <div className="opening-guide-actions">
@@ -533,7 +604,6 @@ export function ManualChapterTwoGuide() {
           </button>
           <button className="opening-guide-skip" type="button" onClick={() => setStep(null)}>{t('opening.skip')}</button>
         </div>
-      </section>
-    </div>
+    </GuideFrame>
   );
 }
